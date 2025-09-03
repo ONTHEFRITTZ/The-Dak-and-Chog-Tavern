@@ -1,5 +1,5 @@
 // shell.js
-// Works with MonGame contract and existing index.html + ShellABI.js
+// Works with existing index.html and ShellABI.js loaded globally
 
 const shellElements = document.querySelectorAll(".shell");
 const statusEl = document.getElementById("status");
@@ -11,10 +11,8 @@ let provider;
 let signer;
 let userAddress;
 
-// Your deployed MonGame contract address
 const shellAddress = "0x0055522ef5BB9922E916739456F6FA73a8f20dFc";
 
-// Initialize MetaMask connection
 async function init() {
   if (!window.ethereum) {
     alert("MetaMask not detected.");
@@ -25,7 +23,6 @@ async function init() {
   userAddress = await signer.getAddress();
 }
 
-// Handle shell click
 shellElements.forEach((shell) => {
   shell.addEventListener("click", async () => {
     try {
@@ -33,32 +30,51 @@ shellElements.forEach((shell) => {
 
       const guess = parseInt(shell.dataset.guess);
       let betAmount = parseFloat(betInput.value);
-
-      if (isNaN(betAmount) || betAmount <= 0) betAmount = 0.001; // minimum 0.001 ETH
+      if (isNaN(betAmount) || betAmount < 0.001) betAmount = 0.001;
 
       const contract = new ethers.Contract(shellAddress, window.ShellABI, signer);
 
       statusEl.innerText = "🎲 Playing...";
 
-      // Call play() with value, no manual balance checks
       const tx = await contract.play(guess, {
         value: ethers.utils.parseEther(betAmount.toString()),
+        gasLimit: 200000, // manual gas limit
       });
 
-      await tx.wait();
+      const receipt = await tx.wait();
 
-      // Listen for the Played event (one-time)
-      contract.once("Played", (player, amount, win, guessEvent, correct) => {
-        const resultText = win
-          ? `🎉 You won! Your guess: ${guessEvent}, Correct: ${correct}, Bet: ${ethers.utils.formatEther(amount)} ETH`
-          : `😢 You lost. Your guess: ${guessEvent}, Correct: ${correct}, Bet: ${ethers.utils.formatEther(amount)} ETH`;
+      // Parse the Played event from the receipt
+      const iface = new ethers.utils.Interface(window.ShellABI);
+      let playedEvent;
+      for (const log of receipt.logs) {
+        try {
+          const parsed = iface.parseLog(log);
+          if (parsed.name === "Played") {
+            playedEvent = parsed.args;
+            break;
+          }
+        } catch (e) {
+          // Ignore logs that don't match
+        }
+      }
 
-        statusEl.innerText = resultText;
+      if (!playedEvent) {
+        statusEl.innerText = "⚠️ Transaction mined but Played event not found.";
+        return;
+      }
 
-        const li = document.createElement("li");
-        li.innerText = resultText;
-        playsEl.prepend(li);
-      });
+      const { player, guess: guessEvent, won, winningCup } = playedEvent;
+
+      const resultText = won
+        ? `🎉 You won! Your guess: ${guessEvent}, Winning cup: ${winningCup}`
+        : `😢 You lost. Your guess: ${guessEvent}, Winning cup: ${winningCup}`;
+
+      statusEl.innerText = resultText;
+
+      const li = document.createElement("li");
+      li.innerText = resultText;
+      playsEl.prepend(li);
+
     } catch (err) {
       console.error(err);
       statusEl.innerText = `❌ Error: ${err.message}`;
@@ -66,7 +82,6 @@ shellElements.forEach((shell) => {
   });
 });
 
-// Return button
 returnBtn.addEventListener("click", () => {
   window.location.href = "../../index.html";
 });
