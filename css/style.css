@@ -1,0 +1,106 @@
+body {
+  margin:0;
+  font-family:'Papyrus', fantasy;
+  background:url('../assets/images/tavern-bg.png') no-repeat center center fixed;
+  background-size:cover;
+  text-align:center;
+}
+
+.tavern {
+  background: rgba(239, 194, 146, 0.7);
+  padding:20px;
+  border:5px solid #8b5a2b;
+  border-radius:15px;
+  width:600px;
+  margin:30px auto;
+  box-shadow:0 0 20px #f6e1c964;
+}
+
+button {
+  background:#8b5a2b;
+  border:none;
+  padding:10px 20px;
+  margin:10px;
+  color:#fff;
+  font-size:18px;
+  border-radius:10px;
+  cursor:pointer;
+}
+
+button:hover { background:#a0522d; }
+
+.game-links a {
+  display:inline-block;
+  margin:10px;
+  padding:15px 30px;
+  background: #8b5a2b;
+  color:#fff;
+  text-decoration:none;
+  border-radius:10px;
+  font-size:20px;
+}
+
+.game-links a:hover { background:#a0522d; }
+
+/* Shell styles */
+.shells {
+  display: flex;
+  justify-content: space-around;
+  margin-top: 20px;
+  cursor: pointer;
+}
+
+.shell {
+  width: 100px;
+  height: 100px;
+  background: url('../../assets/images/cup.png') no-repeat center center;
+  background-size: contain;
+  transition: transform 0.3s;
+}
+
+.shell:hover {
+  transform: scale(1.1);
+}
+
+.shell.shaking {
+  animation: shake 1s ease;
+}
+
+@keyframes shake {
+  0% { transform: translateX(0); }
+  20% { transform: translateX(-10px); }
+  40% { transform: translateX(10px); }
+  60% { transform: translateX(-10px); }
+  80% { transform: translateX(10px); }
+  100% { transform: translateX(0); }
+}
+
+/* Hazard Dice */
+.dice-container {
+  display: flex;
+  justify-content: center;
+  margin-top: 20px;
+}
+
+.dice {
+  width: 80px;
+  height: 80px;
+  margin: 0 10px;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  transition: transform 0.3s;
+}
+
+.dice.shake {
+  animation: shake-dice 0.6s ease;
+}
+
+@keyframes shake-dice {
+  0% { transform: rotate(0deg); }
+  20% { transform: rotate(-20deg); }
+  40% { transform: rotate(20deg); }
+  60% { transform: rotate(-20deg); }
+  80% { transform: rotate(20deg); }
+  100% { transform: rotate(0deg); }
+}

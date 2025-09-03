@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shell Game - The Dak and Chog Tavern</title>
+  <link rel="stylesheet" href="../../css/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+  <script src="ShellABI.js"></script> <!-- ABI loaded as global -->
+</head>
+<body>
+  <div class="tavern">
+    <h1>Shell Game</h1>
+    <p>Click a shell, place your bet, and test your luck!</p>
+
+    <label>Bet Amount (MON):</label>
+    <input id="bet" type="number" min="0.001" step="0.001" value="0.01"><br>
+
+    <div class="shells">
+      <div class="shell" data-guess="0"></div>
+      <div class="shell" data-guess="1"></div>
+      <div class="shell" data-guess="2"></div>
+    </div>
+
+    <div id="status"></div>
+    <button id="return">Return to Tavern</button>
+
+    <div class="scoreboard">
+      <h3>Recent Plays</h3>
+      <ul id="plays"></ul>
+    </div>
+  </div>
+
+  <script src="shell.js"></script>
+</body>
+</html>

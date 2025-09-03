@@ -1,0 +1,169 @@
+{
+	"compiler": {
+		"version": "0.8.30+commit.73712a01"
+	},
+	"language": "Solidity",
+	"output": {
+		"abi": [
+			{
+				"inputs": [],
+				"stateMutability": "payable",
+				"type": "constructor"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": true,
+						"internalType": "address",
+						"name": "funder",
+						"type": "address"
+					},
+					{
+						"indexed": false,
+						"internalType": "uint256",
+						"name": "amount",
+						"type": "uint256"
+					}
+				],
+				"name": "Funded",
+				"type": "event"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": true,
+						"internalType": "address",
+						"name": "player",
+						"type": "address"
+					},
+					{
+						"indexed": false,
+						"internalType": "uint256",
+						"name": "wager",
+						"type": "uint256"
+					},
+					{
+						"indexed": false,
+						"internalType": "bool",
+						"name": "win",
+						"type": "bool"
+					},
+					{
+						"indexed": false,
+						"internalType": "uint8",
+						"name": "main",
+						"type": "uint8"
+					},
+					{
+						"indexed": false,
+						"internalType": "uint8",
+						"name": "finalSum",
+						"type": "uint8"
+					},
+					{
+						"indexed": false,
+						"internalType": "uint8",
+						"name": "chance",
+						"type": "uint8"
+					},
+					{
+						"indexed": false,
+						"internalType": "uint256",
+						"name": "iterations",
+						"type": "uint256"
+					}
+				],
+				"name": "HazardPlayed",
+				"type": "event"
+			},
+			{
+				"inputs": [],
+				"name": "fund",
+				"outputs": [],
+				"stateMutability": "payable",
+				"type": "function"
+			},
+			{
+				"inputs": [],
+				"name": "owner",
+				"outputs": [
+					{
+						"internalType": "address",
+						"name": "",
+						"type": "address"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "uint8",
+						"name": "main",
+						"type": "uint8"
+					}
+				],
+				"name": "play",
+				"outputs": [],
+				"stateMutability": "payable",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "uint256",
+						"name": "amount",
+						"type": "uint256"
+					}
+				],
+				"name": "withdraw",
+				"outputs": [],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"stateMutability": "payable",
+				"type": "receive"
+			}
+		],
+		"devdoc": {
+			"kind": "dev",
+			"methods": {},
+			"version": 1
+		},
+		"userdoc": {
+			"kind": "user",
+			"methods": {},
+			"version": 1
+		}
+	},
+	"settings": {
+		"compilationTarget": {
+			"Contracts/hazard.sol": "MonHazard"
+		},
+		"evmVersion": "prague",
+		"libraries": {},
+		"metadata": {
+			"bytecodeHash": "ipfs"
+		},
+		"optimizer": {
+			"enabled": false,
+			"runs": 200
+		},
+		"remappings": []
+	},
+	"sources": {
+		"Contracts/hazard.sol": {
+			"keccak256": "0x4aba04b3042cdb161caf111b9c6c95b22c388646b454e67d55a3a77c12b6cbd2",
+			"license": "MIT",
+			"urls": [
+				"bzz-raw://d7c8493d32abe127582a40cb6e8bff23a98683981f708d37f5d8d12f87d00d69",
+				"dweb:/ipfs/QmVpRzrut5ZU2kuGoRsLoXjEABWh1CPYznNLhtX5S41vVz"
+			]
+		}
+	},
+	"version": 1
+}
