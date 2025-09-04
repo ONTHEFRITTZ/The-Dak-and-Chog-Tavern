@@ -13,10 +13,27 @@
       background: url('../../assets/images/shell-bg.png') no-repeat center bottom fixed;
       background-size: cover;
     }
+    /* Decorative hovering cup over bottom-left corner */
+    .decor-cup {
+      position:absolute; left:0; bottom:0;
+      /* place the image center roughly over the corner */
+      --tx:-42%; --ty:42%; --rot:-8deg; --par:0px;
+      transform: translate(var(--tx), calc(var(--ty) + var(--par))) rotate(var(--rot));
+      width:clamp(80px, 12vw, 160px);
+      height:auto;
+      pointer-events:none; user-select:none;
+      filter: drop-shadow(0 6px 16px rgba(0,0,0,0.25));
+      z-index: 2;
+      animation: decor-bob 3.8s ease-in-out infinite;
+    }
+    @keyframes decor-bob {
+      0%, 100% { transform: translate(var(--tx), calc(var(--ty) + var(--par))) rotate(var(--rot)); }
+      50% { transform: translate(var(--tx), calc(var(--ty) - 6% + var(--par))) rotate(var(--rot)); }
+    }
   </style>
 </head>
-<body>
-  <div class="tavern">
+<body class="game">
+  <div class="tavern" style="position:relative;">
     <h1>Shell Game</h1>
     <p>Click a shell, place your bet, and test your luck!</p>
 
@@ -42,8 +59,22 @@
       <h3>Recent Plays</h3>
       <ul id="plays"></ul>
     </div>
+    <img src="../../assets/images/cup2.png" alt="" aria-hidden="true" class="decor-cup">
   </div>
 
   <script type="module" src="shell.js"></script>
+  <script>
+    // Parallax drift for decorative cup
+    (function(){
+      const el = document.querySelector('.decor-cup');
+      if (!el) return;
+      const onScroll = () => {
+        const y = Math.max(0, window.scrollY) * 0.06; // gentle drift
+        el.style.setProperty('--par', y + 'px');
+      };
+      window.addEventListener('scroll', onScroll, { passive: true });
+      onScroll();
+    })();
+  </script>
 </body>
 </html>

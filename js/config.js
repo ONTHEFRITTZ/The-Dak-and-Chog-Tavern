@@ -160,13 +160,13 @@ export function renderNetworkBanner({ contractKey, address, chainId, wallet }) {
       <div>
         <strong>Network:</strong> ${name}${chainId ? ` (${chainId})` : ''}
         ${mismatch ? '<span style="margin-left:8px;padding:2px 6px;border-radius:6px;background:#9200fa;color:#fff;">Using default address</span>' : ''}
-        <span style="margin-left:12px;"><strong>${keyLabel}:</strong> ${explorer ? `<a id="nb-addr" href="${explorer}" target="_blank" rel="noopener">${addrShort}</a>` : addrShort}
-          ${address ? '<button id="nb-copy" style="margin-left:6px;padding:2px 6px;border-radius:6px;cursor:pointer;">Copy</button>' : ''}
+        <span style="margin-left:12px; white-space:nowrap;"><strong>${keyLabel}:</strong> ${explorer ? `<a id="nb-addr" href="${explorer}" target="_blank" rel="noopener" style="white-space:nowrap; display:inline-block; letter-spacing:0; word-spacing:0; font-variant-ligatures:none;">${addrShort}</a>` : addrShort}
         </span>
       </div>
       <div>
-        ${wallet ? `<span title="Connected wallet" style="margin-right:8px;">${walletShort}</span>` : ''}
+        ${wallet ? `<span title="Connected wallet" style="margin-right:8px; white-space:nowrap; display:inline-block; letter-spacing:0; word-spacing:0; font-variant-ligatures:none;">${walletShort}</span>` : ''}
         ${mismatch && window?.ethereum && targetChainId ? `<button id="nb-switch" style="padding:4px 8px;border-radius:6px;cursor:pointer;">Switch to ${getChainName(targetChainId)}</button>` : ''}
+        ${address ? '<button id="nb-copy" style="margin-left:8px;padding:4px 8px;border-radius:6px;cursor:pointer;">Copy</button>' : ''}
       </div>
     `;
 

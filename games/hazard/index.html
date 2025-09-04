@@ -34,6 +34,22 @@
     #roll-dice { background:#9200fa; color:#fff; border:none; border-radius:10px; box-shadow:0 6px 18px rgba(146,0,250,0.35); transition: transform .12s ease, box-shadow .12s ease, background .12s ease; }
     #roll-dice:hover { background:#7800cd; box-shadow:0 6px 22px rgba(120,0,205,0.45); transform: translateY(-1px); }
     #roll-dice:disabled { opacity:.65; cursor:not-allowed; transform:none; box-shadow:none; }
+    /* Decorative hovering die over bottom-left corner */
+    .decor-die {
+      position:absolute; left:0; bottom:0;
+      --tx:-42%; --ty:42%; --rot:-6deg; --par:0px;
+      transform: translate(var(--tx), calc(var(--ty) + var(--par))) rotate(var(--rot));
+      width:clamp(80px, 12vw, 160px);
+      height:auto;
+      pointer-events:none; user-select:none;
+      filter: drop-shadow(0 6px 16px rgba(0,0,0,0.25));
+      z-index: 2;
+      animation: decor-bob 3.8s ease-in-out infinite;
+    }
+    @keyframes decor-bob {
+      0%, 100% { transform: translate(var(--tx), calc(var(--ty) + var(--par))) rotate(var(--rot)); }
+      50% { transform: translate(var(--tx), calc(var(--ty) - 6% + var(--par))) rotate(var(--rot)); }
+    }
     /* Override page background for Hazard */
     body {
       background: url('../../assets/images/hazard-bg.png') no-repeat center center fixed;
@@ -42,7 +58,7 @@
   </style>
   </head>
 <body>
-  <div class="tavern" style="max-width:1000px; width:95%; margin:28px auto;">
+  <div class="tavern" style="max-width:1000px; width:95%; margin:28px auto; position:relative;">
     <h1>Hazard</h1>
 
     <div class="rules">
@@ -97,8 +113,22 @@
       <h3>Recent Rolls</h3>
       <ul id="rolls"></ul>
     </div>
+    <img src="../../assets/images/dice1-standard.png" alt="" aria-hidden="true" class="decor-die">
   </div>
 
   <script type="module" src="hazard.js"></script>
+  <script>
+    // Parallax drift for decorative die
+    (function(){
+      const el = document.querySelector('.decor-die');
+      if (!el) return;
+      const onScroll = () => {
+        const y = Math.max(0, window.scrollY) * 0.06; // gentle drift
+        el.style.setProperty('--par', y + 'px');
+      };
+      window.addEventListener('scroll', onScroll, { passive: true });
+      onScroll();
+    })();
+  </script>
 </body>
 </html>
