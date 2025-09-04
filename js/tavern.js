@@ -56,7 +56,8 @@ export async function connectWallet() {
     userAddress = await signer.getAddress();
 
     connectButton.innerText = 'Wallet Connected';
-    statusEl.innerText = `Wallet connected: ${userAddress}`;
+    // Clear redundant banner status; wallet shows on right side
+    try { statusEl.innerText = ''; } catch {}
     showToast('Wallet connected', 'success');
 
     // Update banner with resolved network and address

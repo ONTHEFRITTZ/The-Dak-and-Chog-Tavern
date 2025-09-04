@@ -191,26 +191,58 @@ export function renderNetworkBanner({ contractKey, address, chainId, wallet }) {
 // Clean banner variant with explorer/Copy/Disconnect and optional Switch button
 export function renderTavernBanner({ contractKey, address, chainId, wallet, labelOverride }) {
   try {
-    const root = document.querySelector('.tavern') || document.body;
+    const top = document.querySelector('.top-banner');
+    const useTopBanner = !!top;
+    const root = useTopBanner ? top : (document.querySelector('.tavern') || document.body);
+    // Ensure left/right regions in top banner
+    let leftRegion, rightRegion;
+    if (useTopBanner) {
+      leftRegion = root.querySelector('.banner-left');
+      rightRegion = root.querySelector('.banner-right');
+      if (!leftRegion) {
+        leftRegion = document.createElement('div');
+        leftRegion.className = 'banner-left';
+        // Move existing status into left
+        const status = root.querySelector('#status');
+        if (status) leftRegion.appendChild(status);
+        // Insert as first child
+        root.insertBefore(leftRegion, root.firstChild);
+      }
+      if (!rightRegion) {
+        rightRegion = document.createElement('div');
+        rightRegion.className = 'banner-right';
+        // Move controls into right side if present
+        const controls = root.querySelector('.controls');
+        if (controls) rightRegion.appendChild(controls);
+        root.appendChild(rightRegion);
+      }
+    }
+    // Left content element (network + contract + copy)
     let el = document.getElementById('network-banner');
-    if (!el) {
-      el = document.createElement('div');
-      el.id = 'network-banner';
-      el.style.cssText = [
-        'margin: 8px auto',
-        'padding: 8px 12px',
-        'max-width: 900px',
-        'font-size: 13px',
-        'border-radius: 8px',
-        'background: rgba(0,0,0,0.08)',
-        'color: #2b1e12',
-        'display:flex',
-        'flex-wrap:wrap',
-        'gap:8px',
-        'align-items:center',
-        'justify-content:space-between',
-      ].join(';');
-      if (root.firstChild) root.insertBefore(el, root.firstChild); else root.appendChild(el);
+    if (useTopBanner) {
+      // Remove network/contract section entirely in the top banner
+      if (el) { try { el.remove(); } catch {} }
+      el = null;
+    } else {
+      if (!el) {
+        el = document.createElement('div');
+        el.id = 'network-banner';
+        el.style.cssText = [
+          'margin: 8px auto',
+          'padding: 8px 12px',
+          'max-width: 900px',
+          'font-size: 13px',
+          'border-radius: 8px',
+          'background: rgba(0,0,0,0.08)',
+          'color: #2b1e12',
+          'display:flex',
+          'flex-wrap:wrap',
+          'gap:8px',
+          'align-items:center',
+          'justify-content:space-between',
+        ].join(';');
+        if (root.firstChild) root.insertBefore(el, root.firstChild); else root.appendChild(el);
+      }
     }
     const name = getChainName(chainId);
     const keyLabel = labelOverride || (contractKey ? contractKey.charAt(0).toUpperCase() + contractKey.slice(1) : 'Contract');
@@ -220,40 +252,74 @@ export function renderTavernBanner({ contractKey, address, chainId, wallet, labe
     const targetChainKey = Object.keys(ADDRESS_BOOK).find(k => k !== 'default' && !isNaN(Number(k)));
     const targetChainId = targetChainKey ? Number(targetChainKey) : null;
 
-    el.innerHTML = `
+    if (!useTopBanner && el) el.innerHTML = `
       <div>
         <strong>Network:</strong> ${name}${chainId ? ` (${chainId})` : ''}
         ${mismatch ? '<span style="margin-left:8px;padding:2px 6px;border-radius:6px;background:#9200fa;color:#fff;">Using default address</span>' : ''}
-        <span style="margin-left:12px; white-space:nowrap;"><strong>${keyLabel}:</strong> ${explorer ? `<a id="nb-addr" href="${explorer}" target="_blank" rel="noopener" style="white-space:nowrap; display:inline-block; letter-spacing:0; word-spacing:0; font-variant-ligatures:none;">${short(address)}</a>` : short(address)}
+        <span style="margin-left:12px; white-space:nowrap;"><strong>${keyLabel}:</strong> ${explorer ? `<a id=\"nb-addr\" href=\"${explorer}\" target=\"_blank\" rel=\"noopener\" style=\"white-space:nowrap; display:inline-block; letter-spacing:0; word-spacing:0; font-variant-ligatures:none;\">${short(address)}</a>` : short(address)}
         </span>
       </div>
       <div>
-        ${wallet ? `<span title=\"Connected wallet\" style=\"margin-right:8px; white-space:nowrap; display:inline-block; letter-spacing:0; word-spacing:0; font-variant-ligatures:none;\">${short(wallet)}</span>` : ''}
-        ${mismatch && window?.ethereum && targetChainId ? `<button id="nb-switch" style="padding:4px 8px;border-radius:6px;cursor:pointer;">Switch to ${getChainName(targetChainId)}</button>` : ''}
-        ${address ? '<button id="nb-copy" style="margin-left:8px;padding:4px 8px;border-radius:6px;cursor:pointer;">Copy</button>' : ''}
-        ${wallet ? '<button id="nb-disconnect" style="margin-left:8px;padding:4px 8px;border-radius:6px;cursor:pointer;">Disconnect</button>' : ''}
+        ${wallet ? `<span title=\\"Connected wallet\\" style=\\"margin-right:8px; white-space:nowrap; display:inline-block; letter-spacing:0; word-spacing:0; font-variant-ligatures:none; font-weight:600;\\">${short(wallet)}</span>` : ''}
+        ${mismatch && window?.ethereum && targetChainId ? `<button id=\"nb-switch\" style=\"padding:4px 8px;border-radius:6px;cursor:pointer;\">Switch to ${getChainName(targetChainId)}</button>` : ''}
+        ${address ? '<button id=\"nb-copy\" style=\"margin-left:8px;padding:4px 8px;border-radius:6px;cursor:pointer;\">Copy</button>' : ''}
+        ${wallet ? '<button id=\"nb-disconnect\" style=\"margin-left:8px;padding:4px 8px;border-radius:6px;cursor:pointer;\">Disconnect</button>' : ''}
       </div>
     `;
 
-    const copyBtn = el.querySelector('#nb-copy');
-    if (copyBtn && address) {
-      copyBtn.onclick = async () => {
-        try { await navigator.clipboard.writeText(address); copyBtn.textContent = 'Copied'; setTimeout(()=>copyBtn.textContent='Copy', 1200); } catch {}
-      };
+    if (!useTopBanner && el) {
+      const copyBtn = el.querySelector('#nb-copy');
+      if (copyBtn && address) {
+        copyBtn.onclick = async () => {
+          try { await navigator.clipboard.writeText(address); copyBtn.textContent = 'Copied'; setTimeout(()=>copyBtn.textContent='Copy', 1200); } catch {}
+        };
+      }
     }
-    const switchBtn = el.querySelector('#nb-switch');
-    if (switchBtn && targetChainId != null) {
-      switchBtn.onclick = async () => {
-        const hex = '0x' + Number(targetChainId).toString(16);
-        await switchToChain(hex);
-      };
-    }
-    const disconnectBtn = el.querySelector('#nb-disconnect');
-    if (disconnectBtn) {
-      disconnectBtn.onclick = () => {
-        try { sessionStorage.removeItem('walletConnected'); } catch {}
-        try { location.reload(); } catch {}
-      };
+    // Right side: wallet + buttons when in top banner
+    if (useTopBanner) {
+      let walletEl = document.getElementById('wallet-banner');
+      if (!walletEl) {
+        walletEl = document.createElement('div');
+        walletEl.id = 'wallet-banner';
+        walletEl.style.cssText = [
+          'font-size:12px','color:#2b1e12','display:flex','align-items:center','gap:8px','white-space:nowrap'
+        ].join(';');
+        rightRegion.insertBefore(walletEl, rightRegion.firstChild);
+      }
+      walletEl.innerHTML = `
+        ${wallet ? `<span title="Connected wallet" style="white-space:nowrap; display:inline-block; letter-spacing:0; word-spacing:0; font-variant-ligatures:none; font-weight:600;">${short(wallet)}</span>` : ''}
+        ${mismatch && window?.ethereum && targetChainId ? `<button id="nb-switch" style="padding:4px 8px;border-radius:6px;cursor:pointer;">Switch</button>` : ''}
+        ${wallet ? '<button id="nb-disconnect" style="padding:4px 8px;border-radius:6px;cursor:pointer;">Disconnect</button>' : ''}
+      `;
+      const switchBtn = walletEl.querySelector('#nb-switch');
+      if (switchBtn && targetChainId != null) {
+        switchBtn.onclick = async () => {
+          const hex = '0x' + Number(targetChainId).toString(16);
+          await switchToChain(hex);
+        };
+      }
+      const disconnectBtn = walletEl.querySelector('#nb-disconnect');
+      if (disconnectBtn) {
+        disconnectBtn.onclick = () => {
+          try { sessionStorage.removeItem('walletConnected'); } catch {}
+          try { location.reload(); } catch {}
+        };
+      }
+    } else {
+      const switchBtn = el.querySelector('#nb-switch');
+      if (switchBtn && targetChainId != null) {
+        switchBtn.onclick = async () => {
+          const hex = '0x' + Number(targetChainId).toString(16);
+          await switchToChain(hex);
+        };
+      }
+      const disconnectBtn = el.querySelector('#nb-disconnect');
+      if (disconnectBtn) {
+        disconnectBtn.onclick = () => {
+          try { sessionStorage.removeItem('walletConnected'); } catch {}
+          try { location.reload(); } catch {}
+        };
+      }
     }
   } catch {}
 }
