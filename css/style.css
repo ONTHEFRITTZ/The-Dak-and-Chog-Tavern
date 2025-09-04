@@ -34,7 +34,7 @@
 body {
   margin:0;
   font-family:'Morris Roman Black', 'Morris Roman Alternate Black', 'Papyrus', fantasy;
-  font-size:17px; /* slight global bump */
+  font-size:30px; /* slight global bump */
   background:url('../assets/images/tavern-bg.png') no-repeat center center fixed;
   background-size:cover;
   text-align:center;
@@ -99,7 +99,7 @@ body.game .tavern {
   padding:24px;
   border:5px solid #7800cd;
   border-radius:15px;
-  max-width:1000px;
+  max-width:1280px;
   width:95%;
   /* Reduce spacing under the sign */
   margin:4px auto 8px;

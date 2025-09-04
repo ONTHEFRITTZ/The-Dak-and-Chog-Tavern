@@ -55,64 +55,82 @@
       background: url('../../assets/images/hazard-bg.png') no-repeat center center fixed;
       background-size: cover;
     }
+
+    /* Two-column layout: rules on the left */
+    .hazard-layout { display:flex; gap:16px; align-items:flex-start; justify-content:center; }
+    .hazard-left { flex:0 0 380px; max-width:420px; }
+    .hazard-right { flex:1 1 0; min-width:0; }
+    .hazard-left .rules { width:auto; max-width:none; font-size:25px; }
+    .hazard-left .rules ol { margin-left:18px; }
+    .hazard-left .rules li { margin:6px 0; }
+    @media (max-width: 900px) {
+      .hazard-layout { flex-direction:column; }
+      .hazard-left { max-width:100%; }
+    }
   </style>
   </head>
 <body>
-  <div class="tavern" style="max-width:1000px; width:95%; margin:28px auto; position:relative;">
+  <div class="tavern" style="max-width:1280px; width:95%; margin:28px auto; position:relative;">
     <h1>Hazard</h1>
+    <div class="hazard-layout">
+      <aside class="hazard-left">
+        <div class="rules" style="text-align:left; background: rgba(255,255,255,0.06); padding:12px; border-radius:8px;">
+          <strong>Rules (contract):</strong>
+          <ol>
+            <li>Choose a <em>main</em> between <strong>5</strong> and <strong>9</strong>.</li>
+            <li>Place a wager and click <strong>Roll Dice</strong>. The contract rolls two dice until a result is reached.</li>
+            <li>First roll:
+              <ul>
+                <li>If roll equals your main: immediate win.</li>
+                <li>If roll is 2 or 3: immediate loss.</li>
+                <li>If roll is 11 or 12: win if main is 5 or 9; lose if main is 7; otherwise lose.</li>
+                <li>Otherwise the roll becomes the <em>chance</em> (a point) and subsequent rolls repeat until the chance or main resolves the game.</li>
+              </ul>
+            </li>
+            <li>If you win, the contract attempts to pay 2x your wager (contract must have bankroll).</li>
+          </ol>
+        </div>
+      </aside>
 
-    <div class="rules">
-      <strong>Rules (contract):</strong>
-      <ol>
-        <li>Choose a <em>main</em> between <strong>5</strong> and <strong>9</strong>.</li>
-        <li>Place a wager and click <strong>Roll Dice</strong>. The contract rolls two dice until a result is reached.</li>
-        <li>First roll:
-          <ul>
-            <li>If roll equals your main: immediate win.</li>
-            <li>If roll is 2 or 3: immediate loss.</li>
-            <li>If roll is 11 or 12: win if main is 5 or 9; lose if main is 7; otherwise lose.</li>
-            <li>Otherwise the roll becomes the <em>chance</em> (a point) and subsequent rolls repeat until the chance or main resolves the game.</li>
-          </ul>
-        </li>
-        <li>If you win, the contract attempts to pay 2x your wager (contract must have bankroll).</li>
-      </ol>
+      <section class="hazard-right">
+        <div class="controls">
+          <div class="main-select" aria-label="Choose main">
+            <label>Main:</label>
+            <button data-main="5">5</button>
+            <button data-main="6">6</button>
+            <button data-main="7" class="active">7</button>
+            <button data-main="8">8</button>
+            <button data-main="9">9</button>
+          </div>
+
+          <div>
+            <label>Bet (MON)</label><br>
+            <input id="bet" type="number" min="0.001" step="0.001" value="0.01" style="width:110px; text-align:center;">
+          </div>
+        </div>
+
+        <div class="dice-row">
+          <div id="dice1" class="dice">?</div>
+          <div id="dice2" class="dice">?</div>
+        </div>
+
+        <div style="text-align:center; margin-bottom:12px;">
+          <button id="roll-dice" style="padding:10px 18px; font-size:16px;">Roll Dice</button>
+        </div>
+
+        <div id="status" style="min-height:28px; text-align:center;"></div>
+
+        <div style="text-align:center; margin-top:10px;">
+          <button id="return">Return to Tavern</button>
+        </div>
+
+        <div class="scoreboard" style="margin-top:18px;">
+          <h3>Recent Rolls</h3>
+          <ul id="rolls"></ul>
+        </div>
+      </section>
     </div>
 
-    <div class="controls">
-      <div class="main-select" aria-label="Choose main">
-        <label>Main:</label>
-        <button data-main="5">5</button>
-        <button data-main="6">6</button>
-        <button data-main="7" class="active">7</button>
-        <button data-main="8">8</button>
-        <button data-main="9">9</button>
-      </div>
-
-      <div>
-        <label>Bet (MON)</label><br>
-        <input id="bet" type="number" min="0.001" step="0.001" value="0.01" style="width:110px; text-align:center;">
-      </div>
-    </div>
-
-    <div class="dice-row">
-      <div id="dice1" class="dice">?</div>
-      <div id="dice2" class="dice">?</div>
-    </div>
-
-    <div style="text-align:center; margin-bottom:12px;">
-      <button id="roll-dice" style="padding:10px 18px; font-size:16px;">Roll Dice</button>
-    </div>
-
-    <div id="status" style="min-height:28px; text-align:center;"></div>
-
-    <div style="text-align:center; margin-top:10px;">
-      <button id="return">Return to Tavern</button>
-    </div>
-
-    <div class="scoreboard" style="margin-top:18px;">
-      <h3>Recent Rolls</h3>
-      <ul id="rolls"></ul>
-    </div>
     <img src="../../assets/images/dice1-standard.png" alt="" aria-hidden="true" class="decor-die">
   </div>
 

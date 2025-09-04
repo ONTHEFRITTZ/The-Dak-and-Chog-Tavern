@@ -134,16 +134,17 @@ export function renderNetworkBanner({ contractKey, address, chainId, wallet }) {
       el.style.cssText = [
         'margin: 8px auto',
         'padding: 8px 12px',
-        'max-width: 900px',
-        'font-size: 15px',
+        'max-width: 1280px',
+        'font-size: 30px',
         'border-radius: 8px',
         'background: rgba(0,0,0,0.08)',
         'color: #2b1e12',
         'display:flex',
-        'flex-wrap:wrap',
-        'gap:8px',
-        'align-items:center',
-        'justify-content:space-between',
+          'flex-wrap:nowrap',
+          'gap:4px',
+          'align-items:center',
+          'justify-content:center',
+          'text-align:center',
       ].join(';');
       if (root.firstChild) root.insertBefore(el, root.firstChild); else root.appendChild(el);
     }
@@ -156,19 +157,19 @@ export function renderNetworkBanner({ contractKey, address, chainId, wallet }) {
     const targetChainId = targetChainKey ? Number(targetChainKey) : null;
     const walletShort = wallet ? `${wallet.slice(0, 6)}...${wallet.slice(-4)}` : '';
 
-    el.innerHTML = `
-      <div>
-        <strong>Network:</strong> ${name}${chainId ? ` (${chainId})` : ''}
-        ${mismatch ? '<span style="margin-left:8px;padding:2px 6px;border-radius:6px;background:#9200fa;color:#fff;">Using default address</span>' : ''}
-        <span style="margin-left:12px; white-space:nowrap;"><strong>${keyLabel}:</strong> ${explorer ? `<a id="nb-addr" href="${explorer}" target="_blank" rel="noopener" style="white-space:nowrap; display:inline-block; letter-spacing:0; word-spacing:0; font-variant-ligatures:none;">${addrShort}</a>` : addrShort}
-        </span>
-      </div>
-      <div>
-        ${wallet ? `<span title="Connected wallet" style="margin-right:8px; white-space:nowrap; display:inline-block; letter-spacing:0; word-spacing:0; font-variant-ligatures:none;">${walletShort}</span>` : ''}
-        ${mismatch && window?.ethereum && targetChainId ? `<button id="nb-switch" style="padding:4px 8px;border-radius:6px;cursor:pointer;">Switch to ${getChainName(targetChainId)}</button>` : ''}
-        ${address ? '<button id="nb-copy" style="margin-left:8px;padding:4px 8px;border-radius:6px;cursor:pointer;">Copy</button>' : ''}
-      </div>
-    `;
+      el.innerHTML = `
+        <div style="display:flex; align-items:center; white-space:nowrap; gap:6px;">
+          <strong>Network:</strong> ${name}${chainId ? ` (${chainId})` : ''}
+          ${mismatch ? '<span style="margin-left:8px;padding:2px 6px;border-radius:6px;background:#9200fa;color:#fff;">Using default address</span>' : ''}
+          <span style="margin-left:6px; white-space:nowrap;"><strong>${keyLabel}:</strong> ${explorer ? `<a id="nb-addr" href="${explorer}" target="_blank" rel="noopener" style="white-space:nowrap; display:inline-block; letter-spacing:0; word-spacing:0; font-variant-ligatures:none;">${addrShort}</a>` : addrShort}
+          </span>
+        </div>
+        <div style="display:flex; align-items:center; white-space:nowrap; gap:6px;">
+          ${wallet ? `<span title="Connected wallet" style="margin-right:4px; white-space:nowrap; display:inline-block; letter-spacing:0; word-spacing:0; font-variant-ligatures:none;">${walletShort}</span>` : ''}
+          ${mismatch && window?.ethereum && targetChainId ? `<button id="nb-switch" style="padding:4px 8px;border-radius:6px;cursor:pointer;">Switch to ${getChainName(targetChainId)}</button>` : ''}
+          ${address ? '<button id="nb-copy" style="margin-left:6px;padding:4px 8px;border-radius:6px;cursor:pointer;">Copy</button>' : ''}
+        </div>
+      `;
 
     const copyBtn = el.querySelector('#nb-copy');
     if (copyBtn && address) {
@@ -199,16 +200,17 @@ export function renderTavernBanner({ contractKey, address, chainId, wallet, labe
       el.style.cssText = [
         'margin: 8px auto',
         'padding: 8px 12px',
-        'max-width: 900px',
-        'font-size: 13px',
+        'max-width: 1280px',
+        'font-size: 30px',
         'border-radius: 8px',
         'background: rgba(0,0,0,0.08)',
         'color: #2b1e12',
         'display:flex',
-        'flex-wrap:wrap',
-        'gap:8px',
-        'align-items:center',
-        'justify-content:space-between',
+          'flex-wrap:nowrap',
+          'gap:4px',
+          'align-items:center',
+          'justify-content:center',
+          'text-align:center',
       ].join(';');
       if (root.firstChild) root.insertBefore(el, root.firstChild); else root.appendChild(el);
     }
@@ -221,17 +223,17 @@ export function renderTavernBanner({ contractKey, address, chainId, wallet, labe
     const targetChainId = targetChainKey ? Number(targetChainKey) : null;
 
     el.innerHTML = `
-      <div>
+      <div style="display:flex; align-items:center; white-space:nowrap; gap:6px;">
         <strong>Network:</strong> ${name}${chainId ? ` (${chainId})` : ''}
         ${mismatch ? '<span style="margin-left:8px;padding:2px 6px;border-radius:6px;background:#9200fa;color:#fff;">Using default address</span>' : ''}
-        <span style="margin-left:12px; white-space:nowrap;"><strong>${keyLabel}:</strong> ${explorer ? `<a id="nb-addr" href="${explorer}" target="_blank" rel="noopener" style="white-space:nowrap; display:inline-block; letter-spacing:0; word-spacing:0; font-variant-ligatures:none;">${short(address)}</a>` : short(address)}
+        <span style="margin-left:6px; white-space:nowrap;"><strong>${keyLabel}:</strong> ${explorer ? `<a id="nb-addr" href="${explorer}" target="_blank" rel="noopener" style="white-space:nowrap; display:inline-block; letter-spacing:0; word-spacing:0; font-variant-ligatures:none;">${short(address)}</a>` : short(address)}
         </span>
       </div>
-      <div>
-        ${wallet ? `<span title=\"Connected wallet\" style=\"margin-right:8px; white-space:nowrap; display:inline-block; letter-spacing:0; word-spacing:0; font-variant-ligatures:none;\">${short(wallet)}</span>` : ''}
+      <div style="display:flex; align-items:center; white-space:nowrap; gap:6px;">
+        ${wallet ? `<span title=\"Connected wallet\" style=\"margin-right:4px; white-space:nowrap; display:inline-block; letter-spacing:0; word-spacing:0; font-variant-ligatures:none;\">${short(wallet)}</span>` : ''}
         ${mismatch && window?.ethereum && targetChainId ? `<button id="nb-switch" style="padding:4px 8px;border-radius:6px;cursor:pointer;">Switch to ${getChainName(targetChainId)}</button>` : ''}
-        ${address ? '<button id="nb-copy" style="margin-left:8px;padding:4px 8px;border-radius:6px;cursor:pointer;">Copy</button>' : ''}
-        ${wallet ? '<button id="nb-disconnect" style="margin-left:8px;padding:4px 8px;border-radius:6px;cursor:pointer;">Disconnect</button>' : ''}
+        ${address ? '<button id="nb-copy" style="margin-left:6px;padding:4px 8px;border-radius:6px;cursor:pointer;">Copy</button>' : ''}
+        ${wallet ? '<button id="nb-disconnect" style="margin-left:6px;padding:4px 8px;border-radius:6px;cursor:pointer;">Disconnect</button>' : ''}
       </div>
     `;
 
