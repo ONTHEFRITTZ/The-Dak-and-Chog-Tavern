@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="../../css/style.css">
   <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
   <script src="ShellABI.js"></script> <!-- ABI loaded as global -->
+  <script type="module" src="../../js/tavern.js"></script>
   <style>
     /* Override page background for Shell */
     body {
@@ -67,6 +68,17 @@
   </style>
 </head>
 <body class="game">
+  <div class="top-banner" role="region" aria-label="Wallet and status">
+    <div class="banner-left">
+      <div id="status" class="banner-status"></div>
+    </div>
+    <div class="banner-right">
+      <div class="controls">
+        <button id="connect-wallet">Connect Wallet</button>
+        <button id="fund-contract" style="display:none;">Fund Game Contracts</button>
+      </div>
+    </div>
+  </div>
   <div class="tavern" style="position:relative; margin:clamp(180px, 14vw, 300px) auto 28px;">
     <h1 class="visually-hidden">Shell Game</h1>
     <img class="game-logo" src="../../assets/images/shell-game-logo.png" alt="Shell Game">

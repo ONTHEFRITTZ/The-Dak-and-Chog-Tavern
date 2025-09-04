@@ -8,6 +8,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
   <script src="HazardABI.js"></script>
+  <script type="module" src="../../js/tavern.js"></script>
 
   <style>
     .dice-row { display:flex; justify-content:center; gap:16px; margin:18px 0; }
@@ -27,7 +28,7 @@
     }
 
     .controls { display:flex; gap:12px; align-items:center; justify-content:center; margin-bottom:12px; }
-    .rules { font-size:13px; color:#2b1e12; text-align:left; background: rgba(255,255,255,0.06); padding:10px; border-radius:8px; margin:12px auto; width:90%; max-width:720px; }
+    .rules { font-size:10.4px; color:#2b1e12; text-align:left; background: rgba(255,255,255,0.06); padding:10px; border-radius:8px; margin:12px auto; width:90%; max-width:720px; }
     .main-select button { padding:8px 12px; margin-right:6px; border-radius:8px; cursor:pointer; transition: transform .12s ease, box-shadow .12s ease, background .12s ease; }
     .main-select button.active { background:#7800cd; color:white; box-shadow:0 0 0 2px #7800cd, 0 6px 18px rgba(120,0,205,0.35); transform: translateY(-1px) scale(1.05); }
     /* Primary/Accent buttons for Hazard */
@@ -122,9 +123,20 @@
       75%  { transform: translate(var(--tx), calc(var(--ty) + var(--par))) rotate(calc(var(--rot) - var(--rotAmp))); }
       100% { transform: translate(var(--tx), calc(var(--ty) + var(--par))) rotate(var(--rot)); }
     }
-  </style>
+</style>
   </head>
-<body>
+<body class="game">
+  <div class="top-banner" role="region" aria-label="Wallet and status">
+    <div class="banner-left">
+      <div id="status" class="banner-status"></div>
+    </div>
+    <div class="banner-right">
+      <div class="controls">
+        <button id="connect-wallet">Connect Wallet</button>
+        <button id="fund-contract" style="display:none;">Fund Game Contracts</button>
+      </div>
+    </div>
+  </div>
   <div class="tavern" style="max-width:1280px; width:95%; margin:clamp(180px, 14vw, 300px) auto 28px; position:relative;">
     <h1 class="visually-hidden">Hazard</h1>
     <img class="game-logo" src="../../assets/images/hazard-logo.png" alt="Hazard">

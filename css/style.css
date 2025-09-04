@@ -19,10 +19,12 @@ body.home {
 
 /* Game pages layout: center container */
 body.game {
+  --banner-h: 48px;
   min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
+  padding-top: var(--banner-h);
 }
 body.game .tavern {
   margin: 0 auto; /* remove vertical margins so centering is exact */
@@ -87,8 +89,8 @@ body.home .tavern {
   body.home .tavern { margin: -60px auto 14px; }
 }
 
-/* Thin top banner for status + buttons on home */
-body.home .top-banner {
+/* Thin top banner for status + buttons */
+.top-banner {
   position: fixed;
   top: 0; left: 0; right: 0;
   height: 48px;
@@ -102,18 +104,18 @@ body.home .top-banner {
   box-shadow: 0 2px 10px rgba(0,0,0,0.12);
   z-index: 5;
 }
-body.home .top-banner .banner-left,
-body.home .top-banner .banner-right {
+.top-banner .banner-left,
+.top-banner .banner-right {
   display:flex; align-items:center; gap:10px; min-width:0;
 }
-body.home .top-banner .banner-left { flex: 1 1 auto; }
-body.home .top-banner .banner-right { flex: 0 0 auto; }
-body.home .top-banner #network-banner { display:flex; align-items:center; gap:8px; min-width:0; }
-body.home .top-banner #network-banner a,
-body.home .top-banner #network-banner span { white-space:nowrap; }
-body.home .top-banner .banner-status { max-width: 28vw; overflow:hidden; text-overflow:ellipsis; }
-body.home .top-banner #wallet-banner { display:flex; align-items:center; gap:8px; }
-body.home .top-banner .banner-status {
+.top-banner .banner-left { flex: 1 1 auto; }
+.top-banner .banner-right { flex: 0 0 auto; }
+.top-banner #network-banner { display:flex; align-items:center; gap:8px; min-width:0; }
+.top-banner #network-banner a,
+.top-banner #network-banner span { white-space:nowrap; }
+.top-banner .banner-status { max-width: 28vw; overflow:hidden; text-overflow:ellipsis; }
+.top-banner #wallet-banner { display:flex; align-items:center; gap:8px; }
+.top-banner .banner-status {
   color: #2b1e12;
   font-size: 14px;
   text-align: left;
@@ -121,15 +123,16 @@ body.home .top-banner .banner-status {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-body.home .top-banner .controls button {
+.top-banner .controls button {
   padding: 6px 12px;
   font-size: 14px;
 }
 @media (max-width: 600px) {
   body.home { --banner-h: 44px; padding-top: var(--banner-h); }
-  body.home .top-banner { height: 44px; padding: 0 8px; gap: 8px; }
-  body.home .top-banner .banner-status { font-size: 12px; }
-  body.home .top-banner .controls button { padding: 6px 10px; font-size: 13px; }
+  body.game { --banner-h: 44px; padding-top: var(--banner-h); }
+  .top-banner { height: 44px; padding: 0 8px; gap: 8px; }
+  .top-banner .banner-status { font-size: 12px; }
+  .top-banner .controls button { padding: 6px 10px; font-size: 13px; }
 }
 
 /* Center logo + container as a unit */
