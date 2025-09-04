@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Faro (up to 6)</title>
+  <link rel="stylesheet" href="../../css/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+  <script type="module" src="../../js/tavern.js"></script>
+  <style>
+    body { background: url('../../assets/images/tavern-bg.png') no-repeat center center fixed; background-size: cover; }
+    .table-wrap { display:flex; flex-direction:column; align-items:center; gap:16px; margin: 40px auto; }
+    .table-canvas { position:relative; width:min(92vw, 720px); height:min(92vw, 520px); margin: 0 auto; }
+    .table-surface { position:absolute; inset:0; border-radius:24px; background: rgba(255,244,233,0.78); border:5px solid #7800cd; box-shadow: 0 0 24px rgba(0,0,0,0.2); }
+    .seat { position:absolute; width:120px; height:120px; border-radius:12px; background: rgba(255,255,255,0.5); border:2px solid #7800cd; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; padding:6px; }
+    .seat .addr { font-size:12px; color:#2b1e12; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; width: 100%; text-align:center; }
+    .seat .bal { font-size:12px; color:#2b1e12; }
+    .seat .btns button { padding:4px 8px; font-size:12px; border-radius:6px; }
+    .owner-badge { position:absolute; top:-10px; right:-10px; background:#9200fa; color:#fff; font-size:11px; padding:2px 6px; border-radius:999px; }
+    .ready { background: rgba(146,255,170,0.45); }
+    .controls-inline { display:flex; align-items:center; gap:8px; }
+    .log { width:min(92vw, 720px); margin: 0 auto; background: rgba(255,255,255,0.5); border-radius:10px; padding:8px 10px; font-size:13px; }
+
+    /* Faro betting board */
+    .faro-panel { display:flex; flex-direction:column; gap:10px; align-items:center; }
+    .faro-controls { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+    .faro-board { display:grid; grid-template-columns: repeat(13, minmax(36px, 1fr)); gap:6px; width:min(92vw, 720px); }
+    .rank-btn { background:#9200fa; color:#fff; border:none; border-radius:10px; padding:8px 0; font-size:14px; cursor:pointer; }
+    .rank-btn:hover { background:#7800cd; }
+    @media (max-width: 720px) {
+      .rank-btn { font-size:13px; padding:6px 0; }
+    }
+  </style>
+</head>
+<body class="game">
+  <div class="top-banner" role="region" aria-label="Wallet and status">
+    <div class="banner-left">
+      <button id="return" class="return-btn">Return to Tavern</button>
+      <div id="status" class="banner-status"></div>
+    </div>
+    <div class="banner-right">
+      <div class="controls">
+        <button id="connect-wallet">Connect Wallet</button>
+        <button id="fund-contract" style="display:none;">Fund Game Contracts</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="tavern" style="position:relative; width:95%; max-width:1280px; margin:28px auto;">
+    <div class="table-wrap">
+      <h1>Faro</h1>
+      <div class="controls-inline">
+        <label for="table-id">Table:</label>
+        <input id="table-id" value="lobby" style="width:160px; text-align:center;" />
+        <button id="join-table">Join</button>
+        <button id="start" disabled>Start Shoe</button>
+        <button id="deal" disabled>Deal Coup</button>
+        <label style="font-size:13px;"><input type="checkbox" id="ready"> Ready</label>
+      </div>
+
+      <div class="faro-panel">
+        <div class="faro-controls">
+          <label>Bet:</label>
+          <input id="bet-amt" type="number" min="1" step="1" value="5" style="width:90px; text-align:center;" />
+          <label style="font-size:13px;"><input type="checkbox" id="bet-copper"> Copper (bet against)</label>
+        </div>
+        <div class="faro-board" aria-label="Faro ranks">
+          <button class="rank-btn" data-rank="A">A</button>
+          <button class="rank-btn" data-rank="2">2</button>
+          <button class="rank-btn" data-rank="3">3</button>
+          <button class="rank-btn" data-rank="4">4</button>
+          <button class="rank-btn" data-rank="5">5</button>
+          <button class="rank-btn" data-rank="6">6</button>
+          <button class="rank-btn" data-rank="7">7</button>
+          <button class="rank-btn" data-rank="8">8</button>
+          <button class="rank-btn" data-rank="9">9</button>
+          <button class="rank-btn" data-rank="10">10</button>
+          <button class="rank-btn" data-rank="J">J</button>
+          <button class="rank-btn" data-rank="Q">Q</button>
+          <button class="rank-btn" data-rank="K">K</button>
+        </div>
+      </div>
+
+      <div class="table-canvas">
+        <div class="table-surface"></div>
+        <!-- 6 seats positioned around the surface -->
+        <div class="seat" data-index="0" style="left:50%; top:8%; transform:translateX(-50%);"></div>
+        <div class="seat" data-index="1" style="left:8%; top:28%;"></div>
+        <div class="seat" data-index="2" style="right:8%; top:28%;"></div>
+        <div class="seat" data-index="3" style="left:8%; bottom:14%;"></div>
+        <div class="seat" data-index="4" style="right:8%; bottom:14%;"></div>
+        <div class="seat" data-index="5" style="left:50%; bottom:4%; transform:translateX(-50%);"></div>
+      </div>
+      <div class="log" id="log"></div>
+    </div>
+  </div>
+
+  <script type="module" src="table.js"></script>
+</body>
+</html>
