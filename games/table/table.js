@@ -14,6 +14,7 @@ const betAmtInput = document.getElementById('bet-amt');
 const betCopperInput = document.getElementById('bet-copper');
 const rankButtons = Array.from(document.querySelectorAll('.rank-btn'));
 let stageInfo = { stage: null, deadline: null };
+let myAllowedRound = 0;
 
 let ws; let myAddr = null; let currentTable = null; let mySeatId = null; let myIsOwner = false;
 
@@ -46,7 +47,12 @@ function renderTable(table) {
       const a = document.createElement('div'); a.className = 'addr'; a.textContent = 'Empty'; el.appendChild(a);
       const btns = document.createElement('div'); btns.className = 'btns';
       const sit = document.createElement('button'); sit.textContent = 'Sit';
-      sit.onclick = () => ws?.send(JSON.stringify({ type: 'seat', index: idx }));
+      const canSit = !(table.started && Number(table.round||0) < Number(myAllowedRound||0));
+      if (canSit) {
+        sit.onclick = () => ws?.send(JSON.stringify({ type: 'seat', index: idx }));
+      } else {
+        sit.disabled = true; sit.title = 'Wait until next round to join';
+      }
       btns.appendChild(sit); el.appendChild(btns);
     }
   }
@@ -65,7 +71,8 @@ function connect() {
   ws.onmessage = (evt) => {
     let msg; try { msg = JSON.parse(evt.data); } catch { return; }
     if (msg.type === 'hello') return; // ignore handshake detail in UI
-    if (msg.type === 'table:update') { renderTable(msg.table); }
+    if (msg.type === 'table:update') { renderTable(msg.table); renderBets(msg.bets || {}); }
+    if (msg.type === 'you') { myAllowedRound = Number(msg.allowedRound||0); }
     if (msg.type === 'table:stage') {
       stageInfo.stage = msg.stage; stageInfo.deadline = msg.deadline;
       try { readyInput.checked = false; } catch {}
@@ -119,6 +126,20 @@ rankButtons.forEach(btn => {
     log(`Bet ${amt} on ${rank}${copper ? ' (copper)' : ''}`);
   });
 });
+
+function renderBets(agg){
+  try {
+    rankButtons.forEach(btn => {
+      btn.style.position = 'relative';
+      let chip = btn.querySelector('.chip');
+      const total = Number(agg?.[btn.dataset.rank] || 0);
+      if (total > 0) {
+        if (!chip) { chip = document.createElement('span'); chip.className = 'chip'; btn.appendChild(chip); }
+        chip.textContent = total;
+      } else if (chip) { chip.remove(); }
+    });
+  } catch {}
+}
 
 function updateStageStatus(){
   try {

@@ -25,8 +25,9 @@
     .faro-panel { display:flex; flex-direction:column; gap:10px; align-items:center; }
     .faro-controls { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
     .faro-board { display:grid; grid-template-columns: repeat(13, minmax(36px, 1fr)); gap:6px; width:min(92vw, 720px); }
-    .rank-btn { background:#9200fa; color:#fff; border:none; border-radius:10px; padding:8px 0; font-size:14px; cursor:pointer; }
+    .rank-btn { background:#9200fa; color:#fff; border:none; border-radius:10px; padding:8px 0; font-size:14px; cursor:pointer; position:relative; }
     .rank-btn:hover { background:#7800cd; }
+    .rank-btn .chip { position:absolute; right:6px; bottom:4px; background:#fff; color:#2b1e12; border:2px solid #7800cd; border-radius:999px; padding:1px 6px; font-size:12px; line-height:1.2; box-shadow:0 2px 6px rgba(0,0,0,0.2); }
     @media (max-width: 720px) {
       .rank-btn { font-size:13px; padding:6px 0; }
     }
@@ -53,8 +54,8 @@
         <label for="table-id">Table:</label>
         <input id="table-id" value="lobby" style="width:160px; text-align:center;" />
         <button id="join-table">Join</button>
-        <button id="start" disabled>Start Shoe</button>
-        <button id="deal" disabled>Deal Coup</button>
+        <button id="start" disabled style="display:none;">Start Shoe</button>
+        <button id="deal" disabled style="display:none;">Deal Coup</button>
         <label style="font-size:13px;"><input type="checkbox" id="ready"> Ready</label>
       </div>
 

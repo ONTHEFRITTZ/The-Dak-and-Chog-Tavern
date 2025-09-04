@@ -61,6 +61,7 @@ const RANKS = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
 function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]];} return a; }
 function newShoe(){ const d=[]; for(let r=0;r<13;r++){ for(let c=0;c<4;c++){ d.push(r);} } return shuffle(d); }
 function draw(table){ if (!table.shoe || table.shoe.length - table.shoeIdx < 1){ table.shoe=newShoe(); table.shoeIdx=0; table.burned=false; } const v=table.shoe[table.shoeIdx++]; return v; }
+function aggregateBets(table){ const agg={}; for(let i=0;i<13;i++){ agg[RANKS[i]]=0; } for (const [, list] of table.bets.entries()){ for(const b of list){ agg[RANKS[b.rank]] = (agg[RANKS[b.rank]]||0) + Number(b.amount||0); } } return agg; }
 function seatCount(table){ return table.seats.filter(Boolean).length; }
 
 function clearTimer(table){ if (table.timer) { try { clearTimeout(table.timer); } catch{} table.timer = null; } }
@@ -90,7 +91,7 @@ function ejectNotReady(table){
     table.seats[i] = null;
     out.push(s);
   }
-  if (out.length) broadcast(table, 'table:update', { table: getPublicTable(table) });
+  if (out.length) broadcast(table, 'table:update', { table: getPublicTable(table), bets: aggregateBets(table) });
   return out;
 }
 
@@ -122,7 +123,7 @@ function dealCoup(table){
   table.bets.clear();
   table.state.coups = (table.state.coups||0) + 1;
   broadcast(table, 'table:coup', { bankRank: RANKS[bank], playerRank: RANKS[player], doublet, results });
-  broadcast(table, 'table:update', { table: getPublicTable(table) });
+  broadcast(table, 'table:update', { table: getPublicTable(table), bets: aggregateBets(table) });
 }
 
 function tryAdvance(table){
@@ -193,8 +194,9 @@ wss.on('connection', (ws) => {
       const table = ensureTable(tableId);
       ws.tableId = table.id;
       ws.allowedRound = table.started ? Number(table.round || 0) + 1 : Number(table.round || 0);
-      send(ws, 'table:update', { table: getPublicTable(table) });
-      if (!table.stage) scheduleStage(table, table.started ? 'betting' : 'start');
+      send(ws, 'you', { allowedRound: ws.allowedRound, round: Number(table.round||0), started: !!table.started });
+      send(ws, 'table:update', { table: getPublicTable(table), bets: aggregateBets(table) });
+      if (!table.stage) scheduleStage(table, 'betting');
       return;
     }
 
@@ -214,8 +216,8 @@ wss.on('connection', (ws) => {
       seat.ws = ws; seat.addr = ws.addr; seat.ready = !!seat.ready; seat.balance = Number(seat.balance || 100);
       table.seats[idx] = seat;
       if (!table.ownerId) table.ownerId = seat.id;
-      broadcast(table, 'table:update', { table: getPublicTable(table) });
-      if (!table.stage) scheduleStage(table, table.started ? 'betting' : 'start');
+      broadcast(table, 'table:update', { table: getPublicTable(table), bets: aggregateBets(table) });
+      if (!table.stage) scheduleStage(table, 'betting');
       return;
     }
 
@@ -264,7 +266,7 @@ wss.on('connection', (ws) => {
       const list = table.bets.get(seat.id) || [];
       list.push({ rank, amount, copper });
       table.bets.set(seat.id, list);
-      broadcast(table, 'table:update', { table: getPublicTable(table) });
+      broadcast(table, 'table:update', { table: getPublicTable(table), bets: aggregateBets(table) });
       return;
     }
 
