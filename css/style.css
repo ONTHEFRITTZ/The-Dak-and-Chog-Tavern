@@ -110,7 +110,8 @@ button:hover { background:#7800cd; }
 .shell {
   width: 100px;
   height: 100px;
-  background: url('../../assets/images/cup.png') no-repeat center center;
+  /* From /css/style.css, go up one to repo root, then assets */
+  background: url('../assets/images/cup.png') no-repeat center center;
   background-size: contain;
   transition: transform 0.3s;
 }
