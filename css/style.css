@@ -127,6 +127,11 @@ body.home .tavern {
   padding: 6px 12px;
   font-size: 14px;
 }
+.top-banner .return-btn {
+  padding: 6px 12px;
+  font-size: 14px;
+  margin-right: 6px;
+}
 @media (max-width: 600px) {
   body.home { --banner-h: 44px; padding-top: var(--banner-h); }
   body.game { --banner-h: 44px; padding-top: var(--banner-h); }
