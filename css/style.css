@@ -34,6 +34,7 @@
 body {
   margin:0;
   font-family:'Morris Roman Black', 'Morris Roman Alternate Black', 'Papyrus', fantasy;
+  font-size:17px; /* slight global bump */
   background:url('../assets/images/tavern-bg.png') no-repeat center center fixed;
   background-size:cover;
   text-align:center;

@@ -135,7 +135,7 @@ export function renderNetworkBanner({ contractKey, address, chainId, wallet }) {
         'margin: 8px auto',
         'padding: 8px 12px',
         'max-width: 900px',
-        'font-size: 13px',
+        'font-size: 15px',
         'border-radius: 8px',
         'background: rgba(0,0,0,0.08)',
         'color: #2b1e12',
@@ -282,7 +282,7 @@ export function showToast(message, type = 'info', duration = 2600) {
     toast.style.cssText = [
       'min-width: 220px','max-width: 360px','padding:10px 12px','border-radius:8px',
       `background:${c.bg}`,`color:${c.fg}`,'box-shadow:0 6px 16px rgba(0,0,0,0.18)',
-      'font-size:13px','opacity:0','transform:translateY(-6px)','transition:opacity .2s ease, transform .2s ease'
+      'font-size:14px','opacity:0','transform:translateY(-6px)','transition:opacity .2s ease, transform .2s ease'
     ].join(';');
     container.appendChild(toast);
     requestAnimationFrame(() => { toast.style.opacity = '1'; toast.style.transform = 'translateY(0)'; });
