@@ -7,17 +7,18 @@ body {
 }
 
 .tavern {
-  background: rgba(239, 194, 146, 0.7);
-  padding:20px;
-  border:5px solid #8b5a2b;
+  background: rgba(255, 244, 233, 0.7);
+  padding:24px;
+  border:5px solid #9200fa;
   border-radius:15px;
-  width:600px;
+  max-width:1000px;
+  width:95%;
   margin:30px auto;
-  box-shadow:0 0 20px #f6e1c964;
+  box-shadow:0 0 20px #bcbbb864;
 }
 
 button {
-  background:#8b5a2b;
+  background:#9200fa;
   border:none;
   padding:10px 20px;
   margin:10px;
@@ -27,25 +28,26 @@ button {
   cursor:pointer;
 }
 
-button:hover { background:#a0522d; }
+button:hover { background:#7800cd; }
 
 .game-links a {
   display:inline-block;
   margin:10px;
   padding:15px 30px;
-  background: #8b5a2b;
+  background: #9200fa;
   color:#fff;
   text-decoration:none;
   border-radius:10px;
   font-size:20px;
 }
 
-.game-links a:hover { background:#a0522d; }
+.game-links a:hover { background:#7800cd; }
 
 /* Shell styles */
 .shells {
   display: flex;
-  justify-content: space-around;
+  justify-content: space-evenly;
+  gap: 24px;
   margin-top: 20px;
   cursor: pointer;
 }

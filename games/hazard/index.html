@@ -3,21 +3,18 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Hazard Dice - Dak & Chog Tavern</title>
+  <title>Hazard - Dak & Chog Tavern</title>
   <link rel="stylesheet" href="../../css/style.css">
 
-  <!-- Ethers UMD (CSP-safe usage) -->
   <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
-
-  <!-- ABI as global -->
   <script src="HazardABI.js"></script>
 
   <style>
-    /* small isolated tweaks so the dice layout looks correct in the tavern card */
     .dice-row { display:flex; justify-content:center; gap:16px; margin:18px 0; }
     .dice {
-      width:96px; height:96px; display:flex; align-items:center; justify-content:center;
-      font-size:48px; border-radius:12px; background: rgba(255,255,255,0.06);
+      width:clamp(84px, 12vw, 140px); height:clamp(84px, 12vw, 140px);
+      display:flex; align-items:center; justify-content:center;
+      font-size:clamp(36px, 6vw, 56px); border-radius:12px; background: rgba(255,255,255,0.06);
       box-shadow: inset 0 2px 0 rgba(255,255,255,0.03);
     }
     .dice.shake { animation: shake 0.6s ease; }
@@ -30,14 +27,23 @@
     }
 
     .controls { display:flex; gap:12px; align-items:center; justify-content:center; margin-bottom:12px; }
-    .rules { font-size:13px; color:#2b1e12; text-align:left; background: rgba(255,255,255,0.06); padding:10px; border-radius:8px; margin:12px auto; width:90%; max-width:560px; }
-    .main-select button { padding:8px 12px; margin-right:6px; border-radius:8px; cursor:pointer; }
-    .main-select button.active { background:#8b5a2b; color:white; }
+    .rules { font-size:13px; color:#2b1e12; text-align:left; background: rgba(255,255,255,0.06); padding:10px; border-radius:8px; margin:12px auto; width:90%; max-width:720px; }
+    .main-select button { padding:8px 12px; margin-right:6px; border-radius:8px; cursor:pointer; transition: transform .12s ease, box-shadow .12s ease, background .12s ease; }
+    .main-select button.active { background:#7800cd; color:white; box-shadow:0 0 0 2px #7800cd, 0 6px 18px rgba(120,0,205,0.35); transform: translateY(-1px) scale(1.05); }
+    /* Primary/Accent buttons for Hazard */
+    #roll-dice { background:#9200fa; color:#fff; border:none; border-radius:10px; box-shadow:0 6px 18px rgba(146,0,250,0.35); transition: transform .12s ease, box-shadow .12s ease, background .12s ease; }
+    #roll-dice:hover { background:#7800cd; box-shadow:0 6px 22px rgba(120,0,205,0.45); transform: translateY(-1px); }
+    #roll-dice:disabled { opacity:.65; cursor:not-allowed; transform:none; box-shadow:none; }
+    /* Override page background for Hazard */
+    body {
+      background: url('../../assets/images/hazard-bg.png') no-repeat center center fixed;
+      background-size: cover;
+    }
   </style>
-</head>
+  </head>
 <body>
-  <div class="tavern" style="max-width:760px; margin:28px auto;">
-    <h1>Hazard Dice</h1>
+  <div class="tavern" style="max-width:1000px; width:95%; margin:28px auto;">
+    <h1>Hazard</h1>
 
     <div class="rules">
       <strong>Rules (contract):</strong>
@@ -46,13 +52,13 @@
         <li>Place a wager and click <strong>Roll Dice</strong>. The contract rolls two dice until a result is reached.</li>
         <li>First roll:
           <ul>
-            <li>If roll == main → immediate win.</li>
-            <li>If roll == 2 or 3 → immediate loss.</li>
-            <li>If roll == 11 or 12: — if main is 5 or 9 → win; if main is 7 → lose; otherwise lose.</li>
+            <li>If roll equals your main: immediate win.</li>
+            <li>If roll is 2 or 3: immediate loss.</li>
+            <li>If roll is 11 or 12: win if main is 5 or 9; lose if main is 7; otherwise lose.</li>
             <li>Otherwise the roll becomes the <em>chance</em> (a point) and subsequent rolls repeat until the chance or main resolves the game.</li>
           </ul>
         </li>
-        <li>If you win the contract attempts to pay 2× your wager (contract must have bankroll).</li>
+        <li>If you win, the contract attempts to pay 2x your wager (contract must have bankroll).</li>
       </ol>
     </div>
 
@@ -73,12 +79,12 @@
     </div>
 
     <div class="dice-row">
-      <div id="dice1" class="dice">⚀</div>
-      <div id="dice2" class="dice">⚀</div>
+      <div id="dice1" class="dice">?</div>
+      <div id="dice2" class="dice">?</div>
     </div>
 
     <div style="text-align:center; margin-bottom:12px;">
-      <button id="roll-dice" style="padding:10px 18px; font-size:16px;">🎲 Roll Dice</button>
+      <button id="roll-dice" style="padding:10px 18px; font-size:16px;">Roll Dice</button>
     </div>
 
     <div id="status" style="min-height:28px; text-align:center;"></div>
@@ -93,6 +99,6 @@
     </div>
   </div>
 
-  <script src="hazard.js"></script>
+  <script type="module" src="hazard.js"></script>
 </body>
 </html>

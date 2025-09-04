@@ -1,78 +1,93 @@
 // games/hazard/hazard.js
-// Full replacement — UI follows contract rules, listens for HazardPlayed event.
-// Uses window.HazardABI and ethers UMD (window.ethers).
+// UI wired to MonHazard contract (HazardPlayed event) using ethers v5 UMD
+import { getAddressFor, detectChainId, renderTavernBanner, showToast } from '../../js/config.js';
 
-const hazardAddress = "0x9cedd769cd1CD5cC52D8b3c46ec31c61b7c5dE10"; // set to correct Hazard contract address
-const diceFacesUnicode = ["⚀","⚁","⚂","⚃","⚄","⚅"];
+let hazardAddress; // resolved per network
 const diceImages = [
-  '../../assets/images/dice1.png',
-  '../../assets/images/dice2.png',
-  '../../assets/images/dice3.png',
-  '../../assets/images/dice4.png',
-  '../../assets/images/dice5.png',
-  '../../assets/images/dice6.png'
+  '../../assets/images/dice1-standard.png',
+  '../../assets/images/dice2-standard.png',
+  '../../assets/images/dice3-standard.png',
+  '../../assets/images/dice4-standard.png',
+  '../../assets/images/dice5-standard.png',
+  '../../assets/images/dice6-standard.png'
 ];
 
 let provider, signer, contract;
 let selectedMain = 7;
 
 // DOM
-const statusEl = document.getElementById("status");
-const rollBtn = document.getElementById("roll-dice");
-const dice1El = document.getElementById("dice1");
-const dice2El = document.getElementById("dice2");
-const betInput = document.getElementById("bet");
-const returnBtn = document.getElementById("return");
-const rollsList = document.getElementById("rolls");
-const mainButtons = document.querySelectorAll(".main-select button");
+const statusEl = document.getElementById('status');
+const rollBtn = document.getElementById('roll-dice');
+const dice1El = document.getElementById('dice1');
+const dice2El = document.getElementById('dice2');
+const betInput = document.getElementById('bet');
+const returnBtn = document.getElementById('return');
+const rollsList = document.getElementById('rolls');
+const mainButtons = document.querySelectorAll('.main-select button');
+
+// Persist and restore basic UI state (bet + main)
+try {
+  const savedBet = localStorage.getItem('hazard.bet');
+  if (savedBet && !isNaN(Number(savedBet))) betInput.value = savedBet;
+  const savedMain = localStorage.getItem('hazard.main');
+  if (savedMain) selectedMain = Number(savedMain);
+} catch {}
+if (dice1El && !dice1El.textContent) dice1El.textContent = '?';
+if (dice2El && !dice2El.textContent) dice2El.textContent = '?';
+betInput.addEventListener('input', () => {
+  try { localStorage.setItem('hazard.bet', betInput.value || ''); } catch {}
+});
 
 // Utility: split finalSum into a valid dice pair (1..6, sum = finalSum)
-// returns [d1,d2] choosing a random valid pair if multiple exist.
 function splitSumToDice(sum) {
   const pairs = [];
   for (let d1 = 1; d1 <= 6; d1++) {
     const d2 = sum - d1;
     if (d2 >= 1 && d2 <= 6) pairs.push([d1, d2]);
   }
-  if (pairs.length === 0) return [1,1];
-  return pairs[Math.floor(Math.random()*pairs.length)];
+  if (pairs.length === 0) return [1, 1];
+  return pairs[Math.floor(Math.random() * pairs.length)];
 }
 
-// Display dice (use images if present, otherwise unicode)
+// Display dice (use images if present, else Unicode dice or numbers)
 function displayDice(d1, d2) {
-  const imgPathsExist = !!diceImages[0]; // we assume they exist in assets; if not, unicode shows
+  const imgPathsExist = !!diceImages[0];
   if (dice1El) {
     if (imgPathsExist) {
-      dice1El.style.backgroundImage = `url(${diceImages[d1-1]})`;
-      dice1El.style.backgroundSize = 'contain';
+      dice1El.style.backgroundImage = `url(${diceImages[d1 - 1]})`;
+      dice1El.style.backgroundSize = '80% 80%';
+      dice1El.style.backgroundPosition = 'center';
+      dice1El.style.backgroundRepeat = 'no-repeat';
       dice1El.textContent = '';
     } else {
       dice1El.style.backgroundImage = '';
-      dice1El.textContent = diceFacesUnicode[d1-1];
+      try { dice1El.textContent = String.fromCodePoint(0x2680 + (d1 - 1)); } catch { dice1El.textContent = String(d1); }
     }
   }
   if (dice2El) {
     if (imgPathsExist) {
-      dice2El.style.backgroundImage = `url(${diceImages[d2-1]})`;
-      dice2El.style.backgroundSize = 'contain';
+      dice2El.style.backgroundImage = `url(${diceImages[d2 - 1]})`;
+      dice2El.style.backgroundSize = '80% 80%';
+      dice2El.style.backgroundPosition = 'center';
+      dice2El.style.backgroundRepeat = 'no-repeat';
       dice2El.textContent = '';
     } else {
       dice2El.style.backgroundImage = '';
-      dice2El.textContent = diceFacesUnicode[d2-1];
+      try { dice2El.textContent = String.fromCodePoint(0x2680 + (d2 - 1)); } catch { dice2El.textContent = String(d2); }
     }
   }
 }
 
-// Animate dice visually for ~1 second
+// Animate dice visually
 function animateDice() {
   const el1 = dice1El, el2 = dice2El;
   el1.classList.add('shake');
   el2.classList.add('shake');
   let frames = 10;
   const iv = setInterval(() => {
-    const r1 = Math.floor(Math.random()*6)+1;
-    const r2 = Math.floor(Math.random()*6)+1;
-    displayDice(r1,r2);
+    const r1 = Math.floor(Math.random() * 6) + 1;
+    const r2 = Math.floor(Math.random() * 6) + 1;
+    displayDice(r1, r2);
     frames--;
     if (frames <= 0) {
       clearInterval(iv);
@@ -82,7 +97,7 @@ function animateDice() {
   }, 100);
 }
 
-// Explain outcome according to contract rules (human readable)
+// Outcome explanation matching contract rules
 function explainOutcome(main, finalSum, chance, win) {
   main = Number(main);
   finalSum = Number(finalSum);
@@ -96,7 +111,7 @@ function explainOutcome(main, finalSum, chance, win) {
       if (main === 5 || main === 9) return `Immediate win — rolled ${finalSum} (special for main ${main}).`;
       return `Immediate loss — rolled ${finalSum}.`;
     }
-    return `Point established at ${finalSum}. Game continued until point or main resolved.`;
+    return `Point established at ${finalSum}. Game continues until point or main resolves.`;
   } else {
     if (finalSum === chance) return `Won by hitting the chance/point (${chance}).`;
     if (finalSum === main) return `Lost — rolled your main (${main}) before hitting the point (${chance}).`;
@@ -109,97 +124,119 @@ mainButtons.forEach(btn => {
   const m = Number(btn.dataset.main);
   if (m === selectedMain) btn.classList.add('active');
   btn.addEventListener('click', () => {
-    mainButtons.forEach(b=>b.classList.remove('active'));
+    mainButtons.forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     selectedMain = m;
+    try { localStorage.setItem('hazard.main', String(selectedMain)); } catch {}
   });
 });
 
 // Initialize provider/signers and attach handlers
 window.addEventListener('DOMContentLoaded', async () => {
-  // Only allow play if Tavern connected — check sessionStorage flag if you use it
-  const walletFlag = sessionStorage.getItem("walletConnected");
-  if (!window.ethereum || walletFlag !== "true") {
-    statusEl.innerText = "Connect wallet on Tavern first!";
+  const walletFlag = sessionStorage.getItem('walletConnected');
+  if (!window.ethereum || walletFlag !== 'true') {
+    statusEl.innerText = 'Connect wallet on the Tavern first.';
     rollBtn.disabled = true;
     return;
   }
 
   try {
-    provider = new ethers.providers.Web3Provider(window.ethereum, "any");
+    provider = new ethers.providers.Web3Provider(window.ethereum, 'any');
     signer = provider.getSigner();
+    const walletAddress = await signer.getAddress();
+    hazardAddress = await getAddressFor('hazard', provider);
     contract = new ethers.Contract(hazardAddress, window.HazardABI, signer);
+    try {
+      const chainId = await detectChainId(provider);
+      renderTavernBanner({ contractKey: 'hazard', address: hazardAddress, chainId, wallet: walletAddress });
+    } catch {}
   } catch (err) {
-    console.error("Init error:", err);
-    statusEl.innerText = "Error initializing contract: " + err.message;
+    console.error('Init error:', err);
+    statusEl.innerText = 'Error initializing contract: ' + err.message;
     rollBtn.disabled = true;
     return;
   }
 
   // Event listener (HazardPlayed)
-  contract.on("HazardPlayed", async (player, wager, win, main, finalSum, chance, iterations) => {
+  const onHazardPlayed = async (player, wager, win, main, finalSum, chance, iterations) => {
     try {
       const user = (await signer.getAddress()).toLowerCase();
-      if (player.toLowerCase() !== user) return; // only show result for this user
+      if (player.toLowerCase() !== user) return;
 
-      // compute dice faces from finalSum (choose a valid pair)
-      const [d1,d2] = splitSumToDice(Number(finalSum));
-      displayDice(d1,d2);
+      const [d1, d2] = splitSumToDice(Number(finalSum));
+      displayDice(d1, d2);
 
-      const payout = win ? ethers.utils.formatEther(wager.mul(2)) : "0";
+      const payout = win ? ethers.utils.formatEther(wager.mul(2)) : '0';
       const explanation = explainOutcome(Number(main), Number(finalSum), Number(chance), win);
 
-      statusEl.innerText = win ? `🎉 You won ${payout} MON! ${explanation}` : `😢 You lost. ${explanation}`;
+      statusEl.innerText = win ? `You won ${payout} MON! ${explanation}` : `You lost. ${explanation}`;
+      try { showToast(win ? `You won ${payout} MON` : 'You lost', win ? 'success' : 'info'); } catch {}
 
       const li = document.createElement('li');
-      li.innerText = `${new Date().toLocaleTimeString()} - Bet: ${ethers.utils.formatEther(wager)} MON - ${win ? "Won" : "Lost"} (Main:${main}, FinalSum:${finalSum}, Iter:${iterations})`;
+      li.innerText = `${new Date().toLocaleTimeString()} - Bet: ${ethers.utils.formatEther(wager)} MON - ${win ? 'Won' : 'Lost'} (Main:${main}, FinalSum:${finalSum}, Iter:${iterations})`;
       rollsList.prepend(li);
 
       rollBtn.disabled = false;
     } catch (err) {
-      console.error("Event handler error:", err);
+      console.error('Event handler error:', err);
     }
-  });
+  };
+  contract.on('HazardPlayed', onHazardPlayed);
+  window.addEventListener('beforeunload', () => { try { contract.off('HazardPlayed', onHazardPlayed); } catch {} });
 
   // Roll button handler
   rollBtn.addEventListener('click', async () => {
     if (!signer || !contract) {
-      alert("Connect wallet on Tavern first!");
+      alert('Connect wallet on the Tavern first.');
       return;
     }
 
-    const bet = document.getElementById('bet').value;
+    const bet = betInput.value;
     if (!bet || Number(bet) <= 0) {
-      statusEl.innerText = "Enter a valid bet amount.";
+      statusEl.innerText = 'Enter a valid bet amount.';
       return;
     }
     if (!Number.isInteger(selectedMain) || selectedMain < 5 || selectedMain > 9) {
-      statusEl.innerText = "Choose a main between 5 and 9.";
+      statusEl.innerText = 'Choose a main between 5 and 9.';
       return;
     }
 
-    statusEl.innerText = "🎲 Rolling dice — sending transaction...";
+    try {
+      const bankroll = await provider.getBalance(hazardAddress);
+      const needed = ethers.utils.parseEther(bet).mul(2);
+      if (bankroll.lt(needed)) {
+        statusEl.innerText = 'Bankroll too low for this bet. Try a smaller amount.';
+        return;
+      }
+    } catch (err) {
+      console.error('Bankroll check error:', err);
+    }
+
+    statusEl.innerText = 'Rolling dice... sending transaction...';
+    try { showToast('Rolling dice…', 'info'); } catch {}
     rollBtn.disabled = true;
 
-    // animate locally while tx mines
-    animateDice();
+    try { if (typeof animationsEnabled === 'undefined') { animationsEnabled = true; } } catch { var animationsEnabled = true; }
+    if (animationsEnabled) animateDice();
 
     try {
       const tx = await contract.play(selectedMain, { value: ethers.utils.parseEther(bet) });
-      await tx.wait(); // wait for mining — final result will be emitted in HazardPlayed event
-      // message will be updated by the event handler
+      await tx.wait();
+      // event listener will handle UI update
     } catch (err) {
-      console.error("Play error:", err);
-      // display useful messages if present
-      const pretty = err?.data?.message || err?.message || String(err);
-      statusEl.innerText = "❌ Error: " + pretty;
+      console.error('Play error:', err);
+      let reason = '';
+      if (err?.error?.message) reason = err.error.message;
+      else if (err?.data?.message) reason = err.data.message;
+      else if (err?.reason) reason = err.reason;
+      else reason = err.message || JSON.stringify(err);
+
+      statusEl.innerText = 'Reverted: ' + reason;
       rollBtn.disabled = false;
     }
   });
 
-  // Return button
   returnBtn.addEventListener('click', () => {
-    window.location.href = "../../index.html";
+    window.location.href = '../../index.html';
   });
-
-}); // DOMContentLoaded end
+});
