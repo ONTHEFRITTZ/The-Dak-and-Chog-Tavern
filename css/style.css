@@ -78,19 +78,19 @@ body.game .tavern {
 .tavern-sign {
   display:block;
   height:auto;
-  /* Visually reduce size by 15% regardless of intrinsic size */
-  transform: scale(0.85);
+  /* Further reduce size by ~15% from current */
+  transform: scale(0.72);
   transform-origin: top center;
   position: relative;
-  top: 20px; /* lower the sign further without moving container */
-  margin-bottom:4px;
+  top: 20px; /* restore original vertical position */
+  margin-bottom:3px; /* reduce gap below logo ~25% */
 }
 
 /* Mobile tweaks for sign spacing/scale */
 @media (max-width: 600px) {
   .tavern-sign {
-    transform: scale(0.8);
-    top: 14px;
+    transform: scale(0.68);
+    top: 8px;
   }
 }
 
@@ -102,9 +102,12 @@ body.game .tavern {
   max-width:1280px;
   width:95%;
   /* Reduce spacing under the sign */
-  margin:4px auto 8px;
+  margin:3px auto 8px; /* ~25% less top margin to tighten gap */
   box-shadow:0 0 20px #bcbbb864;
 }
+
+/* Landing page: add a bit more space below container */
+body.home .tavern { margin-bottom: 28px; }
 
 button {
   background:#9200fa;

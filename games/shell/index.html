@@ -13,28 +13,63 @@
       background: url('../../assets/images/shell-bg.png') no-repeat center bottom fixed;
       background-size: cover;
     }
-    /* Decorative hovering cup over bottom-left corner */
+    /* Game page logo at top */
+    .game-logo {
+      display:block;
+      height:auto;
+      max-width: clamp(220px, 40vw, 560px);
+      /* overlap and center over the container */
+      position:absolute; left:50%; top:0; z-index:3;
+      transform: translate(-50%, -50%) scale(0.85);
+      transform-origin: top center;
+      filter: drop-shadow(0 6px 16px rgba(0,0,0,0.25));
+      pointer-events:none; user-select:none;
+    }
+    /* add breathing room so content sits below the overlapped logo */
+    .tavern { padding-top: clamp(120px, 18vw, 200px); }
+    @media (max-width: 600px) {
+      .game-logo { transform: translate(-50%, -50%) scale(0.8); }
+      .tavern { padding-top: clamp(110px, 24vw, 180px); }
+    }
+    /* Decorative hovering cup (base: bottom-left) */
     .decor-cup {
       position:absolute; left:0; bottom:0;
       /* place the image center roughly over the corner */
       --tx:-42%; --ty:42%; --rot:-8deg; --par:0px;
+      /* subtle oscillation + bob controls */
+      --rotAmp: 1.2deg;   /* tiny wiggle */
+      --bobOffset: -6%;   /* gentle vertical drift amplitude */
+      --bobDur: 3.85s;    /* timing tuned to feel natural */
+      --bobDelay: .06s;   /* slight phase offset */
       transform: translate(var(--tx), calc(var(--ty) + var(--par))) rotate(var(--rot));
       width:clamp(80px, 12vw, 160px);
       height:auto;
       pointer-events:none; user-select:none;
       filter: drop-shadow(0 6px 16px rgba(0,0,0,0.25));
       z-index: 2;
-      animation: decor-bob 3.8s ease-in-out infinite;
+      animation-name: decor-bob;
+      animation-timing-function: ease-in-out;
+      animation-iteration-count: infinite;
+      animation-duration: var(--bobDur);
+      animation-delay: var(--bobDelay);
     }
+    /* Corner variants with small positional/animation offsets */
+    .decor-top-left { top:0; bottom:auto; left:0; right:auto; --tx:-44%; --ty:-40%; --rot:8deg;   --rotAmp:1.6deg; --bobOffset: 6%;  --bobDur:3.7s; --bobDelay:.08s; }
+    .decor-top-right { top:0; bottom:auto; right:0; left:auto; --tx: 40%; --ty:-44%; --rot:-10deg; --rotAmp:1.8deg; --bobOffset: 5.5%; --bobDur:3.95s; --bobDelay:.12s; }
+    .decor-bottom-right { bottom:0; top:auto; right:0; left:auto; --tx: 44%; --ty: 40%; --rot:10deg;  --rotAmp:1.4deg; --bobOffset:-5%;  --bobDur:4.05s; --bobDelay:.05s; }
     @keyframes decor-bob {
-      0%, 100% { transform: translate(var(--tx), calc(var(--ty) + var(--par))) rotate(var(--rot)); }
-      50% { transform: translate(var(--tx), calc(var(--ty) - 6% + var(--par))) rotate(var(--rot)); }
+      0%   { transform: translate(var(--tx), calc(var(--ty) + var(--par))) rotate(var(--rot)); }
+      25%  { transform: translate(var(--tx), calc(var(--ty) + var(--par))) rotate(calc(var(--rot) + var(--rotAmp))); }
+      50%  { transform: translate(var(--tx), calc(var(--ty) + var(--par) + var(--bobOffset))) rotate(var(--rot)); }
+      75%  { transform: translate(var(--tx), calc(var(--ty) + var(--par))) rotate(calc(var(--rot) - var(--rotAmp))); }
+      100% { transform: translate(var(--tx), calc(var(--ty) + var(--par))) rotate(var(--rot)); }
     }
   </style>
 </head>
 <body class="game">
-  <div class="tavern" style="position:relative;">
-    <h1>Shell Game</h1>
+  <div class="tavern" style="position:relative; margin:clamp(180px, 14vw, 300px) auto 28px;">
+    <h1 class="visually-hidden">Shell Game</h1>
+    <img class="game-logo" src="../../assets/images/shell-game-logo.png" alt="Shell Game">
     <p>Click a shell, place your bet, and test your luck!</p>
 
     <label>Bet Amount (MON):</label>
@@ -60,17 +95,20 @@
       <ul id="plays"></ul>
     </div>
     <img src="../../assets/images/cup2.png" alt="" aria-hidden="true" class="decor-cup">
+    <img src="../../assets/images/cup.png" alt="" aria-hidden="true" class="decor-cup decor-bottom-right">
+    <img src="../../assets/images/cup.png" alt="" aria-hidden="true" class="decor-cup decor-top-left">
+    <img src="../../assets/images/cup2.png" alt="" aria-hidden="true" class="decor-cup decor-top-right">
   </div>
 
   <script type="module" src="shell.js"></script>
   <script>
-    // Parallax drift for decorative cup
+    // Parallax drift for all decorative cups
     (function(){
-      const el = document.querySelector('.decor-cup');
-      if (!el) return;
+      const els = document.querySelectorAll('.decor-cup');
+      if (!els.length) return;
       const onScroll = () => {
         const y = Math.max(0, window.scrollY) * 0.06; // gentle drift
-        el.style.setProperty('--par', y + 'px');
+        els.forEach(el => el.style.setProperty('--par', y + 'px'));
       };
       window.addEventListener('scroll', onScroll, { passive: true });
       onScroll();

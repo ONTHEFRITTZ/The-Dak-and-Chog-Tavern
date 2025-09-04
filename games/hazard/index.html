@@ -34,26 +34,58 @@
     #roll-dice { background:#9200fa; color:#fff; border:none; border-radius:10px; box-shadow:0 6px 18px rgba(146,0,250,0.35); transition: transform .12s ease, box-shadow .12s ease, background .12s ease; }
     #roll-dice:hover { background:#7800cd; box-shadow:0 6px 22px rgba(120,0,205,0.45); transform: translateY(-1px); }
     #roll-dice:disabled { opacity:.65; cursor:not-allowed; transform:none; box-shadow:none; }
-    /* Decorative hovering die over bottom-left corner */
+    /* Decorative hovering dice anchored to corners */
     .decor-die {
-      position:absolute; left:0; bottom:0;
+      position:absolute;
+      /* defaults for bottom-left; overridden by corner modifiers */
+      left:0; bottom:0;
       --tx:-42%; --ty:42%; --rot:-6deg; --par:0px;
+      /* bob tuning (defaults) */
+      --bobOffset:-6%; /* negative lifts bottom corners a bit */
+      --bobDur:3.8s;   /* subtle variation per-corner below */
+      --bobDelay:0s;
       transform: translate(var(--tx), calc(var(--ty) + var(--par))) rotate(var(--rot));
       width:clamp(80px, 12vw, 160px);
       height:auto;
       pointer-events:none; user-select:none;
       filter: drop-shadow(0 6px 16px rgba(0,0,0,0.25));
       z-index: 2;
-      animation: decor-bob 3.8s ease-in-out infinite;
+      animation-name: decor-bob;
+      animation-timing-function: ease-in-out;
+      animation-iteration-count: infinite;
+      animation-duration: var(--bobDur);
+      animation-delay: var(--bobDelay);
     }
+    .decor-top-left { top:0; bottom:auto; left:0; right:auto; --tx:-42%; --ty:-42%; --rot:8deg;  --bobOffset:6%;  --bobDur:3.7s; --bobDelay:.08s; }
+    .decor-top-right { top:0; bottom:auto; right:0; left:auto; --tx:42%;  --ty:-42%; --rot:-12deg; --bobOffset:5.5%; --bobDur:3.9s; --bobDelay:.12s; }
+    .decor-bottom-right { bottom:0; top:auto; right:0; left:auto; --tx:42%;  --ty:42%;  --rot:10deg; --bobOffset:-5%; --bobDur:4.0s; --bobDelay:.05s; }
     @keyframes decor-bob {
       0%, 100% { transform: translate(var(--tx), calc(var(--ty) + var(--par))) rotate(var(--rot)); }
-      50% { transform: translate(var(--tx), calc(var(--ty) - 6% + var(--par))) rotate(var(--rot)); }
+      50% { transform: translate(var(--tx), calc(var(--ty) + var(--par) + var(--bobOffset))) rotate(var(--rot)); }
     }
     /* Override page background for Hazard */
     body {
       background: url('../../assets/images/hazard-bg.png') no-repeat center center fixed;
       background-size: cover;
+    }
+
+    /* Game page logo at top */
+    .game-logo {
+      display:block;
+      height:auto;
+      max-width: clamp(220px, 40vw, 560px);
+      /* overlap and center over the container */
+      position:absolute; left:50%; top:0; z-index:3;
+      transform: translate(-50%, -50%) scale(0.85);
+      transform-origin: top center;
+      filter: drop-shadow(0 6px 16px rgba(0,0,0,0.25));
+      pointer-events:none; user-select:none;
+    }
+    /* add breathing room so content sits below the overlapped logo */
+    .tavern { padding-top: clamp(120px, 18vw, 200px); }
+    @media (max-width: 600px) {
+      .game-logo { transform: translate(-50%, -50%) scale(0.8); }
+      .tavern { padding-top: clamp(110px, 24vw, 180px); }
     }
 
     /* Two-column layout: rules on the left */
@@ -67,11 +99,35 @@
       .hazard-layout { flex-direction:column; }
       .hazard-left { max-width:100%; }
     }
+    /* Subtle per-corner oscillation and timing overrides */
+    .decor-die {
+      --rotAmp: 1deg;
+      --bobOffset: -6%;
+      --bobDur: 3.8s;
+      --bobDelay: 0s;
+      animation-name: decor-bob;
+      animation-timing-function: ease-in-out;
+      animation-iteration-count: infinite;
+      animation-duration: var(--bobDur);
+      animation-delay: var(--bobDelay);
+    }
+    .decor-top-left    { --tx:-44%; --ty:-40%; --rotAmp:1.6deg; --bobOffset: 6%;  --bobDur:3.7s; --bobDelay:.08s; }
+    .decor-top-right   { --tx: 40%; --ty:-44%; --rotAmp:1.8deg; --bobOffset: 5.5%; --bobDur:3.9s; --bobDelay:.12s; }
+    .decor-bottom-right{ --tx: 44%; --ty: 40%; --rotAmp:1.4deg; --bobOffset:-5%;  --bobDur:4.0s; --bobDelay:.05s; }
+
+    @keyframes decor-bob {
+      0%   { transform: translate(var(--tx), calc(var(--ty) + var(--par))) rotate(var(--rot)); }
+      25%  { transform: translate(var(--tx), calc(var(--ty) + var(--par))) rotate(calc(var(--rot) + var(--rotAmp))); }
+      50%  { transform: translate(var(--tx), calc(var(--ty) + var(--par) + var(--bobOffset))) rotate(var(--rot)); }
+      75%  { transform: translate(var(--tx), calc(var(--ty) + var(--par))) rotate(calc(var(--rot) - var(--rotAmp))); }
+      100% { transform: translate(var(--tx), calc(var(--ty) + var(--par))) rotate(var(--rot)); }
+    }
   </style>
   </head>
 <body>
-  <div class="tavern" style="max-width:1280px; width:95%; margin:28px auto; position:relative;">
-    <h1>Hazard</h1>
+  <div class="tavern" style="max-width:1280px; width:95%; margin:clamp(180px, 14vw, 300px) auto 28px; position:relative;">
+    <h1 class="visually-hidden">Hazard</h1>
+    <img class="game-logo" src="../../assets/images/hazard-logo.png" alt="Hazard">
     <div class="hazard-layout">
       <aside class="hazard-left">
         <div class="rules" style="text-align:left; background: rgba(255,255,255,0.06); padding:12px; border-radius:8px;">
@@ -132,17 +188,20 @@
     </div>
 
     <img src="../../assets/images/dice1-standard.png" alt="" aria-hidden="true" class="decor-die">
+    <img src="../../assets/images/dice2-standard.png" alt="" aria-hidden="true" class="decor-die decor-bottom-right">
+    <img src="../../assets/images/dice3-standard.png" alt="" aria-hidden="true" class="decor-die decor-top-left">
+    <img src="../../assets/images/dice4-standard.png" alt="" aria-hidden="true" class="decor-die decor-top-right">
   </div>
 
   <script type="module" src="hazard.js"></script>
   <script>
-    // Parallax drift for decorative die
+    // Parallax drift for all decorative dice
     (function(){
-      const el = document.querySelector('.decor-die');
-      if (!el) return;
+      const els = document.querySelectorAll('.decor-die');
+      if (!els.length) return;
       const onScroll = () => {
         const y = Math.max(0, window.scrollY) * 0.06; // gentle drift
-        el.style.setProperty('--par', y + 'px');
+        els.forEach(el => el.style.setProperty('--par', y + 'px'));
       };
       window.addEventListener('scroll', onScroll, { passive: true });
       onScroll();
