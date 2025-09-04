@@ -1,6 +1,39 @@
+/* Morris Roman Black font embedding */
+@font-face {
+  font-family: 'Morris Roman Black';
+  src: url('../assets/fonts/MorrisRoman-Black.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+/* Optional: map bold to same file so <strong>/<b> stay on-brand */
+@font-face {
+  font-family: 'Morris Roman Black';
+  src: url('../assets/fonts/MorrisRoman-Black.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Alternate cut of the font (optional fallback/usage) */
+@font-face {
+  font-family: 'Morris Roman Alternate Black';
+  src: url('../assets/fonts/MorrisRomanAlternate-Black.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Morris Roman Alternate Black';
+  src: url('../assets/fonts/MorrisRomanAlternate-Black.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 body {
   margin:0;
-  font-family:'Dragonhelm', 'Papyrus', fantasy;
+  font-family:'Morris Roman Black', 'Morris Roman Alternate Black', 'Papyrus', fantasy;
   background:url('../assets/images/tavern-bg.png') no-repeat center center fixed;
   background-size:cover;
   text-align:center;
