@@ -1,40 +1,6 @@
-/* Morris Roman Black font embedding */
-@font-face {
-  font-family: 'Morris Roman Black';
-  src: url('../assets/fonts/MorrisRoman-Black.ttf') format('truetype');
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-/* Optional: map bold to same file so <strong>/<b> stay on-brand */
-@font-face {
-  font-family: 'Morris Roman Black';
-  src: url('../assets/fonts/MorrisRoman-Black.ttf') format('truetype');
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
-}
-
-/* Alternate cut of the font (optional fallback/usage) */
-@font-face {
-  font-family: 'Morris Roman Alternate Black';
-  src: url('../assets/fonts/MorrisRomanAlternate-Black.ttf') format('truetype');
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: 'Morris Roman Alternate Black';
-  src: url('../assets/fonts/MorrisRomanAlternate-Black.ttf') format('truetype');
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
-}
-
 body {
   margin:0;
-  font-family:'Morris Roman Black', 'Morris Roman Alternate Black', 'Papyrus', fantasy;
-  font-size:30px; /* slight global bump */
+  font-family:'Dragonhelm', 'Papyrus', fantasy;
   background:url('../assets/images/tavern-bg.png') no-repeat center center fixed;
   background-size:cover;
   text-align:center;
@@ -42,12 +8,13 @@ body {
 
 /* Home page body layout */
 body.home {
+  --banner-h: 48px;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
-  padding-top: 0;
+  padding-top: var(--banner-h); /* space for thin top banner */
 }
 
 /* Game pages layout: center container */
@@ -78,36 +45,102 @@ body.game .tavern {
 .tavern-sign {
   display:block;
   height:auto;
-  /* Further reduce size by ~15% from current */
-  transform: scale(0.72);
+  /* Visually reduce size by 15% regardless of intrinsic size */
+  transform: scale(0.85);
   transform-origin: top center;
   position: relative;
-  top: 20px; /* restore original vertical position */
-  margin-bottom:3px; /* reduce gap below logo ~25% */
+  top: 36px; /* adjusted with top banner present */
+  margin-bottom:4px;
 }
 
 /* Mobile tweaks for sign spacing/scale */
 @media (max-width: 600px) {
   .tavern-sign {
-    transform: scale(0.68);
-    top: 8px;
+    transform: scale(0.8);
+    top: 24px;
   }
 }
 
 .tavern {
-  background: rgba(255, 244, 233, 0.574);
+  background: rgba(255, 244, 233, 0.7);
   padding:24px;
   border:5px solid #7800cd;
   border-radius:15px;
-  max-width:1280px;
+  max-width:1000px;
   width:95%;
   /* Reduce spacing under the sign */
-  margin:3px auto 8px; /* ~25% less top margin to tighten gap */
+  margin:4px auto 8px;
   box-shadow:0 0 20px #bcbbb864;
 }
 
-/* Landing page: add a bit more space below container */
-body.home .tavern { margin-bottom: 28px; }
+/* Home page: have the container overlap the sign mid-way */
+body.home .tavern-sign {
+  z-index: 3;          /* ensure sign sits above the container */
+}
+body.home .tavern {
+  position: relative;
+  z-index: 1;
+  margin: -80px auto 16px; /* pull container upward into the sign */
+}
+
+@media (max-width: 600px) {
+  body.home .tavern { margin: -60px auto 14px; }
+}
+
+/* Thin top banner for status + buttons on home */
+body.home .top-banner {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 12px;
+  background: rgba(255, 244, 233, 0.715);
+  border-bottom: 3px solid #7800cd;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.12);
+  z-index: 5;
+}
+body.home .top-banner .banner-left,
+body.home .top-banner .banner-right {
+  display:flex; align-items:center; gap:10px; min-width:0;
+}
+body.home .top-banner .banner-left { flex: 1 1 auto; }
+body.home .top-banner .banner-right { flex: 0 0 auto; }
+body.home .top-banner #network-banner { display:flex; align-items:center; gap:8px; min-width:0; }
+body.home .top-banner #network-banner a,
+body.home .top-banner #network-banner span { white-space:nowrap; }
+body.home .top-banner .banner-status { max-width: 28vw; overflow:hidden; text-overflow:ellipsis; }
+body.home .top-banner #wallet-banner { display:flex; align-items:center; gap:8px; }
+body.home .top-banner .banner-status {
+  color: #2b1e12;
+  font-size: 14px;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+body.home .top-banner .controls button {
+  padding: 6px 12px;
+  font-size: 14px;
+}
+@media (max-width: 600px) {
+  body.home { --banner-h: 44px; padding-top: var(--banner-h); }
+  body.home .top-banner { height: 44px; padding: 0 8px; gap: 8px; }
+  body.home .top-banner .banner-status { font-size: 12px; }
+  body.home .top-banner .controls button { padding: 6px 10px; font-size: 13px; }
+}
+
+/* Center logo + container as a unit */
+.hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100vh - var(--banner-h));
+  width: 100%;
+}
 
 button {
   background:#9200fa;
@@ -147,8 +180,7 @@ button:hover { background:#7800cd; }
 .shell {
   width: 100px;
   height: 100px;
-  /* From /css/style.css, go up one to repo root, then assets */
-  background: url('../assets/images/cup.png') no-repeat center center;
+  background: url('../../assets/images/cup.png') no-repeat center center;
   background-size: contain;
   transition: transform 0.3s;
 }
