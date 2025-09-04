@@ -13,6 +13,7 @@ const returnBtn = document.getElementById('return');
 const betAmtInput = document.getElementById('bet-amt');
 const betCopperInput = document.getElementById('bet-copper');
 const rankButtons = Array.from(document.querySelectorAll('.rank-btn'));
+let stageInfo = { stage: null, deadline: null };
 
 let ws; let myAddr = null; let currentTable = null; let mySeatId = null; let myIsOwner = false;
 
@@ -65,6 +66,11 @@ function connect() {
     let msg; try { msg = JSON.parse(evt.data); } catch { return; }
     if (msg.type === 'hello') return; // ignore handshake detail in UI
     if (msg.type === 'table:update') { renderTable(msg.table); }
+    if (msg.type === 'table:stage') {
+      stageInfo.stage = msg.stage; stageInfo.deadline = msg.deadline;
+      try { readyInput.checked = false; } catch {}
+      updateStageStatus();
+    }
     if (msg.type === 'table:coup') {
       const bank = msg.bankRank;
       const player = msg.playerRank;
@@ -76,6 +82,7 @@ function connect() {
     if (msg.type === 'table:started') { log('Game started!'); renderTable(msg.table); }
     if (msg.type === 'chat') { log(`${msg.from}: ${msg.text}`); }
     if (msg.type === 'error') { log(`Error: ${msg.message || 'unknown'}`); }
+    if (msg.type === 'eject') { window.location.href='../../index.html'; }
   };
   ws.onclose = () => { log('Disconnected. Reconnecting in 2s...'); setTimeout(connect, 2000); };
 }
@@ -112,6 +119,15 @@ rankButtons.forEach(btn => {
     log(`Bet ${amt} on ${rank}${copper ? ' (copper)' : ''}`);
   });
 });
+
+function updateStageStatus(){
+  try {
+    if (!stageInfo.stage) { statusEl.textContent = ""; return; }
+    const left = Math.max(0, Math.floor(((stageInfo.deadline||0) - Date.now())/1000));
+    const label = stageInfo.stage === "betting" ? "Place bets" : "Get ready";
+    statusEl.textContent = `${label} - ${left}s`;
+  } catch {}
+}setInterval(updateStageStatus, 500);
 
 returnBtn?.addEventListener('click', () => { window.location.href = '../../index.html'; });
 
