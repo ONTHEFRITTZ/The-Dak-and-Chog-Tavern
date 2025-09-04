@@ -10,6 +10,10 @@ const dealBtn = document.getElementById('deal');
 const readyInput = document.getElementById('ready');
 const seatsEls = Array.from(document.querySelectorAll('.seat'));
 const returnBtn = document.getElementById('return');
+const avatarUpload = document.getElementById('avatar-upload');
+const xHandleInput = document.getElementById('x-handle');
+const useXAvatarBtn = document.getElementById('use-x-avatar');
+const tweetWinBtn = document.getElementById('tweet-win');
 const betAmtInput = document.getElementById('bet-amt');
 const betCopperInput = document.getElementById('bet-copper');
 const rankButtons = Array.from(document.querySelectorAll('.rank-btn'));
@@ -32,8 +36,9 @@ function renderTable(table) {
     if (s) {
       const owner = (table.ownerId && s.id === table.ownerId);
       if (owner) { const b = document.createElement('div'); b.className = 'owner-badge'; b.textContent = 'Owner'; el.appendChild(b); }
+      if (s.avatar) { const img = document.createElement('img'); img.className='avatar'; img.src = s.avatar; img.alt=''; el.appendChild(img); }
       const a = document.createElement('div'); a.className = 'addr'; a.textContent = short(s.addr || s.id); el.appendChild(a);
-      const bal = document.createElement('div'); bal.className = 'bal'; bal.textContent = `Bal: ${Number(s.balance ?? 0)}`; el.appendChild(bal);
+      const bal = document.createElement('div'); bal.className = 'bal'; bal.textContent = `Bal: ${Number(s.balance ?? 0)}${s.pending ? ' | Pend: '+s.pending : ''}`; el.appendChild(bal);
       const me = (s.addr && myAddr && s.addr.toLowerCase() === myAddr.toLowerCase());
       if (me) { mySeatId = s.id; myIsOwner = owner; }
       if (me) {
@@ -74,7 +79,7 @@ function connect() {
     if (msg.type === 'table:update') { renderTable(msg.table); renderBets(msg.bets || {}); }
     if (msg.type === 'you') { myAllowedRound = Number(msg.allowedRound||0); }
     if (msg.type === 'table:stage') {
-      stageInfo.stage = msg.stage; stageInfo.deadline = msg.deadline;
+      stageInfo.stage = msg.stage; stageInfo.deadline = msg.deadline; stageInfo.lockAt = msg?.table?.lockAt || msg.lockAt || null;
       try { readyInput.checked = false; } catch {}
       updateStageStatus();
     }
@@ -83,7 +88,15 @@ function connect() {
       const player = msg.playerRank;
       log(`Coup: bank=${bank}, player=${player}${msg.doublet ? ' (doublet)' : ''}`);
       if (Array.isArray(msg.results)) {
-        msg.results.forEach(r => log(`${short(r.addr)}: ${r.delta >= 0 ? '+' : ''}${r.delta}`));
+        let myDelta = 0;
+        msg.results.forEach(r => { log(`${short(r.addr)}: ${r.delta >= 0 ? '+' : ''}${r.delta}`); if (myAddr && r.addr && r.addr.toLowerCase() === myAddr.toLowerCase()) myDelta = Number(r.delta||0); });
+        if (myDelta > 0 && tweetWinBtn) {
+          tweetWinBtn.style.display = '';
+          const text = encodeURIComponent(`I just won ${myDelta} at Faro in The Dak & Chog Tavern!`);
+          const url = 'https://twitter.com/intent/tweet?text=' + text;
+          tweetWinBtn.onclick = () => window.open(url, '_blank');
+          setTimeout(()=>{ try { tweetWinBtn.style.display = 'none'; } catch{} }, 15000);
+        }
       }
     }
     if (msg.type === 'table:started') { log('Game started!'); renderTable(msg.table); }
@@ -147,10 +160,31 @@ function updateStageStatus(){
     const left = Math.max(0, Math.floor(((stageInfo.deadline||0) - Date.now())/1000));
     const label = stageInfo.stage === "betting" ? "Place bets" : "Get ready";
     statusEl.textContent = `${label} - ${left}s`;
+    // Lock buttons when past lockAt
+    const lock = stageInfo.stage === 'betting' && stageInfo.lockAt && Date.now() >= Number(stageInfo.lockAt);
+    rankButtons.forEach(btn => { btn.disabled = !!lock; });
   } catch {}
 }setInterval(updateStageStatus, 500);
 
 returnBtn?.addEventListener('click', () => { window.location.href = '../../index.html'; });
+
+// Avatar upload
+avatarUpload?.addEventListener('change', async (e) => {
+  const f = e.target.files && e.target.files[0];
+  if (!f) return;
+  try {
+    const reader = new FileReader();
+    reader.onload = () => { try { ws?.send(JSON.stringify({ type: 'set_avatar', data: String(reader.result||'') })); } catch {} };
+    reader.readAsDataURL(f);
+  } catch {}
+});
+
+useXAvatarBtn?.addEventListener('click', () => {
+  const h = (xHandleInput?.value || '').trim().replace(/^@/, '');
+  if (!h) return;
+  const url = `https://unavatar.io/twitter/${encodeURIComponent(h)}`;
+  try { ws?.send(JSON.stringify({ type: 'set_avatar', url })); } catch {}
+});
 
 // Resolve address (if connected previously via Tavern) for display/identity
 (async () => {
@@ -163,3 +197,22 @@ returnBtn?.addEventListener('click', () => { window.location.href = '../../index
   } catch {}
   connect();
 })();
+
+
+// Avatar upload
+avatarUpload?.addEventListener('change', async (e) => {
+  const f = e.target.files && e.target.files[0];
+  if (!f) return;
+  try {
+    const reader = new FileReader();
+    reader.onload = () => { try { ws?.send(JSON.stringify({ type: 'set_avatar', data: String(reader.result||'') })); } catch {} };
+    reader.readAsDataURL(f);
+  } catch {}
+});
+
+useXAvatarBtn?.addEventListener('click', () => {
+  const h = (xHandleInput?.value || '').trim().replace(/^@/, '');
+  if (!h) return;
+  const url = https://unavatar.io/twitter/;
+  try { ws?.send(JSON.stringify({ type: 'set_avatar', url })); } catch {}
+});

@@ -8,6 +8,7 @@ const wss = new WebSocketServer({ port: PORT });
 // tables: Map<tableId, { id, createdAt, seats: [ seat ], ownerId, started, state }>
 // seat: { id, addr, ready, ws }
 const tables = new Map();
+const profiles = new Map(); // addr -> { cipher: string }
 
 function send(ws, type, data = {}) {
   try { ws.send(JSON.stringify({ type, ...data })); } catch {}
@@ -28,7 +29,8 @@ function getPublicTable(table) {
     stage: table.stage || null,
     deadline: table.deadline || null,
     round: Number(table.round || 0),
-    seats: table.seats.map((s) => (s ? { id: s.id, addr: s.addr || null, ready: !!s.ready, balance: Number(s.balance || 0) } : null)),
+    lockAt: table.lockAt || null,
+    seats: table.seats.map((s) => (s ? { id: s.id, addr: s.addr || null, ready: !!s.ready, balance: Number(s.balance || 0), pending: (table.bets.get(s.id) || []).reduce((a,b)=>a+Math.max(0, Number(b?.amount||0)),0), avatar: s.avatar || null } : null)),
   };
 }
 
@@ -58,6 +60,9 @@ function ensureTable(tableId) {
 }
 
 const RANKS = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
+const MIN_BET = 1;
+const MAX_BET = 1000;
+const BET_LOCK_BEFORE_MS = 5000;
 function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]];} return a; }
 function newShoe(){ const d=[]; for(let r=0;r<13;r++){ for(let c=0;c<4;c++){ d.push(r);} } return shuffle(d); }
 function draw(table){ if (!table.shoe || table.shoe.length - table.shoeIdx < 1){ table.shoe=newShoe(); table.shoeIdx=0; table.burned=false; } const v=table.shoe[table.shoeIdx++]; return v; }
@@ -71,6 +76,7 @@ function scheduleStage(table, stage, ms=30000){
   table.stage = stage;
   const duration = stage === 'betting' ? 60000 : ms;
   table.deadline = Date.now() + duration;
+  table.lockAt = stage === 'betting' ? (table.deadline - BET_LOCK_BEFORE_MS) : null;
   table.stageReady = new Set();
   if (stage === 'betting') table.round = Number(table.round || 0) + 1;
   broadcastStage(table);
@@ -256,12 +262,15 @@ wss.on('connection', (ws) => {
       const seat = table.seats.find((s)=>s?.ws===ws);
       if (!seat) return send(ws, 'error', { message: 'Sit first' });
       if ((table.stage||'') !== 'betting') return send(ws, 'error', { message: 'Not in betting stage' });
+      if (table.lockAt && Date.now() >= table.lockAt) return send(ws, 'error', { message: 'Betting locked' });
       const rankSym = String(msg.rank||'').toUpperCase();
       const rank = RANKS.indexOf(rankSym);
       if (rank < 0) return send(ws, 'error', { message: 'Invalid rank' });
       let amount = Math.floor(Number(msg.amount||0));
-      if (!(amount>0)) return send(ws, 'error', { message: 'Invalid amount' });
-      amount = Math.min(amount, 1000000);
+      if (!(amount>=MIN_BET)) return send(ws, 'error', { message: `Min bet is ${MIN_BET}` });
+      if (amount > MAX_BET) return send(ws, 'error', { message: `Max bet is ${MAX_BET}` });
+      const pending = (table.bets.get(seat.id) || []).reduce((a,b)=>a+Number(b.amount||0),0);
+      if (amount + pending > Number(seat.balance||0)) return send(ws, 'error', { message: 'Insufficient balance' });
       const copper = !!msg.copper;
       const list = table.bets.get(seat.id) || [];
       list.push({ rank, amount, copper });
@@ -278,6 +287,45 @@ wss.on('connection', (ws) => {
       if (!table.started) return send(ws, 'error', { message: 'Start the shoe first' });
       dealCoup(table);
       scheduleStage(table, 'betting');
+      return;
+    }
+
+    if (t === 'profile_save') {
+      try {
+        const addr = String(ws.addr||'').toLowerCase();
+        if (!addr) return send(ws, 'error', { message: 'Need wallet identity' });
+        const cipher = String(msg.cipher||'').slice(0, 500000); // cap ~500KB
+        if (!cipher) return send(ws, 'error', { message: 'Missing cipher' });
+        profiles.set(addr, { cipher, updatedAt: Date.now() });
+        return send(ws, 'ok', { type: 'profile_save' });
+      } catch (e) { return send(ws, 'error', { message: 'Save failed' }); }
+    }
+
+    if (t === 'profile_get') {
+      try {
+        const addr = String(ws.addr||'').toLowerCase();
+        if (!addr) return send(ws, 'error', { message: 'Need wallet identity' });
+        const p = profiles.get(addr) || null;
+        return send(ws, 'profile', { cipher: p?.cipher || null, updatedAt: p?.updatedAt || null });
+      } catch (e) { return send(ws, 'error', { message: 'Load failed' }); }
+    }
+    if (t === 'set_avatar') {
+      if (!ws.tableId) return;
+      const table = ensureTable(ws.tableId);
+      const seat = table.seats.find((s)=>s?.ws===ws);
+      if (!seat) return send(ws, 'error', { message: 'Sit first to set avatar' });
+      try {
+        const url = (msg.url && String(msg.url).slice(0, 512)) || null;
+        const data = (msg.data && String(msg.data).slice(0, 200000)) || null;
+        if (data && data.startsWith('data:image/')) {
+          seat.avatar = data;
+        } else if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
+          seat.avatar = url;
+        } else if (!url && !data) {
+          seat.avatar = null;
+        }
+      } catch {}
+      broadcast(table, 'table:update', { table: getPublicTable(table) });
       return;
     }
 

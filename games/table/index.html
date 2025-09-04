@@ -15,6 +15,7 @@
     .seat { position:absolute; width:120px; height:120px; border-radius:12px; background: rgba(255,255,255,0.5); border:2px solid #7800cd; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; padding:6px; }
     .seat .addr { font-size:12px; color:#2b1e12; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; width: 100%; text-align:center; }
     .seat .bal { font-size:12px; color:#2b1e12; }
+    .seat .avatar { width:46px; height:46px; border-radius:999px; object-fit:cover; border:2px solid #7800cd; box-shadow:0 2px 8px rgba(0,0,0,0.2); }
     .seat .btns button { padding:4px 8px; font-size:12px; border-radius:6px; }
     .owner-badge { position:absolute; top:-10px; right:-10px; background:#9200fa; color:#fff; font-size:11px; padding:2px 6px; border-radius:999px; }
     .ready { background: rgba(146,255,170,0.45); }
@@ -27,6 +28,7 @@
     .faro-board { display:grid; grid-template-columns: repeat(13, minmax(36px, 1fr)); gap:6px; width:min(92vw, 720px); }
     .rank-btn { background:#9200fa; color:#fff; border:none; border-radius:10px; padding:8px 0; font-size:14px; cursor:pointer; position:relative; }
     .rank-btn:hover { background:#7800cd; }
+    .rank-btn:disabled { opacity: .6; cursor: not-allowed; }
     .rank-btn .chip { position:absolute; right:6px; bottom:4px; background:#fff; color:#2b1e12; border:2px solid #7800cd; border-radius:999px; padding:1px 6px; font-size:12px; line-height:1.2; box-shadow:0 2px 6px rgba(0,0,0,0.2); }
     @media (max-width: 720px) {
       .rank-btn { font-size:13px; padding:6px 0; }
@@ -57,6 +59,15 @@
         <button id="start" disabled style="display:none;">Start Shoe</button>
         <button id="deal" disabled style="display:none;">Deal Coup</button>
         <label style="font-size:13px;"><input type="checkbox" id="ready"> Ready</label>
+        <span style="width:10px;"></span>
+        <label style="font-size:13px;">Avatar:
+          <input id="avatar-upload" type="file" accept="image/*" style="font-size:12px;" />
+        </label>
+        <label style="font-size:13px;">X:
+          <input id="x-handle" placeholder="@handle" style="width:120px; text-align:center;" />
+          <button id="use-x-avatar">Use</button>
+        </label>
+        <button id="tweet-win" style="display:none;">Tweet your win</button>
       </div>
 
       <div class="faro-panel">
