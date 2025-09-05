@@ -1,10 +1,12 @@
 // Profile module: client-side encryption and WS storage
 // Requires: window.ethereum (optional ethers), and runs on pages that want profiles
 
-const WS_URL = (window.MULTI_WS_URL || 'ws://localhost:8787');
+const __isLocalHost = ['localhost','127.0.0.1'].includes(location.hostname);
+const WS_URL = (window.MULTI_WS_URL || (__isLocalHost ? 'ws://localhost:8787' : null));
 let ws;
 
 function wsEnsure() {
+  if (!WS_URL) throw new Error('WS disabled on this host');
   if (ws && ws.readyState === 1) return Promise.resolve(ws);
   return new Promise((resolve) => {
     ws = new WebSocket(WS_URL);

@@ -1,6 +1,6 @@
 // Dak & Chog coin flip (frontend scaffolding styled like other games)
 import { renderTavernBanner, detectChainId, getAddressFor } from '../../js/config.js';
-import { attachProvider } from '../../js/contract-utils.js';
+import '../../js/TavernABI.js';
 
 const RULES_VERSION = 'v2';
 const statusEl = document.getElementById('dc-status');
@@ -14,7 +14,7 @@ const rulesAck = document.getElementById('rules-ack');
 const openRulesBtn = document.getElementById('open-rules');
 const returnBtn = document.getElementById('return');
 
-let provider, signer, wallet;
+let provider, signer, wallet, tavern;
 let choice = 'dak';
 let rulesOK = false;
 
@@ -43,20 +43,49 @@ async function ensureWallet() {
     provider = new ethers.providers.Web3Provider(window.ethereum, 'any');
     signer = provider.getSigner();
     wallet = await signer.getAddress();
-    try { attachProvider(provider); } catch {}
-    try { const chainId = await detectChainId(provider); const addr = await getAddressFor('tavern', provider); renderTavernBanner({ contractKey: 'tavern', address: addr, chainId, wallet }); } catch {}
+    try {
+      const chainId = await detectChainId(provider);
+      const addr = await getAddressFor('tavern', provider);
+      renderTavernBanner({ contractKey: 'tavern', address: addr, chainId, wallet });
+      if (addr && window.TavernABI) {
+        tavern = new ethers.Contract(addr, window.TavernABI, signer);
+      }
+    } catch {}
   } catch {}
 }
 
 flipBtn.addEventListener('click', async () => {
   if (!rulesOK) { try { rulesOverlay.style.display = 'flex'; } catch {}; return; }
-  // Simulated flip animation
-  try { coinEl.classList.remove('flip'); void coinEl.offsetWidth; coinEl.classList.add('flip'); } catch {}
-  const result = Math.random() < 0.5 ? 'dak' : 'chog';
-  setTimeout(() => { setCoin(result); }, 380);
+  const ethers = window.ethers;
   const bet = Number(betInput.value || 0);
-  const win = result === choice;
-  statusEl.textContent = win ? `Landed on ${result.toUpperCase()} — you won ${bet * 2} MON (simulated).` : `Landed on ${result.toUpperCase()} — you lost.`;
+  if (!provider || !signer || !wallet) { statusEl.textContent = 'Connect wallet first.'; return; }
+  if (!tavern || !window.TavernABI) { statusEl.textContent = 'Tavern contract not configured.'; return; }
+  if (!(bet > 0)) { statusEl.textContent = 'Enter a valid bet amount.'; return; }
+
+  // Animate coin while tx is pending
+  try { coinEl.classList.remove('flip'); void coinEl.offsetWidth; coinEl.classList.add('flip'); } catch {}
+  statusEl.textContent = 'Submitting transaction…';
+  try {
+    const chooseChog = (choice === 'chog');
+    const tx = await tavern.playCoin(chooseChog, { value: ethers.utils.parseEther(String(bet)) });
+    statusEl.textContent = `Tx sent: ${tx.hash.slice(0,10)}… waiting confirmation…`;
+    const rc = await tx.wait();
+    // Parse CoinPlayed event if present
+    let ev;
+    try { ev = rc.events?.find(e => e.event === 'CoinPlayed'); } catch {}
+    if (ev && ev.args) {
+      const resultChog = !!ev.args.resultChog;
+      const won = !!ev.args.won;
+      setTimeout(() => { setCoin(resultChog ? 'chog' : 'dak'); }, 380);
+      statusEl.textContent = won ? `On-chain: ${resultChog ? 'CHOG' : 'DAK'} — you won!` : `On-chain: ${resultChog ? 'CHOG' : 'DAK'} — you lost.`;
+    } else {
+      // Fallback: query past logs or just show confirmed
+      statusEl.textContent = 'Confirmed. Check wallet or explorer for result.';
+    }
+  } catch (e) {
+    console.error(e);
+    statusEl.textContent = e?.data?.message || e?.message || 'Transaction failed.';
+  }
 });
 
 chooseDak.addEventListener('click', () => setChoice('dak'));
