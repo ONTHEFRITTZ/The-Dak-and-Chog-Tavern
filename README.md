@@ -54,7 +54,28 @@ On-Chain Contracts
 V2 Contracts (optional upgrades)
 - Contracts/TavernV2.sol: adds pause(), emergencyWithdrawAll(), transferOwnership()
 - Contracts/FaroV2.sol: adds pause(), emergencyWithdrawAll(), transferOwnership(); keeps rake mechanics
-- Deploy scripts: hardhat/scripts/deploy_tavern_v2.js, deploy_faro_v2.js
+- Deploy scripts: hardhat/scripts/deploy_tavern_v2.js, hardhat/scripts/deploy_faro_v2.js
+
+How to deploy V2 and switch the site
+1) Deploy (from hardhat folder):
+   - npx hardhat run scripts/deploy_tavern_v2.js --network YOUR_NET
+   - npx hardhat run scripts/deploy_faro_v2.js --network YOUR_NET
+   - Fund both contracts with native coin so they can pay winners.
+2) Point the site at the new addresses (either method):
+   - Quick override in browser console:
+     localStorage.setItem('contract.tavern','0xNewTavernV2');
+     localStorage.setItem('contract.faro','0xNewFaroV2');
+     location.reload();
+   - Or add to js/config.js ADDRESS_BOOK and deploy the site.
+3) Pause/Resume and Emergency (owner only):
+   - TavernV2: pause(true/false), emergencyWithdrawAll(to), transferOwnership(newOwner)
+   - FaroV2:   pause(true/false), emergencyWithdrawAll(to), transferOwnership(newOwner)
+
+Realtime Admin Pause
+- Server env var ADMIN_ADDR should be set to the owner address (lowercased). Examples:
+  - systemd: add to [Service] Environment=ADMIN_ADDR=0xyourowneraddress and restart service
+  - nohup: ADMIN_ADDR=0xyourowneraddress nohup node /opt/tavern-app/server.js ...
+- Admin page (/admin/) has Pause/Resume buttons; they only enable when the owner wallet is connected.
 
 
 Deploy (Hardhat)
