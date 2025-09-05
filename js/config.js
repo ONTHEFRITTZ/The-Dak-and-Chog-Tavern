@@ -4,8 +4,6 @@
 
 // Base defaults (used when no chain-specific mapping exists)
 const DEFAULT_ADDRESSES = {
-  shell: "0x0055522ef5BB9922E916739456F6FA73a8f20dFc",
-  hazard: "0x9cedd769cd1CD5cC52D8b3c46ec31c61b7c5dE10",
   tavern: "0x790Dd8AE15A0dAA37366071CbA2BFA00cB365f47",
 };
 
@@ -22,8 +20,6 @@ export const ADDRESS_BOOK = {
   // 11155111: { shell: "0x...", hazard: "0x..." },
 };
 
-export const SHELL_ADDRESS = DEFAULT_ADDRESSES.shell;
-export const HAZARD_ADDRESS = DEFAULT_ADDRESSES.hazard;
 export const TAVERN_ADDRESS = DEFAULT_ADDRESSES.tavern;
 
 export const CONTRACTS = { ...DEFAULT_ADDRESSES };

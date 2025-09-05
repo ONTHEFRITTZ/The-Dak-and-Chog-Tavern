@@ -1,6 +1,7 @@
 // shell.js
-// Works with existing index.html and ShellABI.js loaded globally
+// Uses the unified Tavern contract ABI (window.TavernABI)
 import { getAddressFor, detectChainId, renderTavernBanner, showToast } from '../../js/config.js';
+import { attachProvider } from '../../js/contract-utils.js';
 
 const shellElements = document.querySelectorAll('.shell');
 const statusEl = document.getElementById('status');
@@ -32,6 +33,7 @@ async function init() {
   }
   provider = new ethers.providers.Web3Provider(window.ethereum, 'any');
   signer = provider.getSigner();
+  try { attachProvider(provider); } catch {}
   userAddress = await signer.getAddress();
   tavernAddress = await getAddressFor('tavern', provider);
   try {

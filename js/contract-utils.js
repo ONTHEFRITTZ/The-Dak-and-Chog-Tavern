@@ -12,12 +12,11 @@ export function attachProvider(p) {
 }
 
 // Shared function to fund Shell contract (example)
+// Send native funds directly to the unified Tavern contract (payable receive)
 export async function fundContract(amountEth) {
   if (!signer) throw new Error('Wallet not connected');
-  const contractAddress = await getAddressFor('shell', provider);
-  const abi = await fetch('games/shell/ShellABI.json').then(res => res.json());
-  const contract = new ethers.Contract(contractAddress, abi, signer);
-  return contract.fund({ value: ethers.utils.parseEther(String(amountEth)) });
+  const tavernAddress = await getAddressFor('tavern', provider);
+  return signer.sendTransaction({ to: tavernAddress, value: ethers.utils.parseEther(String(amountEth)) });
 }
 
 // Utility to check wallet

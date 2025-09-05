@@ -4,20 +4,19 @@
 
 // Base defaults (used when no chain-specific mapping exists)
 const DEFAULT_ADDRESSES = {
-  shell: "0x0055522ef5BB9922E916739456F6FA73a8f20dFc",
-  hazard: "0x9cedd769cd1CD5cC52D8b3c46ec31c61b7c5dE10",
+  tavern: "0x790Dd8AE15A0dAA37366071CbA2BFA00cB365f47",
 };
 
 // Address book keyed by chainId (as number or string) or "default"
 // Add entries like 1, 11155111, etc. when you deploy to new chains.
 export const ADDRESS_BOOK = {
   default: { ...DEFAULT_ADDRESSES },
+  10143: { // Monad Testnet
+    tavern: "0x790Dd8AE15A0dAA37366071CbA2BFA00cB365f47",
+  },
   // 1: { shell: "0x...", hazard: "0x..." },
   // 11155111: { shell: "0x...", hazard: "0x..." },
 };
-
-export const SHELL_ADDRESS = DEFAULT_ADDRESSES.shell;
-export const HAZARD_ADDRESS = DEFAULT_ADDRESSES.hazard;
 
 export const CONTRACTS = { ...DEFAULT_ADDRESSES };
 
@@ -82,6 +81,7 @@ export const CHAIN_NAMES = {
   42161: 'Arbitrum One',
   43114: 'Avalanche',
   11155111: 'Sepolia',
+  10143: 'Monad Testnet',
 };
 
 export const EXPLORERS = {
@@ -96,6 +96,12 @@ export const EXPLORERS = {
   42161: 'https://arbiscan.io',
   43114: 'https://snowtrace.io',
   11155111: 'https://sepolia.etherscan.io',
+  10143: 'https://testnet.monadexplorer.com',
+};
+
+// Optional: RPC endpoints for convenience
+export const RPC_ENDPOINTS = {
+  10143: 'wss://monad-testnet.drpc.org',
 };
 
 export function getChainName(chainId) {

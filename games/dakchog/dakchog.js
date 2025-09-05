@@ -1,5 +1,6 @@
 // Dak & Chog coin flip (frontend scaffolding styled like other games)
 import { renderTavernBanner, detectChainId, getAddressFor } from '../../js/config.js';
+import { attachProvider } from '../../js/contract-utils.js';
 
 const RULES_VERSION = 'v2';
 const statusEl = document.getElementById('dc-status');
@@ -42,6 +43,7 @@ async function ensureWallet() {
     provider = new ethers.providers.Web3Provider(window.ethereum, 'any');
     signer = provider.getSigner();
     wallet = await signer.getAddress();
+    try { attachProvider(provider); } catch {}
     try { const chainId = await detectChainId(provider); const addr = await getAddressFor('tavern', provider); renderTavernBanner({ contractKey: 'tavern', address: addr, chainId, wallet }); } catch {}
   } catch {}
 }

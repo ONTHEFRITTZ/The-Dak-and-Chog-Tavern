@@ -1,6 +1,7 @@
 // games/hazard/hazard.js
 // UI wired to MonHazard contract (HazardPlayed event) using ethers v5 UMD
 import { getAddressFor, detectChainId, renderTavernBanner, showToast } from '../../js/config.js';
+import { attachProvider } from '../../js/contract-utils.js';
 
 let tavernAddress; // unified contract address
 const diceImages = [
@@ -166,6 +167,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   try {
     provider = new ethers.providers.Web3Provider(window.ethereum, 'any');
     signer = provider.getSigner();
+    try { attachProvider(provider); } catch {}
     const walletAddress = await signer.getAddress();
     tavernAddress = await getAddressFor('tavern', provider);
     contract = new ethers.Contract(tavernAddress, window.TavernABI, signer);
