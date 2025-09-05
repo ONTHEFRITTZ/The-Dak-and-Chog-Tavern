@@ -5,6 +5,7 @@ on:
     branches: [ "main" ]
     paths:
       - "**.html"
+      - "games/**"
       - "css/**"
       - "js/**"
       - "images/**"

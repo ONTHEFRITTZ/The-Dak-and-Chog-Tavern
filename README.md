@@ -1,10 +1,13 @@
-The Dak & Chog Tavern — Deploy Guide
+The Dak & Chog Tavern — v1.1 Stable Online Multiplayer
 
 Overview
-- Static site hosted on Ubuntu (AWS EC2) with Nginx and Let’s Encrypt.
-- Local deploy via PowerShell script.
-- CI/CD via GitHub Actions: staging (auto), production (approval).
-- On-chain: Tavern (Shell, Hazard, Coin). New: Faro with rake per round.
+- Version: 1.1 — Stable Online Multiplayer
+- On-chain games: Tavern (Shell, Hazard, Dak & Chog) + Faro with rake
+
+Site & CI
+- Static site on Ubuntu (AWS EC2) with Nginx and Let’s Encrypt
+- Local deploy via PowerShell script (optional)
+- CI/CD via GitHub Actions on `main` (production environment approval)
 
 Prereqs
 - Domain DNS (GoDaddy):
@@ -29,13 +32,10 @@ Local Deploy
 - Behavior: Uploads to temp dir and atomically swaps into place.
 
 GitHub Actions (CI/CD)
-- Production workflow: .github/workflows/deploy.yml
+- Workflow: .github/workflows/deploy.yml (main → production)
   - Secrets: SSH_HOST, SSH_USER, SSH_KEY, SSH_PORT (opt), REMOTE_PATH=/var/www/thedakandchog.xyz/html
   - Environment: production (requires approval). URL set to https://thedakandchog.xyz
-  - Triggers: push to main (web assets only) or manual dispatch
-- Staging workflow: .github/workflows/deploy-staging.yml
-  - Secrets: STAGING_SSH_HOST, STAGING_SSH_USER, STAGING_SSH_KEY, STAGING_SSH_PORT (opt), STAGING_REMOTE_PATH=/var/www/staging.thedakandchog.xyz/html
-  - Triggers: push to staging (web assets only) or manual dispatch
+  - Triggers: push to `main` (web assets, css/js, games/**, assets/**) or manual dispatch
 
 Notes
 - Ensure DNS propagates before running Certbot (bootstrap) or visiting the site.
@@ -43,7 +43,7 @@ Notes
 - For dynamic backends later, keep Nginx as reverse proxy and add a systemd/pm2 service for the app.
 
 On-Chain Contracts
-- Contracts/Tavern.sol: Shell, Hazard, Dak & Chog (coin) — dev randomness.
+- Contracts/Tavern.sol: Shell, Hazard, Dak & Chog (coin) — dev randomness
 - Contracts/Faro.sol: Simplified Faro with rake (feeBps). Rules:
   - Player bets rank 1..13. Two ranks are drawn: bankRank then playerRank.
   - If bet == bankRank: lose. If bet == playerRank: win 1:1 on (wager - rake).
@@ -64,4 +64,7 @@ Frontend Wiring
   - Example override in browser console:
     localStorage.setItem('contract.tavern','0x...');
     localStorage.setItem('contract.faro','0x...');
-  - Refresh the page.
+  - Refresh the page
+
+Versioning
+- File: assets/version.txt contains current site version (v1.1)
