@@ -156,11 +156,25 @@
   <div class="tavern" style="max-width:1280px; width:95%; margin:clamp(180px, 14vw, 300px) auto 28px; position:relative;">
     <h1 class="visually-hidden">Hazard</h1>
     <img class="game-logo" src="../../assets/images/hazard-logo.png" alt="Hazard">
-    <div style="text-align:center; margin-top:6px;">
-      <button id="open-rules">Rules</button>
-    </div>
     <div class="hazard-layout">
-      <aside class="hazard-left"></aside>
+      <aside class="hazard-left">
+        <div class="rules" style="text-align:left; background: rgba(255,255,255,0.06); padding:12px; border-radius:8px;">
+          <strong>Rules (contract):</strong>
+          <ol>
+            <li>Choose a <em>main</em> between <strong>5</strong> and <strong>9</strong>.</li>
+            <li>Place a wager and click <strong>Roll Dice</strong>. The contract rolls two dice until a result is reached.</li>
+            <li>First roll:
+              <ul>
+                <li>If roll equals your main: immediate win.</li>
+                <li>If roll is 2 or 3: immediate loss.</li>
+                <li>If roll is 11 or 12: win if main is 5 or 9; lose if main is 7; otherwise lose.</li>
+                <li>Otherwise the roll becomes the <em>chance</em> (a point) and subsequent rolls repeat until the chance or main resolves the game.</li>
+              </ul>
+            </li>
+            <li>If you win, the contract attempts to pay 2x your wager (contract must have bankroll).</li>
+          </ol>
+        </div>
+      </aside>
 
       <section class="hazard-right">
         <div class="controls">
@@ -219,3 +233,4 @@
   </script>
 </body>
 </html>
+

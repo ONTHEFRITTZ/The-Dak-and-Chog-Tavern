@@ -23,10 +23,27 @@
     <img class="tavern-sign" src="assets/images/sign.png" alt="The Dak and Chog Tavern">
     <div class="tavern">
       <h2>Choose Your Game</h2>
-      <div class="game-links">
-        <a href="games/shell/index.html">Shell Game!</a>
-        <a href="games/hazard/index.html">Hazard!</a>
-        <a href="games/table/index.html">Faro!</a>
+      <div class="game-logos">
+        <a class="game-logo-link" href="games/shell/index.html" title="Shell Game">
+          <img src="assets/images/shell-game-logo.png" alt="Shell Game">
+        </a>
+        <a class="game-logo-link" href="games/hazard/index.html" title="Hazard">
+          <img src="assets/images/hazard-logo.png" alt="Hazard">
+        </a>
+        <a class="game-logo-link" href="games/table/index.html" title="Faro">
+          <img src="assets/images/faro-logo.png" alt="Faro">
+        </a>
+      </div>
+    </div>
+  </div>
+  <!-- First-visit profile prompt -->
+  <div id="first-visit-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); align-items:center; justify-content:center; z-index:10000;">
+    <div style="background:rgba(255,244,233,0.96); border:4px solid #7800cd; border-radius:12px; padding:16px; width:min(92vw, 780px); text-align:left; color:#2b1e12;">
+      <h3 style="margin:0 0 8px 0;">Welcome to the Tavern</h3>
+      <p style="margin:0 0 8px 0;">Enhance your experience by setting up your Profile and linking your X handle to share wins.</p>
+      <div style="display:flex; gap:8px;">
+        <button id="fv-open-profile">Set up Profile</button>
+        <button id="fv-later">Maybe Later</button>
       </div>
     </div>
   </div>
@@ -71,6 +88,34 @@
     closeBtn?.addEventListener('click', ()=> show(false));
     saveBtn?.addEventListener('click', async ()=>{ try { await profileSave({ x: (xInput.value||'').trim() }); msgEl.textContent='Saved (encrypted).'; } catch(e){ msgEl.textContent='Save failed.'; } });
     loadBtn?.addEventListener('click', async ()=>{ try { const p = await profileLoad(); xInput.value = p?.x || ''; msgEl.textContent='Loaded.'; } catch(e){ msgEl.textContent='Load failed.'; } });
+
+    // Auto-open profile modal if requested via query (?openProfile=1)
+    try {
+      const url = new URL(window.location.href);
+      if (url.searchParams.get('openProfile') === '1') {
+        openBtn?.click();
+      }
+    } catch {}
+
+    // First-visit profile prompt (once)
+    try {
+      const seen = localStorage.getItem('firstVisit.profilePrompt') === 'true';
+      if (!seen) {
+        const ov = document.getElementById('first-visit-overlay');
+        const open = document.getElementById('fv-open-profile');
+        const later = document.getElementById('fv-later');
+        ov.style.display = 'flex';
+        open?.addEventListener('click', () => { ov.style.display='none'; openBtn?.click(); localStorage.setItem('firstVisit.profilePrompt','true'); });
+        later?.addEventListener('click', () => { ov.style.display='none'; localStorage.setItem('firstVisit.profilePrompt','true'); });
+      }
+    } catch {}
+
+    // Re-establish profile connections on wallet load (best effort)
+    try {
+      const onWalletReady = async () => { try { await profileLoad(); } catch {} };
+      if (sessionStorage.getItem('walletConnected') === 'true') { onWalletReady(); }
+      window.addEventListener('load', onWalletReady, { once: true });
+    } catch {}
   </script>
 </body>
 </html>

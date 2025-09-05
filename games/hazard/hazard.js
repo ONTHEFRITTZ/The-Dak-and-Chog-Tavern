@@ -24,6 +24,14 @@ const betInput = document.getElementById('bet');
 const returnBtn = document.getElementById('return');
 const rollsList = document.getElementById('rolls');
 const mainButtons = document.querySelectorAll('.main-select button');
+const rulesOverlay = document.getElementById('rules-overlay');
+const rulesAck = document.getElementById('rules-ack');
+const openRulesBtn = document.getElementById('open-rules');
+let hazardAck = false;
+
+function rulesFresh(key) {
+  try { const t = Number(localStorage.getItem(key) || 0); return Date.now() - t < 86400000; } catch { return false; }
+}
 
 // Persist and restore basic UI state (bet + main)
 try {
@@ -120,6 +128,14 @@ function explainOutcome(main, finalSum, chance, win) {
 }
 
 // Hook main selection buttons
+function setHazardInteractivity(enabled) {
+  try {
+    rollBtn.disabled = !enabled;
+    betInput.disabled = !enabled;
+    mainButtons.forEach(b => b.disabled = !enabled);
+  } catch {}
+}
+
 mainButtons.forEach(btn => {
   const m = Number(btn.dataset.main);
   if (m === selectedMain) btn.classList.add('active');
@@ -133,6 +149,12 @@ mainButtons.forEach(btn => {
 
 // Initialize provider/signers and attach handlers
 window.addEventListener('DOMContentLoaded', async () => {
+  // 24h rules acknowledgment
+  hazardAck = rulesFresh('rulesAck.hazard');
+  if (!hazardAck) { try { rulesOverlay.style.display = 'flex'; setHazardInteractivity(false); } catch {} }
+  rulesAck?.addEventListener('click', () => { hazardAck = true; try { rulesOverlay.style.display = 'none'; } catch {}; setHazardInteractivity(true); try { localStorage.setItem('rulesAck.hazard', String(Date.now())); } catch {} });
+  openRulesBtn?.addEventListener('click', () => { try { rulesOverlay.style.display = 'flex'; } catch {} });
+
   const walletFlag = sessionStorage.getItem('walletConnected');
   if (!window.ethereum || walletFlag !== 'true') {
     statusEl.innerText = 'Connect wallet on the Tavern first.';
@@ -186,6 +208,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   // Roll button handler
   rollBtn.addEventListener('click', async () => {
+    if (!hazardAck) { try { rulesOverlay.style.display = 'flex'; } catch {}; return; }
     if (!signer || !contract) {
       alert('Connect wallet on the Tavern first.');
       return;

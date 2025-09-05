@@ -9,6 +9,11 @@
   <script type="module" src="../../js/tavern.js"></script>
   <style>
     body { background: url('../../assets/images/tavern-bg.png') no-repeat center center fixed; background-size: cover; }
+    /* Game page logo at top (mirror Hazard/Shell) */
+    .game-logo { display:block; height:auto; max-width: clamp(220px, 40vw, 560px); position:absolute; left:50%; top: 0; z-index:3; transform: translate(-50%, -50%) scale(0.85); transform-origin: top center; filter: drop-shadow(0 6px 16px rgba(0,0,0,0.25)); pointer-events:none; user-select:none; }
+    /* add breathing room so content sits below the overlapped logo */
+    .tavern { padding-top: clamp(110px, 18vw, 180px); }
+    @media (max-width: 600px) { .game-logo { transform: translate(-50%, -50%) scale(0.8); } .tavern { padding-top: clamp(90px, 22vw, 160px); } }
     .table-wrap { display:flex; flex-direction:column; align-items:center; gap:16px; margin: 40px auto; }
     .table-canvas { position:relative; width:min(92vw, 720px); height:min(92vw, 520px); margin: 0 auto; }
     .table-surface { position:absolute; inset:0; border-radius:24px; background: rgba(255,244,233,0.78); border:5px solid #7800cd; box-shadow: 0 0 24px rgba(0,0,0,0.2); }
@@ -49,9 +54,29 @@
     </div>
   </div>
 
-  <div class="tavern" style="position:relative; width:95%; max-width:1280px; margin:28px auto;">
+  <div class="tavern" style="position:relative; width:95%; max-width:1280px; margin:clamp(180px, 14vw, 300px) auto 28px;">
+    <div id="rules-overlay" style="position:fixed; inset:0; background:rgba(0,0,0,0.6); display:none; align-items:center; justify-content:center; z-index:9999;">
+      <div style="background:rgba(255,244,233,0.96); border:4px solid #7800cd; border-radius:12px; padding:16px; width:min(92vw, 900px); max-height:90vh; overflow:auto; text-align:left; color:#2b1e12;">
+        <h2 style="margin-top:0;">Faro Rules</h2>
+        <ul>
+          <li>Deck: 52 cards; suits ignored; ranks A–K.</li>
+          <li>Before each coup, place bets on ranks (A–K). ‘Copper’ flips a bet to wager against that rank.</li>
+          <li>Burn first card (soda) once per shoe. Each coup: reveal two cards — bank then player.</li>
+          <li>Bank card: uncoppered bets on that rank lose; coppered bets win even money.</li>
+          <li>Player card: uncoppered bets on that rank win even money; coppered bets lose.</li>
+          <li>Doublet (both ranks same): house takes half of all bets on that rank.</li>
+          <li>Repeat coups until deck ends; then reshuffle and continue.</li>
+          <li>You must be ready within the round timer; failing to ready may forfeit pending bets and eject you.</li>
+        </ul>
+        <button id="rules-ack" style="margin-top:8px;">I have read and understand</button>
+      </div>
+    </div>
+    <img class="game-logo" src="../../assets/images/faro-logo.png" alt="Faro">
+    <div style="text-align:center; margin-top:6px;">
+      <button id="open-rules">Rules</button>
+    </div>
     <div class="table-wrap">
-      <h1>Faro</h1>
+      <h1 class="visually-hidden">Faro</h1>
       <div class="controls-inline">
         <label for="table-id">Table:</label>
         <input id="table-id" value="lobby" style="width:160px; text-align:center;" />
@@ -62,10 +87,6 @@
         <span style="width:10px;"></span>
         <label style="font-size:13px;">Avatar:
           <input id="avatar-upload" type="file" accept="image/*" style="font-size:12px;" />
-        </label>
-        <label style="font-size:13px;">X:
-          <input id="x-handle" placeholder="@handle" style="width:120px; text-align:center;" />
-          <button id="use-x-avatar">Use</button>
         </label>
         <button id="tweet-win" style="display:none;">Tweet your win</button>
       </div>

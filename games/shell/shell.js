@@ -7,6 +7,17 @@ const statusEl = document.getElementById('status');
 const playsEl = document.getElementById('plays');
 const returnBtn = document.getElementById('return');
 const betInput = document.getElementById('bet');
+const rulesOverlay = document.getElementById('rules-overlay');
+const rulesAck = document.getElementById('rules-ack');
+const openRulesBtn = document.getElementById('open-rules');
+function rulesFresh(key) { try { const t = Number(localStorage.getItem(key) || 0); return Date.now() - t < 86400000; } catch { return false; } }
+let shellAck = false;
+
+function setShellInteractivity(enabled) {
+  try {
+    betInput.disabled = !enabled;
+  } catch {}
+}
 
 let provider;
 let signer;
@@ -30,6 +41,7 @@ async function init() {
 
 shellElements.forEach((shell) => {
   shell.addEventListener('click', async () => {
+    if (!shellAck) { try { rulesOverlay.style.display = 'flex'; } catch {}; return; }
     try {
       await init();
 
@@ -110,9 +122,17 @@ try {
   shells.forEach((el, idx) => {
     el.setAttribute('tabindex', el.getAttribute('tabindex') || '0');
     el.addEventListener('keydown', (e) => {
+      if (!shellAck) { try { rulesOverlay.style.display = 'flex'; } catch {}; return; }
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); el.click(); }
       if (e.key === 'ArrowLeft') { e.preventDefault(); const t = shells[(idx + shells.length - 1) % shells.length]; t && t.focus(); }
       if (e.key === 'ArrowRight') { e.preventDefault(); const t = shells[(idx + 1) % shells.length]; t && t.focus(); }
     });
   });
 } catch {}
+
+// Show rules modal at load and block interactions until ack (per load)
+window.addEventListener('DOMContentLoaded', () => {
+  try { shellAck = rulesFresh('rulesAck.shell'); if (!shellAck) { rulesOverlay.style.display = 'flex'; setShellInteractivity(false); } } catch {}
+  rulesAck?.addEventListener('click', () => { shellAck = true; try { rulesOverlay.style.display = 'none'; } catch {}; setShellInteractivity(true); try { localStorage.setItem('rulesAck.shell', String(Date.now())); } catch {} });
+  openRulesBtn?.addEventListener('click', () => { try { rulesOverlay.style.display = 'flex'; } catch {} });
+});

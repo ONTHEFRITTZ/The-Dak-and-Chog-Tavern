@@ -55,7 +55,8 @@ export async function connectWallet() {
     signer = provider.getSigner();
     userAddress = await signer.getAddress();
 
-    connectButton.innerText = 'Wallet Connected';
+    // Hide connect button once connected
+    try { connectButton.style.display = 'none'; } catch {}
     // Clear redundant banner status; wallet shows on right side
     try { statusEl.innerText = ''; } catch {}
     showToast('Wallet connected', 'success');

@@ -29,8 +29,20 @@
       window.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') { try { btn.click(); } catch {} }
       });
+      // Auto sign-in if familiar wallet already authorized
+      (async () => {
+        try {
+          if (window.ethereum?.request) {
+            const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+            if (accounts && accounts.length) {
+              try { sessionStorage.setItem('walletConnected', 'true'); localStorage.setItem('lastWallet', (accounts[0]||'').toLowerCase()); } catch {}
+              // Optionally surface prompt to finish profile connection
+              const pp = document.getElementById('profile-prompt'); if (pp) pp.style.fontWeight = '700';
+            }
+          }
+        } catch {}
+      })();
     })();
   </script>
 </body>
 </html>
-

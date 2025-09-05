@@ -23,7 +23,7 @@ body {
 
 /* Home page body layout */
 body.home {
-  --banner-h: 48px;
+  --banner-h: 80px;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
@@ -34,7 +34,7 @@ body.home {
 
 /* Game pages layout: center container */
 body.game {
-  --banner-h: 48px;
+  --banner-h: 80px;
   min-height: 100vh;
   display: flex;
   align-items: center;
@@ -108,16 +108,16 @@ body.home .tavern {
 .top-banner {
   position: fixed;
   top: 0; left: 0; right: 0;
-  height: 48px;
+  height: 80px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   padding: 0 12px;
-  background: rgba(255, 244, 233, 0.715);
-  border-bottom: 3px solid #7800cd;
+  background: transparent; /* remove banner background color */
+  border-bottom: none; /* remove purple border */
   box-shadow: 0 2px 10px rgba(0,0,0,0.12);
-  z-index: 5;
+  z-index: 10001; /* ensure banner stays above rule overlays */
 }
 .top-banner .banner-left,
 .top-banner .banner-right {
@@ -138,21 +138,49 @@ body.home .tavern {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.top-banner .controls button {
-  padding: 6px 12px;
-  font-size: 14px;
+.top-banner .controls button,
+.top-banner #wallet-banner button {
+  font-size: 22px;
+  height: 3em; /* three times the font height */
+  padding: 0 15px; /* 15px longer on each end */
+  background: url('../assets/images/nav-gem.png') no-repeat center / 100% 100% !important;
+  border: none;
+  color: #fff;
+  font-weight: 700;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.45);
+  white-space: nowrap;
 }
 .top-banner .return-btn {
-  padding: 6px 12px;
-  font-size: 14px;
+  font-size: 22px;
+  height: 3em; /* three times the font height */
+  padding: 0 15px; /* 15px longer on each end */
+  background: url('../assets/images/nav-gem.png') no-repeat center / 100% 100% !important;
+  border: none;
+  color: #fff;
+  font-weight: 700;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.45);
   margin-right: 6px;
 }
+.top-banner .controls button:hover,
+.top-banner .return-btn:hover {
+  transform: translateY(-1px);
+}
 @media (max-width: 600px) {
-  body.home { --banner-h: 44px; padding-top: var(--banner-h); }
-  body.game { --banner-h: 44px; padding-top: var(--banner-h); }
-  .top-banner { height: 44px; padding: 0 8px; gap: 8px; }
+  body.home { --banner-h: 64px; padding-top: var(--banner-h); }
+  body.game { --banner-h: 64px; padding-top: var(--banner-h); }
+  .top-banner { height: 64px; padding: 0 8px; gap: 8px; }
   .top-banner .banner-status { font-size: 12px; }
-  .top-banner .controls button { padding: 6px 10px; font-size: 13px; }
+  .top-banner .controls button,
+  .top-banner #wallet-banner button { font-size: 18px; height: 3em; padding: 0 15px; }
+}
+
+/* Improve wallet address legibility without banner bg */
+.top-banner #wallet-banner span[title="Connected wallet"] {
+  background: rgba(0,0,0,0.6);
+  color: #fff;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-weight: 700;
 }
 
 /* Center logo + container as a unit */
@@ -172,6 +200,7 @@ button {
   margin:10px;
   color:#fff;
   font-size:18px;
+  font-family: 'Morris', 'Morris Alt', serif;
   border-radius:10px;
   cursor:pointer;
 }
@@ -190,6 +219,27 @@ button:hover { background:#7800cd; }
 }
 
 .game-links a:hover { background:#7800cd; }
+
+/* Game logo grid on Tavern */
+.game-logos {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(12px, 4vw, 28px);
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+.game-logo-link {
+  display: inline-block;
+  filter: drop-shadow(0 4px 12px rgba(0,0,0,0.18));
+  transition: transform .15s ease, filter .15s ease;
+}
+.game-logo-link img {
+  display: block;
+  width: clamp(160px, 26vw, 340px);
+  height: auto;
+}
+.game-logo-link:hover { transform: translateY(-2px) scale(1.02); filter: drop-shadow(0 6px 18px rgba(0,0,0,0.25)); }
 
 /* Shell styles */
 .shells {
