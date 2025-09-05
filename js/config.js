@@ -13,6 +13,11 @@ const DEFAULT_ADDRESSES = {
 // Add entries like 1, 11155111, etc. when you deploy to new chains.
 export const ADDRESS_BOOK = {
   default: { ...DEFAULT_ADDRESSES },
+  10143: { // Monad Testnet
+    // Use explicit tavern address for Monad Testnet
+    tavern: "0x790Dd8AE15A0dAA37366071CbA2BFA00cB365f47",
+    // shell/hazard can fall back to defaults unless specified later
+  },
   // 1: { shell: "0x...", hazard: "0x..." },
   // 11155111: { shell: "0x...", hazard: "0x..." },
 };
@@ -84,6 +89,7 @@ export const CHAIN_NAMES = {
   42161: 'Arbitrum One',
   43114: 'Avalanche',
   11155111: 'Sepolia',
+  10143: 'Monad Testnet',
 };
 
 export const EXPLORERS = {
@@ -98,6 +104,12 @@ export const EXPLORERS = {
   42161: 'https://arbiscan.io',
   43114: 'https://snowtrace.io',
   11155111: 'https://sepolia.etherscan.io',
+  10143: 'https://testnet.monadexplorer.com',
+};
+
+// Optional: RPC endpoints for convenience (not used directly by UI yet)
+export const RPC_ENDPOINTS = {
+  10143: 'wss://monad-testnet.drpc.org',
 };
 
 export function getChainName(chainId) {
