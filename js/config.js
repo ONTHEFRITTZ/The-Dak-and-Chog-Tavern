@@ -342,8 +342,9 @@ export function showToast(message, type = 'info', duration = 2600) {
       container = document.createElement('div');
       container.id = 'toast-container';
       container.style.cssText = [
-        'position:fixed','top:16px','right:16px','z-index:9999',
-        'display:flex','flex-direction:column','gap:8px'
+        'position:fixed','top:16px','left:50%','transform:translateX(-50%)',
+        'z-index:100000',
+        'display:flex','flex-direction:column','gap:8px','align-items:center'
       ].join(';');
       document.body.appendChild(container);
     }
@@ -356,9 +357,10 @@ export function showToast(message, type = 'info', duration = 2600) {
     const c = colors[type] || colors.info;
     toast.textContent = String(message || '');
     toast.style.cssText = [
-      'min-width: 220px','max-width: 360px','padding:10px 12px','border-radius:8px',
+      'min-width: 220px','max-width: 420px','padding:10px 12px','border-radius:8px',
       `background:${c.bg}`,`color:${c.fg}`,'box-shadow:0 6px 16px rgba(0,0,0,0.18)',
-      'font-size:13px','opacity:0','transform:translateY(-6px)','transition:opacity .2s ease, transform .2s ease'
+      'font-size:13px','opacity:0','transform:translateY(-6px)',
+      'transition:opacity .2s ease, transform .2s ease','pointer-events:auto'
     ].join(';');
     container.appendChild(toast);
     requestAnimationFrame(() => { toast.style.opacity = '1'; toast.style.transform = 'translateY(0)'; });
