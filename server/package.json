@@ -1,0 +1,16 @@
+{
+  "name": "dak-chog-multiplayer-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "WebSocket server for multiplayer tables (up to 6 players)",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "ws": "^8.16.0",
+    "nanoid": "^5.0.6"
+  }
+}
+
