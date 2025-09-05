@@ -36,6 +36,7 @@ let provider, signer, wallet;
 let tavernAddr = null, faroAddr = null;
 let tavern, faro;
 let tavernOwner = null, faroOwner = null;
+let ioSocket = null;
 
 function fmtEth(v) {
   try { return window.ethers.utils.formatEther(v); } catch { return '0'; }
@@ -77,11 +78,18 @@ async function refresh() {
 
     const isTavOwner = wallet && tavernOwner && wallet.toLowerCase() === tavernOwner.toLowerCase();
     const isFaroOwner = wallet && faroOwner && wallet.toLowerCase() === faroOwner.toLowerCase();
-
+    
     // Enable/disable owner-only controls
     [tavSetMaxBetBtn, tavWithdrawBtn, tavFundBtn].forEach(el => { if (el) el.classList.toggle('readonly', !isTavOwner); });
     [faroSetMaxBetBtn, faroSetFeeBtn, faroWithdrawBtn, faroWithdrawFeesBtn, faroFundBtn].forEach(el => { if (el) el.classList.toggle('readonly', !isFaroOwner); });
     document.getElementById('owner-note').textContent = (isTavOwner || isFaroOwner) ? 'Owner controls enabled.' : 'Connect the owner wallet. Controls are disabled for non-owners.';
+
+    // Realtime controls rely on Tavern owner
+    const rtPauseBtn = document.getElementById('rt-pause');
+    const rtResumeBtn = document.getElementById('rt-resume');
+    const isOwner = (isTavOwner || isFaroOwner);
+    [rtPauseBtn, rtResumeBtn].forEach(el => { if (el) el.classList.toggle('readonly', !isOwner); });
+    if (isOwner) ensureIo();
   } catch {}
 }
 
@@ -101,6 +109,21 @@ async function connect() {
 
 connectBtn?.addEventListener('click', connect);
 returnBtn?.addEventListener('click', () => { window.location.href = '/index.html'; });
+
+function ensureIo() {
+  try {
+    if (ioSocket) return;
+    ioSocket = io({ path: '/socket.io' });
+    ioSocket.on('connect', async () => {
+      try { ioSocket.emit('identify', { addr: wallet }); } catch {}
+    });
+    ioSocket.on('rt:state', (m)=>{ try { document.getElementById('rt-status').textContent = m?.paused ? 'paused' : 'running'; } catch{} });
+    ioSocket.on('rt:paused', (m)=>{ try { document.getElementById('rt-status').textContent = m?.paused ? 'paused' : 'running'; } catch{} });
+  } catch {}
+}
+
+document.getElementById('rt-pause')?.addEventListener('click', ()=>{ try { if (ioSocket) ioSocket.emit('admin:pause', { paused: true }); } catch {} });
+document.getElementById('rt-resume')?.addEventListener('click', ()=>{ try { if (ioSocket) ioSocket.emit('admin:pause', { paused: false }); } catch {} });
 
 // Actions — Tavern
 tavSetMaxBetBtn?.addEventListener('click', async () => {
@@ -204,4 +227,3 @@ faroFundBtn?.addEventListener('click', async () => {
 });
 
 window.addEventListener('load', async () => { await refresh(); });
-

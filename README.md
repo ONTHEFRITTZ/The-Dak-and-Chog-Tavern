@@ -51,6 +51,12 @@ On-Chain Contracts
   - Rake: feeBps (basis points, default 100 = 1%). Owner can set up to 1000 (10%).
   - Events: FaroPlayed(player,wager,fee,win,push,bankRank,playerRank,betRank).
 
+V2 Contracts (optional upgrades)
+- Contracts/TavernV2.sol: adds pause(), emergencyWithdrawAll(), transferOwnership()
+- Contracts/FaroV2.sol: adds pause(), emergencyWithdrawAll(), transferOwnership(); keeps rake mechanics
+- Deploy scripts: hardhat/scripts/deploy_tavern_v2.js, deploy_faro_v2.js
+
+
 Deploy (Hardhat)
 - cd hardhat && npm install
 - Copy .env.example → .env and set ALCHEMY_URL/INFURA_URL and PRIVATE_KEY

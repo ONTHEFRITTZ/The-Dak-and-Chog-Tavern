@@ -28,7 +28,10 @@ const io = new Server(server, { cors: { origin: '*' } });
 // In-memory stores
 const tables = new Map(); // tableId -> { seats: [{id, addr, ready, balance}], started, bets: Map(addr -> {rank, amount, copper}) }
 const profiles = new Map(); // addrLower -> { cipher }
+const publicProfiles = new Map(); // addrLower -> { x }
 const stats = new Map(); // addrLower -> { rounds, wagered, won, lost }
+let paused = false;
+const admins = new Set(String(process.env.ADMIN_ADDR || '').toLowerCase().split(',').map(s => s.trim()).filter(Boolean));
 
 function getTable(id) {
   if (!tables.has(id)) {
@@ -48,7 +51,7 @@ function short(v) { return (v && v.length > 10) ? (v.slice(0,6) + '...' + v.slic
 function tablePublic(t) {
   return {
     id: t.id,
-    seats: t.seats.map(s => s && { id: s.id, addr: s.addr, ready: !!s.ready, balance: s.balance }),
+    seats: t.seats.map(s => s && { id: s.id, addr: s.addr, ready: !!s.ready, balance: s.balance, x: (publicProfiles.get(s.addr||'')||{}).x || null }),
     started: !!t.started,
     ownerId: t.ownerId,
   };
@@ -67,9 +70,11 @@ function rand13() { return Math.floor(Math.random()*13)+1; }
 io.on('connection', (socket) => {
   let currentTableId = null;
   let addrLower = null;
+  let isAdmin = false;
 
   socket.on('identify', (m) => {
-    try { addrLower = String(m.addr||'').toLowerCase(); } catch {}
+    try { addrLower = String(m.addr||'').toLowerCase(); isAdmin = admins.has(addrLower); } catch {}
+    socket.emit('rt:state', { paused });
   });
 
   socket.on('join_table', (m) => {
@@ -126,6 +131,7 @@ io.on('connection', (socket) => {
 
   socket.on('start', () => {
     try {
+      if (paused) { socket.emit('error', { message: 'paused' }); return; }
       if (!currentTableId) return;
       const t = getTable(currentTableId);
       t.started = true;
@@ -137,6 +143,7 @@ io.on('connection', (socket) => {
 
   socket.on('place_bet', (m) => {
     try {
+      if (paused) { socket.emit('error', { message: 'paused' }); return; }
       if (!currentTableId) return;
       const t = getTable(currentTableId);
       const rank = Number(m.rank);
@@ -152,6 +159,7 @@ io.on('connection', (socket) => {
 
   socket.on('deal', () => {
     try {
+      if (paused) { socket.emit('error', { message: 'paused' }); return; }
       if (!currentTableId) return;
       const t = getTable(currentTableId);
       if (!t.started) return;
@@ -199,11 +207,27 @@ io.on('connection', (socket) => {
   socket.on('profile_get', () => {
     try { const p = profiles.get(addrLower||''); socket.emit('message', JSON.stringify({ type: 'profile', cipher: p?.cipher||'' })); } catch {}
   });
+  socket.on('profile_public', (m) => {
+    try {
+      if (!addrLower) return;
+      const x = String(m?.x || '').slice(0, 48);
+      publicProfiles.set(addrLower, { x });
+      if (currentTableId) emitUpdate(getTable(currentTableId));
+    } catch {}
+  });
   socket.on('stat_read', (m) => {
     try { const a = String(m.addr||'').toLowerCase(); const st = stats.get(a)||{ rounds:0,wagered:0,won:0,lost:0 }; socket.emit('message', JSON.stringify({ type: 'stats', addr: a, ...st })); } catch {}
+  });
+
+  // Admin pause/resume
+  socket.on('admin:pause', (m) => {
+    try {
+      if (!isAdmin) { socket.emit('error', { message: 'not admin' }); return; }
+      paused = !!m?.paused;
+      io.emit('rt:paused', { paused });
+    } catch {}
   });
 });
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log('RT server on', PORT));
-
