@@ -4,7 +4,8 @@
 
 // Base defaults (used when no chain-specific mapping exists)
 const DEFAULT_ADDRESSES = {
-  tavern: "0x790Dd8AE15A0dAA37366071CbA2BFA00cB365f47",
+  tavern: "0x2C2bD86a776B89EF8CBFA3888BaE43DF8427fF40",
+  faro:   "0x934305e0F4b92eb318aBe0A8f701510d3BdF1d8f",
 };
 
 // Address book keyed by chainId (as number or string) or "default"
@@ -12,8 +13,9 @@ const DEFAULT_ADDRESSES = {
 export const ADDRESS_BOOK = {
   default: { ...DEFAULT_ADDRESSES },
   10143: { // Monad Testnet
-    // Use explicit tavern address for Monad Testnet
-    tavern: "0x790Dd8AE15A0dAA37366071CbA2BFA00cB365f47",
+    // Use explicit addresses for Monad Testnet if applicable
+    tavern: "0x2C2bD86a776B89EF8CBFA3888BaE43DF8427fF40",
+    faro:   "0x934305e0F4b92eb318aBe0A8f701510d3BdF1d8f",
     // shell/hazard can fall back to defaults unless specified later
   },
   // 1: { shell: "0x...", hazard: "0x..." },
