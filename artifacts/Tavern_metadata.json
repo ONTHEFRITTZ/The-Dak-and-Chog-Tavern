@@ -278,11 +278,11 @@
 	},
 	"sources": {
 		"Contracts/Tavern.sol": {
-			"keccak256": "0x65222da5caf4c1bfe7a4ef3869272a4938596845bcb4635b494bd7b6c2a89c74",
+			"keccak256": "0x2b9ed3e4e59b48b32335a9ae567a9b641ff80efc1467187305f8a627502dc990",
 			"license": "MIT",
 			"urls": [
-				"bzz-raw://a478be004ae71cd78d7bf70b7d554f0ef8b960449ea80efaef14e72e70418a71",
-				"dweb:/ipfs/QmPLmZCJTH5xUGVKYwwiH5NXdsQuxkj7H5ZHCMxmRA2CZH"
+				"bzz-raw://c73f6f515217341b053be9d7d099a007c96c189e2c79c23ce116e556d1bfe149",
+				"dweb:/ipfs/QmbgysAk3RwTiuA5AqLxa1B3rTQJk23uP5crzSxzpw3QJ1"
 			]
 		}
 	},
