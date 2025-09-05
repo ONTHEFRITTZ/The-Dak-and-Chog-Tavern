@@ -2,7 +2,7 @@
 // UI wired to MonHazard contract (HazardPlayed event) using ethers v5 UMD
 import { getAddressFor, detectChainId, renderTavernBanner, showToast } from '../../js/config.js';
 
-let hazardAddress; // resolved per network
+let tavernAddress; // unified contract address
 const diceImages = [
   '../../assets/images/dice/standard/dice1.png',
   '../../assets/images/dice/standard/dice2.png',
@@ -167,11 +167,12 @@ window.addEventListener('DOMContentLoaded', async () => {
     provider = new ethers.providers.Web3Provider(window.ethereum, 'any');
     signer = provider.getSigner();
     const walletAddress = await signer.getAddress();
-    hazardAddress = await getAddressFor('hazard', provider);
-    contract = new ethers.Contract(hazardAddress, window.HazardABI, signer);
+    tavernAddress = await getAddressFor('tavern', provider);
+    contract = new ethers.Contract(tavernAddress, window.TavernABI, signer);
     try {
       const chainId = await detectChainId(provider);
-      renderTavernBanner({ contractKey: 'hazard', address: hazardAddress, chainId, wallet: walletAddress });
+      const tavernAddress = await getAddressFor('tavern', provider);
+      renderTavernBanner({ contractKey: 'tavern', address: tavernAddress, chainId, wallet: walletAddress });
     } catch {}
   } catch (err) {
     console.error('Init error:', err);
@@ -226,7 +227,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
 
     try {
-      const bankroll = await provider.getBalance(hazardAddress);
+      const bankroll = await provider.getBalance(tavernAddress);
       const needed = ethers.utils.parseEther(bet).mul(2);
       if (bankroll.lt(needed)) {
         statusEl.innerText = 'Bankroll too low for this bet. Try a smaller amount.';
@@ -244,7 +245,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     if (animationsEnabled) animateDice();
 
     try {
-      const tx = await contract.play(selectedMain, { value: ethers.utils.parseEther(bet) });
+      const tx = await contract.playHazard(selectedMain, { value: ethers.utils.parseEther(bet) });
       await tx.wait();
       // event listener will handle UI update
     } catch (err) {

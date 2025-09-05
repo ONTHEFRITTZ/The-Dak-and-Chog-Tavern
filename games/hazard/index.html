@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="../../css/style.css">
 
   <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
-  <script src="HazardABI.js"></script>
+  <script src="../../js/TavernABI.js"></script>
   <script type="module" src="../../js/tavern.js"></script>
 
   <style>
@@ -29,8 +29,26 @@
 
     .controls { display:flex; gap:12px; align-items:center; justify-content:center; margin-bottom:12px; }
     .rules { font-size:10.4px; color:#2b1e12; text-align:left; background: rgba(255,255,255,0.06); padding:10px; border-radius:8px; margin:12px auto; width:90%; max-width:720px; }
-    .main-select button { padding:8px 12px; margin-right:6px; border-radius:8px; cursor:pointer; transition: transform .12s ease, box-shadow .12s ease, background .12s ease; }
-    .main-select button.active { background:#7800cd; color:white; box-shadow:0 0 0 2px #7800cd, 0 6px 18px rgba(120,0,205,0.35); transform: translateY(-1px) scale(1.05); }
+    .main-select button {
+      margin-right:6px;
+      cursor:pointer;
+      transition: transform .12s ease, box-shadow .12s ease, filter .12s ease;
+      background: url('../../assets/images/nav-gem.png') no-repeat center / 100% 100%;
+      border: none;
+      color: #fff;
+      font-weight: 700;
+      font-family: 'Morris', 'Morris Alt', serif;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.45);
+      height: 2.6em; /* gem height ~2.6x font */
+      padding: 0 16px; /* extend 16px beyond text on each side */
+      border-radius: 10px; /* keep hit area smooth */
+    }
+    .main-select button:hover { transform: translateY(-1px); filter: drop-shadow(0 4px 10px rgba(0,0,0,0.25)); }
+    .main-select button.active {
+      color:white;
+      box-shadow:0 0 0 2px #7800cd, 0 6px 18px rgba(120,0,205,0.35);
+      transform: translateY(-1px) scale(1.05);
+    }
     /* Primary/Accent buttons for Hazard */
     #roll-dice { background:#9200fa; color:#fff; border:none; border-radius:10px; box-shadow:0 6px 18px rgba(146,0,250,0.35); transition: transform .12s ease, box-shadow .12s ease, background .12s ease; }
     #roll-dice:hover { background:#7800cd; box-shadow:0 6px 22px rgba(120,0,205,0.45); transform: translateY(-1px); }
@@ -89,13 +107,10 @@
       .tavern { padding-top: clamp(110px, 24vw, 180px); }
     }
 
-    /* Two-column layout: rules on the left */
-    .hazard-layout { display:flex; gap:16px; align-items:flex-start; justify-content:center; }
-    .hazard-left { flex:0 0 380px; max-width:420px; }
-    .hazard-right { flex:1 1 0; min-width:0; }
-    .hazard-left .rules { width:auto; max-width:none; font-size:25px; }
-    .hazard-left .rules ol { margin-left:18px; }
-    .hazard-left .rules li { margin:6px 0; }
+    /* Center game assets now that rules are in modal */
+    .hazard-layout { display:flex; flex-direction:column; gap:16px; align-items:center; justify-content:center; }
+    .hazard-left { display:none; }
+    .hazard-right { flex:0 0 auto; min-width:auto; width:100%; max-width:820px; margin:0 auto; }
     @media (max-width: 900px) {
       .hazard-layout { flex-direction:column; }
       .hazard-left { max-width:100%; }
@@ -149,7 +164,6 @@
     <div class="banner-right">
       <div class="controls">
         <button id="connect-wallet">Connect Wallet</button>
-        <button id="fund-contract" style="display:none;">Fund Game Contracts</button>
       </div>
     </div>
   </div>

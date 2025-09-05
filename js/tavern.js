@@ -8,7 +8,6 @@ let userAddress;
 
 // DOM Elements
 const connectButton = document.getElementById('connect-wallet');
-const fundButton = document.getElementById('fund-contract');
 const statusEl = document.getElementById('status');
 
 // Resolve a global ABI name for a given contract key, e.g., 'shell' -> window.ShellABI
@@ -62,14 +61,13 @@ export async function connectWallet() {
     try { statusEl.innerText = ''; } catch {}
     showToast('Wallet connected', 'success');
 
-    // Update banner with resolved network and address
+    // Update banner with resolved network and unified contract address
     try {
       const chainId = await detectChainId(provider);
-      const shellAddress = await getAddressFor('shell', provider);
-      renderTavernBanner({ contractKey: 'shell', address: shellAddress, chainId, wallet: userAddress, labelOverride: 'Address' });
+      const tavernAddress = await getAddressFor('tavern', provider);
+      renderTavernBanner({ contractKey: 'tavern', address: tavernAddress, chainId, wallet: userAddress, labelOverride: 'Address' });
     } catch {}
 
-    enableFundButton();
     sessionStorage.setItem('walletConnected', 'true');
     // Re-establish profile connections and apply settings where possible
     try { await profileLoad(); } catch {}
@@ -78,55 +76,12 @@ export async function connectWallet() {
   }
 }
 
-// Enable fund button and handle funding of all configured game contracts
-function enableFundButton() {
-  fundButton.style.display = 'inline-block';
-  fundButton.addEventListener('click', async () => {
-    const amount = prompt('Enter amount to fund each game (MON):');
-    if (!amount) return;
-    let parsed;
-    try { parsed = ethers.utils.parseEther(String(amount)); } catch { statusEl.innerText = 'Enter a valid amount.'; return; }
-    if (parsed.lte(0)) { statusEl.innerText = 'Enter a positive amount.'; return; }
-
-    const keys = Object.keys(CONTRACTS || {});
-    if (!keys.length) { statusEl.innerText = 'No game contracts configured.'; showToast('No game contracts configured', 'error'); return; }
-
-    statusEl.innerText = `Funding ${keys.length} contract(s)...`;
-    showToast(`Funding ${keys.length} contract(s)…`, 'info');
-
-    const results = [];
-    for (const key of keys) {
-      try {
-        const address = await getAddressFor(key, provider);
-        if (!address) { results.push(`${key}: no address`); continue; }
-
-        await ensureAbiLoaded(key);
-        const abi = getAbiFromWindow(key);
-        if (!abi) { results.push(`${key}: missing ABI`); continue; }
-
-        const contract = new ethers.Contract(address, abi, signer);
-        statusEl.innerText = `Funding ${key}...`;
-        const tx = await contract.fund({ value: parsed });
-        await tx.wait();
-        results.push(`${key}: funded ${amount} MON`);
-        showToast(`${key}: funded ${amount} MON`, 'success');
-      } catch (err) {
-        console.error(`Fund ${key} error:`, err);
-        results.push(`${key}: error - ${err?.message || 'failed'}`);
-        showToast(`${key}: ${err?.message || 'funding failed'}`, 'error');
-      }
-    }
-
-    statusEl.innerText = results.join(' | ');
-  });
-}
-
 // Auto-connect if previously connected
 window.addEventListener('load', async () => {
   try {
     const chainId = await detectChainId(undefined);
-    const address = getAddress('shell', chainId);
-    renderTavernBanner({ contractKey: 'shell', address, chainId, labelOverride: 'Address' });
+    const address = getAddress('tavern', chainId);
+    renderTavernBanner({ contractKey: 'tavern', address, chainId, labelOverride: 'Address' });
   } catch {}
   if (sessionStorage.getItem('walletConnected') === 'true') await connectWallet();
 });

@@ -23,7 +23,7 @@ function setShellInteractivity(enabled) {
 let provider;
 let signer;
 let userAddress;
-let shellAddress;
+let tavernAddress;
 
 async function init() {
   if (!window.ethereum) {
@@ -33,10 +33,11 @@ async function init() {
   provider = new ethers.providers.Web3Provider(window.ethereum, 'any');
   signer = provider.getSigner();
   userAddress = await signer.getAddress();
-  shellAddress = await getAddressFor('shell', provider);
+  tavernAddress = await getAddressFor('tavern', provider);
   try {
     const chainId = await detectChainId(provider);
-    renderTavernBanner({ contractKey: 'shell', address: shellAddress, chainId, wallet: userAddress });
+    const unifiedAddress = await getAddressFor('tavern', provider);
+    renderTavernBanner({ contractKey: 'tavern', address: unifiedAddress, chainId, wallet: userAddress });
   } catch {}
 }
 
@@ -50,12 +51,12 @@ shellElements.forEach((shell) => {
       let betAmount = parseFloat(betInput.value);
       if (isNaN(betAmount) || betAmount < 0.001) betAmount = 0.001;
 
-      const contract = new ethers.Contract(shellAddress, window.ShellABI, signer);
+      const contract = new ethers.Contract(tavernAddress, window.TavernABI, signer);
 
       statusEl.innerText = 'Playing...';
       try { showToast('Playing…', 'info'); } catch {}
 
-      const tx = await contract.play(guess, {
+      const tx = await contract.playShell(guess, {
         value: ethers.utils.parseEther(betAmount.toString()),
         gasLimit: 200000, // manual gas limit
       });
@@ -63,12 +64,12 @@ shellElements.forEach((shell) => {
       const receipt = await tx.wait();
 
       // Parse the Played event from the receipt
-      const iface = new ethers.utils.Interface(window.ShellABI);
+      const iface = new ethers.utils.Interface(window.TavernABI);
       let playedEvent;
       for (const log of receipt.logs) {
         try {
           const parsed = iface.parseLog(log);
-          if (parsed.name === 'Played') {
+          if (parsed.name === 'ShellPlayed') {
             playedEvent = parsed.args;
             break;
           }
