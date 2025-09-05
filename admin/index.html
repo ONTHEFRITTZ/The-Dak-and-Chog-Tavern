@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tavern Admin (Owner Only)</title>
+  <link rel="icon" type="image/png" href="/assets/images/dakandchog-logo.png">
+  <link rel="stylesheet" href="../css/style.css">
+  <meta name="robots" content="noindex,nofollow">
+  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+  <script src="../js/TavernABI.js"></script>
+  <script src="../js/FaroABI.js"></script>
+  <style>
+    body { background: #f6efe6; }
+    .admin-card { background: rgba(255,244,233,0.96); border:4px solid #7800cd; border-radius:12px; padding:16px; color:#2b1e12; }
+    .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:16px; }
+    label { display:block; margin:6px 0 2px; font-weight:600; }
+    input[type=text], input[type=number] { width:100%; padding:6px; }
+    .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    .muted { color:#5c4a3f; font-size:12px; }
+    .danger { background:#8b0000; color:#fff; }
+    .ok { background:#006400; color:#fff; }
+    .btn { padding:6px 10px; border-radius:6px; cursor:pointer; border:none; }
+    .readonly { opacity:.7; pointer-events:none; }
+  </style>
+</head>
+<body class="game">
+  <div class="top-banner" role="region" aria-label="Wallet and status">
+    <div class="banner-left">
+      <button id="return" class="return-btn">Return to Tavern</button>
+      <div id="status" class="banner-status"></div>
+    </div>
+    <div class="banner-right">
+      <div class="controls">
+        <button id="connect-wallet">Connect Wallet</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="tavern" style="max-width:1100px; margin:80px auto 32px; padding:0 12px;">
+    <h1 style="margin:0 0 12px 0;">Admin (Owner Only)</h1>
+    <p class="muted" id="owner-note">Connect the owner wallet. Controls are disabled for non-owners. This page is hidden and unlinked.</p>
+
+    <div class="grid">
+      <div class="admin-card" id="tavern-card">
+        <h3 style="margin-top:0;">Tavern (Shell/Hazard/Coin)</h3>
+        <div class="muted">Address: <span id="tavern-address">-</span></div>
+        <div class="muted">Owner: <span id="tavern-owner">-</span></div>
+        <div class="muted">Bankroll: <span id="tavern-balance">-</span></div>
+        <div class="row" style="margin-top:8px;">
+          <div style="flex:1;">
+            <label>Max Bet (ETH)</label>
+            <input id="tavern-maxbet" type="number" min="0" step="0.001" placeholder="e.g. 0.05">
+          </div>
+          <button id="tavern-set-maxbet" class="btn">Set</button>
+        </div>
+        <hr>
+        <div class="row">
+          <div style="flex:1;">
+            <label>Withdraw To (address)</label>
+            <input id="tavern-to" type="text" placeholder="0x...">
+          </div>
+          <div style="width:180px;">
+            <label>Amount (ETH)</label>
+            <input id="tavern-amt" type="number" min="0" step="0.001" placeholder="0.1">
+          </div>
+          <button id="tavern-withdraw" class="btn danger">Withdraw</button>
+        </div>
+        <div class="row" style="margin-top:6px;">
+          <div style="width:180px;">
+            <label>Fund Amount (ETH)</label>
+            <input id="tavern-fund-amt" type="number" min="0" step="0.001" placeholder="0.1">
+          </div>
+          <button id="tavern-fund" class="btn ok">Fund</button>
+        </div>
+      </div>
+
+      <div class="admin-card" id="faro-card">
+        <h3 style="margin-top:0;">Faro (On-chain)</h3>
+        <div class="muted">Address: <span id="faro-address">-</span></div>
+        <div class="muted">Owner: <span id="faro-owner">-</span></div>
+        <div class="muted">Bankroll: <span id="faro-balance">-</span></div>
+        <div class="row" style="margin-top:8px;">
+          <div style="flex:1;">
+            <label>Max Bet (ETH)</label>
+            <input id="faro-maxbet" type="number" min="0" step="0.001" placeholder="e.g. 0.05">
+          </div>
+          <button id="faro-set-maxbet" class="btn">Set</button>
+        </div>
+        <div class="row" style="margin-top:8px;">
+          <div style="flex:1;">
+            <label>Rake (feeBps)</label>
+            <input id="faro-fee" type="number" min="0" max="1000" step="1" placeholder="100 = 1%">
+          </div>
+          <button id="faro-set-fee" class="btn">Set</button>
+        </div>
+        <hr>
+        <div class="row">
+          <div style="flex:1;">
+            <label>Withdraw To (address)</label>
+            <input id="faro-to" type="text" placeholder="0x...">
+          </div>
+          <div style="width:180px;">
+            <label>Amount (ETH)</label>
+            <input id="faro-amt" type="number" min="0" step="0.001" placeholder="0.1">
+          </div>
+          <button id="faro-withdraw" class="btn danger">Withdraw</button>
+        </div>
+        <div class="row" style="margin-top:6px;">
+          <div style="flex:1;">
+            <label>Withdraw Fees (ETH)</label>
+            <input id="faro-fees-amt" type="number" min="0" step="0.001" placeholder="0.01">
+          </div>
+          <button id="faro-withdraw-fees" class="btn danger">Withdraw Fees</button>
+        </div>
+        <div class="row" style="margin-top:6px;">
+          <div style="width:180px;">
+            <label>Fund Amount (ETH)</label>
+            <input id="faro-fund-amt" type="number" min="0" step="0.001" placeholder="0.1">
+          </div>
+          <button id="faro-fund" class="btn ok">Fund</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="./admin.js"></script>
+</body>
+</html>
+
