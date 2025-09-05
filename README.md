@@ -4,6 +4,7 @@ Overview
 - Static site hosted on Ubuntu (AWS EC2) with Nginx and Let’s Encrypt.
 - Local deploy via PowerShell script.
 - CI/CD via GitHub Actions: staging (auto), production (approval).
+- On-chain: Tavern (Shell, Hazard, Coin). New: Faro with rake per round.
 
 Prereqs
 - Domain DNS (GoDaddy):
@@ -41,3 +42,26 @@ Notes
 - To rotate keys, update repo secrets and your EC2 authorized_keys.
 - For dynamic backends later, keep Nginx as reverse proxy and add a systemd/pm2 service for the app.
 
+On-Chain Contracts
+- Contracts/Tavern.sol: Shell, Hazard, Dak & Chog (coin) — dev randomness.
+- Contracts/Faro.sol: Simplified Faro with rake (feeBps). Rules:
+  - Player bets rank 1..13. Two ranks are drawn: bankRank then playerRank.
+  - If bet == bankRank: lose. If bet == playerRank: win 1:1 on (wager - rake).
+  - If bankRank == playerRank (doublet): push — refund (wager - rake). Rake is kept by house.
+  - Rake: feeBps (basis points, default 100 = 1%). Owner can set up to 1000 (10%).
+  - Events: FaroPlayed(player,wager,fee,win,push,bankRank,playerRank,betRank).
+
+Deploy (Hardhat)
+- cd hardhat && npm install
+- Copy .env.example → .env and set ALCHEMY_URL/INFURA_URL and PRIVATE_KEY
+- Deploy Tavern: npx hardhat run scripts/deploy.js --network sepolia
+- Deploy Faro: npx hardhat run scripts/deploy_faro.js --network sepolia
+- Fund contracts (send ETH) to enable payouts.
+
+Frontend Wiring
+- ABI files: js/TavernABI.js and js/FaroABI.js
+- Contract addresses: js/config.js uses ADDRESS_BOOK or overrides via localStorage
+  - Example override in browser console:
+    localStorage.setItem('contract.tavern','0x...');
+    localStorage.setItem('contract.faro','0x...');
+  - Refresh the page.
