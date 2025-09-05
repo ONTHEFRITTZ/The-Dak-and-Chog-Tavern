@@ -1,5 +1,6 @@
 // Minimal client for multiplayer table
-const WS_URL = (window.MULTI_WS_URL || 'ws://localhost:8787');
+const __isLocalHost = ['localhost','127.0.0.1'].includes(location.hostname);
+const WS_URL = (window.MULTI_WS_URL || (__isLocalHost ? 'ws://localhost:8787' : null));
 
 const statusEl = document.getElementById('status');
 const rulesOverlay = document.getElementById('rules-overlay');
@@ -61,6 +62,7 @@ function renderTable(table) {
 }
 
 function connect() {
+  if (!WS_URL) { log('Realtime disabled on this host'); return; }
   ws = new WebSocket(WS_URL);
   ws.onopen = () => {
     log('Connected to server');

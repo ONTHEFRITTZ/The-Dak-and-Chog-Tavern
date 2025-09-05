@@ -122,5 +122,22 @@
       window.addEventListener('load', onWalletReady, { once: true });
     } catch {}
   </script>
+  <!-- Realtime: auto-connect to Socket.IO and join faro-lobby -->
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    (function(){
+      try {
+        const socket = io({ path: '/socket.io' });
+        socket.on('connect', function(){
+          try { socket.emit('join_table', 'faro-lobby'); } catch(e) {}
+          try { console.log('connected', socket.id); } catch(e) {}
+        });
+        socket.on('system', function(m){ try { console.log('[system]', m); } catch(e) {} });
+        window.tavernSocket = socket;
+      } catch (e) {
+        // ignore if socket client not available
+      }
+    })();
+  </script>
 </body>
 </html>
