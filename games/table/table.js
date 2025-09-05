@@ -2,7 +2,6 @@
 import { getAddressFor } from '../../js/config.js';
 import { signer as walletSigner, provider as walletProvider } from '../../js/tavern.js';
 const __isLocalHost = ['localhost','127.0.0.1'].includes(location.hostname);
-const WS_URL = null; // using Socket.IO in production
 
 const statusEl = document.getElementById('status');
 const rulesOverlay = document.getElementById('rules-overlay');
@@ -65,7 +64,6 @@ function renderTable(table) {
 }
 
 function connect() {
-  if (!WS_URL) { log('Realtime disabled on this host'); return; }
   socket = io({ path: '/socket.io' });
   socket.on('connect', () => {
     log('Connected to server');
