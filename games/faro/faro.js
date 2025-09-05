@@ -6,6 +6,9 @@ const returnBtn = document.getElementById('return');
 const playBtn = document.getElementById('play');
 const betInput = document.getElementById('bet');
 const rankGrid = document.getElementById('rank-grid');
+const rulesOverlay = document.getElementById('rules-overlay');
+const rulesOpen = document.getElementById('open-rules');
+const rulesAck = document.getElementById('rules-ack');
 
 let provider = exportedProvider;
 let signer = exportedSigner;
@@ -80,6 +83,10 @@ playBtn.addEventListener('click', async () => {
 });
 
 returnBtn?.addEventListener('click', () => { window.location.href = '../../index.html'; });
+
+// Rules overlay (reference only)
+rulesOpen?.addEventListener('click', () => { try { rulesOverlay.style.display = 'flex'; } catch {} });
+rulesAck?.addEventListener('click', () => { try { rulesOverlay.style.display = 'none'; } catch {} });
 
 window.addEventListener('DOMContentLoaded', async () => {
   buildRanks();
