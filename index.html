@@ -13,6 +13,7 @@
   <div class="top-banner" role="region" aria-label="Wallet and status">
     <div id="status" class="banner-status"></div>
     <div class="controls">
+      <button id="profile-open">Profile</button>
       <button id="connect-wallet">Connect Wallet</button>
       <button id="fund-contract" style="display:none;">Fund Game Contracts</button>
     </div>
@@ -23,11 +24,53 @@
     <div class="tavern">
       <h2>Choose Your Game</h2>
       <div class="game-links">
-        <a href="games/shell/index.html">Shell Game</a>
-        <a href="games/hazard/index.html">Hazard Dice</a>
-        <a href="games/table/index.html">Battle 7's</a>
+        <a href="games/shell/index.html">Shell Game!</a>
+        <a href="games/hazard/index.html">Hazard!</a>
+        <a href="games/table/index.html">Faro!</a>
       </div>
     </div>
   </div>
+  <!-- Profile Modal -->
+  <div id="profile-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:999; align-items:center; justify-content:center;">
+    <div style="background:rgba(255,244,233,0.95); border:3px solid #7800cd; border-radius:12px; padding:16px; width:min(92vw, 680px);">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px;">
+        <h3 style="margin:0;">Your Profile</h3>
+        <button id="profile-close">Close</button>
+      </div>
+      <div style="display:flex; gap:16px; flex-wrap:wrap;">
+        <div style="flex:1 1 280px;">
+          <h4 style="margin:6px 0;">Social</h4>
+          <label>X Handle:</label>
+          <input id="prof-x" placeholder="@handle" style="width:100%;" />
+          <div style="margin-top:8px;">
+            <button id="prof-save">Save Encrypted</button>
+            <button id="prof-load">Load</button>
+          </div>
+          <p id="prof-msg" style="font-size:12px; color:#2b1e12;"></p>
+        </div>
+        <div style="flex:1 1 280px;">
+          <h4 style="margin:6px 0;">Lifetime Stats</h4>
+          <div id="prof-stats" style="font-size:14px; white-space:pre-line;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script type="module" src="js/profile.js"></script>
+  <script type="module">
+    import { profileSave, profileLoad, readStats } from './js/profile.js';
+    const openBtn = document.getElementById('profile-open');
+    const modal = document.getElementById('profile-modal');
+    const closeBtn = document.getElementById('profile-close');
+    const saveBtn = document.getElementById('prof-save');
+    const loadBtn = document.getElementById('prof-load');
+    const xInput = document.getElementById('prof-x');
+    const msgEl = document.getElementById('prof-msg');
+    const statsEl = document.getElementById('prof-stats');
+    function show(b){ modal.style.display = b ? 'flex' : 'none'; }
+    openBtn?.addEventListener('click', async ()=>{ show(true); msgEl.textContent=''; try { const s = await readStats(); if (s) statsEl.textContent = `Rounds: ${s.rounds}\nWagered: ${s.wagered}\nWon: ${s.won}\nLost: ${s.lost}`; } catch {} });
+    closeBtn?.addEventListener('click', ()=> show(false));
+    saveBtn?.addEventListener('click', async ()=>{ try { await profileSave({ x: (xInput.value||'').trim() }); msgEl.textContent='Saved (encrypted).'; } catch(e){ msgEl.textContent='Save failed.'; } });
+    loadBtn?.addEventListener('click', async ()=>{ try { const p = await profileLoad(); xInput.value = p?.x || ''; msgEl.textContent='Loaded.'; } catch(e){ msgEl.textContent='Load failed.'; } });
+  </script>
 </body>
 </html>

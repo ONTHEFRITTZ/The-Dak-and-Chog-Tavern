@@ -4,12 +4,12 @@ import { getAddressFor, detectChainId, renderTavernBanner, showToast } from '../
 
 let hazardAddress; // resolved per network
 const diceImages = [
-  '../../assets/images/dice1-standard.png',
-  '../../assets/images/dice2-standard.png',
-  '../../assets/images/dice3-standard.png',
-  '../../assets/images/dice4-standard.png',
-  '../../assets/images/dice5-standard.png',
-  '../../assets/images/dice6-standard.png'
+  '../../assets/images/dice/standard/dice1.png',
+  '../../assets/images/dice/standard/dice2.png',
+  '../../assets/images/dice/standard/dice3.png',
+  '../../assets/images/dice/standard/dice4.png',
+  '../../assets/images/dice/standard/dice5.png',
+  '../../assets/images/dice/standard/dice6.png'
 ];
 
 let provider, signer, contract;

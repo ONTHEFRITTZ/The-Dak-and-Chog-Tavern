@@ -63,10 +63,13 @@ const RANKS = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
 const MIN_BET = 1;
 const MAX_BET = 1000;
 const BET_LOCK_BEFORE_MS = 5000;
+const profiles = new Map(); // addr -> { cipher, updatedAt }
+const stats = new Map(); // addr -> { rounds, wagered, won, lost, lastDelta, updatedAt }
 function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]];} return a; }
 function newShoe(){ const d=[]; for(let r=0;r<13;r++){ for(let c=0;c<4;c++){ d.push(r);} } return shuffle(d); }
 function draw(table){ if (!table.shoe || table.shoe.length - table.shoeIdx < 1){ table.shoe=newShoe(); table.shoeIdx=0; table.burned=false; } const v=table.shoe[table.shoeIdx++]; return v; }
 function aggregateBets(table){ const agg={}; for(let i=0;i<13;i++){ agg[RANKS[i]]=0; } for (const [, list] of table.bets.entries()){ for(const b of list){ agg[RANKS[b.rank]] = (agg[RANKS[b.rank]]||0) + Number(b.amount||0); } } return agg; }
+function aggregateBetDetails(table){ const det={}; for(let i=0;i<13;i++){ det[RANKS[i]]=[]; } for (const [sid, list] of table.bets.entries()){ const seat = table.seats.find(s=>s && s.id===sid); const addr = seat?.addr || null; for(const b of list){ det[RANKS[b.rank]].push({ addr, amount:Number(b.amount||0), copper:!!b.copper }); } } return det; }
 function seatCount(table){ return table.seats.filter(Boolean).length; }
 
 function clearTimer(table){ if (table.timer) { try { clearTimeout(table.timer); } catch{} table.timer = null; } }
@@ -118,18 +121,31 @@ function dealCoup(table){
     if (!seat) continue;
     const bets = table.bets.get(seat.id) || [];
     let delta = 0;
+    let wagered = 0;
     for (const b of bets) {
+      wagered += Math.max(0, Number(b.amount||0));
       if (doublet && b.rank === bank) { delta -= Math.floor(b.amount/2); continue; }
       if (b.rank === bank) delta += (b.copper ? b.amount : -b.amount);
       if (b.rank === player) delta += (b.copper ? -b.amount : b.amount);
     }
     if (delta !== 0) { seat.balance = Number(seat.balance||0) + delta; }
     results.push({ seatId: seat.id, addr: seat.addr, delta });
+    // Update lifetime stats per address
+    if (seat.addr) {
+      const key = String(seat.addr).toLowerCase();
+      const s = stats.get(key) || { rounds:0, wagered:0, won:0, lost:0, lastDelta:0, updatedAt:0 };
+      if (bets.length) s.rounds += 1;
+      s.wagered += wagered;
+      if (delta > 0) s.won += delta; else if (delta < 0) s.lost += -delta;
+      s.lastDelta = delta;
+      s.updatedAt = Date.now();
+      stats.set(key, s);
+    }
   }
   table.bets.clear();
   table.state.coups = (table.state.coups||0) + 1;
   broadcast(table, 'table:coup', { bankRank: RANKS[bank], playerRank: RANKS[player], doublet, results });
-  broadcast(table, 'table:update', { table: getPublicTable(table), bets: aggregateBets(table) });
+  broadcast(table, 'table:update', { table: getPublicTable(table), bets: aggregateBets(table), betsDetail: aggregateBetDetails(table) });
 }
 
 function tryAdvance(table){
@@ -201,7 +217,7 @@ wss.on('connection', (ws) => {
       ws.tableId = table.id;
       ws.allowedRound = table.started ? Number(table.round || 0) + 1 : Number(table.round || 0);
       send(ws, 'you', { allowedRound: ws.allowedRound, round: Number(table.round||0), started: !!table.started });
-      send(ws, 'table:update', { table: getPublicTable(table), bets: aggregateBets(table) });
+      send(ws, 'table:update', { table: getPublicTable(table), bets: aggregateBets(table), betsDetail: aggregateBetDetails(table) });
       if (!table.stage) scheduleStage(table, 'betting');
       return;
     }
@@ -222,7 +238,7 @@ wss.on('connection', (ws) => {
       seat.ws = ws; seat.addr = ws.addr; seat.ready = !!seat.ready; seat.balance = Number(seat.balance || 100);
       table.seats[idx] = seat;
       if (!table.ownerId) table.ownerId = seat.id;
-      broadcast(table, 'table:update', { table: getPublicTable(table), bets: aggregateBets(table) });
+      broadcast(table, 'table:update', { table: getPublicTable(table), bets: aggregateBets(table), betsDetail: aggregateBetDetails(table) });
       if (!table.stage) scheduleStage(table, 'betting');
       return;
     }
@@ -275,7 +291,7 @@ wss.on('connection', (ws) => {
       const list = table.bets.get(seat.id) || [];
       list.push({ rank, amount, copper });
       table.bets.set(seat.id, list);
-      broadcast(table, 'table:update', { table: getPublicTable(table), bets: aggregateBets(table) });
+      broadcast(table, 'table:update', { table: getPublicTable(table), bets: aggregateBets(table), betsDetail: aggregateBetDetails(table) });
       return;
     }
 
@@ -288,6 +304,13 @@ wss.on('connection', (ws) => {
       dealCoup(table);
       scheduleStage(table, 'betting');
       return;
+    }
+
+    if (t === 'stat_read') {
+      const addr = String(msg.addr || ws.addr || '').toLowerCase();
+      if (!addr) return send(ws, 'error', { message: 'No address' });
+      const s = stats.get(addr) || { rounds:0, wagered:0, won:0, lost:0, lastDelta:0, updatedAt:null };
+      return send(ws, 'stats', { addr, ...s });
     }
 
     if (t === 'profile_save') {

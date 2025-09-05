@@ -1,6 +1,21 @@
+@font-face {
+  font-family: 'Morris';
+  src: url('../assets/fonts/MorrisRoman-Black.ttf') format('truetype');
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Morris Alt';
+  src: url('../assets/fonts/MorrisRomanAlternate-Black.ttf') format('truetype');
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+
 body {
   margin:0;
-  font-family:'Dragonhelm', 'Papyrus', fantasy;
+  font-family: 'Morris', 'Morris Alt', serif;
   background:url('../assets/images/tavern-bg.png') no-repeat center center fixed;
   background-size:cover;
   text-align:center;
@@ -238,4 +253,51 @@ button:hover { background:#7800cd; }
   60% { transform: rotate(-20deg); }
   80% { transform: rotate(20deg); }
   100% { transform: rotate(0deg); }
+}
+
+/* Age Landing (Enter page) */
+body.age-landing {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+.age-hero {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+}
+.age-logo {
+  width: clamp(360px, 60vw, 980px);
+  height: auto;
+  display: block;
+  filter: drop-shadow(0 8px 18px rgba(0,0,0,0.28));
+}
+.age-card {
+  background: rgba(255, 244, 233, 0.82);
+  border: 5px solid #7800cd;
+  border-radius: 16px;
+  box-shadow: 0 0 24px rgba(0,0,0,0.18);
+  padding: 20px 22px;
+  width: min(92%, 820px);
+}
+.age-warning {
+  margin: 0 0 12px 0;
+  font-size: clamp(16px, 2.2vw, 22px);
+  color: #2b1e12;
+}
+.age-cta button {
+  padding: 12px 22px;
+  font-size: 18px;
+  border-radius: 10px;
+}
+@media (max-width: 600px) {
+  .age-hero { gap: 18px; padding: 16px 12px; }
+  .age-cta button { font-size: 16px; padding: 10px 18px; }
 }

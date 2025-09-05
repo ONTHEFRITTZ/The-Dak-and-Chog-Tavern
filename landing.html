@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The Dak and Chog Tavern — Enter</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="age-landing">
+  <main class="age-hero" role="main">
+    <img class="age-logo" src="assets/images/sign.png" alt="The Dak and Chog Tavern">
+
+    <section class="age-card" aria-labelledby="age-title">
+      <h1 id="age-title" class="visually-hidden">Age Confirmation</h1>
+      <p class="age-warning">There's gambling beyond these doors. Ye must be 19+ to enter!</p>
+      <div class="age-cta">
+        <button id="enter-tavern" aria-label="Confirm age and enter the tavern">I'm 19+, Let me in!</button>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    (function(){
+      const btn = document.getElementById('enter-tavern');
+      if (btn) {
+        btn.addEventListener('click', () => { window.location.href = 'index.html'; });
+      }
+      // Allow Enter key to activate button
+      window.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { try { btn.click(); } catch {} }
+      });
+    })();
+  </script>
+</body>
+</html>
+
