@@ -1,5 +1,6 @@
 import { ethers } from 'https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.esm.min.js';
 import { getAddressFor, detectChainId, getAddress, renderTavernBanner, CONTRACTS, showToast } from './config.js';
+import { profileLoad } from './profile.js';
 
 let provider;
 let signer;
@@ -70,6 +71,8 @@ export async function connectWallet() {
 
     enableFundButton();
     sessionStorage.setItem('walletConnected', 'true');
+    // Re-establish profile connections and apply settings where possible
+    try { await profileLoad(); } catch {}
   } catch (err) {
     statusEl.innerText = 'Connection failed: ' + err.message;
   }

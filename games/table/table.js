@@ -6,6 +6,7 @@ const rulesOverlay = document.getElementById('rules-overlay');
 const rulesAck = document.getElementById('rules-ack');
 const openRulesBtn = document.getElementById('open-rules');
 let faroAck = false;
+const RULES_VERSION = 'v2';
 function rulesFresh(key) { try { const t = Number(localStorage.getItem(key) || 0); return Date.now() - t < 86400000; } catch { return false; } }
 const logEl = document.getElementById('log');
 const tableInput = document.getElementById('table-id');
@@ -138,12 +139,12 @@ returnBtn?.addEventListener('click', () => { window.location.href = '../../index
 
 // Session-based rules modal for Faro
 window.addEventListener('DOMContentLoaded', () => {
-  try { faroAck = rulesFresh('rulesAck.faro'); } catch {}
+  try { faroAck = rulesFresh(`rulesAck.faro.${RULES_VERSION}`); } catch {}
   if (!faroAck) { try { rulesOverlay.style.display='flex'; } catch {} }
   rulesAck?.addEventListener('click', () => {
     faroAck = true;
     try { rulesOverlay.style.display='none'; } catch {}
-    try { localStorage.setItem('rulesAck.faro', String(Date.now())); } catch {}
+    try { localStorage.setItem(`rulesAck.faro.${RULES_VERSION}`, String(Date.now())); } catch {}
   });
   openRulesBtn?.addEventListener('click', () => { try { rulesOverlay.style.display='flex'; } catch {} });
 });

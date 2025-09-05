@@ -75,6 +75,10 @@
   <script type="module" src="js/profile.js"></script>
   <script type="module">
     import { profileSave, profileLoad, readStats } from './js/profile.js';
+    function applyProfile(p) {
+      try { if (!p) return; const x = (p.x||'').trim(); if (x) { const xInput = document.getElementById('prof-x'); if (xInput) xInput.value = x; } } catch {}
+      // Future: apply theme or UI prefs here
+    }
     const openBtn = document.getElementById('profile-open');
     const modal = document.getElementById('profile-modal');
     const closeBtn = document.getElementById('profile-close');
@@ -84,7 +88,7 @@
     const msgEl = document.getElementById('prof-msg');
     const statsEl = document.getElementById('prof-stats');
     function show(b){ modal.style.display = b ? 'flex' : 'none'; }
-    openBtn?.addEventListener('click', async ()=>{ show(true); msgEl.textContent=''; try { const s = await readStats(); if (s) statsEl.textContent = `Rounds: ${s.rounds}\nWagered: ${s.wagered}\nWon: ${s.won}\nLost: ${s.lost}`; } catch {} });
+    openBtn?.addEventListener('click', async ()=>{ show(true); msgEl.textContent=''; try { const s = await readStats(); if (s) statsEl.textContent = `Rounds: ${s.rounds}\nWagered: ${s.wagered}\nWon: ${s.won}\nLost: ${s.lost}`; } catch {}; try { const p = await profileLoad(); applyProfile(p); } catch {} });
     closeBtn?.addEventListener('click', ()=> show(false));
     saveBtn?.addEventListener('click', async ()=>{ try { await profileSave({ x: (xInput.value||'').trim() }); msgEl.textContent='Saved (encrypted).'; } catch(e){ msgEl.textContent='Save failed.'; } });
     loadBtn?.addEventListener('click', async ()=>{ try { const p = await profileLoad(); xInput.value = p?.x || ''; msgEl.textContent='Loaded.'; } catch(e){ msgEl.textContent='Load failed.'; } });
@@ -112,7 +116,7 @@
 
     // Re-establish profile connections on wallet load (best effort)
     try {
-      const onWalletReady = async () => { try { await profileLoad(); } catch {} };
+      const onWalletReady = async () => { try { const p = await profileLoad(); applyProfile(p); } catch {} };
       if (sessionStorage.getItem('walletConnected') === 'true') { onWalletReady(); }
       window.addEventListener('load', onWalletReady, { once: true });
     } catch {}

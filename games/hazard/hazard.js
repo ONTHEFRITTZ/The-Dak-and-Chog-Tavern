@@ -28,6 +28,7 @@ const rulesOverlay = document.getElementById('rules-overlay');
 const rulesAck = document.getElementById('rules-ack');
 const openRulesBtn = document.getElementById('open-rules');
 let hazardAck = false;
+const RULES_VERSION = 'v2';
 
 function rulesFresh(key) {
   try { const t = Number(localStorage.getItem(key) || 0); return Date.now() - t < 86400000; } catch { return false; }
@@ -150,9 +151,9 @@ mainButtons.forEach(btn => {
 // Initialize provider/signers and attach handlers
 window.addEventListener('DOMContentLoaded', async () => {
   // 24h rules acknowledgment
-  hazardAck = rulesFresh('rulesAck.hazard');
+  hazardAck = rulesFresh(`rulesAck.hazard.${RULES_VERSION}`);
   if (!hazardAck) { try { rulesOverlay.style.display = 'flex'; setHazardInteractivity(false); } catch {} }
-  rulesAck?.addEventListener('click', () => { hazardAck = true; try { rulesOverlay.style.display = 'none'; } catch {}; setHazardInteractivity(true); try { localStorage.setItem('rulesAck.hazard', String(Date.now())); } catch {} });
+  rulesAck?.addEventListener('click', () => { hazardAck = true; try { rulesOverlay.style.display = 'none'; } catch {}; setHazardInteractivity(true); try { localStorage.setItem(`rulesAck.hazard.${RULES_VERSION}`, String(Date.now())); } catch {} });
   openRulesBtn?.addEventListener('click', () => { try { rulesOverlay.style.display = 'flex'; } catch {} });
 
   const walletFlag = sessionStorage.getItem('walletConnected');
