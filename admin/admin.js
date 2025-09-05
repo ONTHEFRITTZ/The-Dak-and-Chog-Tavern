@@ -117,13 +117,22 @@ function ensureIo() {
     ioSocket.on('connect', async () => {
       try { ioSocket.emit('identify', { addr: wallet }); } catch {}
     });
-    ioSocket.on('rt:state', (m)=>{ try { document.getElementById('rt-status').textContent = m?.paused ? 'paused' : 'running'; } catch{} });
-    ioSocket.on('rt:paused', (m)=>{ try { document.getElementById('rt-status').textContent = m?.paused ? 'paused' : 'running'; } catch{} });
+    function updState(m){
+      try {
+        document.getElementById('rt-status').textContent = m?.paused ? 'paused' : 'running';
+        if (typeof m?.rakeBps === 'number') document.getElementById('rt-rake').textContent = String(m.rakeBps);
+        if (typeof m?.feesAccrued === 'number') document.getElementById('rt-fees').textContent = String(m.feesAccrued);
+      } catch{}
+    }
+    ioSocket.on('rt:state', updState);
+    ioSocket.on('rt:paused', updState);
   } catch {}
 }
 
 document.getElementById('rt-pause')?.addEventListener('click', ()=>{ try { if (ioSocket) ioSocket.emit('admin:pause', { paused: true }); } catch {} });
 document.getElementById('rt-resume')?.addEventListener('click', ()=>{ try { if (ioSocket) ioSocket.emit('admin:pause', { paused: false }); } catch {} });
+document.getElementById('rt-rake-set')?.addEventListener('click', ()=>{ try { const bps = parseInt(String(document.getElementById('rt-rake-input').value||'').trim(),10); if (ioSocket && bps>=0 && bps<=1000) ioSocket.emit('admin:setRake', { bps }); } catch {} });
+document.getElementById('rt-fees-reset')?.addEventListener('click', ()=>{ try { if (ioSocket) ioSocket.emit('admin:resetFees'); } catch {} });
 
 // Actions — Tavern
 tavSetMaxBetBtn?.addEventListener('click', async () => {

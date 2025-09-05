@@ -51,6 +51,18 @@
           <button id="rt-resume" class="btn ok">Resume</button>
         </div>
         <p class="muted" style="margin-top:6px;">Pause prevents new bets/deals on multiplayer tables.</p>
+        <div class="row" style="margin-top:6px; align-items:center; gap:12px;">
+          <div class="muted">Rake (bps): <span id="rt-rake">-</span></div>
+          <div class="muted">Fees Accrued: <span id="rt-fees">0</span></div>
+        </div>
+        <div class="row" style="margin-top:6px;">
+          <div style="width:160px;">
+            <label>Set Rake (bps)</label>
+            <input id="rt-rake-input" type="number" min="0" max="1000" step="1" placeholder="100">
+          </div>
+          <button id="rt-rake-set" class="btn">Update</button>
+          <button id="rt-fees-reset" class="btn danger">Reset Fees</button>
+        </div>
       </div>
 
       <div class="admin-card" id="tavern-card">

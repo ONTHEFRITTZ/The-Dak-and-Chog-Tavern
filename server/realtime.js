@@ -31,6 +31,8 @@ const profiles = new Map(); // addrLower -> { cipher }
 const publicProfiles = new Map(); // addrLower -> { x }
 const stats = new Map(); // addrLower -> { rounds, wagered, won, lost }
 let paused = false;
+let rakeBps = Number(process.env.RT_RAKE_BPS || 100); // 1% default
+let feesAccrued = 0; // unitless, same units as bet amounts in table game
 const admins = new Set(String(process.env.ADMIN_ADDR || '').toLowerCase().split(',').map(s => s.trim()).filter(Boolean));
 
 function getTable(id) {
@@ -74,7 +76,7 @@ io.on('connection', (socket) => {
 
   socket.on('identify', (m) => {
     try { addrLower = String(m.addr||'').toLowerCase(); isAdmin = admins.has(addrLower); } catch {}
-    socket.emit('rt:state', { paused });
+    socket.emit('rt:state', { paused, rakeBps, feesAccrued });
   });
 
   socket.on('join_table', (m) => {
@@ -172,26 +174,29 @@ io.on('connection', (socket) => {
         const bet = t.bets.get(seat.addr);
         if (!bet) return;
         let delta = 0;
+        // apply rake on every bet
+        const fee = Math.floor((Number(bet.amount||0) * Number(rakeBps)) / 10000);
+        const stake = Math.max(0, Number(bet.amount||0) - fee);
+        feesAccrued += fee;
         // copper (brass) means bet against the rank
         const target = bet.rank;
         if (doublet) {
-          delta = 0; // push in simplified model
+          delta = 0; // push in simplified model (fee still taken)
         } else {
           const matchedBank = (target === bankRank);
           const matchedPlayer = (target === playerRank);
           if (bet.copper) {
-            // against the rank: win if bank (target) loses and player shows bank?
-            // Simplified: opposite outcome of standard
-            if (matchedBank) delta = +bet.amount; // bank hit -> against wins
-            else if (matchedPlayer) delta = -bet.amount; else delta = 0;
+            // against the rank: opposite outcome of standard, using stake
+            if (matchedBank) delta = +stake; // bank hit -> against wins
+            else if (matchedPlayer) delta = -stake; else delta = 0;
           } else {
-            if (matchedPlayer) delta = +bet.amount;
-            else if (matchedBank) delta = -bet.amount; else delta = 0;
+            if (matchedPlayer) delta = +stake;
+            else if (matchedBank) delta = -stake; else delta = 0;
           }
         }
         seat.balance = Number(seat.balance||0) + delta;
         const st = ensureStats(seat.addr);
-        st.rounds += 1; st.wagered += bet.amount; if (delta>0) st.won += delta; if (delta<0) st.lost += (-delta);
+        st.rounds += 1; st.wagered += stake; if (delta>0) st.won += delta; if (delta<0) st.lost += (-delta);
         results.push({ addr: seat.addr, delta });
       });
       t.bets.clear();
@@ -224,7 +229,24 @@ io.on('connection', (socket) => {
     try {
       if (!isAdmin) { socket.emit('error', { message: 'not admin' }); return; }
       paused = !!m?.paused;
-      io.emit('rt:paused', { paused });
+      io.emit('rt:paused', { paused, rakeBps, feesAccrued });
+    } catch {}
+  });
+
+  socket.on('admin:setRake', (m) => {
+    try {
+      if (!isAdmin) { socket.emit('error', { message: 'not admin' }); return; }
+      const bps = Math.max(0, Math.min(1000, Number(m?.bps||0)));
+      rakeBps = bps;
+      io.emit('rt:state', { paused, rakeBps, feesAccrued });
+    } catch {}
+  });
+
+  socket.on('admin:resetFees', () => {
+    try {
+      if (!isAdmin) { socket.emit('error', { message: 'not admin' }); return; }
+      feesAccrued = 0;
+      io.emit('rt:state', { paused, rakeBps, feesAccrued });
     } catch {}
   });
 });
