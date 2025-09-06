@@ -115,8 +115,8 @@ rankButtons.forEach(btn => {
     const amt = Number(betAmtInput.value || 0);
     if (!(rankNum>=1 && rankNum<=13)) return;
     if (!(amt>0)) { log('Enter a valid ETH amount'); return; }
-    if (betCopperInput.checked) { log('Copper is off-chain only; disabled for on-chain bets.'); return; }
-    placeOnchainBet(rankNum, amt).catch(e=> log('Tx failed: ' + (e?.data?.message || e?.message || 'unknown')));
+    const copper = !!betCopperInput.checked;
+    placeOnchainBet(rankNum, amt, copper).catch(e=> log('Tx failed: ' + (e?.data?.message || e?.message || 'unknown')));
   });
 });
 
@@ -150,12 +150,15 @@ window.addEventListener('DOMContentLoaded', () => {
   openRulesBtn?.addEventListener('click', () => { try { rulesOverlay.style.display='flex'; } catch {} });
 });
 
-async function placeOnchainBet(rankNum, ethAmount) {
+async function placeOnchainBet(rankNum, ethAmount, copper) {
   if (!onchainSigner || !faroAddr || !window.FaroABI) { log('Connect wallet; Faro contract not configured'); return; }
   const ethersRef = window.ethers;
-  const c = new ethersRef.Contract(faroAddr, window.FaroABI, onchainSigner);
-  log(`Submitting on-chain bet ${ethAmount} ETH on ${rankNum}…`);
-  const tx = await c.playFaro(rankNum, { value: ethersRef.utils.parseEther(String(ethAmount)) });
+  let abi = window.FaroV3ABI || window.FaroABI; // prefer V3 with copper
+  const c = new ethersRef.Contract(faroAddr, abi, onchainSigner);
+  log(`Submitting on-chain bet ${ethAmount} ETH on ${rankNum}${copper ? ' (copper)' : ''}…`);
+  const tx = window.FaroV3ABI
+    ? await c.playFaro(rankNum, copper, { value: ethersRef.utils.parseEther(String(ethAmount)) })
+    : await c.playFaro(rankNum, { value: ethersRef.utils.parseEther(String(ethAmount)) });
   log(`Tx sent: ${tx.hash.slice(0,10)}… waiting…`);
   const rc = await tx.wait();
   try {
