@@ -1,6 +1,6 @@
 {
 	"compiler": {
-		"version": "0.8.24+commit.e11b9ed9"
+		"version": "0.8.30+commit.73712a01"
 	},
 	"language": "Solidity",
 	"output": {
@@ -27,33 +27,8 @@
 					},
 					{
 						"indexed": false,
-						"internalType": "bool",
-						"name": "won",
-						"type": "bool"
-					},
-					{
-						"indexed": false,
-						"internalType": "bool",
-						"name": "resultChog",
-						"type": "bool"
-					}
-				],
-				"name": "CoinPlayed",
-				"type": "event"
-			},
-			{
-				"anonymous": false,
-				"inputs": [
-					{
-						"indexed": true,
-						"internalType": "address",
-						"name": "player",
-						"type": "address"
-					},
-					{
-						"indexed": false,
 						"internalType": "uint256",
-						"name": "wager",
+						"name": "fee",
 						"type": "uint256"
 					},
 					{
@@ -64,30 +39,30 @@
 					},
 					{
 						"indexed": false,
+						"internalType": "bool",
+						"name": "push",
+						"type": "bool"
+					},
+					{
+						"indexed": false,
 						"internalType": "uint8",
-						"name": "main",
+						"name": "bankRank",
 						"type": "uint8"
 					},
 					{
 						"indexed": false,
 						"internalType": "uint8",
-						"name": "finalSum",
+						"name": "playerRank",
 						"type": "uint8"
 					},
 					{
 						"indexed": false,
 						"internalType": "uint8",
-						"name": "chance",
-						"type": "uint8"
-					},
-					{
-						"indexed": false,
-						"internalType": "uint8",
-						"name": "iterations",
+						"name": "betRank",
 						"type": "uint8"
 					}
 				],
-				"name": "HazardPlayed",
+				"name": "FaroPlayed",
 				"type": "event"
 			},
 			{
@@ -96,36 +71,70 @@
 					{
 						"indexed": true,
 						"internalType": "address",
-						"name": "player",
+						"name": "previousOwner",
 						"type": "address"
 					},
 					{
-						"indexed": false,
-						"internalType": "uint256",
-						"name": "wager",
-						"type": "uint256"
-					},
+						"indexed": true,
+						"internalType": "address",
+						"name": "newOwner",
+						"type": "address"
+					}
+				],
+				"name": "OwnershipTransferred",
+				"type": "event"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
 					{
 						"indexed": false,
 						"internalType": "bool",
-						"name": "won",
+						"name": "paused",
 						"type": "bool"
-					},
-					{
-						"indexed": false,
-						"internalType": "uint8",
-						"name": "winningCup",
-						"type": "uint8"
-					},
-					{
-						"indexed": false,
-						"internalType": "uint8",
-						"name": "guess",
-						"type": "uint8"
 					}
 				],
-				"name": "ShellPlayed",
+				"name": "Paused",
 				"type": "event"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address payable",
+						"name": "to",
+						"type": "address"
+					}
+				],
+				"name": "emergencyWithdrawAll",
+				"outputs": [],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"inputs": [],
+				"name": "feeBps",
+				"outputs": [
+					{
+						"internalType": "uint16",
+						"name": "",
+						"type": "uint16"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [],
+				"name": "feesAccrued",
+				"outputs": [
+					{
+						"internalType": "uint256",
+						"name": "",
+						"type": "uint256"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
 			},
 			{
 				"inputs": [],
@@ -177,11 +186,37 @@
 				"inputs": [
 					{
 						"internalType": "bool",
-						"name": "chooseChog",
+						"name": "p",
 						"type": "bool"
 					}
 				],
-				"name": "playCoin",
+				"name": "pause",
+				"outputs": [],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"inputs": [],
+				"name": "paused",
+				"outputs": [
+					{
+						"internalType": "bool",
+						"name": "",
+						"type": "bool"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "uint8",
+						"name": "betRank",
+						"type": "uint8"
+					}
+				],
+				"name": "playFaro",
 				"outputs": [],
 				"stateMutability": "payable",
 				"type": "function"
@@ -189,27 +224,14 @@
 			{
 				"inputs": [
 					{
-						"internalType": "uint8",
-						"name": "main",
-						"type": "uint8"
+						"internalType": "uint16",
+						"name": "_bps",
+						"type": "uint16"
 					}
 				],
-				"name": "playHazard",
+				"name": "setFeeBps",
 				"outputs": [],
-				"stateMutability": "payable",
-				"type": "function"
-			},
-			{
-				"inputs": [
-					{
-						"internalType": "uint8",
-						"name": "guess",
-						"type": "uint8"
-					}
-				],
-				"name": "playShell",
-				"outputs": [],
-				"stateMutability": "payable",
+				"stateMutability": "nonpayable",
 				"type": "function"
 			},
 			{
@@ -221,6 +243,19 @@
 					}
 				],
 				"name": "setMaxBet",
+				"outputs": [],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "newOwner",
+						"type": "address"
+					}
+				],
+				"name": "transferOwnership",
 				"outputs": [],
 				"stateMutability": "nonpayable",
 				"type": "function"
@@ -244,6 +279,24 @@
 				"type": "function"
 			},
 			{
+				"inputs": [
+					{
+						"internalType": "address payable",
+						"name": "to",
+						"type": "address"
+					},
+					{
+						"internalType": "uint256",
+						"name": "amount",
+						"type": "uint256"
+					}
+				],
+				"name": "withdrawFees",
+				"outputs": [],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
 				"stateMutability": "payable",
 				"type": "receive"
 			}
@@ -251,21 +304,19 @@
 		"devdoc": {
 			"kind": "dev",
 			"methods": {},
-			"title": "Tavern - Unified game contract for Shell, Hazard, and Dak & Chog (coin flip)",
 			"version": 1
 		},
 		"userdoc": {
 			"kind": "user",
 			"methods": {},
-			"notice": "Pseudo-random implementation for development. For production, replace randomness with a verifiable source (e.g., Chainlink VRF) or commit-reveal.",
 			"version": 1
 		}
 	},
 	"settings": {
 		"compilationTarget": {
-			"Contracts/Tavern.sol": "Tavern"
+			"Contracts/FaroV2.sol": "FaroV2"
 		},
-		"evmVersion": "shanghai",
+		"evmVersion": "prague",
 		"libraries": {},
 		"metadata": {
 			"bytecodeHash": "ipfs"
@@ -277,12 +328,12 @@
 		"remappings": []
 	},
 	"sources": {
-		"Contracts/Tavern.sol": {
-			"keccak256": "0x2b9ed3e4e59b48b32335a9ae567a9b641ff80efc1467187305f8a627502dc990",
+		"Contracts/FaroV2.sol": {
+			"keccak256": "0xf23ba584c2a479ea4068aaaa77cf447b22232536fda53cf1c5b9d8ad1dce00f8",
 			"license": "MIT",
 			"urls": [
-				"bzz-raw://c73f6f515217341b053be9d7d099a007c96c189e2c79c23ce116e556d1bfe149",
-				"dweb:/ipfs/QmbgysAk3RwTiuA5AqLxa1B3rTQJk23uP5crzSxzpw3QJ1"
+				"bzz-raw://4351c0c2bc9c8f9e4704452ba2af4314cc7e775415ece0ad5763415080a644eb",
+				"dweb:/ipfs/QmUvgY17DX33AH6CcHjKRZKL3KBZ9zL3MPnxFi23Us8YSY"
 			]
 		}
 	},

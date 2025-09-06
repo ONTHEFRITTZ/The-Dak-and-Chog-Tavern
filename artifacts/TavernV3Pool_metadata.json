@@ -6,7 +6,13 @@
 	"output": {
 		"abi": [
 			{
-				"inputs": [],
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "poolAddr",
+						"type": "address"
+					}
+				],
 				"stateMutability": "nonpayable",
 				"type": "constructor"
 			},
@@ -96,6 +102,51 @@
 					{
 						"indexed": true,
 						"internalType": "address",
+						"name": "previousOwner",
+						"type": "address"
+					},
+					{
+						"indexed": true,
+						"internalType": "address",
+						"name": "newOwner",
+						"type": "address"
+					}
+				],
+				"name": "OwnershipTransferred",
+				"type": "event"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": false,
+						"internalType": "bool",
+						"name": "paused",
+						"type": "bool"
+					}
+				],
+				"name": "Paused",
+				"type": "event"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": true,
+						"internalType": "address",
+						"name": "pool",
+						"type": "address"
+					}
+				],
+				"name": "PoolUpdated",
+				"type": "event"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": true,
+						"internalType": "address",
 						"name": "player",
 						"type": "address"
 					},
@@ -126,6 +177,19 @@
 				],
 				"name": "ShellPlayed",
 				"type": "event"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address payable",
+						"name": "to",
+						"type": "address"
+					}
+				],
+				"name": "emergencyWithdrawAll",
+				"outputs": [],
+				"stateMutability": "nonpayable",
+				"type": "function"
 			},
 			{
 				"inputs": [],
@@ -177,6 +241,32 @@
 				"inputs": [
 					{
 						"internalType": "bool",
+						"name": "p",
+						"type": "bool"
+					}
+				],
+				"name": "pause",
+				"outputs": [],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"inputs": [],
+				"name": "paused",
+				"outputs": [
+					{
+						"internalType": "bool",
+						"name": "",
+						"type": "bool"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "bool",
 						"name": "chooseChog",
 						"type": "bool"
 					}
@@ -213,6 +303,19 @@
 				"type": "function"
 			},
 			{
+				"inputs": [],
+				"name": "pool",
+				"outputs": [
+					{
+						"internalType": "contract IBankrollPool",
+						"name": "",
+						"type": "address"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
 				"inputs": [
 					{
 						"internalType": "uint256",
@@ -228,17 +331,25 @@
 			{
 				"inputs": [
 					{
-						"internalType": "address payable",
-						"name": "to",
+						"internalType": "address",
+						"name": "poolAddr",
 						"type": "address"
-					},
-					{
-						"internalType": "uint256",
-						"name": "amount",
-						"type": "uint256"
 					}
 				],
-				"name": "withdraw",
+				"name": "setPool",
+				"outputs": [],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "newOwner",
+						"type": "address"
+					}
+				],
+				"name": "transferOwnership",
 				"outputs": [],
 				"stateMutability": "nonpayable",
 				"type": "function"
@@ -251,19 +362,18 @@
 		"devdoc": {
 			"kind": "dev",
 			"methods": {},
-			"title": "Tavern - Unified game contract for Shell, Hazard, and Dak & Chog (coin flip)",
+			"title": "TavernV3 (pooled) - Shell, Hazard, Coin using unified BankrollPool for payouts",
 			"version": 1
 		},
 		"userdoc": {
 			"kind": "user",
 			"methods": {},
-			"notice": "Pseudo-random implementation for development. For production, replace randomness with a verifiable source (e.g., Chainlink VRF) or commit-reveal.",
 			"version": 1
 		}
 	},
 	"settings": {
 		"compilationTarget": {
-			"Contracts/Tavern.sol": "Tavern"
+			"Contracts/TavernV3Pool.sol": "TavernV3Pool"
 		},
 		"evmVersion": "shanghai",
 		"libraries": {},
@@ -277,12 +387,12 @@
 		"remappings": []
 	},
 	"sources": {
-		"Contracts/Tavern.sol": {
-			"keccak256": "0x2b9ed3e4e59b48b32335a9ae567a9b641ff80efc1467187305f8a627502dc990",
+		"Contracts/TavernV3Pool.sol": {
+			"keccak256": "0x0c1cd500ea54083442d871e549958ad8892a62cd32bfb922f6aae270e29e18cb",
 			"license": "MIT",
 			"urls": [
-				"bzz-raw://c73f6f515217341b053be9d7d099a007c96c189e2c79c23ce116e556d1bfe149",
-				"dweb:/ipfs/QmbgysAk3RwTiuA5AqLxa1B3rTQJk23uP5crzSxzpw3QJ1"
+				"bzz-raw://7d1727163eb1ae07bd46fecfa0b039c86b9e2124d088ba5e4fef0d729eccb09a",
+				"dweb:/ipfs/QmVcTenB6V9MqE7SjUt9Ak82P2ZXA8BNZAFu6XpVWEKnSK"
 			]
 		}
 	},

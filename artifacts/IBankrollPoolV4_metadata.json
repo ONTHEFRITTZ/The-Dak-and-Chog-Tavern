@@ -1,0 +1,77 @@
+{
+	"compiler": {
+		"version": "0.8.24+commit.e11b9ed9"
+	},
+	"language": "Solidity",
+	"output": {
+		"abi": [
+			{
+				"inputs": [],
+				"name": "balance",
+				"outputs": [
+					{
+						"internalType": "uint256",
+						"name": "",
+						"type": "uint256"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address payable",
+						"name": "to",
+						"type": "address"
+					},
+					{
+						"internalType": "uint256",
+						"name": "amount",
+						"type": "uint256"
+					}
+				],
+				"name": "pay",
+				"outputs": [],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			}
+		],
+		"devdoc": {
+			"kind": "dev",
+			"methods": {},
+			"version": 1
+		},
+		"userdoc": {
+			"kind": "user",
+			"methods": {},
+			"version": 1
+		}
+	},
+	"settings": {
+		"compilationTarget": {
+			"Contracts/FaroV4.sol": "IBankrollPoolV4"
+		},
+		"evmVersion": "shanghai",
+		"libraries": {},
+		"metadata": {
+			"bytecodeHash": "ipfs"
+		},
+		"optimizer": {
+			"enabled": false,
+			"runs": 200
+		},
+		"remappings": []
+	},
+	"sources": {
+		"Contracts/FaroV4.sol": {
+			"keccak256": "0x2b270dd6aabb587304f4165529e0f3fd565368ae9b82f5789909c63d9c4c5707",
+			"license": "MIT",
+			"urls": [
+				"bzz-raw://a09c467508718ad425e42518d45a0bccd0fc36e5ebf89c8d0ec96d60b5cd1f1e",
+				"dweb:/ipfs/QmQGtx4xTQ4uGfk1Sdws1tBo4gCGVerCEWeoRP7ZSMKA1E"
+			]
+		}
+	},
+	"version": 1
+}

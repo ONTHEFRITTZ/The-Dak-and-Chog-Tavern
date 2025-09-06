@@ -7,6 +7,8 @@
   <link rel="stylesheet" href="../../css/style.css">
   <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
   <script type="module" src="../../js/tavern.js"></script>
+  <script type="module" src="../../js/state.js"></script>
+  <script src="../../js/FaroV3ABI.js"></script>
   <style>
     body { background: url('../../assets/images/tavern-bg.png') no-repeat center center fixed; background-size: cover; }
     /* Game page logo at top (mirror Hazard/Shell) */
@@ -15,8 +17,12 @@
     .tavern { padding-top: clamp(110px, 18vw, 180px); }
     @media (max-width: 600px) { .game-logo { transform: translate(-50%, -50%) scale(0.8); } .tavern { padding-top: clamp(90px, 22vw, 160px); } }
     .table-wrap { display:flex; flex-direction:column; align-items:center; gap:16px; margin: 40px auto; }
-    .table-canvas { position:relative; width:min(92vw, 720px); height:min(92vw, 520px); margin: 0 auto; }
-    .table-surface { position:absolute; inset:0; border-radius:24px; background: rgba(255,244,233,0.78); border:5px solid #7800cd; box-shadow: 0 0 24px rgba(0,0,0,0.2); }
+    .table-canvas { position:relative; width:min(92vw, 900px); height:min(92vw, 600px); margin: 0 auto; }
+    .table-surface {
+      position:absolute; inset:0; border-radius:24px;
+      background: url('../../assets/images/table.png') no-repeat center / contain, rgba(255,244,233,0.78);
+      box-shadow: 0 0 24px rgba(0,0,0,0.2);
+    }
     .seat { position:absolute; width:120px; height:120px; border-radius:12px; background: rgba(255,255,255,0.5); border:2px solid #7800cd; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; padding:6px; }
     .seat .addr { font-size:12px; color:#2b1e12; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; width: 100%; text-align:center; }
     .seat .bal { font-size:12px; color:#2b1e12; }
@@ -92,8 +98,8 @@
 
       <div class="faro-panel">
         <div class="faro-controls">
-          <label>Bet:</label>
-          <input id="bet-amt" type="number" min="1" step="1" value="5" style="width:90px; text-align:center;" />
+          <label>Bet (MON):</label>
+          <input id="bet-amt" type="number" min="0.001" step="0.001" value="0.01" style="width:110px; text-align:center;" />
           <label style="font-size:13px;"><input type="checkbox" id="bet-copper"> Copper (bet against)</label>
         </div>
         <div class="faro-board" aria-label="Faro ranks">
@@ -127,6 +133,7 @@
     </div>
   </div>
 
+  <script src="/socket.io/socket.io.js"></script>
   <script type="module" src="table.js"></script>
 </body>
 </html>

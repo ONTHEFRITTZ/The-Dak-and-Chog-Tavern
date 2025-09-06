@@ -4,9 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>The Dak and Chog Tavern</title>
+<link rel="icon" type="image/png" href="/assets/images/dakandchog-logo.png">
 <link rel="stylesheet" href="css/style.css">
 <script src="js/TavernABI.js"></script>
 <script type="module" src="js/tavern.js"></script>
+<script type="module" src="js/state.js"></script>
 </head>
 <body class="home">
   <div class="top-banner" role="region" aria-label="Wallet and status">
@@ -28,8 +30,8 @@
         <a class="game-logo-link" href="games/hazard/index.html" title="Hazard">
           <img src="assets/images/hazard-logo.png" alt="Hazard">
         </a>
-        <a class="game-logo-link" href="games/table/index.html" title="Faro">
-          <img src="assets/images/faro-logo.png" alt="Faro">
+        <a class="game-logo-link" href="games/table/index.html" title="Faro (Multiplayer)">
+          <img src="assets/images/faro-logo.png" alt="Faro (Multiplayer)">
         </a>
         <a class="game-logo-link" href="games/dakchog/index.html" title="Dak &amp; Chog">
           <img src="assets/images/dakandchog-logo.png" alt="Dak &amp; Chog">
@@ -118,9 +120,27 @@
     // Re-establish profile connections on wallet load (best effort)
     try {
       const onWalletReady = async () => { try { const p = await profileLoad(); applyProfile(p); } catch {} };
-      if (sessionStorage.getItem('walletConnected') === 'true') { onWalletReady(); }
+      try { if (localStorage.getItem('walletConnected') === 'true') { onWalletReady(); } }
+      catch { if (sessionStorage.getItem('walletConnected') === 'true') { onWalletReady(); } }
       window.addEventListener('load', onWalletReady, { once: true });
     } catch {}
+  </script>
+  <!-- Realtime: auto-connect to Socket.IO and join faro-lobby -->
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    (function(){
+      try {
+        const socket = io({ path: '/socket.io' });
+        socket.on('connect', function(){
+          try { socket.emit('join_table', 'faro-lobby'); } catch(e) {}
+          try { console.log('connected', socket.id); } catch(e) {}
+        });
+        socket.on('system', function(m){ try { console.log('[system]', m); } catch(e) {} });
+        window.tavernSocket = socket;
+      } catch (e) {
+        // ignore if socket client not available
+      }
+    })();
   </script>
 </body>
 </html>

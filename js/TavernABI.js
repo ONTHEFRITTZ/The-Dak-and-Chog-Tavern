@@ -65,6 +65,14 @@
       "name": "CoinPlayed",
       "type": "event"
     }
+    ,
+    // Admin/read functions used by admin page
+    { "inputs": [], "name": "owner", "outputs": [{"internalType":"address","name":"","type":"address"}], "stateMutability": "view", "type": "function" },
+    { "inputs": [], "name": "maxBet", "outputs": [{"internalType":"uint256","name":"","type":"uint256"}], "stateMutability": "view", "type": "function" },
+    { "inputs": [{"internalType":"uint256","name":"_max","type":"uint256"}], "name": "setMaxBet", "outputs": [], "stateMutability": "nonpayable", "type": "function" },
+    { "inputs": [{"internalType":"address payable","name":"to","type":"address"},{"internalType":"uint256","name":"amount","type":"uint256"}], "name": "withdraw", "outputs": [], "stateMutability": "nonpayable", "type": "function" },
+    { "inputs": [{"internalType":"address payable","name":"to","type":"address"}], "name": "emergencyWithdrawAll", "outputs": [], "stateMutability": "nonpayable", "type": "function" },
+    { "inputs": [{"internalType":"bool","name":"p","type":"bool"}], "name": "pause", "outputs": [], "stateMutability": "nonpayable", "type": "function" }
   ];
 })();
 

@@ -9,6 +9,22 @@ let userAddress;
 // DOM Elements
 const connectButton = document.getElementById('connect-wallet');
 const statusEl = document.getElementById('status');
+const topRightControls = document.querySelector('.top-banner .controls');
+
+function ensureAdminLink(show) {
+  try {
+    let link = document.getElementById('admin-link');
+    if (!link) {
+      link = document.createElement('a');
+      link.id = 'admin-link';
+      link.href = '/admin/';
+      link.textContent = 'Admin';
+      link.style.cssText = 'margin-left:8px; text-decoration:none; font-weight:600; display:none;';
+      (topRightControls || document.body).appendChild(link);
+    }
+    link.style.display = show ? 'inline-block' : 'none';
+  } catch {}
+}
 
 // Resolve a global ABI name for a given contract key, e.g., 'shell' -> window.ShellABI
 function getAbiFromWindow(contractKey) {
@@ -66,9 +82,21 @@ export async function connectWallet() {
       const chainId = await detectChainId(provider);
       const tavernAddress = await getAddressFor('tavern', provider);
       renderTavernBanner({ contractKey: 'tavern', address: tavernAddress, chainId, wallet: userAddress, labelOverride: 'Address' });
+      // Owner-only admin link (visible only if signer is contract owner)
+      try {
+        if (tavernAddress && window.TavernABI) {
+          const c = new ethers.Contract(tavernAddress, window.TavernABI, signer);
+          const owner = await c.owner();
+          ensureAdminLink(owner && owner.toLowerCase() === userAddress.toLowerCase());
+        } else {
+          ensureAdminLink(false);
+        }
+      } catch {
+        ensureAdminLink(false);
+      }
     } catch {}
 
-    sessionStorage.setItem('walletConnected', 'true');
+    try { localStorage.setItem('walletConnected', 'true'); } catch {}
     // Re-establish profile connections and apply settings where possible
     try { await profileLoad(); } catch {}
   } catch (err) {
@@ -83,7 +111,14 @@ window.addEventListener('load', async () => {
     const address = getAddress('tavern', chainId);
     renderTavernBanner({ contractKey: 'tavern', address, chainId, labelOverride: 'Address' });
   } catch {}
-  if (sessionStorage.getItem('walletConnected') === 'true') await connectWallet();
+  let autoConnected = false;
+  try {
+    if (localStorage.getItem('walletConnected') === 'true') { await connectWallet(); autoConnected = true; }
+  } catch {
+    // fallback to sessionStorage for older state
+    if (sessionStorage.getItem('walletConnected') === 'true') { await connectWallet(); autoConnected = true; }
+  }
+  if (!autoConnected) ensureAdminLink(false);
 });
 
 connectButton.addEventListener('click', connectWallet);

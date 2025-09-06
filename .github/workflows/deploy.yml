@@ -1,0 +1,154 @@
+name: Deploy static site to EC2
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - "**.html"
+      - "admin/**"
+      - "games/**"
+      - "css/**"
+      - "js/**"
+      - "images/**"
+      - "img/**"
+      - "assets/**"
+      - "fonts/**"
+      - "media/**"
+      - "**.ico"
+      - "**.png"
+      - "**.jpg"
+      - "**.jpeg"
+      - "**.svg"
+      - "**.webp"
+  workflow_dispatch:
+
+jobs:
+  guard:
+    name: Confirm deploy intent
+    runs-on: ubuntu-latest
+    outputs:
+      ok: ${{ steps.gate.outputs.ok }}
+    steps:
+      - name: Check message or manual trigger
+        id: gate
+        shell: bash
+        run: |
+          set -e
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "ok=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          msg="${{ github.event.head_commit.message }}"
+          if echo "$msg" | grep -Eqi 'deploy:\s*(ok|yes)|\[deploy\]'; then
+            echo "ok=true" >> $GITHUB_OUTPUT
+          else
+            echo "No explicit deploy intent (add 'deploy: yes' or '[deploy]' to commit message, or run via 'Run workflow')."
+            echo "ok=false" >> $GITHUB_OUTPUT
+          fi
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: guard
+    if: needs.guard.outputs.ok == 'true'
+    environment:
+      name: production
+      url: https://thedakandchog.xyz
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Write build metadata
+        run: |
+          set -e
+          mkdir -p assets
+          echo "{\"commit\":\"${GITHUB_SHA}\",\"builtAt\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" > assets/build.json
+
+      - name: Prepare temp upload directory
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          script: |
+            set -e
+            REMOTE_PATH="${{ secrets.REMOTE_PATH }}"
+            UPLOAD_PATH="${REMOTE_PATH}_upload"
+            mkdir -p "$UPLOAD_PATH"
+            rm -rf "$UPLOAD_PATH"/*
+
+      - name: Upload site files to temp dir
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          source: |
+            index.html
+            landing.html
+            admin/**
+            css/**
+            js/**
+            images/**
+            img/**
+            assets/**
+            fonts/**
+            media/**
+            *.ico
+            *.png
+            *.jpg
+            *.jpeg
+            *.svg
+            *.webp
+          target: ${{ secrets.REMOTE_PATH }}_upload
+          overwrite: true
+
+      - name: Atomic swap upload into place
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          script: |
+            set -e
+            REMOTE_PATH="${{ secrets.REMOTE_PATH }}"
+            UPLOAD_PATH="${REMOTE_PATH}_upload"
+            TS=$(date +%s)
+            if [ -d "$REMOTE_PATH" ]; then mv "$REMOTE_PATH" "${REMOTE_PATH}_prev_${TS}"; fi
+            mv "$UPLOAD_PATH" "$REMOTE_PATH"
+            # Fix permissions so Nginx can read (dirs=755, files=644)
+            find "$REMOTE_PATH" -type d -exec chmod 755 {} +
+            find "$REMOTE_PATH" -type f -exec chmod 644 {} +
+
+      - name: Prune old remote backups (keep last 3)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          script: |
+            set -e
+            REMOTE_PATH="${{ secrets.REMOTE_PATH }}"
+            cd "$(dirname "$REMOTE_PATH")"
+            base="$(basename "$REMOTE_PATH")"
+            ls -1dt "${base}_prev_"* 2>/dev/null | tail -n +4 | xargs -r rm -rf
+
+      - name: Verify key files exist
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          script: |
+            set -e
+            REMOTE_PATH="${{ secrets.REMOTE_PATH }}"
+            test -f "$REMOTE_PATH/index.html" && echo "ok index" || (echo "missing index" && exit 1)
+            test -f "$REMOTE_PATH/admin/index.html" && echo "ok admin" || (echo "missing admin" && exit 1)
+            test -f "$REMOTE_PATH/assets/images/tavern-bg.png" && echo "ok bg" || (echo "missing bg" && exit 1)

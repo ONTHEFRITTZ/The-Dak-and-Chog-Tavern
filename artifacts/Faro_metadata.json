@@ -27,33 +27,8 @@
 					},
 					{
 						"indexed": false,
-						"internalType": "bool",
-						"name": "won",
-						"type": "bool"
-					},
-					{
-						"indexed": false,
-						"internalType": "bool",
-						"name": "resultChog",
-						"type": "bool"
-					}
-				],
-				"name": "CoinPlayed",
-				"type": "event"
-			},
-			{
-				"anonymous": false,
-				"inputs": [
-					{
-						"indexed": true,
-						"internalType": "address",
-						"name": "player",
-						"type": "address"
-					},
-					{
-						"indexed": false,
 						"internalType": "uint256",
-						"name": "wager",
+						"name": "fee",
 						"type": "uint256"
 					},
 					{
@@ -64,68 +39,57 @@
 					},
 					{
 						"indexed": false,
-						"internalType": "uint8",
-						"name": "main",
-						"type": "uint8"
-					},
-					{
-						"indexed": false,
-						"internalType": "uint8",
-						"name": "finalSum",
-						"type": "uint8"
-					},
-					{
-						"indexed": false,
-						"internalType": "uint8",
-						"name": "chance",
-						"type": "uint8"
-					},
-					{
-						"indexed": false,
-						"internalType": "uint8",
-						"name": "iterations",
-						"type": "uint8"
-					}
-				],
-				"name": "HazardPlayed",
-				"type": "event"
-			},
-			{
-				"anonymous": false,
-				"inputs": [
-					{
-						"indexed": true,
-						"internalType": "address",
-						"name": "player",
-						"type": "address"
-					},
-					{
-						"indexed": false,
-						"internalType": "uint256",
-						"name": "wager",
-						"type": "uint256"
-					},
-					{
-						"indexed": false,
 						"internalType": "bool",
-						"name": "won",
+						"name": "push",
 						"type": "bool"
 					},
 					{
 						"indexed": false,
 						"internalType": "uint8",
-						"name": "winningCup",
+						"name": "bankRank",
 						"type": "uint8"
 					},
 					{
 						"indexed": false,
 						"internalType": "uint8",
-						"name": "guess",
+						"name": "playerRank",
+						"type": "uint8"
+					},
+					{
+						"indexed": false,
+						"internalType": "uint8",
+						"name": "betRank",
 						"type": "uint8"
 					}
 				],
-				"name": "ShellPlayed",
+				"name": "FaroPlayed",
 				"type": "event"
+			},
+			{
+				"inputs": [],
+				"name": "feeBps",
+				"outputs": [
+					{
+						"internalType": "uint16",
+						"name": "",
+						"type": "uint16"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [],
+				"name": "feesAccrued",
+				"outputs": [
+					{
+						"internalType": "uint256",
+						"name": "",
+						"type": "uint256"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
 			},
 			{
 				"inputs": [],
@@ -176,12 +140,12 @@
 			{
 				"inputs": [
 					{
-						"internalType": "bool",
-						"name": "chooseChog",
-						"type": "bool"
+						"internalType": "uint8",
+						"name": "betRank",
+						"type": "uint8"
 					}
 				],
-				"name": "playCoin",
+				"name": "playFaro",
 				"outputs": [],
 				"stateMutability": "payable",
 				"type": "function"
@@ -189,27 +153,14 @@
 			{
 				"inputs": [
 					{
-						"internalType": "uint8",
-						"name": "main",
-						"type": "uint8"
+						"internalType": "uint16",
+						"name": "_bps",
+						"type": "uint16"
 					}
 				],
-				"name": "playHazard",
+				"name": "setFeeBps",
 				"outputs": [],
-				"stateMutability": "payable",
-				"type": "function"
-			},
-			{
-				"inputs": [
-					{
-						"internalType": "uint8",
-						"name": "guess",
-						"type": "uint8"
-					}
-				],
-				"name": "playShell",
-				"outputs": [],
-				"stateMutability": "payable",
+				"stateMutability": "nonpayable",
 				"type": "function"
 			},
 			{
@@ -244,6 +195,24 @@
 				"type": "function"
 			},
 			{
+				"inputs": [
+					{
+						"internalType": "address payable",
+						"name": "to",
+						"type": "address"
+					},
+					{
+						"internalType": "uint256",
+						"name": "amount",
+						"type": "uint256"
+					}
+				],
+				"name": "withdrawFees",
+				"outputs": [],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
 				"stateMutability": "payable",
 				"type": "receive"
 			}
@@ -251,19 +220,19 @@
 		"devdoc": {
 			"kind": "dev",
 			"methods": {},
-			"title": "Tavern - Unified game contract for Shell, Hazard, and Dak & Chog (coin flip)",
+			"title": "Faro - Minimal on-chain Faro game with rake",
 			"version": 1
 		},
 		"userdoc": {
 			"kind": "user",
 			"methods": {},
-			"notice": "Pseudo-random implementation for development. For production, replace randomness with a verifiable source (e.g., Chainlink VRF) or commit-reveal.",
+			"notice": "Development-grade randomness; not suitable for production without VRF or commit-reveal. Game model (simplified): - Player places a wager on a rank 1..13 (Ace=1, ..., King=13). - House draws two ranks pseudo-randomly: bankRank then playerRank. - If betRank == bankRank => player loses the wager (house keeps it). - If betRank == playerRank => player wins 1:1 on the effective wager (wager minus rake). - If bankRank == playerRank (doublet) => push: refund the effective wager. - Rake: feeBps (basis points) is taken from every wager and accumulated for the house.",
 			"version": 1
 		}
 	},
 	"settings": {
 		"compilationTarget": {
-			"Contracts/Tavern.sol": "Tavern"
+			"Contracts/Faro.sol": "Faro"
 		},
 		"evmVersion": "shanghai",
 		"libraries": {},
@@ -277,12 +246,12 @@
 		"remappings": []
 	},
 	"sources": {
-		"Contracts/Tavern.sol": {
-			"keccak256": "0x2b9ed3e4e59b48b32335a9ae567a9b641ff80efc1467187305f8a627502dc990",
+		"Contracts/Faro.sol": {
+			"keccak256": "0x77511b420843c82c981ea354b38daf901ead32296b7464b87b3fbd030530298c",
 			"license": "MIT",
 			"urls": [
-				"bzz-raw://c73f6f515217341b053be9d7d099a007c96c189e2c79c23ce116e556d1bfe149",
-				"dweb:/ipfs/QmbgysAk3RwTiuA5AqLxa1B3rTQJk23uP5crzSxzpw3QJ1"
+				"bzz-raw://3b36bf3c98162edd960ceeeb4dda70851f24347ca538a0bd7310efbfd367f591",
+				"dweb:/ipfs/QmNN88o5RV6Pq6c17tywjEd1CeHEqQzgtFQJJfvhUPCf8m"
 			]
 		}
 	},

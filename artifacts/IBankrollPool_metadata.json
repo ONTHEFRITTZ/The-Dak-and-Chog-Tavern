@@ -1,0 +1,77 @@
+{
+	"compiler": {
+		"version": "0.8.24+commit.e11b9ed9"
+	},
+	"language": "Solidity",
+	"output": {
+		"abi": [
+			{
+				"inputs": [],
+				"name": "balance",
+				"outputs": [
+					{
+						"internalType": "uint256",
+						"name": "",
+						"type": "uint256"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address payable",
+						"name": "to",
+						"type": "address"
+					},
+					{
+						"internalType": "uint256",
+						"name": "amount",
+						"type": "uint256"
+					}
+				],
+				"name": "pay",
+				"outputs": [],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			}
+		],
+		"devdoc": {
+			"kind": "dev",
+			"methods": {},
+			"version": 1
+		},
+		"userdoc": {
+			"kind": "user",
+			"methods": {},
+			"version": 1
+		}
+	},
+	"settings": {
+		"compilationTarget": {
+			"Contracts/TavernV3Pool.sol": "IBankrollPool"
+		},
+		"evmVersion": "shanghai",
+		"libraries": {},
+		"metadata": {
+			"bytecodeHash": "ipfs"
+		},
+		"optimizer": {
+			"enabled": false,
+			"runs": 200
+		},
+		"remappings": []
+	},
+	"sources": {
+		"Contracts/TavernV3Pool.sol": {
+			"keccak256": "0x0c1cd500ea54083442d871e549958ad8892a62cd32bfb922f6aae270e29e18cb",
+			"license": "MIT",
+			"urls": [
+				"bzz-raw://7d1727163eb1ae07bd46fecfa0b039c86b9e2124d088ba5e4fef0d729eccb09a",
+				"dweb:/ipfs/QmVcTenB6V9MqE7SjUt9Ak82P2ZXA8BNZAFu6XpVWEKnSK"
+			]
+		}
+	},
+	"version": 1
+}
