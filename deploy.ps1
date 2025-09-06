@@ -35,6 +35,15 @@ $UploadPath = "$RemoteBase/html_upload"
 Write-Host "Preparing remote directories ($RemotePath and temp $UploadPath)..."
 & ssh @sshArgsBase $sshTarget "sudo mkdir -p '$UploadPath' '$RemotePath'; sudo chown -R ${User}:${User} '$RemoteBase'; sudo rm -rf '$UploadPath'/*"
 
+# Generate build metadata (commit + timestamp) for footer
+try {
+    $commit = (git rev-parse --short HEAD) 2>$null
+} catch { $commit = $null }
+if (-not $commit) { $commit = "local" }
+$builtAt = (Get-Date).ToUniversalTime().ToString("s") + "Z"
+$buildJson = "{`"commit`":`"$commit`",`"builtAt`":`"$builtAt`"}"
+try { Set-Content -LiteralPath "assets\build.json" -Value $buildJson -Encoding ASCII } catch {}
+
 Write-Host "Uploading HTML files..."
 $htmlFiles = Get-ChildItem -File -Filter *.html -ErrorAction SilentlyContinue
 foreach ($f in $htmlFiles) {
@@ -59,3 +68,16 @@ Write-Host "Swapping uploaded content into place..."
 & ssh @sshArgsBase $sshTarget "set -e; ts=`$(date +%s); if [ -d '$RemotePath' ]; then sudo mv '$RemotePath' '${RemoteBase}/html_prev_'`$ts; fi; sudo mv '$UploadPath' '$RemotePath'"
 
 Write-Host ("Deployment complete to {0}@{1}:{2}" -f $User, $HostName, $RemotePath)
+
+# Fix permissions and verify key files exist
+Write-Host "Fixing permissions and verifying files..."
+$verifyCmd = @(
+  "set -e",
+  "sudo find '$RemotePath' -type d -exec chmod 755 {} +",
+  "sudo find '$RemotePath' -type f -exec chmod 644 {} +",
+  "if [ -f '$RemotePath/admin/index.html' ] && [ -f '$RemotePath/assets/images/tavern-bg.png' ]; then echo 'VERIFY_OK'; else echo 'VERIFY_FAIL'; fi"
+) -join '; '
+& ssh @sshArgsBase $sshTarget $verifyCmd
+
+# Cleanup local build metadata file (optional)
+try { Remove-Item -LiteralPath "assets\build.json" -Force -ErrorAction SilentlyContinue } catch {}

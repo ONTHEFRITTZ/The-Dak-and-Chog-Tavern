@@ -29,7 +29,18 @@ sudo rsync -a --delete \
   ./ "$UPLOAD"/
 
 # Atomic swap into place, preserving previous as html_prev_<ts>
-sudo bash -c "set -e; ts=\$(date +%s); if [ -d '$WEBROOT' ]; then mv '$WEBROOT' '/var/www/thedakandchog.xyz/html_prev_'\$ts; fi; mv '$UPLOAD' '$WEBROOT'"
+sudo bash -c "set -e; \
+  ts=\$(date +%s); \
+  BASE_DIR=\$(dirname '$WEBROOT'); \
+  # Move current live to a timestamped backup if present
+  if [ -d '$WEBROOT' ]; then mv '$WEBROOT' \"$BASE_DIR/html_prev_\$ts\"; fi; \
+  # Promote upload to live
+  mv '$UPLOAD' '$WEBROOT'; \
+  # Ensure safe permissions for Nginx
+  find '$WEBROOT' -type d -exec chmod 755 {} +; \
+  find '$WEBROOT' -type f -exec chmod 644 {} +; \
+  # Prune older backups, keep the latest 3
+  cd \"$BASE_DIR\"; \
+  ls -1dt html_prev_* 2>/dev/null | tail -n +4 | xargs -r rm -rf"
 
 echo "Deployment complete. Active path: $WEBROOT"
-

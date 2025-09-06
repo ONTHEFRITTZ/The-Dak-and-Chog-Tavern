@@ -147,8 +147,9 @@ async function refresh() {
     const rtPauseBtn = document.getElementById('rt-pause');
     const rtResumeBtn = document.getElementById('rt-resume');
     const isOwner = (isTavOwner || isFaroOwner);
-    [rtPauseBtn, rtResumeBtn].forEach(el => { if (el) el.classList.toggle('readonly', !isOwner); });
-    if (isOwner) ensureIo();
+    [rtPauseBtn, rtResumeBtn, document.getElementById('rt-restart')].forEach(el => { if (el) el.classList.toggle('readonly', !isOwner); });
+    // Always show realtime connection/health, even for non-owners
+    ensureIo();
   } catch {}
 }
 
@@ -177,6 +178,9 @@ function ensureIo() {
     if (ioSocket) return;
     ioSocket = io({ path: '/socket.io' });
     const connEl = document.getElementById('rt-conn');
+    const healthEl = document.getElementById('rt-health');
+    let lastHealthAt = 0;
+    let healthTimer = null;
     function setConn(state){
       try {
         if (!connEl) return;
@@ -191,14 +195,36 @@ function ensureIo() {
         connEl.style.color = m.color;
       } catch {}
     }
+    function setHealth(ok){
+      try {
+        if (!healthEl) return;
+        const now = Date.now();
+        const ago = lastHealthAt ? Math.max(0, Math.round((now - lastHealthAt)/1000)) : null;
+        if (ok && lastHealthAt) {
+          healthEl.textContent = ago <= 1 ? 'ok (just now)' : `ok (${ago}s ago)`;
+          healthEl.style.color = '#006400';
+        } else if (!lastHealthAt) {
+          healthEl.textContent = 'checking...';
+          healthEl.style.color = '#b26a00';
+        } else {
+          healthEl.textContent = `no reply (${ago}s)`;
+          healthEl.style.color = '#8b0000';
+        }
+      } catch {}
+    }
     ioSocket.on('connect', async () => {
       setConn('connected');
       try { ioSocket.emit('identify', { addr: wallet }); } catch {}
+      // Kick off periodic health pings
+      try { if (healthTimer) clearInterval(healthTimer); } catch {}
+      setHealth(false);
+      healthTimer = setInterval(() => { try { ioSocket.emit('health'); setHealth(false); } catch {} }, 15000);
     });
     ioSocket.on('reconnect_attempt', () => setConn('reconnecting'));
     ioSocket.on('reconnect', () => setConn('connected'));
     ioSocket.on('disconnect', () => setConn('disconnected'));
     ioSocket.on('connect_error', () => setConn('error'));
+    ioSocket.on('health', (m) => { try { lastHealthAt = Date.now(); setHealth(true); } catch {} });
     function updState(m){
       try {
         document.getElementById('rt-status').textContent = m?.paused ? 'paused' : 'running';

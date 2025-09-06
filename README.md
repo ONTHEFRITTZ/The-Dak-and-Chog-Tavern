@@ -42,6 +42,21 @@ Notes
 - To rotate keys, update repo secrets and your EC2 authorized_keys.
 - For dynamic backends later, keep Nginx as reverse proxy and add a systemd/pm2 service for the app.
 
+Deploy Overview (simple)
+- Preferred: GitHub Actions deploys on merges to `main` with explicit intent.
+- Day-to-day work happens on `experimental`; when ready, open a PR into `main`.
+- To trigger deploy, include `deploy: yes` or `[deploy]` in the merge commit message, then approve the `production` environment.
+- The workflow uploads the site, swaps atomically, fixes permissions, prunes backups, and verifies key files.
+
+GitHub Actions (CI/CD) quick notes
+- Guard: requires deploy intent (commit message contains `deploy: yes` or `[deploy]`), or manual Run workflow
+- Build metadata: writes `assets/build.json` (commit + timestamp) for footer
+
+Manual Deploy (PowerShell)
+- Open PowerShell in your repo folder (Explorer → path bar → type `powershell`).
+- Run: `.\deploy.ps1 -Host 3.18.10.46 -User ubuntu -IdentityFile "C:\\keys\\The-Dak-and-Chog.pem"`
+- Script generates build metadata, uploads site, swaps atomically, fixes permissions and verifies key files.
+
 On-Chain Contracts
 - Contracts/Tavern.sol: Shell, Hazard, Dak & Chog (coin) — dev randomness
 - Contracts/Faro.sol: Simplified Faro with rake (feeBps). Rules:

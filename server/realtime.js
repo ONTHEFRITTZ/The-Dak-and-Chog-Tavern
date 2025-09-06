@@ -250,6 +250,13 @@ io.on('connection', (socket) => {
     } catch {}
   });
 
+  // Lightweight health probe (any client)
+  socket.on('health', () => {
+    try {
+      socket.emit('health', { ok: true, now: Date.now(), paused, rakeBps, feesAccrued });
+    } catch {}
+  });
+
   // Admin: restart/shutdown backend (pm2 will typically restart on exit)
   socket.on('admin:restart', () => {
     try {
