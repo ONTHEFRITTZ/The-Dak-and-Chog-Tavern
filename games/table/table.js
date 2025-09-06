@@ -13,6 +13,10 @@ function rulesFresh(key) { try { const t = Number(localStorage.getItem(key) || 0
 const logEl = document.getElementById('log');
 const tableInput = document.getElementById('table-id');
 const joinBtn = document.getElementById('join-table');
+const lobbyPanel = document.getElementById('lobby-panel');
+const lobbyList = document.getElementById('lobby-list');
+const tablePanel = document.getElementById('table-panel');
+const centerReadout = document.getElementById('center-readout');
 const startBtn = document.getElementById('start');
 const dealBtn = document.getElementById('deal');
 const readyInput = document.getElementById('ready');
@@ -28,9 +32,29 @@ let onchainSigner = null; let onchainProvider = null; let faroAddr = null;
 function short(v) { return v && v.length > 10 ? `${v.slice(0,6)}...${v.slice(-4)}` : (v || ''); }
 function log(msg) { try { logEl.textContent = `[${new Date().toLocaleTimeString()}] ${msg}\n` + (logEl.textContent || ''); } catch {} }
 
+function renderLobby(list) {
+  try {
+    lobbyPanel.style.display = 'block';
+    tablePanel.style.display = 'none';
+    lobbyList.innerHTML = '';
+    list.forEach(row => {
+      const card = document.createElement('div');
+      card.style.cssText = 'background:rgba(255,255,255,0.6); border:2px solid #7800cd; border-radius:10px; padding:10px; min-width:200px;';
+      card.innerHTML = `<div><strong>${row.id}</strong></div><div>Players: ${row.seated}/6</div>`;
+      const btn = document.createElement('button');
+      btn.textContent = 'Join';
+      btn.onclick = () => { socket?.emit('join_table', { table: row.id }); };
+      card.appendChild(btn);
+      lobbyList.appendChild(card);
+    });
+  } catch {}
+}
+
 function renderTable(table) {
   currentTable = table;
+  try { lobbyPanel.style.display = 'none'; tablePanel.style.display = 'block'; } catch {}
   myIsOwner = false; mySeatId = null;
+  try { centerReadout.textContent = ''; } catch {}
   for (const el of seatsEls) {
     const idx = Number(el.dataset.index);
     const s = table.seats[idx];
@@ -41,13 +65,20 @@ function renderTable(table) {
       if (owner) { const b = document.createElement('div'); b.className = 'owner-badge'; b.textContent = 'Owner'; el.appendChild(b); }
       const a = document.createElement('div'); a.className = 'addr'; a.textContent = s?.x ? (`${s.x} (${short(s.addr||s.id)})`) : short(s.addr || s.id); el.appendChild(a);
       const bal = document.createElement('div'); bal.className = 'bal'; bal.textContent = `Bal: ${Number(s.balance ?? 0)}`; el.appendChild(bal);
+      // Show bet chip if present
+      if (s.bet && Number(s.bet.amount||0) > 0) {
+        const chip = document.createElement('div'); chip.className = 'chip'; chip.textContent = String(s.bet.amount); el.appendChild(chip);
+      }
       const me = (s.addr && myAddr && s.addr.toLowerCase() === myAddr.toLowerCase());
       if (me) { mySeatId = s.id; myIsOwner = owner; }
       if (me) {
         const btns = document.createElement('div'); btns.className = 'btns';
         const vacate = document.createElement('button'); vacate.textContent = 'Leave';
         vacate.onclick = () => socket?.emit('seat', { index: -1 });
+        const readyBtn = document.createElement('button'); readyBtn.textContent = s.ready ? 'Unready' : 'Ready';
+        readyBtn.onclick = () => socket?.emit('ready', { ready: !s.ready });
         btns.appendChild(vacate);
+        btns.appendChild(readyBtn);
         el.appendChild(btns);
       }
     } else {
@@ -59,8 +90,17 @@ function renderTable(table) {
       btns.appendChild(sit); el.appendChild(btns);
     }
   }
-  startBtn.disabled = !(myIsOwner && table.seats.filter(Boolean).length >= 2 && table.seats.filter(Boolean).every(s => s.ready));
-  dealBtn.disabled = !myIsOwner || !table.started;
+  const seated = table.seats.filter(Boolean);
+  const allReady = seated.length && seated.every(s => !!s.ready);
+  if (!allReady) {
+    try {
+      const meSeat = seated.find(s => s.addr && myAddr && s.addr.toLowerCase()===myAddr.toLowerCase());
+      if (meSeat && !meSeat.ready) centerReadout.textContent = 'Place your bet and click Ready';
+      else centerReadout.textContent = 'Waiting for players to Ready...';
+    } catch {}
+  }
+  startBtn.disabled = !(myIsOwner && seated.length >= 2 && allReady);
+  dealBtn.disabled = !myIsOwner;
 }
 
 function connect() {
@@ -68,17 +108,25 @@ function connect() {
   socket.on('connect', () => {
     log('Connected to server');
     if (myAddr) socket.emit('identify', { addr: myAddr });
-    const id = (tableInput.value || 'lobby').trim();
-    socket.emit('join_table', { table: id });
+    // Request lobby; user will choose a table to join
+    try { tablePanel.style.display = 'none'; lobbyPanel.style.display = 'block'; } catch {}
     // Publish public handle from localStorage if available
     try { const x = localStorage.getItem('profile.public.x'); if (x) socket.emit('profile_public', { x }); } catch {}
+    try { socket.emit('lobby:get'); } catch {}
   });
+  socket.on('lobby:list', (list) => { renderLobby(Array.isArray(list)?list:[]); });
   socket.on('table:update', (table) => { renderTable(table); });
   socket.on('table:started', (table) => { log('Game started!'); renderTable(table); });
   socket.on('table:coup', (m) => {
     const bank = m.bankRank; const player = m.playerRank;
     log(`Coup: bank=${bank}, player=${player}${m.doublet ? ' (doublet)' : ''}`);
     if (Array.isArray(m.results)) m.results.forEach(r => log(`${short(r.addr)}: ${r.delta >= 0 ? '+' : ''}${r.delta}`));
+    try {
+      const me = (myAddr||'').toLowerCase();
+      const myRes = Array.isArray(m.results) ? m.results.find(r => (String(r.addr||'').toLowerCase()===me)) : null;
+      const verdict = myRes ? (myRes.delta>0 ? 'You won!' : (myRes.delta<0 ? 'You lost.' : 'Push.')) : '';
+      centerReadout.textContent = `Bank ${bank} vs Player ${player}${m.doublet?' (doublet)':''}${verdict? ' — '+verdict : ''}`;
+    } catch {}
     renderTable(m.table);
   });
   socket.on('chat', (m) => { log(`${m.from}: ${m.text}`); });
