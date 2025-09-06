@@ -111,13 +111,14 @@ window.addEventListener('load', async () => {
     const address = getAddress('tavern', chainId);
     renderTavernBanner({ contractKey: 'tavern', address, chainId, labelOverride: 'Address' });
   } catch {}
+  let autoConnected = false;
   try {
-    if (localStorage.getItem('walletConnected') === 'true') await connectWallet();
+    if (localStorage.getItem('walletConnected') === 'true') { await connectWallet(); autoConnected = true; }
   } catch {
     // fallback to sessionStorage for older state
-    if (sessionStorage.getItem('walletConnected') === 'true') await connectWallet();
+    if (sessionStorage.getItem('walletConnected') === 'true') { await connectWallet(); autoConnected = true; }
   }
-  else ensureAdminLink(false);
+  if (!autoConnected) ensureAdminLink(false);
 });
 
 connectButton.addEventListener('click', connectWallet);

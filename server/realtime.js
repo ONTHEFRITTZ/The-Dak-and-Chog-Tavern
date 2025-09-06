@@ -249,6 +249,22 @@ io.on('connection', (socket) => {
       io.emit('rt:state', { paused, rakeBps, feesAccrued });
     } catch {}
   });
+
+  // Admin: restart/shutdown backend (pm2 will typically restart on exit)
+  socket.on('admin:restart', () => {
+    try {
+      if (!isAdmin) { socket.emit('error', { message: 'not admin' }); return; }
+      socket.emit('system', 'restarting backend');
+      setTimeout(() => { try { process.exit(0); } catch {} }, 100);
+    } catch {}
+  });
+  socket.on('admin:shutdown', () => {
+    try {
+      if (!isAdmin) { socket.emit('error', { message: 'not admin' }); return; }
+      socket.emit('system', 'shutting down backend');
+      setTimeout(() => { try { process.exit(0); } catch {} }, 100);
+    } catch {}
+  });
 });
 
 const PORT = process.env.PORT || 3000;

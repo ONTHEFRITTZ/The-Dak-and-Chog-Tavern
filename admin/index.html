@@ -87,12 +87,14 @@
       </div>
       <div class="admin-card" id="rt-card">
         <h3 style="margin-top:0;">Realtime (Multiplayer)</h3>
-        <div class="row" style="margin-top:6px; align-items:center;">
+        <div class="row" style="margin-top:6px; align-items:center; gap:12px;">
           <div class="muted">Status: <span id="rt-status">unknown</span></div>
+          <div class="muted">Conn: <span id="rt-conn" style="font-weight:600; color:#8b0000;">disconnected</span></div>
           <button id="rt-pause" class="btn danger">Pause</button>
           <button id="rt-resume" class="btn ok">Resume</button>
+          <button id="rt-restart" class="btn">Restart Backend</button>
         </div>
-        <p class="muted" style="margin-top:6px;">Pause prevents new bets/deals on multiplayer tables.</p>
+        <p class="muted" style="margin-top:6px;">Pause prevents new bets/deals on multiplayer tables. Restart will bounce the backend (pm2 brings it back up).</p>
         <div class="row" style="margin-top:6px; align-items:center; gap:12px;">
           <div class="muted">Rake (bps): <span id="rt-rake">-</span></div>
           <div class="muted">Fees Accrued: <span id="rt-fees">0</span></div>

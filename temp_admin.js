@@ -1,4 +1,4 @@
-import { detectChainId, getAddressFor, renderTavernBanner } from '../js/config.js';
+﻿import { detectChainId, getAddressFor, renderTavernBanner } from '../js/config.js';
 
 const statusEl = document.getElementById('status');
 const connectBtn = document.getElementById('connect-wallet');
@@ -176,29 +176,9 @@ function ensureIo() {
   try {
     if (ioSocket) return;
     ioSocket = io({ path: '/socket.io' });
-    const connEl = document.getElementById('rt-conn');
-    function setConn(state){
-      try {
-        if (!connEl) return;
-        const map = {
-          connected:  { text: 'connected',   color: '#006400' },
-          reconnecting: { text: 'reconnecting', color: '#b26a00' },
-          disconnected: { text: 'disconnected', color: '#8b0000' },
-          error: { text: 'error', color: '#8b0000' }
-        };
-        const m = map[state] || map.disconnected;
-        connEl.textContent = m.text;
-        connEl.style.color = m.color;
-      } catch {}
-    }
     ioSocket.on('connect', async () => {
-      setConn('connected');
       try { ioSocket.emit('identify', { addr: wallet }); } catch {}
     });
-    ioSocket.on('reconnect_attempt', () => setConn('reconnecting'));
-    ioSocket.on('reconnect', () => setConn('connected'));
-    ioSocket.on('disconnect', () => setConn('disconnected'));
-    ioSocket.on('connect_error', () => setConn('error'));
     function updState(m){
       try {
         document.getElementById('rt-status').textContent = m?.paused ? 'paused' : 'running';
@@ -215,15 +195,8 @@ document.getElementById('rt-pause')?.addEventListener('click', ()=>{ try { if (i
 document.getElementById('rt-resume')?.addEventListener('click', ()=>{ try { if (ioSocket) ioSocket.emit('admin:pause', { paused: false }); } catch {} });
 document.getElementById('rt-rake-set')?.addEventListener('click', ()=>{ try { const bps = parseInt(String(document.getElementById('rt-rake-input').value||'').trim(),10); if (ioSocket && bps>=0 && bps<=1000) ioSocket.emit('admin:setRake', { bps }); } catch {} });
 document.getElementById('rt-fees-reset')?.addEventListener('click', ()=>{ try { if (ioSocket) ioSocket.emit('admin:resetFees'); } catch {} });
-document.getElementById('rt-restart')?.addEventListener('click', ()=>{
-  try {
-    if (!ioSocket) return;
-    const ok = window.confirm('Restart backend now? Players may briefly disconnect.');
-    if (ok) ioSocket.emit('admin:restart');
-  } catch {}
-});
 
-// Actions — Tavern
+// Actions â€” Tavern
 tavSetMaxBetBtn?.addEventListener('click', async () => {
   try {
     if (!tavern) return;
@@ -264,7 +237,7 @@ tavFundBtn?.addEventListener('click', async () => {
   } catch (e) { statusEl.textContent = e?.data?.message || e?.message || 'Failed'; }
 });
 
-// Actions — Faro
+// Actions â€” Faro
 faroSetMaxBetBtn?.addEventListener('click', async () => {
   try {
     if (!faro) { statusEl.textContent = 'Faro not connected'; return; }

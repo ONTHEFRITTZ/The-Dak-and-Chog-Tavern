@@ -58,10 +58,21 @@ server {
     server_name ${DOMAIN} ${WWW_DOMAIN};
 
     root ${WEBROOT};
-    index index.html;
+    # Serve the age gate first. If missing, fall back to index.html
+    index landing.html index.html;
 
     location / {
         try_files \$uri \$uri/ =404;
+    }
+
+    # Realtime (Socket.IO) proxy
+    location /socket.io/ {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host \$host;
+        proxy_read_timeout 600s;
     }
 }
 EOF
@@ -98,10 +109,20 @@ server {
     server_name ${STAGING_DOMAIN};
 
     root ${STAGING_WEBROOT};
-    index index.html;
+    index landing.html index.html;
 
     location / {
         try_files \$uri \$uri/ =404;
+    }
+
+    # Realtime (Socket.IO) proxy
+    location /socket.io/ {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host \$host;
+        proxy_read_timeout 600s;
     }
 }
 EOF

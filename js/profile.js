@@ -1,17 +1,44 @@
-// Profile module: client-side encryption and WS storage
-// Requires: window.ethereum (optional ethers), and runs on pages that want profiles
+// Profile module: client-side encryption and realtime storage
+// Now prefers Socket.IO at /socket.io, with fallback to raw WebSocket in local dev
 
 const __isLocalHost = ['localhost','127.0.0.1'].includes(location.hostname);
-const WS_URL = (window.MULTI_WS_URL || (__isLocalHost ? 'ws://localhost:8787' : null));
-let ws;
+// Use raw WebSocket only if explicitly provided via window.MULTI_WS_URL
+// Otherwise rely on Socket.IO (works behind Nginx /socket.io)
+const WS_URL = (window.MULTI_WS_URL || null);
 
-function wsEnsure() {
-  if (!WS_URL) throw new Error('WS disabled on this host');
-  if (ws && ws.readyState === 1) return Promise.resolve(ws);
-  return new Promise((resolve) => {
-    ws = new WebSocket(WS_URL);
-    ws.addEventListener('open', () => resolve(ws), { once: true });
+let rt = { type: null, conn: null }; // { type: 'io'|'ws', conn }
+
+async function ensureIoLoaded() {
+  if (window.io) return true;
+  return new Promise((resolve, reject) => {
+    try {
+      const s = document.createElement('script');
+      s.src = '/socket.io/socket.io.js';
+      s.onload = () => resolve(true);
+      s.onerror = () => resolve(false);
+      document.head.appendChild(s);
+    } catch { resolve(false); }
   });
+}
+
+async function rtEnsure() {
+  // Local fallback: explicit WS URL only in dev
+  if (WS_URL) {
+    if (rt.type === 'ws' && rt.conn && rt.conn.readyState === 1) return rt.conn;
+    await new Promise((resolve) => {
+      const ws = new WebSocket(WS_URL);
+      ws.addEventListener('open', () => { rt = { type: 'ws', conn: ws }; resolve(); }, { once: true });
+    });
+    return rt.conn;
+  }
+  // Prefer Socket.IO on production
+  const ok = await ensureIoLoaded();
+  if (!ok || !window.io) throw new Error('Realtime disabled');
+  if (rt.type === 'io' && rt.conn && rt.conn.connected) return rt.conn;
+  rt.conn = window.io({ path: '/socket.io' });
+  await new Promise((resolve) => { rt.conn.once('connect', resolve); });
+  rt.type = 'io';
+  return rt.conn;
 }
 
 export async function signMessage(message) {
@@ -57,51 +84,85 @@ export async function decryptProfile(cipher, sigHex) {
 }
 
 export async function profileSave(profileObj) {
-  await wsEnsure();
+  await rtEnsure();
   const msg = `Dak&Chog Tavern profile v1 @ ${new Date().toISOString()}`;
   const { addr, sig } = await signMessage(msg);
   const cipher = await encryptProfile(profileObj, sig);
-  ws.send(JSON.stringify({ type: 'identify', addr }));
-  ws.send(JSON.stringify({ type: 'profile_save', cipher }));
+  if (rt.type === 'ws') {
+    rt.conn.send(JSON.stringify({ type: 'identify', addr }));
+    rt.conn.send(JSON.stringify({ type: 'profile_save', cipher }));
+  } else {
+    rt.conn.emit('identify', { addr });
+    rt.conn.emit('profile_save', { cipher });
+  }
 }
 
 export async function profileLoad() {
-  await wsEnsure();
+  await rtEnsure();
   const msg = `Dak&Chog Tavern profile v1 @ ${new Date().toISOString()}`;
   const { addr, sig } = await signMessage(msg);
   return new Promise((resolve, reject) => {
-    const onMsg = async (evt) => {
+    const handle = async (raw) => {
       try {
-        const m = JSON.parse(evt.data);
-        if (m.type === 'profile') {
-          ws.removeEventListener('message', onMsg);
+        const data = (rt.type === 'ws') ? raw.data : raw; // ws event vs io payload
+        const m = typeof data === 'string' ? JSON.parse(data) : data;
+        if (m && m.type === 'profile') {
+          cleanup();
           if (!m.cipher) return resolve(null);
           try { resolve(await decryptProfile(m.cipher, sig)); } catch(e) { reject(e); }
         }
       } catch {}
     };
-    ws.addEventListener('message', onMsg);
-    ws.send(JSON.stringify({ type: 'identify', addr }));
-    ws.send(JSON.stringify({ type: 'profile_get' }));
+    const cleanup = () => {
+      try {
+        if (rt.type === 'ws') rt.conn.removeEventListener('message', handle);
+        else rt.conn.off('message', handle);
+      } catch {}
+    };
+    try {
+      if (rt.type === 'ws') rt.conn.addEventListener('message', handle);
+      else rt.conn.on('message', handle);
+    } catch {}
+    if (rt.type === 'ws') {
+      rt.conn.send(JSON.stringify({ type: 'identify', addr }));
+      rt.conn.send(JSON.stringify({ type: 'profile_get' }));
+    } else {
+      rt.conn.emit('identify', { addr });
+      rt.conn.emit('profile_get');
+    }
   });
 }
 
 export async function readStats(addrOpt) {
-  await wsEnsure();
+  await rtEnsure();
   const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
   const addr = (addrOpt || accounts[0] || '').toLowerCase();
   return new Promise((resolve) => {
-    const onMsg = (evt) => {
+    const handle = (raw) => {
       try {
-        const m = JSON.parse(evt.data);
-        if (m.type === 'stats' && m.addr?.toLowerCase() === addr) {
-          ws.removeEventListener('message', onMsg);
+        const data = (rt.type === 'ws') ? raw.data : raw;
+        const m = typeof data === 'string' ? JSON.parse(data) : data;
+        if (m && m.type === 'stats' && String(m.addr||'').toLowerCase() === addr) {
+          cleanup();
           resolve(m);
         }
       } catch {}
     };
-    ws.addEventListener('message', onMsg);
-    ws.send(JSON.stringify({ type: 'stat_read', addr }));
+    const cleanup = () => {
+      try {
+        if (rt.type === 'ws') rt.conn.removeEventListener('message', handle);
+        else rt.conn.off('message', handle);
+      } catch {}
+    };
+    try {
+      if (rt.type === 'ws') rt.conn.addEventListener('message', handle);
+      else rt.conn.on('message', handle);
+    } catch {}
+    if (rt.type === 'ws') {
+      rt.conn.send(JSON.stringify({ type: 'stat_read', addr }));
+    } else {
+      rt.conn.emit('stat_read', { addr });
+    }
   });
 }
 
