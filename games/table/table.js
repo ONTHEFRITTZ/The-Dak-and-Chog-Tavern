@@ -132,7 +132,14 @@ returnBtn?.addEventListener('click', () => { window.location.href = '../../index
       onchainProvider = walletProvider || provider;
       onchainSigner = walletSigner || provider.getSigner();
       // Resolve Faro address
-      try { faroAddr = await getAddressFor('faro', onchainProvider); } catch {}
+      try { await resolveFaroAddress(); } catch {}
+      try {
+        // React to network/account changes by refreshing address
+        if (window.ethereum?.on) {
+          window.ethereum.on('chainChanged', async () => { try { await resolveFaroAddress(); } catch {} });
+          window.ethereum.on('accountsChanged', async (accs) => { try { myAddr = (accs && accs[0]) || myAddr; } catch {} });
+        }
+      } catch {}
     }
   } catch {}
   connect();
@@ -151,7 +158,17 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 async function placeOnchainBet(rankNum, ethAmount, copper) {
-  if (!onchainSigner || !faroAddr || !window.FaroABI) { log('Connect wallet; Faro contract not configured'); return; }
+  // Accept either FaroV3ABI (preferred) or FaroABI
+  const hasAbi = !!(window.FaroV3ABI || window.FaroABI);
+  // Re-resolve address in case network/overrides changed
+  await resolveFaroAddress();
+  if (!onchainSigner || !faroAddr || !hasAbi) {
+    if (!onchainSigner) log('Connect wallet first');
+    else if (!faroAddr) log('Faro address missing. Set it on Admin (Override) or run: localStorage.setItem(\'contract.faro\',\'0x...\'); then reload');
+    else if (!hasAbi) log('Faro ABI not loaded. Ensure /js/FaroV3ABI.js or /js/FaroABI.js is present');
+    else log('Connect wallet; Faro contract not configured');
+    return;
+  }
   const ethersRef = window.ethers;
   let abi = window.FaroV3ABI || window.FaroABI; // prefer V3 with copper
   const c = new ethersRef.Contract(faroAddr, abi, onchainSigner);
@@ -164,6 +181,22 @@ async function placeOnchainBet(rankNum, ethAmount, copper) {
   try {
     const ev = rc.events?.find(e => e.event === 'FaroPlayed');
     if (ev && ev.args) {
+async function resolveFaroAddress() {
+  try {
+    if (!onchainProvider && window.ethereum) {
+      const provider = new ethers.providers.Web3Provider(window.ethereum, 'any');
+      onchainProvider = provider;
+      onchainSigner = provider.getSigner();
+    }
+  } catch {}
+  try {
+    const addr = await getAddressFor('faro', onchainProvider);
+    if (addr && addr !== faroAddr) {
+      faroAddr = addr;
+      log(`Using Faro: ${short(faroAddr)}`);
+    }
+  } catch {}
+}
       const win = !!ev.args.win; const push = !!ev.args.push;
       const bank = Number(ev.args.bankRank); const player = Number(ev.args.playerRank);
       log(push ? `Push. bank=${bank}, player=${player}` : (win ? `You won! bank=${bank}, player=${player}` : `You lost. bank=${bank}, player=${player}`));
