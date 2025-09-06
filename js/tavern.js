@@ -96,7 +96,7 @@ export async function connectWallet() {
       }
     } catch {}
 
-    sessionStorage.setItem('walletConnected', 'true');
+    try { localStorage.setItem('walletConnected', 'true'); } catch {}
     // Re-establish profile connections and apply settings where possible
     try { await profileLoad(); } catch {}
   } catch (err) {
@@ -111,7 +111,12 @@ window.addEventListener('load', async () => {
     const address = getAddress('tavern', chainId);
     renderTavernBanner({ contractKey: 'tavern', address, chainId, labelOverride: 'Address' });
   } catch {}
-  if (sessionStorage.getItem('walletConnected') === 'true') await connectWallet();
+  try {
+    if (localStorage.getItem('walletConnected') === 'true') await connectWallet();
+  } catch {
+    // fallback to sessionStorage for older state
+    if (sessionStorage.getItem('walletConnected') === 'true') await connectWallet();
+  }
   else ensureAdminLink(false);
 });
 

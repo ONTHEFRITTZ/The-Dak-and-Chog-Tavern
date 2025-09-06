@@ -6,6 +6,7 @@
 const DEFAULT_ADDRESSES = {
   tavern: "0x2C2bD86a776B89EF8CBFA3888BaE43DF8427fF40",
   faro:   "0x934305e0F4b92eb318aBe0A8f701510d3BdF1d8f",
+  pool:   "",
 };
 
 // Address book keyed by chainId (as number or string) or "default"
@@ -14,8 +15,9 @@ export const ADDRESS_BOOK = {
   default: { ...DEFAULT_ADDRESSES },
   10143: { // Monad Testnet
     // Use explicit addresses for Monad Testnet if applicable
-    tavern: "0x2C2bD86a776B89EF8CBFA3888BaE43DF8427fF40",
-    faro:   "0x934305e0F4b92eb318aBe0A8f701510d3BdF1d8f",
+    tavern: "0xc91A9A1FC428a3fd6EB6030242c23A352810Ddb9",
+    faro:   "0x1f67dE0c9f432f05b0710643d76DB77a449a060d",
+    pool:   "0x78F62d85244621493b5c3961bBaD4069Ab979C86",
     // shell/hazard can fall back to defaults unless specified later
   },
   // 1: { shell: "0x...", hazard: "0x..." },
@@ -313,6 +315,7 @@ export function renderTavernBanner({ contractKey, address, chainId, wallet, labe
       const disconnectBtn = walletEl.querySelector('#nb-disconnect');
       if (disconnectBtn) {
         disconnectBtn.onclick = () => {
+          try { localStorage.removeItem('walletConnected'); } catch {}
           try { sessionStorage.removeItem('walletConnected'); } catch {}
           try { location.reload(); } catch {}
         };
@@ -328,6 +331,7 @@ export function renderTavernBanner({ contractKey, address, chainId, wallet, labe
       const disconnectBtn = el.querySelector('#nb-disconnect');
       if (disconnectBtn) {
         disconnectBtn.onclick = () => {
+          try { localStorage.removeItem('walletConnected'); } catch {}
           try { sessionStorage.removeItem('walletConnected'); } catch {}
           try { location.reload(); } catch {}
         };

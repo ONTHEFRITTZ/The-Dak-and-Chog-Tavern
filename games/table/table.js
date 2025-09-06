@@ -114,7 +114,7 @@ rankButtons.forEach(btn => {
     const rankNum = map[rankLabel] || Number(rankLabel);
     const amt = Number(betAmtInput.value || 0);
     if (!(rankNum>=1 && rankNum<=13)) return;
-    if (!(amt>0)) { log('Enter a valid ETH amount'); return; }
+    if (!(amt>0)) { log('Enter a valid MON amount'); return; }
     const copper = !!betCopperInput.checked;
     placeOnchainBet(rankNum, amt, copper).catch(e=> log('Tx failed: ' + (e?.data?.message || e?.message || 'unknown')));
   });
@@ -155,7 +155,7 @@ async function placeOnchainBet(rankNum, ethAmount, copper) {
   const ethersRef = window.ethers;
   let abi = window.FaroV3ABI || window.FaroABI; // prefer V3 with copper
   const c = new ethersRef.Contract(faroAddr, abi, onchainSigner);
-  log(`Submitting on-chain bet ${ethAmount} ETH on ${rankNum}${copper ? ' (copper)' : ''}…`);
+  log(`Submitting on-chain bet ${ethAmount} MON on ${rankNum}${copper ? ' (copper)' : ''}…`);
   const tx = window.FaroV3ABI
     ? await c.playFaro(rankNum, copper, { value: ethersRef.utils.parseEther(String(ethAmount)) })
     : await c.playFaro(rankNum, { value: ethersRef.utils.parseEther(String(ethAmount)) });
@@ -172,3 +172,4 @@ async function placeOnchainBet(rankNum, ethAmount, copper) {
     }
   } catch {}
 }
+

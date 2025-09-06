@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="css/style.css">
 <script src="js/TavernABI.js"></script>
 <script type="module" src="js/tavern.js"></script>
+<script type="module" src="js/state.js"></script>
 </head>
 <body class="home">
   <div class="top-banner" role="region" aria-label="Wallet and status">
@@ -119,7 +120,8 @@
     // Re-establish profile connections on wallet load (best effort)
     try {
       const onWalletReady = async () => { try { const p = await profileLoad(); applyProfile(p); } catch {} };
-      if (sessionStorage.getItem('walletConnected') === 'true') { onWalletReady(); }
+      try { if (localStorage.getItem('walletConnected') === 'true') { onWalletReady(); } }
+      catch { if (sessionStorage.getItem('walletConnected') === 'true') { onWalletReady(); } }
       window.addEventListener('load', onWalletReady, { once: true });
     } catch {}
   </script>

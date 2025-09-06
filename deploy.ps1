@@ -47,7 +47,7 @@ foreach ($a in $assetFiles) {
     & scp @scpArgsBase "$($a.FullName)" "$($sshTarget):$UploadPath/"
 }
 
-$dirs = @("css","js","img","images","assets","fonts","media")
+$dirs = @("css","js","img","images","assets","fonts","media","admin")
 foreach ($d in $dirs) {
     if (Test-Path -Path $d) {
         Write-Host "Uploading directory $d..."

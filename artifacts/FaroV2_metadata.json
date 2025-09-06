@@ -1,6 +1,6 @@
 {
 	"compiler": {
-		"version": "0.8.24+commit.e11b9ed9"
+		"version": "0.8.30+commit.73712a01"
 	},
 	"language": "Solidity",
 	"output": {
@@ -64,6 +64,51 @@
 				],
 				"name": "FaroPlayed",
 				"type": "event"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": true,
+						"internalType": "address",
+						"name": "previousOwner",
+						"type": "address"
+					},
+					{
+						"indexed": true,
+						"internalType": "address",
+						"name": "newOwner",
+						"type": "address"
+					}
+				],
+				"name": "OwnershipTransferred",
+				"type": "event"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": false,
+						"internalType": "bool",
+						"name": "paused",
+						"type": "bool"
+					}
+				],
+				"name": "Paused",
+				"type": "event"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address payable",
+						"name": "to",
+						"type": "address"
+					}
+				],
+				"name": "emergencyWithdrawAll",
+				"outputs": [],
+				"stateMutability": "nonpayable",
+				"type": "function"
 			},
 			{
 				"inputs": [],
@@ -140,6 +185,32 @@
 			{
 				"inputs": [
 					{
+						"internalType": "bool",
+						"name": "p",
+						"type": "bool"
+					}
+				],
+				"name": "pause",
+				"outputs": [],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"inputs": [],
+				"name": "paused",
+				"outputs": [
+					{
+						"internalType": "bool",
+						"name": "",
+						"type": "bool"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
 						"internalType": "uint8",
 						"name": "betRank",
 						"type": "uint8"
@@ -172,6 +243,19 @@
 					}
 				],
 				"name": "setMaxBet",
+				"outputs": [],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "newOwner",
+						"type": "address"
+					}
+				],
+				"name": "transferOwnership",
 				"outputs": [],
 				"stateMutability": "nonpayable",
 				"type": "function"
@@ -220,21 +304,19 @@
 		"devdoc": {
 			"kind": "dev",
 			"methods": {},
-			"title": "Faro - Minimal on-chain Faro game with rake",
 			"version": 1
 		},
 		"userdoc": {
 			"kind": "user",
 			"methods": {},
-			"notice": "Development-grade randomness; not suitable for production without VRF or commit-reveal. Game model (simplified): - Player places a wager on a rank 1..13 (Ace=1, ..., King=13). - House draws two ranks pseudo-randomly: bankRank then playerRank. - If betRank == bankRank => player loses the wager (house keeps it). - If betRank == playerRank => player wins 1:1 on the effective wager (wager minus rake). - If bankRank == playerRank (doublet) => push: refund the effective wager. - Rake: feeBps (basis points) is taken from every wager and accumulated for the house.",
 			"version": 1
 		}
 	},
 	"settings": {
 		"compilationTarget": {
-			"Contracts/Faro.sol": "Faro"
+			"Contracts/FaroV2.sol": "FaroV2"
 		},
-		"evmVersion": "shanghai",
+		"evmVersion": "prague",
 		"libraries": {},
 		"metadata": {
 			"bytecodeHash": "ipfs"
@@ -246,12 +328,12 @@
 		"remappings": []
 	},
 	"sources": {
-		"Contracts/Faro.sol": {
-			"keccak256": "0x77511b420843c82c981ea354b38daf901ead32296b7464b87b3fbd030530298c",
+		"Contracts/FaroV2.sol": {
+			"keccak256": "0xf23ba584c2a479ea4068aaaa77cf447b22232536fda53cf1c5b9d8ad1dce00f8",
 			"license": "MIT",
 			"urls": [
-				"bzz-raw://3b36bf3c98162edd960ceeeb4dda70851f24347ca538a0bd7310efbfd367f591",
-				"dweb:/ipfs/QmNN88o5RV6Pq6c17tywjEd1CeHEqQzgtFQJJfvhUPCf8m"
+				"bzz-raw://4351c0c2bc9c8f9e4704452ba2af4314cc7e775415ece0ad5763415080a644eb",
+				"dweb:/ipfs/QmUvgY17DX33AH6CcHjKRZKL3KBZ9zL3MPnxFi23Us8YSY"
 			]
 		}
 	},
