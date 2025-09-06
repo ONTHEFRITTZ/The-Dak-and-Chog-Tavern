@@ -5,6 +5,7 @@ module.exports = {
       script: 'server/realtime.js',
       cwd: '.',
       instances: 1,
+      exec_mode: 'fork',
       autorestart: true,
       watch: false,
       env: {

@@ -1,0 +1,14 @@
+{
+  "name": "dakchog-rt",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Socket.IO realtime server for Tavern (admin, profiles, multiplayer)",
+  "main": "realtime.js",
+  "scripts": {
+    "start": "node realtime.js"
+  },
+  "dependencies": {
+    "socket.io": "^4.7.5"
+  }
+}
+
