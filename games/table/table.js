@@ -19,7 +19,6 @@ const tablePanel = document.getElementById('table-panel');
 const centerReadout = document.getElementById('center-readout');
 const startBtn = document.getElementById('start');
 const dealBtn = document.getElementById('deal');
-const readyInput = document.getElementById('ready');
 const seatsEls = Array.from(document.querySelectorAll('.seat'));
 const returnBtn = document.getElementById('return');
 const betAmtInput = document.getElementById('bet-amt');
@@ -31,6 +30,24 @@ let onchainSigner = null; let onchainProvider = null; let faroAddr = null;
 
 function short(v) { return v && v.length > 10 ? `${v.slice(0,6)}...${v.slice(-4)}` : (v || ''); }
 function log(msg) { try { logEl.textContent = `[${new Date().toLocaleTimeString()}] ${msg}\n` + (logEl.textContent || ''); } catch {} }
+
+// Resolve Faro address based on current provider/network and overrides
+async function resolveFaroAddress() {
+  try {
+    if (!onchainProvider && window.ethereum) {
+      const provider = new ethers.providers.Web3Provider(window.ethereum, 'any');
+      onchainProvider = provider;
+      onchainSigner = provider.getSigner();
+    }
+  } catch {}
+  try {
+    const addr = await getAddressFor('faro', onchainProvider);
+    if (addr && addr !== faroAddr) {
+      faroAddr = addr;
+      log(`Using Faro: ${short(faroAddr)}`);
+    }
+  } catch {}
+}
 
 function renderLobby(list) {
   try {
@@ -141,10 +158,6 @@ joinBtn.addEventListener('click', () => {
   socket?.emit('join_table', { table: id });
 });
 
-readyInput.addEventListener('change', () => {
-  if (!faroAck) { try { rulesOverlay.style.display='flex'; } catch{}; readyInput.checked=false; return; }
-  socket?.emit('ready', { ready: !!readyInput.checked });
-});
 
 startBtn.addEventListener('click', () => {
   socket?.emit('start');
@@ -206,10 +219,22 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 async function placeOnchainBet(rankNum, ethAmount, copper) {
-  // Accept either FaroV3ABI (preferred) or FaroABI
+  // Ensure ABI present (FaroV3 preferred)
+  async function ensureAbi() {
+    if (window.FaroV3ABI || window.FaroABI) return true;
+    const candidates = ['/js/FaroV3ABI.js','/js/FaroABI.js','../../js/FaroV3ABI.js','../../js/FaroABI.js'];
+    for (const src of candidates) {
+      try {
+        await new Promise((resolve) => { const s=document.createElement('script'); s.src=src; s.onload=()=>resolve(true); s.onerror=()=>resolve(false); document.head.appendChild(s); });
+        if (window.FaroV3ABI || window.FaroABI) return true;
+      } catch {}
+    }
+    return !!(window.FaroV3ABI || window.FaroABI);
+  }
+  await ensureAbi();
   const hasAbi = !!(window.FaroV3ABI || window.FaroABI);
   // Re-resolve address in case network/overrides changed
-  await resolveFaroAddress();
+  try { await resolveFaroAddress(); } catch {}
   if (!onchainSigner || !faroAddr || !hasAbi) {
     if (!onchainSigner) log('Connect wallet first');
     else if (!faroAddr) log('Faro address missing. Set it on Admin (Override) or run: localStorage.setItem(\'contract.faro\',\'0x...\'); then reload');
@@ -229,22 +254,6 @@ async function placeOnchainBet(rankNum, ethAmount, copper) {
   try {
     const ev = rc.events?.find(e => e.event === 'FaroPlayed');
     if (ev && ev.args) {
-async function resolveFaroAddress() {
-  try {
-    if (!onchainProvider && window.ethereum) {
-      const provider = new ethers.providers.Web3Provider(window.ethereum, 'any');
-      onchainProvider = provider;
-      onchainSigner = provider.getSigner();
-    }
-  } catch {}
-  try {
-    const addr = await getAddressFor('faro', onchainProvider);
-    if (addr && addr !== faroAddr) {
-      faroAddr = addr;
-      log(`Using Faro: ${short(faroAddr)}`);
-    }
-  } catch {}
-}
       const win = !!ev.args.win; const push = !!ev.args.push;
       const bank = Number(ev.args.bankRank); const player = Number(ev.args.playerRank);
       log(push ? `Push. bank=${bank}, player=${player}` : (win ? `You won! bank=${bank}, player=${player}` : `You lost. bank=${bank}, player=${player}`));
