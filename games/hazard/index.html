@@ -119,9 +119,10 @@
       filter: drop-shadow(0 6px 16px rgba(0,0,0,0.25));
       pointer-events:none; user-select:none;
     }
-    /* match Faro spacing under overlapping logo */
-    .tavern { padding-top: clamp(220px, 32vw, 380px); }
-    @media (max-width: 600px) { .game-logo { transform: translate(-50%, -50%) scale(0.8); } .tavern { padding-top: clamp(200px, 38vw, 360px); } }
+    /* Place logo above container with a soft backglow */
+    .game-logo { display:block; height:auto; max-width: clamp(220px, 40vw, 560px); margin: 0 auto 12px; filter: drop-shadow(0 0 18px rgba(255,244,233,0.45)) drop-shadow(0 4px 12px rgba(0,0,0,0.25)); pointer-events:none; user-select:none; }
+    /* Normal container padding since logo no longer overlaps */
+    .tavern { padding-top: 16px; }
 
     /* Center game assets now that rules are in modal */
     .hazard-layout { display:flex; flex-direction:column; gap:16px; align-items:center; justify-content:center; }
@@ -183,9 +184,9 @@
       </div>
     </div>
   </div>
+  <img class="game-logo" src="../../assets/images/hazard-logo.png" alt="Hazard">
   <div class="tavern" style="max-width:1280px; width:95%; margin:clamp(180px, 14vw, 300px) auto 28px; position:relative;">
     <h1 class="visually-hidden">Hazard</h1>
-    <img class="game-logo" src="../../assets/images/hazard-logo.png" alt="Hazard">
     <div style="text-align:center; margin-top:6px;">
       <button id="open-rules">Rules</button>
     </div>

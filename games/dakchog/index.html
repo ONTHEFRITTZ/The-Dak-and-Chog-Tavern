@@ -28,11 +28,10 @@
 >>>>>>> cc5a2a0cf5481c0f3722f158cf701e842b04430c
   <style>
     body { background: url('../../assets/images/tavern-bg.png') no-repeat center center fixed; background-size: cover; }
-    /* Overlapping logo aesthetic, with safe padding to avoid collisions */
-    .game-logo { display:block; height:auto; max-width: clamp(220px, 40vw, 560px); position:absolute; left:50%; top:0; z-index:3; transform: translate(-50%, -50%) scale(0.80); transform-origin: top center; filter: drop-shadow(0 6px 16px rgba(0,0,0,0.25)); pointer-events:none; user-select:none; }
-    /* more headroom for taller Dak&Chog logo */
-    .tavern { padding-top: clamp(260px, 36vw, 440px); }
-    @media (max-width: 600px) { .game-logo { transform: translate(-50%, -50%) scale(0.76); } .tavern { padding-top: clamp(240px, 42vw, 420px); } }
+    /* Place logo above container with a soft backglow */
+    .game-logo { display:block; height:auto; max-width: clamp(220px, 40vw, 560px); margin: 0 auto 12px; filter: drop-shadow(0 0 18px rgba(255,244,233,0.45)) drop-shadow(0 4px 12px rgba(0,0,0,0.25)); pointer-events:none; user-select:none; }
+    /* Normal container padding since logo no longer overlaps */
+    .tavern { padding-top: 16px; }
 
     .coin-wrap { display:flex; flex-direction:column; align-items:center; gap:12px; }
     .coin { width: clamp(160px, 28vw, 280px); height: clamp(160px, 28vw, 280px); background-position:center; background-repeat:no-repeat; background-size: contain; filter: drop-shadow(0 8px 18px rgba(0,0,0,0.25)); }
@@ -74,9 +73,9 @@
     </div>
   </div>
 
+  <img class="game-logo" src="../../assets/images/dakandchog-logo.png" alt="Dak &amp; Chog">
   <div class="tavern" style="position:relative; width:95%; max-width:1280px; margin:clamp(180px, 14vw, 300px) auto 28px;">
     <h1 class="visually-hidden">Dak &amp; Chog</h1>
-    <img class="game-logo" src="../../assets/images/dakandchog-logo.png" alt="Dak &amp; Chog">
     <div style="text-align:center; margin-top:6px;"><button id="open-rules">Rules</button></div>
 
     <div class="coin-wrap">

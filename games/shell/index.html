@@ -33,24 +33,10 @@
       background: url('../../assets/images/shell-bg.png') no-repeat 50% calc(50% + 5vh) fixed;
       background-size: cover;
     }
-    /* Overlapping logo aesthetic, with safe padding to avoid collisions */
-    .game-logo {
-      display:block;
-      height:auto;
-      max-width: clamp(220px, 40vw, 560px);
-      /* overlap and center over the container */
-      position:absolute; left:50%; top:0; z-index:3;
-      transform: translate(-50%, -50%) scale(0.85);
-      transform-origin: top center;
-      filter: drop-shadow(0 6px 16px rgba(0,0,0,0.25));
-      pointer-events:none; user-select:none;
-    }
-    /* add generous breathing room so content sits below the overlapped logo */
-    .tavern { padding-top: clamp(220px, 32vw, 380px); }
-    @media (max-width: 600px) {
-      .game-logo { transform: translate(-50%, -50%) scale(0.8); }
-      .tavern { padding-top: clamp(200px, 38vw, 360px); }
-    }
+    /* Place logo above container with a soft backglow */
+    .game-logo { display:block; height:auto; max-width: clamp(220px, 40vw, 560px); margin: 0 auto 12px; filter: drop-shadow(0 0 18px rgba(255,244,233,0.45)) drop-shadow(0 4px 12px rgba(0,0,0,0.25)); pointer-events:none; user-select:none; }
+    /* Normal container padding since logo no longer overlaps */
+    .tavern { padding-top: 16px; }
     /* Decorative hovering cup (base: bottom-left) */
     .decor-cup {
       position:absolute; left:0; bottom:0;
@@ -111,9 +97,9 @@
       </div>
     </div>
   </div>
+  <img class="game-logo" src="../../assets/images/shell-game-logo.png" alt="Shell Game">
   <div class="tavern" style="position:relative; width:95%; max-width:1280px; margin:clamp(180px, 14vw, 300px) auto 28px;">
     <h1 class="visually-hidden">Shell Game</h1>
-    <img class="game-logo" src="../../assets/images/shell-game-logo.png" alt="Shell Game">
     <div style="text-align:center; margin-top:6px;">
       <button id="open-rules">Rules</button>
     </div>
