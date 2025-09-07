@@ -79,11 +79,11 @@ jobs:
         run: |
           set -euo pipefail
           echo "Remote disk usage before prune:"
-          ssh deploy-host "df -h | sed -n '1p;$p'"
+          ssh deploy-host 'df -h | sed -n "1p;$p"'
           # Prune older html_prev_* backups, keep latest 2 if present
           ssh deploy-host "set -e; base='${{ steps.meta.outputs.remote_base }}'; ls -1dt \"$base\"/html_prev_* 2>/dev/null | tail -n +3 | xargs -r sudo rm -rf"
           echo "Remote disk usage after prune:"
-          ssh deploy-host "df -h | sed -n '1p;$p'"
+          ssh deploy-host 'df -h | sed -n "1p;$p"'
 
       - name: Prepare remote directories
         shell: bash
