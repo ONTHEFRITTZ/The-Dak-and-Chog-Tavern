@@ -13,9 +13,12 @@ function rulesFresh(key) { try { const t = Number(localStorage.getItem(key) || 0
 const logEl = document.getElementById('log');
 const tableInput = document.getElementById('table-id');
 const joinBtn = document.getElementById('join-table');
+const lobbyPanel = document.getElementById('lobby-panel');
+const lobbyList = document.getElementById('lobby-list');
+const tablePanel = document.getElementById('table-panel');
+const centerReadout = document.getElementById('center-readout');
 const startBtn = document.getElementById('start');
 const dealBtn = document.getElementById('deal');
-const readyInput = document.getElementById('ready');
 const seatsEls = Array.from(document.querySelectorAll('.seat'));
 const returnBtn = document.getElementById('return');
 const betAmtInput = document.getElementById('bet-amt');
@@ -28,9 +31,47 @@ let onchainSigner = null; let onchainProvider = null; let faroAddr = null;
 function short(v) { return v && v.length > 10 ? `${v.slice(0,6)}...${v.slice(-4)}` : (v || ''); }
 function log(msg) { try { logEl.textContent = `[${new Date().toLocaleTimeString()}] ${msg}\n` + (logEl.textContent || ''); } catch {} }
 
+// Resolve Faro address based on current provider/network and overrides
+async function resolveFaroAddress() {
+  try {
+    if (!onchainProvider && window.ethereum) {
+      const provider = new ethers.providers.Web3Provider(window.ethereum, 'any');
+      onchainProvider = provider;
+      onchainSigner = provider.getSigner();
+    }
+  } catch {}
+  try {
+    const addr = await getAddressFor('faro', onchainProvider);
+    if (addr && addr !== faroAddr) {
+      faroAddr = addr;
+      log(`Using Faro: ${short(faroAddr)}`);
+    }
+  } catch {}
+}
+
+function renderLobby(list) {
+  try {
+    lobbyPanel.style.display = 'block';
+    tablePanel.style.display = 'none';
+    lobbyList.innerHTML = '';
+    list.forEach(row => {
+      const card = document.createElement('div');
+      card.style.cssText = 'background:rgba(255,255,255,0.6); border:2px solid #7800cd; border-radius:10px; padding:10px; min-width:200px;';
+      card.innerHTML = `<div><strong>${row.id}</strong></div><div>Players: ${row.seated}/6</div>`;
+      const btn = document.createElement('button');
+      btn.textContent = 'Join';
+      btn.onclick = () => { socket?.emit('join_table', { table: row.id }); };
+      card.appendChild(btn);
+      lobbyList.appendChild(card);
+    });
+  } catch {}
+}
+
 function renderTable(table) {
   currentTable = table;
+  try { lobbyPanel.style.display = 'none'; tablePanel.style.display = 'block'; } catch {}
   myIsOwner = false; mySeatId = null;
+  try { centerReadout.textContent = ''; } catch {}
   for (const el of seatsEls) {
     const idx = Number(el.dataset.index);
     const s = table.seats[idx];
@@ -39,15 +80,34 @@ function renderTable(table) {
     if (s) {
       const owner = (table.ownerId && s.id === table.ownerId);
       if (owner) { const b = document.createElement('div'); b.className = 'owner-badge'; b.textContent = 'Owner'; el.appendChild(b); }
+      // Avatar from X handle (public profile); else blank
+      try {
+        const handle = (s.x||'').replace(/^@/, '').trim();
+        if (handle) {
+          const img = document.createElement('img');
+          img.className = 'avatar';
+          img.alt = '';
+          img.referrerPolicy = 'no-referrer';
+          img.src = `https://unavatar.io/twitter/${encodeURIComponent(handle)}`;
+          el.appendChild(img);
+        }
+      } catch {}
       const a = document.createElement('div'); a.className = 'addr'; a.textContent = s?.x ? (`${s.x} (${short(s.addr||s.id)})`) : short(s.addr || s.id); el.appendChild(a);
       const bal = document.createElement('div'); bal.className = 'bal'; bal.textContent = `Bal: ${Number(s.balance ?? 0)}`; el.appendChild(bal);
+      // Show bet chip if present
+      if (s.bet && Number(s.bet.amount||0) > 0) {
+        const chip = document.createElement('div'); chip.className = 'chip'; chip.textContent = String(s.bet.amount); el.appendChild(chip);
+      }
       const me = (s.addr && myAddr && s.addr.toLowerCase() === myAddr.toLowerCase());
       if (me) { mySeatId = s.id; myIsOwner = owner; }
       if (me) {
         const btns = document.createElement('div'); btns.className = 'btns';
         const vacate = document.createElement('button'); vacate.textContent = 'Leave';
         vacate.onclick = () => socket?.emit('seat', { index: -1 });
+        const readyBtn = document.createElement('button'); readyBtn.textContent = s.ready ? 'Unready' : 'Ready';
+        readyBtn.onclick = () => socket?.emit('ready', { ready: !s.ready });
         btns.appendChild(vacate);
+        btns.appendChild(readyBtn);
         el.appendChild(btns);
       }
     } else {
@@ -59,8 +119,17 @@ function renderTable(table) {
       btns.appendChild(sit); el.appendChild(btns);
     }
   }
-  startBtn.disabled = !(myIsOwner && table.seats.filter(Boolean).length >= 2 && table.seats.filter(Boolean).every(s => s.ready));
-  dealBtn.disabled = !myIsOwner || !table.started;
+  const seated = table.seats.filter(Boolean);
+  const allReady = seated.length && seated.every(s => !!s.ready);
+  if (!allReady) {
+    try {
+      const meSeat = seated.find(s => s.addr && myAddr && s.addr.toLowerCase()===myAddr.toLowerCase());
+      if (meSeat && !meSeat.ready) centerReadout.textContent = 'Place your bet and click Ready';
+      else centerReadout.textContent = 'Waiting for players to Ready...';
+    } catch {}
+  }
+  startBtn.disabled = !(myIsOwner && seated.length >= 2 && allReady);
+  dealBtn.disabled = !myIsOwner;
 }
 
 function connect() {
@@ -68,17 +137,25 @@ function connect() {
   socket.on('connect', () => {
     log('Connected to server');
     if (myAddr) socket.emit('identify', { addr: myAddr });
-    const id = (tableInput.value || 'lobby').trim();
-    socket.emit('join_table', { table: id });
+    // Request lobby; user will choose a table to join
+    try { tablePanel.style.display = 'none'; lobbyPanel.style.display = 'block'; } catch {}
     // Publish public handle from localStorage if available
     try { const x = localStorage.getItem('profile.public.x'); if (x) socket.emit('profile_public', { x }); } catch {}
+    try { socket.emit('lobby:get'); } catch {}
   });
+  socket.on('lobby:list', (list) => { renderLobby(Array.isArray(list)?list:[]); });
   socket.on('table:update', (table) => { renderTable(table); });
   socket.on('table:started', (table) => { log('Game started!'); renderTable(table); });
   socket.on('table:coup', (m) => {
     const bank = m.bankRank; const player = m.playerRank;
     log(`Coup: bank=${bank}, player=${player}${m.doublet ? ' (doublet)' : ''}`);
     if (Array.isArray(m.results)) m.results.forEach(r => log(`${short(r.addr)}: ${r.delta >= 0 ? '+' : ''}${r.delta}`));
+    try {
+      const me = (myAddr||'').toLowerCase();
+      const myRes = Array.isArray(m.results) ? m.results.find(r => (String(r.addr||'').toLowerCase()===me)) : null;
+      const verdict = myRes ? (myRes.delta>0 ? 'You won!' : (myRes.delta<0 ? 'You lost.' : 'Push.')) : '';
+      centerReadout.textContent = `Bank ${bank} vs Player ${player}${m.doublet?' (doublet)':''}${verdict? ' — '+verdict : ''}`;
+    } catch {}
     renderTable(m.table);
   });
   socket.on('chat', (m) => { log(`${m.from}: ${m.text}`); });
@@ -93,10 +170,6 @@ joinBtn.addEventListener('click', () => {
   socket?.emit('join_table', { table: id });
 });
 
-readyInput.addEventListener('change', () => {
-  if (!faroAck) { try { rulesOverlay.style.display='flex'; } catch{}; readyInput.checked=false; return; }
-  socket?.emit('ready', { ready: !!readyInput.checked });
-});
 
 startBtn.addEventListener('click', () => {
   socket?.emit('start');
@@ -116,6 +189,7 @@ rankButtons.forEach(btn => {
     if (!(rankNum>=1 && rankNum<=13)) return;
     if (!(amt>0)) { log('Enter a valid MON amount'); return; }
     const copper = !!betCopperInput.checked;
+    try { const chips = Math.max(1, Math.floor(amt * 100)); socket?.emit('place_bet', { rank: rankNum, amount: chips, copper }); } catch {}
     placeOnchainBet(rankNum, amt, copper).catch(e=> log('Tx failed: ' + (e?.data?.message || e?.message || 'unknown')));
   });
 });
@@ -129,10 +203,25 @@ returnBtn?.addEventListener('click', () => { window.location.href = '/index.html
       const provider = new ethers.providers.Web3Provider(window.ethereum, 'any');
       const accounts = await provider.listAccounts();
       if (accounts && accounts.length) myAddr = accounts[0];
+      // Auto-connect if previously authorized on this domain
+      try {
+        if ((!accounts || !accounts.length) && localStorage.getItem('walletConnected') === 'true') {
+          await window.ethereum.request({ method: 'eth_requestAccounts' });
+          const acc2 = await provider.listAccounts();
+          if (acc2 && acc2.length) myAddr = acc2[0];
+        }
+      } catch {}
       onchainProvider = walletProvider || provider;
       onchainSigner = walletSigner || provider.getSigner();
       // Resolve Faro address
-      try { faroAddr = await getAddressFor('faro', onchainProvider); } catch {}
+      try { await resolveFaroAddress(); } catch {}
+      try {
+        // React to network/account changes by refreshing address
+        if (window.ethereum?.on) {
+          window.ethereum.on('chainChanged', async () => { try { await resolveFaroAddress(); } catch {} });
+          window.ethereum.on('accountsChanged', async (accs) => { try { myAddr = (accs && accs[0]) || myAddr; } catch {} });
+        }
+      } catch {}
     }
   } catch {}
   connect();
@@ -151,7 +240,29 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 async function placeOnchainBet(rankNum, ethAmount, copper) {
-  if (!onchainSigner || !faroAddr || !window.FaroABI) { log('Connect wallet; Faro contract not configured'); return; }
+  // Ensure ABI present (FaroV3 preferred)
+  async function ensureAbi() {
+    if (window.FaroV3ABI || window.FaroABI) return true;
+    const candidates = ['/js/FaroV3ABI.js','/js/FaroABI.js','../../js/FaroV3ABI.js','../../js/FaroABI.js'];
+    for (const src of candidates) {
+      try {
+        await new Promise((resolve) => { const s=document.createElement('script'); s.src=src; s.onload=()=>resolve(true); s.onerror=()=>resolve(false); document.head.appendChild(s); });
+        if (window.FaroV3ABI || window.FaroABI) return true;
+      } catch {}
+    }
+    return !!(window.FaroV3ABI || window.FaroABI);
+  }
+  await ensureAbi();
+  const hasAbi = !!(window.FaroV3ABI || window.FaroABI);
+  // Re-resolve address in case network/overrides changed
+  try { await resolveFaroAddress(); } catch {}
+  if (!onchainSigner || !faroAddr || !hasAbi) {
+    if (!onchainSigner) log('Connect wallet first');
+    else if (!faroAddr) log('Faro address missing. Set it on Admin (Override) or run: localStorage.setItem(\'contract.faro\',\'0x...\'); then reload');
+    else if (!hasAbi) log('Faro ABI not loaded. Ensure /js/FaroV3ABI.js or /js/FaroABI.js is present');
+    else log('Connect wallet; Faro contract not configured');
+    return;
+  }
   const ethersRef = window.ethers;
   let abi = window.FaroV3ABI || window.FaroABI; // prefer V3 with copper
   const c = new ethersRef.Contract(faroAddr, abi, onchainSigner);

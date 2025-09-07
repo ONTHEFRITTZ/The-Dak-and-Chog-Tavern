@@ -26,7 +26,7 @@ const server = http.createServer((req, res) => {
 const io = new Server(server, { cors: { origin: '*' } });
 
 // In-memory stores
-const tables = new Map(); // tableId -> { seats: [{id, addr, ready, balance}], started, bets: Map(addr -> {rank, amount, copper}) }
+const tables = new Map(); // tableId -> { id, seats: [{id, addr, ready, balance}], started, bets: Map(addrLower -> {rank, amount, copper}), ownerId }
 const profiles = new Map(); // addrLower -> { cipher }
 const publicProfiles = new Map(); // addrLower -> { x }
 const stats = new Map(); // addrLower -> { rounds, wagered, won, lost }
@@ -39,7 +39,7 @@ function getTable(id) {
   if (!tables.has(id)) {
     tables.set(id, {
       id,
-      seats: Array.from({ length: 6 }, (_, i) => null),
+      seats: Array.from({ length: 6 }, () => null),
       started: false,
       bets: new Map(),
       ownerId: null,
@@ -48,18 +48,50 @@ function getTable(id) {
   return tables.get(id);
 }
 
+function seatCount(t) { return t.seats.filter(Boolean).length; }
+
+function ensureLobbyPolicy() {
+  // Ensure at least one table exists
+  const baseId = 'faro-1';
+  const base = getTable(baseId);
+  // If base is full, open a second table
+  if (seatCount(base) >= 6 && !tables.has('faro-2')) getTable('faro-2');
+  // Remove empty extra tables unless they are the only available (others full)
+  const ids = Array.from(tables.keys()).sort();
+  const anyNotFull = ids.some(id => seatCount(getTable(id)) < 6);
+  for (const id of ids) {
+    if (id === baseId) continue;
+    const t = getTable(id);
+    if (seatCount(t) === 0 && anyNotFull) {
+      tables.delete(id);
+    }
+  }
+}
+
 function short(v) { return (v && v.length > 10) ? (v.slice(0,6) + '...' + v.slice(-4)) : (v || ''); }
 
 function tablePublic(t) {
   return {
     id: t.id,
-    seats: t.seats.map(s => s && { id: s.id, addr: s.addr, ready: !!s.ready, balance: s.balance, x: (publicProfiles.get(s.addr||'')||{}).x || null }),
+    seats: t.seats.map(s => s && {
+      id: s.id,
+      addr: s.addr,
+      ready: !!s.ready,
+      balance: s.balance,
+      bet: (s.addr ? (t.bets.get(String(s.addr||'').toLowerCase()) || null) : null),
+      x: (publicProfiles.get(s.addr||'')||{}).x || null
+    }),
     started: !!t.started,
     ownerId: t.ownerId,
   };
 }
 
 function emitUpdate(t) { io.to(t.id).emit('table:update', tablePublic(t)); }
+
+function emitLobby() {
+  const list = Array.from(tables.values()).map(t => ({ id: t.id, seated: seatCount(t), capacity: 6, started: !!t.started }));
+  io.emit('lobby:list', list.sort((a,b)=> a.id.localeCompare(b.id)));
+}
 
 function ensureStats(addr) {
   const key = (addr||'').toLowerCase();
@@ -81,7 +113,8 @@ io.on('connection', (socket) => {
 
   socket.on('join_table', (m) => {
     try {
-      const tableId = String(m.table||m.tableId||'lobby');
+      const reqId = String(m.table||m.tableId||'faro-1');
+      const tableId = (tables.has(reqId) ? reqId : 'faro-1');
       if (currentTableId) socket.leave(currentTableId);
       currentTableId = tableId;
       socket.join(tableId);
@@ -92,8 +125,12 @@ io.on('connection', (socket) => {
       }
       emitUpdate(t);
       io.to(tableId).emit('system', `${short(socket.id)} joined ${tableId}`);
+      ensureLobbyPolicy();
+      emitLobby();
     } catch {}
   });
+
+  socket.on('lobby:get', () => { try { ensureLobbyPolicy(); emitLobby(); } catch {} });
 
   socket.on('chat', (m) => {
     try {
@@ -118,6 +155,8 @@ io.on('connection', (socket) => {
         }
       }
       emitUpdate(t);
+      ensureLobbyPolicy();
+      emitLobby();
     } catch {}
   });
 
@@ -128,6 +167,42 @@ io.on('connection', (socket) => {
       const s = t.seats.find(x => x && x.addr === addrLower);
       if (s) s.ready = !!m.ready;
       emitUpdate(t);
+      const active = t.seats.filter(Boolean);
+      const allReady = active.length && active.every(x => !!x.ready);
+      if (allReady && t.bets.size > 0 && !paused) {
+        const bankRank = rand13();
+        const playerRank = rand13();
+        const doublet = (bankRank === playerRank);
+        const results = [];
+        active.forEach(seat => {
+          const bet = t.bets.get(String(seat.addr||'').toLowerCase());
+          if (!bet) return;
+          let delta = 0;
+          const fee = Math.floor((Number(bet.amount||0) * Number(rakeBps)) / 10000);
+          const stake = Math.max(0, Number(bet.amount||0) - fee);
+          feesAccrued += fee;
+          const target = bet.rank;
+          if (doublet) {
+            delta = 0;
+          } else {
+            const matchedBank = (target === bankRank);
+            const matchedPlayer = (target === playerRank);
+            if (bet.copper) {
+              if (matchedBank) delta = +stake; else if (matchedPlayer) delta = -stake; else delta = 0;
+            } else {
+              if (matchedPlayer) delta = +stake; else if (matchedBank) delta = -stake; else delta = 0;
+            }
+          }
+          seat.balance = Number(seat.balance||0) + delta;
+          const st = ensureStats(seat.addr);
+          st.rounds += 1; st.wagered += stake; if (delta>0) st.won += delta; if (delta<0) st.lost += (-delta);
+          results.push({ addr: seat.addr, delta });
+        });
+        t.bets.clear();
+        active.forEach(seat => { seat.ready = false; });
+        io.to(currentTableId).emit('table:coup', { bankRank, playerRank, doublet, results, table: tablePublic(t) });
+        emitUpdate(t);
+      }
     } catch {}
   });
 
@@ -154,7 +229,8 @@ io.on('connection', (socket) => {
       if (!(rank>=1 && rank<=13)) return;
       const s = t.seats.find(x => x && x.addr === addrLower);
       if (!s) return;
-      t.bets.set(addrLower, { rank, amount, copper });
+      if (s.ready) { socket.emit('error', { message: 'Already ready' }); return; }
+      t.bets.set(String(addrLower||''), { rank, amount, copper });
       emitUpdate(t);
     } catch {}
   });
@@ -164,14 +240,13 @@ io.on('connection', (socket) => {
       if (paused) { socket.emit('error', { message: 'paused' }); return; }
       if (!currentTableId) return;
       const t = getTable(currentTableId);
-      if (!t.started) return;
       const bankRank = rand13();
       const playerRank = rand13();
       const doublet = (bankRank === playerRank);
       const results = [];
       t.seats.forEach(seat => {
         if (!seat) return;
-        const bet = t.bets.get(seat.addr);
+        const bet = t.bets.get(String(seat.addr||'').toLowerCase());
         if (!bet) return;
         let delta = 0;
         // apply rake on every bet

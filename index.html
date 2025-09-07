@@ -155,5 +155,27 @@
       }
     })();
   </script>
+  <!-- Build footer: shows Version + Commit + Built time -->
+  <div style="position:fixed; left:12px; bottom:12px; z-index:10000;">
+    <div id="footer-meta" style="font-size:12px; color:#2b1e12; opacity:.95; background:rgba(255,244,233,0.96); border:2px solid #7800cd; border-radius:10px; padding:6px 8px; display:inline-block;">
+      Loading build info...
+    </div>
+  </div>
+  <script>
+    (function(){
+      async function text(u){ try{ const r=await fetch(u,{cache:'no-store'}); if(!r.ok) return null; return await r.text(); }catch{return null} }
+      async function json(u){ try{ const r=await fetch(u,{cache:'no-store'}); if(!r.ok) return null; return await r.json(); }catch{return null} }
+      (async()=>{
+        const el=document.getElementById('footer-meta'); if(!el) return;
+        try{
+          const ver=(await text('/assets/version.txt')||'').trim();
+          const b=await json('/assets/build.json');
+          const c=b?.commit?String(b.commit).slice(0,12):'unknown';
+          const at=b?.builtAt||new Date().toISOString();
+          el.textContent=`Version: ${ver||'n/a'} | Commit: ${c} | Built: ${at}`;
+        }catch{ el.textContent='Version info unavailable'; }
+      })();
+    })();
+  </script>
 </body>
 </html>
