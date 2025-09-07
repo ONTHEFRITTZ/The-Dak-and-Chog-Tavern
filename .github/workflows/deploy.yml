@@ -1,154 +1,92 @@
-name: Deploy static site to EC2
+name: Deploy to Production
 
 on:
   push:
-    branches: [ "main" ]
-    paths:
-      - "**.html"
-      - "admin/**"
-      - "games/**"
-      - "css/**"
-      - "js/**"
-      - "images/**"
-      - "img/**"
-      - "assets/**"
-      - "fonts/**"
-      - "media/**"
-      - "**.ico"
-      - "**.png"
-      - "**.jpg"
-      - "**.jpeg"
-      - "**.svg"
-      - "**.webp"
-  workflow_dispatch:
+    branches: [ main ]
 
 jobs:
-  guard:
-    name: Confirm deploy intent
-    runs-on: ubuntu-latest
-    outputs:
-      ok: ${{ steps.gate.outputs.ok }}
-    steps:
-      - name: Check message or manual trigger
-        id: gate
-        shell: bash
-        run: |
-          set -e
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "ok=true" >> $GITHUB_OUTPUT
-            exit 0
-          fi
-          msg="${{ github.event.head_commit.message }}"
-          if echo "$msg" | grep -Eqi 'deploy:\s*(ok|yes)|\[deploy\]'; then
-            echo "ok=true" >> $GITHUB_OUTPUT
-          else
-            echo "No explicit deploy intent (add 'deploy: yes' or '[deploy]' to commit message, or run via 'Run workflow')."
-            echo "ok=false" >> $GITHUB_OUTPUT
-          fi
-
   deploy:
     runs-on: ubuntu-latest
-    needs: guard
-    if: needs.guard.outputs.ok == 'true'
-    environment:
-      name: production
-      url: https://thedakandchog.xyz
-    concurrency:
-      group: deploy-production
-      cancel-in-progress: false
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Write build metadata
+      - name: Generate build metadata
+        id: buildmeta
         run: |
-          set -e
           mkdir -p assets
-          echo "{\"commit\":\"${GITHUB_SHA}\",\"builtAt\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" > assets/build.json
+          COMMIT=$(git rev-parse --short HEAD)
+          BUILT_AT=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          echo "{\"commit\":\"$COMMIT\",\"builtAt\":\"$BUILT_AT\"}" > assets/build.json
+          echo "commit=$COMMIT" >> $GITHUB_OUTPUT
+          echo "built_at=$BUILT_AT" >> $GITHUB_OUTPUT
 
-      - name: Prepare temp upload directory
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_KEY }}
-          port: ${{ secrets.SSH_PORT || 22 }}
-          script: |
-            set -e
-            REMOTE_PATH="${{ secrets.REMOTE_PATH }}"
-            UPLOAD_PATH="${REMOTE_PATH}_upload"
-            mkdir -p "$UPLOAD_PATH"
-            rm -rf "$UPLOAD_PATH"/*
+      - name: Prepare upload artifact (exclude dotfiles/repo data)
+        run: |
+          echo "Creating tarball of site files..."
+          tar --exclude-vcs \
+              --exclude=.github \
+              --exclude=node_modules \
+              -czf site.tgz .
 
-      - name: Upload site files to temp dir
+      - name: Upload files to server
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
-          source: |
-            index.html
-            landing.html
-            admin/**
-            css/**
-            js/**
-            images/**
-            img/**
-            assets/**
-            fonts/**
-            media/**
-            *.ico
-            *.png
-            *.jpg
-            *.jpeg
-            *.svg
-            *.webp
-          target: ${{ secrets.REMOTE_PATH }}_upload
-          overwrite: true
+          source: "site.tgz"
+          target: "/tmp/tavern_upload"
 
-      - name: Atomic swap upload into place
-        uses: appleboy/ssh-action@v1.0.3
+      - name: Atomic swap on server
+        uses: appleboy/ssh-action@v1.1.0
+        env:
+          DOMAIN: ${{ secrets.DEPLOY_DOMAIN || 'thedakandchog.xyz' }}
+          REMOTE_ROOT: ${{ secrets.DEPLOY_BASE || '/var/www' }}
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
+          envs: DOMAIN,REMOTE_ROOT
           script: |
-            set -e
-            REMOTE_PATH="${{ secrets.REMOTE_PATH }}"
-            UPLOAD_PATH="${REMOTE_PATH}_upload"
+            set -euo pipefail
+            UPLOAD_TGZ=/tmp/tavern_upload/site.tgz
+            BASE_DIR="$REMOTE_ROOT/$DOMAIN"
+            WEB_DIR="$BASE_DIR/html"
+            NEW_DIR="$BASE_DIR/html_upload"
+            echo "Preparing directories at $BASE_DIR"
+            sudo mkdir -p "$BASE_DIR" "$NEW_DIR" "$WEB_DIR"
+            sudo chown -R $USER:$USER "$BASE_DIR" || true
+            rm -rf "$NEW_DIR"/*
+            echo "Unpacking upload..."
+            tar -xzf "$UPLOAD_TGZ" -C "$NEW_DIR"
+            # Ensure basic permissions
+            find "$NEW_DIR" -type d -exec chmod 755 {} +
+            find "$NEW_DIR" -type f -exec chmod 644 {} +
             TS=$(date +%s)
-            if [ -d "$REMOTE_PATH" ]; then mv "$REMOTE_PATH" "${REMOTE_PATH}_prev_${TS}"; fi
-            mv "$UPLOAD_PATH" "$REMOTE_PATH"
-            # Fix permissions so Nginx can read (dirs=755, files=644)
-            find "$REMOTE_PATH" -type d -exec chmod 755 {} +
-            find "$REMOTE_PATH" -type f -exec chmod 644 {} +
+            echo "Atomic swap: $WEB_DIR -> ${BASE_DIR}/html_prev_${TS}"
+            if [ -d "$WEB_DIR" ]; then mv "$WEB_DIR" "${BASE_DIR}/html_prev_${TS}"; fi
+            mv "$NEW_DIR" "$WEB_DIR"
+            echo "Deployment complete: $WEB_DIR"
+            # Optional: restart realtime server if pm2 is present
+            if command -v pm2 >/dev/null 2>&1; then
+              pm2 describe dakchog-rt >/dev/null 2>&1 && pm2 restart dakchog-rt || true
+            fi
 
-      - name: Prune old remote backups (keep last 3)
-        uses: appleboy/ssh-action@v1.0.3
+      - name: Purge Cloudflare cache (optional)
+        if: ${{ secrets.CF_ZONE_ID && secrets.CF_API_TOKEN }}
+        uses: fjogeleit/http-request-action@v1
         with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_KEY }}
-          port: ${{ secrets.SSH_PORT || 22 }}
-          script: |
-            set -e
-            REMOTE_PATH="${{ secrets.REMOTE_PATH }}"
-            cd "$(dirname "$REMOTE_PATH")"
-            base="$(basename "$REMOTE_PATH")"
-            ls -1dt "${base}_prev_"* 2>/dev/null | tail -n +4 | xargs -r rm -rf
+          url: https://api.cloudflare.com/client/v4/zones/${{ secrets.CF_ZONE_ID }}/purge_cache
+          method: POST
+          customHeaders: |
+            Authorization: Bearer ${{ secrets.CF_API_TOKEN }}
+            Content-Type: application/json
+          data: '{"purge_everything":true}'
 
-      - name: Verify key files exist
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_KEY }}
-          port: ${{ secrets.SSH_PORT || 22 }}
-          script: |
-            set -e
-            REMOTE_PATH="${{ secrets.REMOTE_PATH }}"
-            test -f "$REMOTE_PATH/index.html" && echo "ok index" || (echo "missing index" && exit 1)
-            test -f "$REMOTE_PATH/admin/index.html" && echo "ok admin" || (echo "missing admin" && exit 1)
-            test -f "$REMOTE_PATH/assets/images/tavern-bg.png" && echo "ok bg" || (echo "missing bg" && exit 1)
+      - name: Summary
+        run: |
+          echo "Deployed commit ${{ steps.buildmeta.outputs.commit }} at ${{ steps.buildmeta.outputs.built_at }}"
+

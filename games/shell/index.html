@@ -129,7 +129,15 @@
     <img src="../../assets/images/cup2.png" alt="" aria-hidden="true" class="decor-cup decor-top-right">
   </div>
 
-  <script type="module" src="shell.js"></script>
+  <script type="module">
+    (async()=>{
+      try{
+        const b = await fetch('/assets/build.json', { cache: 'no-store' }).then(r=>r.ok?r.json():null).catch(()=>null);
+        const tag = (b && b.commit) ? String(b.commit).slice(0,12) : Date.now();
+        await import(`./shell.js?v=${tag}`);
+      }catch(e){ console.error('shell import failed', e); }
+    })();
+  </script>
   <!-- Build footer: shows Version + Commit + Built time -->
   <div style="position:fixed; left:12px; bottom:12px; z-index:10000;">
     <div id="footer-meta" style="font-size:12px; color:#2b1e12; opacity:.95; background:rgba(255,244,233,0.96); border:2px solid #7800cd; border-radius:10px; padding:6px 8px; display:inline-block;">
