@@ -119,9 +119,9 @@
       filter: drop-shadow(0 6px 16px rgba(0,0,0,0.25));
       pointer-events:none; user-select:none;
     }
-    /* add breathing room so content sits below the overlapped logo */
-    .tavern { padding-top: clamp(180px, 26vw, 320px); }
-    @media (max-width: 600px) { .game-logo { transform: translate(-50%, -50%) scale(0.8); } .tavern { padding-top: clamp(160px, 28vw, 300px); } }
+    /* match Faro spacing under overlapping logo */
+    .tavern { padding-top: clamp(220px, 32vw, 380px); }
+    @media (max-width: 600px) { .game-logo { transform: translate(-50%, -50%) scale(0.8); } .tavern { padding-top: clamp(200px, 38vw, 360px); } }
 
     /* Center game assets now that rules are in modal */
     .hazard-layout { display:flex; flex-direction:column; gap:16px; align-items:center; justify-content:center; }

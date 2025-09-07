@@ -45,11 +45,11 @@
       filter: drop-shadow(0 6px 16px rgba(0,0,0,0.25));
       pointer-events:none; user-select:none;
     }
-    /* add breathing room so content sits below the overlapped logo */
-    .tavern { padding-top: clamp(160px, 24vw, 280px); }
+    /* add generous breathing room so content sits below the overlapped logo */
+    .tavern { padding-top: clamp(220px, 32vw, 380px); }
     @media (max-width: 600px) {
       .game-logo { transform: translate(-50%, -50%) scale(0.8); }
-      .tavern { padding-top: clamp(150px, 26vw, 260px); }
+      .tavern { padding-top: clamp(200px, 38vw, 360px); }
     }
     /* Decorative hovering cup (base: bottom-left) */
     .decor-cup {
@@ -111,7 +111,7 @@
       </div>
     </div>
   </div>
-  <div class="tavern" style="position:relative; margin:clamp(180px, 14vw, 300px) auto 28px;">
+  <div class="tavern" style="position:relative; width:95%; max-width:1280px; margin:clamp(180px, 14vw, 300px) auto 28px;">
     <h1 class="visually-hidden">Shell Game</h1>
     <img class="game-logo" src="../../assets/images/shell-game-logo.png" alt="Shell Game">
     <div style="text-align:center; margin-top:6px;">

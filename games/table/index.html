@@ -22,9 +22,9 @@
     body { background: url('../../assets/images/tavern-bg.png') no-repeat center center fixed; background-size: cover; }
     /* Overlapping logo aesthetic, with safe padding to avoid collisions */
     .game-logo { display:block; height:auto; max-width: clamp(220px, 40vw, 560px); position:absolute; left:50%; top: 0; z-index:3; transform: translate(-50%, -50%) scale(0.85); transform-origin: top center; filter: drop-shadow(0 6px 16px rgba(0,0,0,0.25)); pointer-events:none; user-select:none; }
-    /* add breathing room so content sits below the overlapped logo */
-    .tavern { padding-top: clamp(150px, 22vw, 260px); }
-    @media (max-width: 600px) { .game-logo { transform: translate(-50%, -50%) scale(0.8); } .tavern { padding-top: clamp(140px, 24vw, 240px); } }
+    /* add generous breathing room so content sits below the overlapped logo */
+    .tavern { padding-top: clamp(220px, 32vw, 380px); }
+    @media (max-width: 600px) { .game-logo { transform: translate(-50%, -50%) scale(0.8); } .tavern { padding-top: clamp(200px, 38vw, 360px); } }
     .table-wrap { display:flex; flex-direction:column; align-items:center; gap:16px; margin: 40px auto; }
     .table-canvas { position:relative; width:min(92vw, 900px); height:min(92vw, 600px); margin: 0 auto; }
     .table-surface {
