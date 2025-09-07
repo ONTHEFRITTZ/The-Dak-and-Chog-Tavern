@@ -234,7 +234,35 @@ export function renderTavernBanner({ contractKey, address, chainId, wallet, labe
     // Left content element (network + contract + copy)
     let el = document.getElementById('network-banner');
     if (useTopBanner) {
-      // Remove network/contract section entirely in the top banner
+      // Render a compact network/contract readout inside the top banner's left region
+      let topInfo = document.getElementById('nb-top-info');
+      if (!topInfo) {
+        topInfo = document.createElement('div');
+        topInfo.id = 'nb-top-info';
+        topInfo.style.cssText = [
+          'font-size:12px','color:#2b1e12','display:flex','align-items:center','gap:8px','flex-wrap:wrap'
+        ].join(';');
+        // Append after any existing status element
+        try { leftRegion.appendChild(topInfo); } catch { (root || document.body).appendChild(topInfo); }
+      }
+      const name = getChainName(chainId);
+      const keyLabel = labelOverride || (contractKey ? contractKey.charAt(0).toUpperCase() + contractKey.slice(1) : 'Contract');
+      const short = (v) => (v && v.length > 10 ? `${v.slice(0,6)}...${v.slice(-4)}` : (v||'N/A'));
+      const explorer = explorerAddressUrl(chainId, address);
+      const mismatch = chainId != null && !ADDRESS_BOOK[String(chainId)];
+      topInfo.innerHTML = `
+        <span><strong>Network:</strong> ${name}${chainId ? ` (${chainId})` : ''}</span>
+        ${mismatch ? '<span style="padding:2px 6px;border-radius:6px;background:#9200fa;color:#fff;">Using default address</span>' : ''}
+        <span style="white-space:nowrap;"><strong>${keyLabel}:</strong> ${explorer ? `<a id="nb-top-addr" href="${explorer}" target="_blank" rel="noopener" style="white-space:nowrap; display:inline-block; letter-spacing:0; word-spacing:0; font-variant-ligatures:none;">${short(address)}</a>` : short(address)}</span>
+        ${address ? '<button id="nb-top-copy" style="padding:2px 6px;border-radius:6px;cursor:pointer;">Copy</button>' : ''}
+      `;
+      const copyBtnTop = topInfo.querySelector('#nb-top-copy');
+      if (copyBtnTop && address) {
+        copyBtnTop.onclick = async () => {
+          try { await navigator.clipboard.writeText(address); copyBtnTop.textContent = 'Copied'; setTimeout(()=>copyBtnTop.textContent='Copy', 1200); } catch {}
+        };
+      }
+      // Do not create the standalone network-banner when using top banner
       if (el) { try { el.remove(); } catch {} }
       el = null;
     } else {

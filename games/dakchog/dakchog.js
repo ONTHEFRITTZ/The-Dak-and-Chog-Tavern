@@ -64,10 +64,35 @@ flipBtn.addEventListener('click', async () => {
 
   // Animate coin while tx is pending
   try { coinEl.classList.remove('flip'); void coinEl.offsetWidth; coinEl.classList.add('flip'); } catch {}
-  statusEl.textContent = 'Submitting transaction…';
+  statusEl.textContent = 'Checking conditions…';
   try {
-    const chooseChog = (choice === 'chog');
-    const tx = await tavern.playCoin(chooseChog, { value: ethers.utils.parseEther(String(bet)) });
+    const betOnChog = (choice === 'chog');
+    const betWei = ethers.utils.parseEther(String(bet));
+
+    // Max bet guard (if contract exposes it)
+    try {
+      const maxBet = await tavern.maxBet().catch(()=>null);
+      if (maxBet && maxBet.toString() !== '0') {
+        if (betWei.gt(maxBet)) { statusEl.textContent = 'Bet exceeds maxBet for the Tavern.'; return; }
+      }
+    } catch {}
+    // Bankroll must cover 2x payout
+    try {
+      const addr = await getAddressFor('tavern', provider);
+      const bank = await provider.getBalance(addr);
+      if (bank && bank.lt(betWei.mul(2))) { statusEl.textContent = 'Bankroll too low for this bet. Try a smaller amount.'; return; }
+    } catch {}
+
+    // Static call to surface revert reasons
+    try { await tavern.callStatic.playCoin(betOnChog, { value: betWei }); }
+    catch (pre) {
+      const msg = pre?.error?.message || pre?.data?.message || pre?.reason || pre?.message || 'Reverted';
+      statusEl.textContent = 'Rejected: ' + msg;
+      return;
+    }
+
+    statusEl.textContent = 'Submitting transaction…';
+    const tx = await tavern.playCoin(betOnChog, { value: betWei });
     statusEl.textContent = `Tx sent: ${tx.hash.slice(0,10)}… waiting confirmation…`;
     const rc = await tx.wait();
     // Parse CoinPlayed event if present
@@ -77,14 +102,15 @@ flipBtn.addEventListener('click', async () => {
       const resultChog = !!ev.args.resultChog;
       const won = !!ev.args.won;
       setTimeout(() => { setCoin(resultChog ? 'chog' : 'dak'); }, 380);
-      statusEl.textContent = won ? `On-chain: ${resultChog ? 'CHOG' : 'DAK'} — you won!` : `On-chain: ${resultChog ? 'CHOG' : 'DAK'} — you lost.`;
+      statusEl.textContent = won ? `On-chain: ${resultChog ? 'CHOG' : 'DAK'} – you won!` : `On-chain: ${resultChog ? 'CHOG' : 'DAK'} – you lost.`;
     } else {
       // Fallback: query past logs or just show confirmed
       statusEl.textContent = 'Confirmed. Check wallet or explorer for result.';
     }
   } catch (e) {
     console.error(e);
-    statusEl.textContent = e?.data?.message || e?.message || 'Transaction failed.';
+    const msg = e?.error?.message || e?.data?.message || e?.reason || e?.message || 'Transaction failed.';
+    statusEl.textContent = msg;
   }
 });
 
@@ -103,3 +129,4 @@ window.addEventListener('DOMContentLoaded', async () => {
   } catch {}
   await ensureWallet();
 });
+
