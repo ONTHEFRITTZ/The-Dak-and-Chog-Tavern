@@ -44,8 +44,12 @@ jobs:
       - name: Create site tarball
         run: |
           set -e
-          echo "Packing repository into site.tgz (excluding VCS/CI)"
-          tar --exclude-vcs --exclude=.github -czf site.tgz .
+          echo "Packing tracked files into site.tgz (plus build.json)"
+          TMP_LIST=$(mktemp)
+          git ls-files > "$TMP_LIST"
+          echo "assets/build.json" >> "$TMP_LIST"
+          tar -czf site.tgz -T "$TMP_LIST"
+          rm -f "$TMP_LIST"
 
       - name: Verify package exists
         run: |
