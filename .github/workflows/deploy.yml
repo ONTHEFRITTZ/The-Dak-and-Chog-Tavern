@@ -81,7 +81,7 @@ jobs:
           echo "Remote disk usage before prune:"
           ssh deploy-host 'df -h | sed -n "1p;$p"'
           # Prune older html_prev_* backups, keep latest 2 if present
-          ssh deploy-host "set -e; base='${{ steps.meta.outputs.remote_base }}'; ls -1dt \"$base\"/html_prev_* 2>/dev/null | tail -n +3 | xargs -r sudo rm -rf"
+          ssh deploy-host "set -e; base='${{ steps.meta.outputs.remote_base }}'; ls -1dt \"\$base\"/html_prev_* 2>/dev/null | tail -n +3 | xargs -r sudo rm -rf"
           echo "Remote disk usage after prune:"
           ssh deploy-host 'df -h | sed -n "1p;$p"'
 
@@ -115,7 +115,7 @@ jobs:
           set -euo pipefail
           ssh deploy-host "set -e; ts=\$(date +%s); if [ -d '${{ steps.meta.outputs.remote_root }}' ]; then sudo mv '${{ steps.meta.outputs.remote_root }}' '${{ steps.meta.outputs.remote_base }}/html_prev_'\$ts; fi; sudo mv '${{ steps.meta.outputs.upload_path }}' '${{ steps.meta.outputs.remote_root }}'"
           # Post-swap prune again to prevent backup buildup
-          ssh deploy-host "set -e; base='${{ steps.meta.outputs.remote_base }}'; ls -1dt \"$base\"/html_prev_* 2>/dev/null | tail -n +4 | xargs -r sudo rm -rf"
+          ssh deploy-host "set -e; base='${{ steps.meta.outputs.remote_base }}'; ls -1dt \"\$base\"/html_prev_* 2>/dev/null | tail -n +4 | xargs -r sudo rm -rf"
 
       - name: Fix permissions and verify
         shell: bash
