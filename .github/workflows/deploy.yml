@@ -138,11 +138,10 @@ jobs:
             test -f "$REMOTE_PATH/assets/images/tavern-bg.png" && echo "ok bg" || (echo "missing bg" && exit 1)
 
       - name: Verify live site (best effort)
-        if: ${{ secrets.DEPLOY_DOMAIN }}
         shell: bash
         run: |
           set -e
-          DOMAIN="${{ secrets.DEPLOY_DOMAIN }}"
+          DOMAIN="${{ secrets.DEPLOY_DOMAIN }}"; [ -z "$DOMAIN" ] && DOMAIN="thedakandchog.xyz"
           echo "Fetch https://$DOMAIN/assets/build.json"
           for i in {1..6}; do
             if curl -fsS "https://$DOMAIN/assets/build.json" -o build.json; then cat build.json; break; fi

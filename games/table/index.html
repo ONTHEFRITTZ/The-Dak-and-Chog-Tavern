@@ -4,11 +4,19 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Faro (up to 6)</title>
-  <link rel="stylesheet" href="../../css/style.css">
-  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
-  <script type="module" src="../../js/tavern.js"></script>
-  <script type="module" src="../../js/state.js"></script>
-  <script src="../../js/FaroV3ABI.js"></script>
+  <script>
+    (async()=>{
+      try{
+        const b = await fetch('/assets/build.json', { cache:'no-store' }).then(r=>r.ok?r.json():null).catch(()=>null);
+        const tag = (b && b.commit) ? String(b.commit).slice(0,12) : Date.now();
+        const css = document.createElement('link'); css.rel='stylesheet'; css.href = `../../css/style.css?v=${tag}`; document.head.appendChild(css);
+        const e = document.createElement('script'); e.src = 'https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js'; document.head.appendChild(e);
+        const abi = document.createElement('script'); abi.src = `../../js/FaroV3ABI.js?v=${tag}`; document.head.appendChild(abi);
+        const s1 = document.createElement('script'); s1.type='module'; s1.src = `../../js/tavern.js?v=${tag}`; document.head.appendChild(s1);
+        const s2 = document.createElement('script'); s2.type='module'; s2.src = `../../js/state.js?v=${tag}`; document.head.appendChild(s2);
+      }catch(e){ console.error('head loader failed', e); }
+    })();
+  </script>
   <style>
     body { background: url('../../assets/images/tavern-bg.png') no-repeat center center fixed; background-size: cover; }
     /* Game page logo at top (mirror Hazard/Shell) */

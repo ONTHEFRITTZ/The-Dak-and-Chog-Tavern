@@ -4,7 +4,15 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>The Dak and Chog Tavern — Enter</title>
-  <link rel="stylesheet" href="css/style.css">
+  <script>
+    (async()=>{
+      try{
+        const b = await fetch('/assets/build.json', { cache:'no-store' }).then(r=>r.ok?r.json():null).catch(()=>null);
+        const tag = (b && b.commit) ? String(b.commit).slice(0,12) : Date.now();
+        const css = document.createElement('link'); css.rel='stylesheet'; css.href = `css/style.css?v=${tag}`; document.head.appendChild(css);
+      }catch(e){ console.error('head loader failed', e); }
+    })();
+  </script>
 </head>
 <body class="age-landing">
   <main class="age-hero" role="main">
