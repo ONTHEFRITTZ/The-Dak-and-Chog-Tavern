@@ -32,7 +32,7 @@
     /* Override page background for Shell */
     body {
       /* Centered, then nudged down slightly from center */
-      background: url('../../assets/images/shell-bg.png') no-repeat 50% calc(50% + 5vh) fixed !important;
+      background: url('../../assets/images/shell-bg.webp') no-repeat 50% calc(50% + 5vh) fixed !important;
       background-size: cover !important;
     }
     /* Place logo above container with a soft backglow */
@@ -128,10 +128,10 @@
       <h3>Recent Plays</h3>
       <ul id="plays"></ul>
     </div>
-    <img src="../../assets/images/cup2.png" alt="" aria-hidden="true" class="decor-cup">
-    <img src="../../assets/images/cup.png" alt="" aria-hidden="true" class="decor-cup decor-bottom-right">
-    <img src="../../assets/images/cup.png" alt="" aria-hidden="true" class="decor-cup decor-top-left">
-    <img src="../../assets/images/cup2.png" alt="" aria-hidden="true" class="decor-cup decor-top-right">
+    <picture class="decor-cup"><source srcset="../../assets/images/cup2.webp" type="image/webp"><img src="../../assets/images/cup2.png" alt="" aria-hidden="true"></picture>
+    <picture class="decor-cup decor-bottom-right"><source srcset="../../assets/images/cup.webp" type="image/webp"><img src="../../assets/images/cup.png" alt="" aria-hidden="true"></picture>
+    <picture class="decor-cup decor-top-left"><source srcset="../../assets/images/cup.webp" type="image/webp"><img src="../../assets/images/cup.png" alt="" aria-hidden="true"></picture>
+    <picture class="decor-cup decor-top-right"><source srcset="../../assets/images/cup2.webp" type="image/webp"><img src="../../assets/images/cup2.png" alt="" aria-hidden="true"></picture>
   </div>
 
   <script type="module">

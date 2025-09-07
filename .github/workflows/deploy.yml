@@ -58,6 +58,22 @@ jobs:
           echo "upload_path=$upload_path" >> $GITHUB_OUTPUT
           echo "Commit: $commit  BuiltAt: $builtAt"
 
+      - name: Optimize images to WebP (lossy q=82)
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -y >/dev/null 2>&1 || true
+          sudo apt-get install -y webp >/dev/null 2>&1 || true
+          gen_webp() {
+            src="$1"; q="${2:-82}"; [ -f "$src" ] || return 0; out="${src%.*}.webp"; cwebp -quiet -q "$q" "$src" -o "$out" && echo "webp: $src -> $out" || echo "skip: $src"; }
+          gen_webp assets/images/tavern-bg.png 82
+          gen_webp assets/images/shell-bg.png 82
+          gen_webp assets/images/hazard-bg.png 82
+          gen_webp assets/images/table.png 82
+          gen_webp assets/images/cup.png 80
+          gen_webp assets/images/cup2.png 75
+          for f in assets/images/dice/standard/dice{1,2,3,4,5,6}.png; do [ -f "$f" ] && gen_webp "$f" 85 || true; done
+
       - name: Check remote disk space and prune old backups
         shell: bash
         run: |
