@@ -143,11 +143,10 @@ returnBtn?.addEventListener('click', () => { window.location.href = '/index.html
 window.addEventListener('DOMContentLoaded', async () => {
   setCoin('dak');
   setChoice('dak');
-  try {
-    rulesOK = rulesFresh(`rulesAck.dakchog.${RULES_VERSION}`);
-    if (!rulesOK) rulesOverlay.style.display = 'flex';
-    rulesAck?.addEventListener('click', () => { rulesOK = true; try { rulesOverlay.style.display = 'none'; } catch {}; try { localStorage.setItem(`rulesAck.dakchog.${RULES_VERSION}`, String(Date.now())); } catch {} });
-    openRulesBtn?.addEventListener('click', () => { try { rulesOverlay.style.display = 'flex'; } catch {} });
-  } catch {}
+  // Require rules acknowledgement every load
+  rulesOK = false;
+  try { rulesOverlay.style.display = 'flex'; } catch {}
+  rulesAck?.addEventListener('click', () => { rulesOK = true; try { rulesOverlay.style.display = 'none'; } catch {} });
+  openRulesBtn?.addEventListener('click', () => { try { rulesOverlay.style.display = 'flex'; } catch {} });
   await ensureWallet();
 });

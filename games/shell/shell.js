@@ -12,7 +12,6 @@ const rulesOverlay = document.getElementById('rules-overlay');
 const rulesAck = document.getElementById('rules-ack');
 const openRulesBtn = document.getElementById('open-rules');
 const RULES_VERSION = 'v2';
-function rulesFresh(key) { try { const t = Number(localStorage.getItem(key) || 0); return Date.now() - t < 86400000; } catch { return false; } }
 let shellAck = false;
 
 function setShellInteractivity(enabled) {
@@ -134,7 +133,9 @@ try {
 
 // Show rules modal at load and block interactions until ack (per load)
 window.addEventListener('DOMContentLoaded', () => {
-  try { shellAck = rulesFresh(`rulesAck.shell.${RULES_VERSION}`); if (!shellAck) { rulesOverlay.style.display = 'flex'; setShellInteractivity(false); } } catch {}
-  rulesAck?.addEventListener('click', () => { shellAck = true; try { rulesOverlay.style.display = 'none'; } catch {}; setShellInteractivity(true); try { localStorage.setItem(`rulesAck.shell.${RULES_VERSION}`, String(Date.now())); } catch {} });
+  // Always require rules acknowledgement per page load
+  shellAck = false;
+  try { rulesOverlay.style.display = 'flex'; setShellInteractivity(false); } catch {}
+  rulesAck?.addEventListener('click', () => { shellAck = true; try { rulesOverlay.style.display = 'none'; } catch {}; setShellInteractivity(true); });
   openRulesBtn?.addEventListener('click', () => { try { rulesOverlay.style.display = 'flex'; } catch {} });
 });
