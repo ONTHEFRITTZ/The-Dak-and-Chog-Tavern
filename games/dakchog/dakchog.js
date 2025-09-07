@@ -76,11 +76,18 @@ flipBtn.addEventListener('click', async () => {
         if (betWei.gt(maxBet)) { statusEl.textContent = 'Bet exceeds maxBet for the Tavern.'; return; }
       }
     } catch {}
-    // Bankroll must cover 2x payout
+    // Bankroll must cover net outflow. If a pool is configured, require 2x wager there; else require at least the wager at the Tavern.
     try {
+      let ok = false;
       const addr = await getAddressFor('tavern', provider);
-      const bank = await provider.getBalance(addr);
-      if (bank && bank.lt(betWei.mul(2))) { statusEl.textContent = 'Bankroll too low for this bet. Try a smaller amount.'; return; }
+      const tav = new ethers.Contract(addr, window.TavernABI, provider);
+      let poolAddr = undefined; try { poolAddr = await tav.pool(); } catch {}
+      if (poolAddr && poolAddr !== ethers.constants.AddressZero && window.PoolABI) {
+        try { const pool = new ethers.Contract(poolAddr, window.PoolABI, provider); const bal = await pool.balance(); if (bal.gte(betWei.mul(2))) ok = true; } catch {}
+      } else {
+        const bank = await provider.getBalance(addr); if (bank && bank.gte(betWei)) ok = true;
+      }
+      if (!ok) { statusEl.textContent = 'Bankroll too low for this bet. Try a smaller amount.'; return; }
     } catch {}
 
     // Static call to surface revert reasons
@@ -129,4 +136,3 @@ window.addEventListener('DOMContentLoaded', async () => {
   } catch {}
   await ensureWallet();
 });
-

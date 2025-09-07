@@ -5,12 +5,28 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Tavern Admin (Owner Only)</title>
   <link rel="icon" type="image/png" href="/assets/images/dakandchog-logo.png">
-  <link rel="stylesheet" href="../css/style.css">
+  <script>
+    (async()=>{
+      try{
+        const b = await fetch('/assets/build.json', { cache:'no-store' }).then(r=>r.ok?r.json():null).catch(()=>null);
+        const tag = (b && b.commit) ? String(b.commit).slice(0,12) : Date.now();
+        window.__BUILD_TAG = tag;
+        const css = document.createElement('link'); css.rel='stylesheet'; css.href = `../css/style.css?v=${tag}`; document.head.appendChild(css);
+      }catch(e){ console.error('admin head loader failed', e); }
+    })();
+  </script>
   <meta name="robots" content="noindex,nofollow">
   <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
-  <script src="../js/TavernABI.js"></script>
-  <script src="../js/FaroABI.js"></script>
-  <script src="../js/PoolABI.js"></script>
+  <script>
+    (async()=>{
+      try{
+        const tag = window.__BUILD_TAG || Date.now();
+        for (const src of [`../js/TavernABI.js?v=${tag}`, `../js/FaroABI.js?v=${tag}`, `../js/PoolABI.js?v=${tag}`]){
+          const s=document.createElement('script'); s.src=src; document.head.appendChild(s);
+        }
+      }catch(e){ console.error('admin abi loader failed', e); }
+    })();
+  </script>
   <script src="/socket.io/socket.io.js"></script>
   <style>
     /* Match Tavern background (force absolute path + apply to html & body) */
@@ -123,12 +139,20 @@
         <div class="muted">Owner: <span id="tavern-owner">-</span></div>
         <div class="muted">Owner Match: <span id="tavern-owner-match">No</span></div>
         <div class="muted">Bankroll: <span id="tavern-balance">-</span></div>
+        <div class="muted">Pool (on Tavern): <span id="tavern-pool">-</span></div>
         <div class="row" style="margin-top:8px;">
           <div style="flex:1;">
             <label>Max Bet (MON)</label>
             <input id="tavern-maxbet" type="number" min="0" step="0.001" placeholder="e.g. 0.05">
           </div>
           <button id="tavern-set-maxbet" class="btn">Set</button>
+        </div>
+        <div class="row" style="margin-top:8px;">
+          <div style="flex:1;">
+            <label>Set Pool Address on Tavern</label>
+            <input id="tavern-pool-input" type="text" placeholder="0x... (leave blank to use Pool override above)">
+          </div>
+          <button id="tavern-set-pool" class="btn">Set Pool</button>
         </div>
         <div class="row" style="margin-top:8px;">
           <div style="flex:1;">
@@ -222,7 +246,14 @@
     </div>
   </div>
 
-  <script type="module" src="./admin.js"></script>
+  <script type="module">
+    (async()=>{
+      try{
+        const tag = window.__BUILD_TAG || Date.now();
+        await import(`./admin.js?v=${encodeURIComponent(tag)}`);
+      }catch(e){ console.error('admin module load failed', e); }
+    })();
+  </script>
   <script>
     (function(){
       async function text(url){ try { const r = await fetch(url, { cache:'no-store' }); if (!r.ok) return null; return await r.text(); } catch { return null; } }

@@ -229,12 +229,20 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
 
     try {
-      const bankroll = await provider.getBalance(tavernAddress);
-      const needed = ethers.utils.parseEther(bet).mul(2);
-      if (bankroll.lt(needed)) {
-        statusEl.innerText = 'Bankroll too low for this bet. Try a smaller amount.';
-        return;
+      const wager = ethers.utils.parseEther(bet);
+      let poolAddr = undefined; let ok = false;
+      try { poolAddr = await contract.pool(); } catch {}
+      if (poolAddr && poolAddr !== ethers.constants.AddressZero) {
+        try {
+          const pool = new ethers.Contract(poolAddr, window.PoolABI, provider);
+          const bal = await pool.balance();
+          if (bal.gte(wager.mul(2))) ok = true;
+        } catch {}
+      } else {
+        const bank = await provider.getBalance(tavernAddress);
+        if (bank.gte(wager)) ok = true;
       }
+      if (!ok) { statusEl.innerText = 'Bankroll too low for this bet. Try a smaller amount.'; return; }
     } catch (err) {
       console.error('Bankroll check error:', err);
     }

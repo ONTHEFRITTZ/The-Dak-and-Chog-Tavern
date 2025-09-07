@@ -10,6 +10,9 @@ const tavOwnerEl = document.getElementById('tavern-owner');
 const tavBalEl = document.getElementById('tavern-balance');
 const tavOwnerMatchEl = document.getElementById('tavern-owner-match');
 const tavMaxBetInput = document.getElementById('tavern-maxbet');
+const tavPoolEl = document.getElementById('tavern-pool');
+const tavPoolInput = document.getElementById('tavern-pool-input');
+const tavSetPoolBtn = document.getElementById('tavern-set-pool');
 const tavSetMaxBetBtn = document.getElementById('tavern-set-maxbet');
 const tavOverrideInput = document.getElementById('tavern-override');
 const tavSetAddrBtn = document.getElementById('tavern-set-addr');
@@ -94,6 +97,7 @@ async function refresh() {
         tavBalEl.textContent = fmtEth(bal) + ' MON';
         const maxBet = await tavern.maxBet();
         tavMaxBetInput.placeholder = fmtEth(maxBet);
+        try { const tp = await tavern.pool(); if (tavPoolEl) tavPoolEl.textContent = tp || '-'; } catch { if (tavPoolEl) tavPoolEl.textContent = '(not pooled)'; }
         try { tavAmtInput.placeholder = fmtEth(bal); } catch {}
         if (tavOwnerMatchEl) {
           const match = isTavOwnerNow();
@@ -172,6 +176,22 @@ async function connect() {
 
 connectBtn?.addEventListener('click', connect);
 returnBtn?.addEventListener('click', () => { window.location.href = '/index.html'; });
+
+// Set pool on Tavern (owner only)
+tavSetPoolBtn?.addEventListener('click', async () => {
+  try {
+    if (!tavern) return;
+    const target = (tavPoolInput && tavPoolInput.value && tavPoolInput.value.trim()) || (poolOverrideInput && poolOverrideInput.value && poolOverrideInput.value.trim()) || poolAddr;
+    if (!target || !target.startsWith('0x') || target.length !== 42) { alert('Enter a valid pool address'); return; }
+    const tx = await tavern.setPool(target);
+    statusEl.textContent = `Setting pool... ${tx.hash.slice(0,10)}...`;
+    await tx.wait();
+    statusEl.textContent = 'Pool set on Tavern.';
+    await refresh();
+  } catch (e) {
+    console.error(e); statusEl.textContent = e?.data?.message || e?.message || 'Set pool failed.';
+  }
+});
 
 function ensureIo() {
   try {

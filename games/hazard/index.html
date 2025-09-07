@@ -12,6 +12,7 @@
         window.__BUILD_TAG = tag;
         const css = document.createElement('link'); css.rel='stylesheet'; css.href = `../../css/style.css?v=${tag}`; document.head.appendChild(css);
         const abi = document.createElement('script'); abi.src = `../../js/TavernABI.js?v=${tag}`; document.head.appendChild(abi);
+        const poolAbi = document.createElement('script'); poolAbi.src = `../../js/PoolABI.js?v=${tag}`; document.head.appendChild(poolAbi);
       }catch(e){ console.error('head loader failed', e); }
     })();
   </script>

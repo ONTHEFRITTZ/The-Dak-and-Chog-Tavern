@@ -47,6 +47,11 @@ jobs:
           echo "Packing repository into site.tgz (excluding VCS/CI)"
           tar --exclude-vcs --exclude=.github -czf site.tgz .
 
+      - name: Verify package exists
+        run: |
+          set -e
+          ls -l site.tgz || (echo "site.tgz missing" && exit 1)
+
       - name: Prepare temp upload directory
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -67,7 +72,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
-          source: site.tgz
+          source: ./site.tgz
           target: /tmp/tavern_upload
           overwrite: true
           debug: true
