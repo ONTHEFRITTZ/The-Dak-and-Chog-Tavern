@@ -5,7 +5,29 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>The Dak and Chog Tavern</title>
   <script>
-    (function(){ try { if (localStorage.getItem('walletConnected')!=='true' && sessionStorage.getItem('walletConnected')!=='true') { window.location.replace('landing.html'); } } catch {} })();
+    (function(){
+      try {
+        const flag = (localStorage.getItem('walletConnected')==='true' || sessionStorage.getItem('walletConnected')==='true');
+        if (!flag) {
+          // Double-check with the wallet if present
+          const go = async () => {
+            try {
+              if (window.ethereum?.request) {
+                const acc = await window.ethereum.request({ method: 'eth_accounts' });
+                if (!Array.isArray(acc) || acc.length === 0) {
+                  try { localStorage.removeItem('walletConnected'); sessionStorage.removeItem('walletConnected'); } catch {}
+                  window.location.replace('landing.html');
+                }
+              } else {
+                window.location.replace('landing.html');
+              }
+            } catch { window.location.replace('landing.html'); }
+          };
+          // Run immediately
+          go();
+        }
+      } catch {}
+    })();
   </script>
 <link rel="icon" type="image/png" href="/assets/images/dakandchog-logo.png">
 <script>
