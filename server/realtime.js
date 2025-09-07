@@ -26,7 +26,7 @@ const server = http.createServer((req, res) => {
 const io = new Server(server, { cors: { origin: '*' } });
 
 // In-memory stores
-const tables = new Map(); // tableId -> { id, seats: [{id, addr, ready, balance}], started, bets: Map(addrLower -> {rank, amount, copper}), ownerId }
+const tables = new Map(); // tableId -> { id, seats: [{id, addr, ready, balance}], started, bets: Map(addrLower -> {rank, amount, copper}), ownerId, lastActive }
 const profiles = new Map(); // addrLower -> { cipher }
 const publicProfiles = new Map(); // addrLower -> { x }
 const stats = new Map(); // addrLower -> { rounds, wagered, won, lost }
@@ -34,6 +34,8 @@ let paused = false;
 let rakeBps = Number(process.env.RT_RAKE_BPS || 100); // 1% default
 let feesAccrued = 0; // unitless, same units as bet amounts in table game
 const admins = new Set(String(process.env.ADMIN_ADDR || '').toLowerCase().split(',').map(s => s.trim()).filter(Boolean));
+
+function nowMs() { return Date.now(); }
 
 function getTable(id) {
   if (!tables.has(id)) {
@@ -43,6 +45,7 @@ function getTable(id) {
       started: false,
       bets: new Map(),
       ownerId: null,
+      lastActive: nowMs(),
     });
   }
   return tables.get(id);
@@ -50,22 +53,34 @@ function getTable(id) {
 
 function seatCount(t) { return t.seats.filter(Boolean).length; }
 
+function nextTableId() {
+  const ids = Array.from(tables.keys())
+    .map(id => /^faro-(\d+)$/.exec(id))
+    .filter(Boolean)
+    .map(m => Number(m[1]));
+  const next = ids.length ? Math.max(...ids) + 1 : 1;
+  return `faro-${next}`;
+}
+
 function ensureLobbyPolicy() {
   // Ensure at least one table exists
-  const baseId = 'faro-1';
-  const base = getTable(baseId);
-  // If base is full, open a second table
-  if (seatCount(base) >= 6 && !tables.has('faro-2')) getTable('faro-2');
-  // Remove empty extra tables unless they are the only available (others full)
+  if (tables.size === 0) getTable('faro-1');
+
+  // Close idle empty tables (no seats) after 60s, but always keep at least one table
+  const now = nowMs();
   const ids = Array.from(tables.keys()).sort();
-  const anyNotFull = ids.some(id => seatCount(getTable(id)) < 6);
+  const keepIds = new Set(ids);
   for (const id of ids) {
-    if (id === baseId) continue;
     const t = getTable(id);
-    if (seatCount(t) === 0 && anyNotFull) {
+    if (seatCount(t) === 0 && (now - (t.lastActive || 0)) > 60_000 && tables.size > 1) {
       tables.delete(id);
+      keepIds.delete(id);
     }
   }
+
+  // Ensure there is at least one table available with a free seat. If all are full, create a new one.
+  const anyFree = Array.from(tables.values()).some(t => seatCount(t) < 6);
+  if (!anyFree) getTable(nextTableId());
 }
 
 function short(v) { return (v && v.length > 10) ? (v.slice(0,6) + '...' + v.slice(-4)) : (v || ''); }
@@ -119,6 +134,7 @@ io.on('connection', (socket) => {
       currentTableId = tableId;
       socket.join(tableId);
       const t = getTable(tableId);
+      t.lastActive = nowMs();
       // Assign owner if empty
       if (t.ownerId == null) {
         t.ownerId = 0;
@@ -154,6 +170,7 @@ io.on('connection', (socket) => {
           if (t.ownerId == null) t.ownerId = idx;
         }
       }
+      t.lastActive = nowMs();
       emitUpdate(t);
       ensureLobbyPolicy();
       emitLobby();
@@ -166,6 +183,7 @@ io.on('connection', (socket) => {
       const t = getTable(currentTableId);
       const s = t.seats.find(x => x && x.addr === addrLower);
       if (s) s.ready = !!m.ready;
+      t.lastActive = nowMs();
       emitUpdate(t);
       const active = t.seats.filter(Boolean);
       const allReady = active.length && active.every(x => !!x.ready);
@@ -213,6 +231,7 @@ io.on('connection', (socket) => {
       const t = getTable(currentTableId);
       t.started = true;
       t.bets.clear();
+      t.lastActive = nowMs();
       io.to(currentTableId).emit('table:started', tablePublic(t));
       emitUpdate(t);
     } catch {}
@@ -231,6 +250,7 @@ io.on('connection', (socket) => {
       if (!s) return;
       if (s.ready) { socket.emit('error', { message: 'Already ready' }); return; }
       t.bets.set(String(addrLower||''), { rank, amount, copper });
+      t.lastActive = nowMs();
       emitUpdate(t);
     } catch {}
   });
@@ -240,6 +260,7 @@ io.on('connection', (socket) => {
       if (paused) { socket.emit('error', { message: 'paused' }); return; }
       if (!currentTableId) return;
       const t = getTable(currentTableId);
+      t.lastActive = nowMs();
       const bankRank = rand13();
       const playerRank = rand13();
       const doublet = (bankRank === playerRank);
@@ -348,6 +369,11 @@ io.on('connection', (socket) => {
     } catch {}
   });
 });
+
+// Periodically enforce lobby policy (cleanup idle tables, ensure availability)
+setInterval(() => {
+  try { ensureLobbyPolicy(); emitLobby(); } catch {}
+}, 15_000);
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log('RT server on', PORT));
