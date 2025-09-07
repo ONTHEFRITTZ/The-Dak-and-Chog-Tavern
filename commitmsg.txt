@@ -1,1 +1,0 @@
-Layout: align to Faro container; move decor behind content; increase Dak and Chog logo padding and slightly reduce scale to clear Rules button. Merge previously resolved.
