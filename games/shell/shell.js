@@ -4,7 +4,7 @@ import { getAddressFor, detectChainId, renderTavernBanner, showToast } from '../
 import { attachProvider } from '../../js/contract-utils.js';
 
 const shellElements = document.querySelectorAll('.shell');
-const statusEl = document.getElementById('status');
+const statusEl = document.getElementById('shell-result') || document.getElementById('status');
 const playsEl = document.getElementById('plays');
 const returnBtn = document.getElementById('return');
 const betInput = document.getElementById('bet');

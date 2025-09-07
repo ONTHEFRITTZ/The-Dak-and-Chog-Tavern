@@ -17,7 +17,7 @@ let provider, signer, contract;
 let selectedMain = 7;
 
 // DOM
-const statusEl = document.getElementById('status');
+const statusEl = document.getElementById('hazard-result') || document.getElementById('status');
 const rollBtn = document.getElementById('roll-dice');
 const dice1El = document.getElementById('dice1');
 const dice2El = document.getElementById('dice2');
