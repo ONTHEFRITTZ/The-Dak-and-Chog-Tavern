@@ -65,11 +65,11 @@
 	},
 	"sources": {
 		"Contracts/FaroV4.sol": {
-			"keccak256": "0x2b270dd6aabb587304f4165529e0f3fd565368ae9b82f5789909c63d9c4c5707",
+			"keccak256": "0x2fc377f534f56a0f4e38b98a9a6f885e5ec587de367ebba361cb292e7ddf0f5c",
 			"license": "MIT",
 			"urls": [
-				"bzz-raw://a09c467508718ad425e42518d45a0bccd0fc36e5ebf89c8d0ec96d60b5cd1f1e",
-				"dweb:/ipfs/QmQGtx4xTQ4uGfk1Sdws1tBo4gCGVerCEWeoRP7ZSMKA1E"
+				"bzz-raw://cc60f9a956d80207a3f5034a1ec11dfaa01f7e85aff59ad3a740ee6a8bdb9f64",
+				"dweb:/ipfs/QmS499cebahiLAsJsjhs2MMtb49h1YPWf4VMxtDjbMksRW"
 			]
 		}
 	},

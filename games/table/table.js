@@ -80,6 +80,18 @@ function renderTable(table) {
     if (s) {
       const owner = (table.ownerId && s.id === table.ownerId);
       if (owner) { const b = document.createElement('div'); b.className = 'owner-badge'; b.textContent = 'Owner'; el.appendChild(b); }
+      // Avatar from X handle (public profile); else blank
+      try {
+        const handle = (s.x||'').replace(/^@/, '').trim();
+        if (handle) {
+          const img = document.createElement('img');
+          img.className = 'avatar';
+          img.alt = '';
+          img.referrerPolicy = 'no-referrer';
+          img.src = `https://unavatar.io/twitter/${encodeURIComponent(handle)}`;
+          el.appendChild(img);
+        }
+      } catch {}
       const a = document.createElement('div'); a.className = 'addr'; a.textContent = s?.x ? (`${s.x} (${short(s.addr||s.id)})`) : short(s.addr || s.id); el.appendChild(a);
       const bal = document.createElement('div'); bal.className = 'bal'; bal.textContent = `Bal: ${Number(s.balance ?? 0)}`; el.appendChild(bal);
       // Show bet chip if present
@@ -177,6 +189,7 @@ rankButtons.forEach(btn => {
     if (!(rankNum>=1 && rankNum<=13)) return;
     if (!(amt>0)) { log('Enter a valid MON amount'); return; }
     const copper = !!betCopperInput.checked;
+    try { const chips = Math.max(1, Math.floor(amt * 100)); socket?.emit('place_bet', { rank: rankNum, amount: chips, copper }); } catch {}
     placeOnchainBet(rankNum, amt, copper).catch(e=> log('Tx failed: ' + (e?.data?.message || e?.message || 'unknown')));
   });
 });
@@ -190,6 +203,14 @@ returnBtn?.addEventListener('click', () => { window.location.href = '../../index
       const provider = new ethers.providers.Web3Provider(window.ethereum, 'any');
       const accounts = await provider.listAccounts();
       if (accounts && accounts.length) myAddr = accounts[0];
+      // Auto-connect if previously authorized on this domain
+      try {
+        if ((!accounts || !accounts.length) && localStorage.getItem('walletConnected') === 'true') {
+          await window.ethereum.request({ method: 'eth_requestAccounts' });
+          const acc2 = await provider.listAccounts();
+          if (acc2 && acc2.length) myAddr = acc2[0];
+        }
+      } catch {}
       onchainProvider = walletProvider || provider;
       onchainSigner = walletSigner || provider.getSigner();
       // Resolve Faro address

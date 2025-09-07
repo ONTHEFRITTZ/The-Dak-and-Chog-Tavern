@@ -14,9 +14,9 @@ const DEFAULT_ADDRESSES = {
 export const ADDRESS_BOOK = {
   default: { ...DEFAULT_ADDRESSES },
   10143: { // Monad Testnet
-    // Use explicit addresses for Monad Testnet if applicable
+    // Use the deployed V4 Faro address consistently across environments
     tavern: "0xc91A9A1FC428a3fd6EB6030242c23A352810Ddb9",
-    faro:   "0x1f67dE0c9f432f05b0710643d76DB77a449a060d",
+    faro:   "0x934305e0F4b92eb318aBe0A8f701510d3BdF1d8f",
     pool:   "0x78F62d85244621493b5c3961bBaD4069Ab979C86",
     // shell/hazard can fall back to defaults unless specified later
   },
