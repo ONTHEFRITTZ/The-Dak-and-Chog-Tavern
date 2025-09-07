@@ -109,20 +109,16 @@
       background-size: cover;
     }
 
-    /* Overlapping logo aesthetic, with safe padding to avoid collisions */
+    /* Place logo above container with a soft backglow */
     .game-logo {
       display:block;
       height:auto;
-      max-width: clamp(220px, 40vw, 560px);
-      /* overlap and center over the container */
-      position:absolute; left:50%; top:0; z-index:3;
-      transform: translate(-50%, -50%) scale(0.85);
-      transform-origin: top center;
-      filter: drop-shadow(0 6px 16px rgba(0,0,0,0.25));
+      max-width: clamp(180px, 26vw, 420px);
+      margin: 8px auto 12px;
+      filter: drop-shadow(0 0 18px rgba(255,244,233,0.45)) drop-shadow(0 4px 12px rgba(0,0,0,0.25));
       pointer-events:none; user-select:none;
+      position: static; left:auto; top:auto; transform: none; /* reset any previous absolute rules */
     }
-    /* Place logo above container with a soft backglow */
-    .game-logo { display:block; height:auto; max-width: clamp(180px, 26vw, 420px); margin: 8px auto 12px; filter: drop-shadow(0 0 18px rgba(255,244,233,0.45)) drop-shadow(0 4px 12px rgba(0,0,0,0.25)); pointer-events:none; user-select:none; }
     /* Normal container padding since logo no longer overlaps */
     .tavern { padding-top: 16px; }
 
