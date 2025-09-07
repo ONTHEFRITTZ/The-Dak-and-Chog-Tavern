@@ -66,8 +66,8 @@ flipBtn.addEventListener('click', async () => {
   try { coinEl.classList.remove('flip'); void coinEl.offsetWidth; coinEl.classList.add('flip'); } catch {}
   statusEl.textContent = 'Submitting transaction…';
   try {
-    const chooseChog = (choice === 'chog');
-    const tx = await tavern.playCoin(chooseChog, { value: ethers.utils.parseEther(String(bet)) });
+    const betOnChog = (choice === 'chog');
+    const tx = await tavern.playCoin(betOnChog, { value: ethers.utils.parseEther(String(bet)) });
     statusEl.textContent = `Tx sent: ${tx.hash.slice(0,10)}… waiting confirmation…`;
     const rc = await tx.wait();
     // Parse CoinPlayed event if present

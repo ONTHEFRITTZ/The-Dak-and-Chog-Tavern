@@ -138,6 +138,8 @@ function setHazardInteractivity(enabled) {
   } catch {}
 }
 
+// Ensure only one main is highlighted at startup
+try { mainButtons.forEach(b => b.classList.remove('active')); } catch {}
 mainButtons.forEach(btn => {
   const m = Number(btn.dataset.main);
   if (m === selectedMain) btn.classList.add('active');
@@ -157,9 +159,11 @@ window.addEventListener('DOMContentLoaded', async () => {
   rulesAck?.addEventListener('click', () => { hazardAck = true; try { rulesOverlay.style.display = 'none'; } catch {}; setHazardInteractivity(true); try { localStorage.setItem(`rulesAck.hazard.${RULES_VERSION}`, String(Date.now())); } catch {} });
   openRulesBtn?.addEventListener('click', () => { try { rulesOverlay.style.display = 'flex'; } catch {} });
 
-  const walletFlag = sessionStorage.getItem('walletConnected');
-  if (!window.ethereum || walletFlag !== 'true') {
-    statusEl.innerText = 'Connect wallet on the Tavern first.';
+  // Accept either storage flag, but still try provider init even if missing
+  let walletFlag = undefined;
+  try { walletFlag = localStorage.getItem('walletConnected') || sessionStorage.getItem('walletConnected'); } catch {}
+  if (!window.ethereum) {
+    statusEl.innerText = 'MetaMask not detected.';
     rollBtn.disabled = true;
     return;
   }
@@ -168,14 +172,22 @@ window.addEventListener('DOMContentLoaded', async () => {
     provider = new ethers.providers.Web3Provider(window.ethereum, 'any');
     signer = provider.getSigner();
     try { attachProvider(provider); } catch {}
-    const walletAddress = await signer.getAddress();
+    let walletAddress = null;
+    try { walletAddress = await signer.getAddress(); } catch {}
+    try { if (walletAddress && walletFlag !== 'true') localStorage.setItem('walletConnected','true'); } catch {}
     tavernAddress = await getAddressFor('tavern', provider);
     contract = new ethers.Contract(tavernAddress, window.TavernABI, signer);
     try {
       const chainId = await detectChainId(provider);
       const tavernAddress = await getAddressFor('tavern', provider);
-      renderTavernBanner({ contractKey: 'tavern', address: tavernAddress, chainId, wallet: walletAddress });
+      renderTavernBanner({ contractKey: 'tavern', address: tavernAddress, chainId, wallet: walletAddress || undefined });
     } catch {}
+    // If no authorized account and flag not set, keep UI disabled until user connects
+    if (!walletAddress && walletFlag !== 'true') {
+      statusEl.innerText = 'Connect wallet on the Tavern first.';
+      rollBtn.disabled = true;
+      // do not return; allow the rest of setup (events, handlers)
+    }
   } catch (err) {
     console.error('Init error:', err);
     statusEl.innerText = 'Error initializing contract: ' + err.message;
@@ -209,6 +221,37 @@ window.addEventListener('DOMContentLoaded', async () => {
   };
   contract.on('HazardPlayed', onHazardPlayed);
   window.addEventListener('beforeunload', () => { try { contract.off('HazardPlayed', onHazardPlayed); } catch {} });
+
+  // If the user connects their wallet after load, enable play without reloading
+  try {
+    if (window.ethereum?.on) {
+      window.ethereum.on('accountsChanged', async (accs) => {
+        try {
+          if (accs && accs.length) {
+            const w = await signer.getAddress();
+            statusEl.innerText = '';
+            rollBtn.disabled = false;
+            try {
+              const chainId = await detectChainId(provider);
+              renderTavernBanner({ contractKey: 'tavern', address: tavernAddress, chainId, wallet: w });
+            } catch {}
+          } else {
+            rollBtn.disabled = true;
+            statusEl.innerText = 'Connect wallet on the Tavern first.';
+          }
+        } catch {}
+      });
+    }
+    // Also react to storage flag being set by tavern.js connect flow
+    window.addEventListener('storage', async (e) => {
+      try {
+        if (e.key === 'walletConnected' && e.newValue === 'true') {
+          const w = await signer.getAddress().catch(()=>null);
+          if (w) { rollBtn.disabled = false; statusEl.innerText = ''; }
+        }
+      } catch {}
+    });
+  } catch {}
 
   // Roll button handler
   rollBtn.addEventListener('click', async () => {
