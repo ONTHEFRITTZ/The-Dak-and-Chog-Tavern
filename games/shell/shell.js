@@ -132,8 +132,8 @@ try {
 } catch {}
 
 // Show rules modal at load and block interactions until ack (per load)
-window.addEventListener('DOMContentLoaded', () => {
-  // Always require rules acknowledgement per page load
+const onReady = (fn) => { if (document.readyState === 'loading') { window.addEventListener('DOMContentLoaded', fn, { once: true }); } else { fn(); } };
+onReady(() => {
   shellAck = false;
   try { rulesOverlay.style.display = 'flex'; setShellInteractivity(false); } catch {}
   rulesAck?.addEventListener('click', () => { shellAck = true; try { rulesOverlay.style.display = 'none'; } catch {}; setShellInteractivity(true); });

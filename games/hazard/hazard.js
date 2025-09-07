@@ -148,7 +148,8 @@ mainButtons.forEach(btn => {
 });
 
 // Initialize provider/signers and attach handlers
-window.addEventListener('DOMContentLoaded', async () => {
+const onReady = (fn) => { if (document.readyState === 'loading') { window.addEventListener('DOMContentLoaded', fn, { once: true }); } else { fn(); } };
+onReady(async () => {
   // Require rules acknowledgement every load
   hazardAck = false;
   try { rulesOverlay.style.display = 'flex'; setHazardInteractivity(false); } catch {}

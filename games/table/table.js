@@ -227,7 +227,8 @@ returnBtn?.addEventListener('click', () => { window.location.href = '/index.html
 })();
 
 // Session-based rules modal for Faro
-window.addEventListener('DOMContentLoaded', () => {
+const onReady = (fn) => { if (document.readyState === 'loading') { window.addEventListener('DOMContentLoaded', fn, { once: true }); } else { fn(); } };
+onReady(() => {
   // Require rules acknowledgement every load
   faroAck = false;
   try { rulesOverlay.style.display='flex'; } catch {}
