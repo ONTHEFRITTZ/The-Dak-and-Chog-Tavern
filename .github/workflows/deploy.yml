@@ -75,8 +75,7 @@ jobs:
           port: ${{ secrets.SSH_PORT || 22 }}
           script: |
             set -e
-            REMOTE_PATH="${{ secrets.REMOTE_PATH }}"
-            UPLOAD_PATH="${REMOTE_PATH}_upload"
+            UPLOAD_PATH="/tmp/tavern_upload"
             mkdir -p "$UPLOAD_PATH"
             rm -rf "$UPLOAD_PATH"/*
 
@@ -104,7 +103,7 @@ jobs:
             *.jpeg
             *.svg
             *.webp
-          target: ${{ secrets.REMOTE_PATH }}_upload
+          target: /tmp/tavern_upload
           overwrite: true
 
       - name: Atomic swap upload into place
@@ -116,10 +115,16 @@ jobs:
           port: ${{ secrets.SSH_PORT || 22 }}
           script: |
             set -e
+            # Resolve web root path
+            BASE="${{ secrets.DEPLOY_BASE }}"; [ -z "$BASE" ] && BASE="/var/www"
+            DOMAIN="${{ secrets.DEPLOY_DOMAIN }}"; [ -z "$DOMAIN" ] && DOMAIN="thedakandchog.xyz"
             REMOTE_PATH="${{ secrets.REMOTE_PATH }}"
-            UPLOAD_PATH="${REMOTE_PATH}_upload"
+            if [ -z "$REMOTE_PATH" ]; then REMOTE_PATH="$BASE/$DOMAIN/html"; fi
+            UPLOAD_PATH="/tmp/tavern_upload"
+            echo "Remote web path: $REMOTE_PATH"
             TS=$(date +%s)
             if [ -d "$REMOTE_PATH" ]; then mv "$REMOTE_PATH" "${REMOTE_PATH}_prev_${TS}"; fi
+            mkdir -p "$(dirname "$REMOTE_PATH")"
             mv "$UPLOAD_PATH" "$REMOTE_PATH"
             # Fix permissions so Nginx can read (dirs=755, files=644)
             find "$REMOTE_PATH" -type d -exec chmod 755 {} +
@@ -134,7 +139,9 @@ jobs:
           port: ${{ secrets.SSH_PORT || 22 }}
           script: |
             set -e
-            REMOTE_PATH="${{ secrets.REMOTE_PATH }}"
+            BASE="${{ secrets.DEPLOY_BASE }}"; [ -z "$BASE" ] && BASE="/var/www"
+            DOMAIN="${{ secrets.DEPLOY_DOMAIN }}"; [ -z "$DOMAIN" ] && DOMAIN="thedakandchog.xyz"
+            REMOTE_PATH="${{ secrets.REMOTE_PATH }}"; [ -z "$REMOTE_PATH" ] && REMOTE_PATH="$BASE/$DOMAIN/html"
             cd "$(dirname "$REMOTE_PATH")"
             base="$(basename "$REMOTE_PATH")"
             ls -1dt "${base}_prev_"* 2>/dev/null | tail -n +4 | xargs -r rm -rf
@@ -148,7 +155,25 @@ jobs:
           port: ${{ secrets.SSH_PORT || 22 }}
           script: |
             set -e
-            REMOTE_PATH="${{ secrets.REMOTE_PATH }}"
+            BASE="${{ secrets.DEPLOY_BASE }}"; [ -z "$BASE" ] && BASE="/var/www"
+            DOMAIN="${{ secrets.DEPLOY_DOMAIN }}"; [ -z "$DOMAIN" ] && DOMAIN="thedakandchog.xyz"
+            REMOTE_PATH="${{ secrets.REMOTE_PATH }}"; [ -z "$REMOTE_PATH" ] && REMOTE_PATH="$BASE/$DOMAIN/html"
             test -f "$REMOTE_PATH/index.html" && echo "ok index" || (echo "missing index" && exit 1)
             test -f "$REMOTE_PATH/admin/index.html" && echo "ok admin" || (echo "missing admin" && exit 1)
             test -f "$REMOTE_PATH/assets/images/tavern-bg.png" && echo "ok bg" || (echo "missing bg" && exit 1)
+
+      - name: Verify live site (best effort)
+        if: ${{ secrets.DEPLOY_DOMAIN }}
+        shell: bash
+        run: |
+          set -e
+          DOMAIN="${{ secrets.DEPLOY_DOMAIN }}"
+          echo "Fetch https://$DOMAIN/assets/build.json"
+          for i in {1..6}; do
+            if curl -fsS "https://$DOMAIN/assets/build.json" -o build.json; then cat build.json; break; fi
+            echo "retry $i"; sleep 2;
+          done
+          if [ ! -s build.json ]; then
+            echo "HTTPS failed, try HTTP"; curl -fsS "http://$DOMAIN/assets/build.json" -o build.json || true
+          fi
+          test -s build.json && echo "Live build.json present" || echo "Live build.json not accessible"
