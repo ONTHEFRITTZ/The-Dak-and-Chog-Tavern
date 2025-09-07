@@ -33,7 +33,7 @@
       background: url('../../assets/images/shell-bg.png') no-repeat 50% calc(50% + 5vh) fixed;
       background-size: cover;
     }
-    /* Game page logo at top */
+    /* Overlapping logo aesthetic, with safe padding to avoid collisions */
     .game-logo {
       display:block;
       height:auto;
@@ -45,11 +45,11 @@
       filter: drop-shadow(0 6px 16px rgba(0,0,0,0.25));
       pointer-events:none; user-select:none;
     }
-    /* add breathing room so content sits below the overlapped logo */
-    .tavern { padding-top: clamp(120px, 18vw, 200px); }
+    /* add generous breathing room so content sits below the overlapped logo */
+    .tavern { padding-top: clamp(220px, 32vw, 380px); }
     @media (max-width: 600px) {
       .game-logo { transform: translate(-50%, -50%) scale(0.8); }
-      .tavern { padding-top: clamp(110px, 24vw, 180px); }
+      .tavern { padding-top: clamp(200px, 38vw, 360px); }
     }
     /* Decorative hovering cup (base: bottom-left) */
     .decor-cup {
@@ -66,7 +66,7 @@
       height:auto;
       pointer-events:none; user-select:none;
       filter: drop-shadow(0 6px 16px rgba(0,0,0,0.25));
-      z-index: 2;
+      z-index: 0; /* keep decor behind content */
       animation-name: decor-bob;
       animation-timing-function: ease-in-out;
       animation-iteration-count: infinite;
@@ -111,7 +111,7 @@
       </div>
     </div>
   </div>
-  <div class="tavern" style="position:relative; margin:clamp(180px, 14vw, 300px) auto 28px;">
+  <div class="tavern" style="position:relative; width:95%; max-width:1280px; margin:clamp(180px, 14vw, 300px) auto 28px;">
     <h1 class="visually-hidden">Shell Game</h1>
     <img class="game-logo" src="../../assets/images/shell-game-logo.png" alt="Shell Game">
     <div style="text-align:center; margin-top:6px;">
@@ -146,7 +146,37 @@
     <img src="../../assets/images/cup2.png" alt="" aria-hidden="true" class="decor-cup decor-top-right">
   </div>
 
-  <script type="module" src="shell.js"></script>
+  <script type="module">
+    (async()=>{
+      try{
+        const b = await fetch('/assets/build.json', { cache: 'no-store' }).then(r=>r.ok?r.json():null).catch(()=>null);
+        const tag = (b && b.commit) ? String(b.commit).slice(0,12) : Date.now();
+        await import(`./shell.js?v=${tag}`);
+      }catch(e){ console.error('shell import failed', e); }
+    })();
+  </script>
+  <!-- Build footer: shows Version + Commit + Built time -->
+  <div style="position:fixed; left:12px; bottom:12px; z-index:10000;">
+    <div id="footer-meta" style="font-size:12px; color:#2b1e12; opacity:.95; background:rgba(255,244,233,0.96); border:2px solid #7800cd; border-radius:10px; padding:6px 8px; display:inline-block;">
+      Loading build info...
+    </div>
+  </div>
+  <script>
+    (function(){
+      async function text(u){ try{ const r=await fetch(u,{cache:'no-store'}); if(!r.ok) return null; return await r.text(); }catch{return null} }
+      async function json(u){ try{ const r=await fetch(u,{cache:'no-store'}); if(!r.ok) return null; return await r.json(); }catch{return null} }
+      (async()=>{
+        const el=document.getElementById('footer-meta'); if(!el) return;
+        try{
+          const ver=(await text('/assets/version.txt')||'').trim();
+          const b=await json('/assets/build.json');
+          const c=b?.commit?String(b.commit).slice(0,12):'unknown';
+          const at=b?.builtAt||new Date().toISOString();
+          el.textContent=`Version: ${ver||'n/a'} | Commit: ${c} | Built: ${at}`;
+        }catch{ el.textContent='Version info unavailable'; }
+      })();
+    })();
+  </script>
   <script>
     // Parallax drift for all decorative cups
     (function(){

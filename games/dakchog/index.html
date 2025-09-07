@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Dak & Chog - The Dak and Chog Tavern</title>
+<<<<<<< HEAD
   <script>
     (async()=>{
       try{
@@ -18,12 +19,20 @@
       }catch(e){ console.error('head loader failed', e); }
     })();
   </script>
+=======
+  <link rel="stylesheet" href="../../css/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+  <script src="../../js/TavernABI.js"></script>
+  <script type="module" src="../../js/tavern.js"></script>
+  <script type="module" src="../../js/state.js"></script>
+>>>>>>> cc5a2a0cf5481c0f3722f158cf701e842b04430c
   <style>
     body { background: url('../../assets/images/tavern-bg.png') no-repeat center center fixed; background-size: cover; }
-    /* Overlapped logo like other games */
-    .game-logo { display:block; height:auto; max-width: clamp(220px, 40vw, 560px); position:absolute; left:50%; top:0; z-index:3; transform: translate(-50%, -50%) scale(0.85); transform-origin: top center; filter: drop-shadow(0 6px 16px rgba(0,0,0,0.25)); pointer-events:none; user-select:none; }
-    .tavern { padding-top: clamp(120px, 18vw, 200px); }
-    @media (max-width: 600px) { .game-logo { transform: translate(-50%, -50%) scale(0.8); } .tavern { padding-top: clamp(110px, 24vw, 180px); } }
+    /* Overlapping logo aesthetic, with safe padding to avoid collisions */
+    .game-logo { display:block; height:auto; max-width: clamp(220px, 40vw, 560px); position:absolute; left:50%; top:0; z-index:3; transform: translate(-50%, -50%) scale(0.80); transform-origin: top center; filter: drop-shadow(0 6px 16px rgba(0,0,0,0.25)); pointer-events:none; user-select:none; }
+    /* more headroom for taller Dak&Chog logo */
+    .tavern { padding-top: clamp(260px, 36vw, 440px); }
+    @media (max-width: 600px) { .game-logo { transform: translate(-50%, -50%) scale(0.76); } .tavern { padding-top: clamp(240px, 42vw, 420px); } }
 
     .coin-wrap { display:flex; flex-direction:column; align-items:center; gap:12px; }
     .coin { width: clamp(160px, 28vw, 280px); height: clamp(160px, 28vw, 280px); background-position:center; background-repeat:no-repeat; background-size: contain; filter: drop-shadow(0 8px 18px rgba(0,0,0,0.25)); }
@@ -65,7 +74,7 @@
     </div>
   </div>
 
-  <div class="tavern" style="position:relative; margin:clamp(180px, 14vw, 300px) auto 28px; width:95%; max-width:1000px;">
+  <div class="tavern" style="position:relative; width:95%; max-width:1280px; margin:clamp(180px, 14vw, 300px) auto 28px;">
     <h1 class="visually-hidden">Dak &amp; Chog</h1>
     <img class="game-logo" src="../../assets/images/dakandchog-logo.png" alt="Dak &amp; Chog">
     <div style="text-align:center; margin-top:6px;"><button id="open-rules">Rules</button></div>
@@ -87,6 +96,36 @@
     </div>
   </div>
 
-  <script type="module" src="dakchog.js"></script>
+  <script type="module">
+    (async()=>{
+      try{
+        const b = await fetch('/assets/build.json', { cache: 'no-store' }).then(r=>r.ok?r.json():null).catch(()=>null);
+        const tag = (b && b.commit) ? String(b.commit).slice(0,12) : Date.now();
+        await import(`./dakchog.js?v=${tag}`);
+      }catch(e){ console.error('dakchog import failed', e); }
+    })();
+  </script>
+  <!-- Build footer: shows Version + Commit + Built time -->
+  <div style="position:fixed; left:12px; bottom:12px; z-index:10000;">
+    <div id="footer-meta" style="font-size:12px; color:#2b1e12; opacity:.95; background:rgba(255,244,233,0.96); border:2px solid #7800cd; border-radius:10px; padding:6px 8px; display:inline-block;">
+      Loading build info...
+    </div>
+  </div>
+  <script>
+    (function(){
+      async function text(u){ try{ const r=await fetch(u,{cache:'no-store'}); if(!r.ok) return null; return await r.text(); }catch{return null} }
+      async function json(u){ try{ const r=await fetch(u,{cache:'no-store'}); if(!r.ok) return null; return await r.json(); }catch{return null} }
+      (async()=>{
+        const el=document.getElementById('footer-meta'); if(!el) return;
+        try{
+          const ver=(await text('/assets/version.txt')||'').trim();
+          const b=await json('/assets/build.json');
+          const c=b?.commit?String(b.commit).slice(0,12):'unknown';
+          const at=b?.builtAt||new Date().toISOString();
+          el.textContent=`Version: ${ver||'n/a'} | Commit: ${c} | Built: ${at}`;
+        }catch{ el.textContent='Version info unavailable'; }
+      })();
+    })();
+  </script>
 </body>
 </html>

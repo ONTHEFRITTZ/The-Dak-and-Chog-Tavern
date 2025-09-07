@@ -8,6 +8,11 @@ Param(
 )
 
 $ErrorActionPreference = 'Stop'
+$PSDefaultParameterValues['*:ErrorAction'] = 'Stop'
+
+if ($HostName -eq 'your.server' -or [string]::IsNullOrWhiteSpace($HostName)) {
+    throw "-Host must be your actual server hostname or IP (not 'your.server')."
+}
 
 function Require-Cmd($name) {
     if (-not (Get-Command $name -ErrorAction SilentlyContinue)) {
@@ -34,6 +39,7 @@ $UploadPath = "$RemoteBase/html_upload"
 
 Write-Host "Preparing remote directories ($RemotePath and temp $UploadPath)..."
 & ssh @sshArgsBase $sshTarget "sudo mkdir -p '$UploadPath' '$RemotePath'; sudo chown -R ${User}:${User} '$RemoteBase'; sudo rm -rf '$UploadPath'/*"
+if ($LASTEXITCODE -ne 0) { throw "SSH failed creating remote directories (host: $HostName)" }
 
 # Generate build metadata (commit + timestamp) for footer
 try {
@@ -48,12 +54,14 @@ Write-Host "Uploading HTML files..."
 $htmlFiles = Get-ChildItem -File -Filter *.html -ErrorAction SilentlyContinue
 foreach ($f in $htmlFiles) {
     & scp @scpArgsBase "$($f.FullName)" "$($sshTarget):$UploadPath/"
+    if ($LASTEXITCODE -ne 0) { throw "SCP failed uploading HTML file: $($f.Name)" }
 }
 
 Write-Host "Uploading top-level assets (icons/images) if present..."
 $assetFiles = Get-ChildItem -File -Include *.ico,*.png,*.jpg,*.jpeg,*.webp,*.svg -ErrorAction SilentlyContinue
 foreach ($a in $assetFiles) {
     & scp @scpArgsBase "$($a.FullName)" "$($sshTarget):$UploadPath/"
+    if ($LASTEXITCODE -ne 0) { throw "SCP failed uploading asset: $($a.Name)" }
 }
 
 $dirs = @("css","js","img","images","assets","fonts","media","admin","games")
@@ -61,11 +69,13 @@ foreach ($d in $dirs) {
     if (Test-Path -Path $d) {
         Write-Host "Uploading directory $d..."
         & scp @scpArgsBase -r "$d" "$($sshTarget):$UploadPath/"
+        if ($LASTEXITCODE -ne 0) { throw "SCP failed uploading directory: $d" }
     }
 }
 
 Write-Host "Swapping uploaded content into place..."
 & ssh @sshArgsBase $sshTarget "set -e; ts=`$(date +%s); if [ -d '$RemotePath' ]; then sudo mv '$RemotePath' '${RemoteBase}/html_prev_'`$ts; fi; sudo mv '$UploadPath' '$RemotePath'"
+if ($LASTEXITCODE -ne 0) { throw "SSH failed during atomic swap on remote host" }
 
 Write-Host ("Deployment complete to {0}@{1}:{2}" -f $User, $HostName, $RemotePath)
 
@@ -78,6 +88,7 @@ $verifyCmd = @(
   "if [ -f '$RemotePath/admin/index.html' ] && [ -f '$RemotePath/assets/images/tavern-bg.png' ]; then echo 'VERIFY_OK'; else echo 'VERIFY_FAIL'; fi"
 ) -join '; '
 & ssh @sshArgsBase $sshTarget $verifyCmd
+if ($LASTEXITCODE -ne 0) { throw "SSH verification failed on remote host" }
 
 # Cleanup local build metadata file (optional)
 try { Remove-Item -LiteralPath "assets\build.json" -Force -ErrorAction SilentlyContinue } catch {}

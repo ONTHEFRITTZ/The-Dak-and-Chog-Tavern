@@ -351,3 +351,12 @@ body.age-landing {
   .age-hero { gap: 18px; padding: 16px 12px; }
   .age-cta button { font-size: 16px; padding: 10px 18px; }
 }
+
+/* Pin build footer bottom-left across pages */
+#footer-meta {
+  position: fixed !important;
+  left: 12px !important;
+  right: auto !important;
+  bottom: 12px !important;
+  z-index: 10000 !important;
+}

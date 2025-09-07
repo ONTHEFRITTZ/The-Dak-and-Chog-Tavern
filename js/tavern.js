@@ -124,7 +124,41 @@ export async function connectWallet() {
   }
 }
 
-// Auto-connect if previously connected
+// Silent connect (no user prompt): use existing authorization if present
+async function silentConnect() {
+  await ensureConfig();
+  if (!window.ethereum) return false;
+  try {
+    provider = new ethers.providers.Web3Provider(window.ethereum, 'any');
+    const accounts = await provider.listAccounts();
+    if (!accounts || !accounts.length) return false;
+    signer = provider.getSigner();
+    userAddress = accounts[0];
+    try { connectButton.style.display = 'none'; } catch {}
+    try { statusEl.innerText = ''; } catch {}
+    try {
+      const chainId = await detectChainId(provider);
+      const tavernAddress = await getAddressFor('tavern', provider);
+      renderTavernBanner({ contractKey: 'tavern', address: tavernAddress, chainId, wallet: userAddress, labelOverride: 'Address' });
+      try {
+        if (tavernAddress && window.TavernABI) {
+          const c = new ethers.Contract(tavernAddress, window.TavernABI, signer);
+          const owner = await c.owner();
+          ensureAdminLink(owner && owner.toLowerCase() === userAddress.toLowerCase());
+        } else {
+          ensureAdminLink(false);
+        }
+      } catch { ensureAdminLink(false); }
+    } catch {}
+    try { localStorage.setItem('walletConnected', 'true'); } catch {}
+    try { await profileLoad(); } catch {}
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Auto-connect if previously connected (silent when possible)
 window.addEventListener('load', async () => {
   await ensureConfig();
   try {
@@ -133,11 +167,16 @@ window.addEventListener('load', async () => {
     renderTavernBanner({ contractKey: 'tavern', address, chainId, labelOverride: 'Address' });
   } catch {}
   let autoConnected = false;
-  try {
-    if (localStorage.getItem('walletConnected') === 'true') { await connectWallet(); autoConnected = true; }
-  } catch {
-    // fallback to sessionStorage for older state
-    if (sessionStorage.getItem('walletConnected') === 'true') { await connectWallet(); autoConnected = true; }
+  // Try silent authorization first (no prompt)
+  autoConnected = await silentConnect();
+  // If flag exists but silent failed (edge), try explicit connect only if user has previously allowed
+  if (!autoConnected) {
+    try {
+      if (localStorage.getItem('walletConnected') === 'true' || sessionStorage.getItem('walletConnected') === 'true') {
+        // Attempt silent once more (eth_accounts)
+        autoConnected = await silentConnect();
+      }
+    } catch {}
   }
   if (!autoConnected) ensureAdminLink(false);
 });

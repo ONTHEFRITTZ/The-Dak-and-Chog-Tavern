@@ -20,11 +20,11 @@
   </script>
   <style>
     body { background: url('../../assets/images/tavern-bg.png') no-repeat center center fixed; background-size: cover; }
-    /* Game page logo at top (mirror Hazard/Shell) */
+    /* Overlapping logo aesthetic, with safe padding to avoid collisions */
     .game-logo { display:block; height:auto; max-width: clamp(220px, 40vw, 560px); position:absolute; left:50%; top: 0; z-index:3; transform: translate(-50%, -50%) scale(0.85); transform-origin: top center; filter: drop-shadow(0 6px 16px rgba(0,0,0,0.25)); pointer-events:none; user-select:none; }
-    /* add breathing room so content sits below the overlapped logo */
-    .tavern { padding-top: clamp(110px, 18vw, 180px); }
-    @media (max-width: 600px) { .game-logo { transform: translate(-50%, -50%) scale(0.8); } .tavern { padding-top: clamp(90px, 22vw, 160px); } }
+    /* add generous breathing room so content sits below the overlapped logo */
+    .tavern { padding-top: clamp(220px, 32vw, 380px); }
+    @media (max-width: 600px) { .game-logo { transform: translate(-50%, -50%) scale(0.8); } .tavern { padding-top: clamp(200px, 38vw, 360px); } }
     .table-wrap { display:flex; flex-direction:column; align-items:center; gap:16px; margin: 40px auto; }
     .table-canvas { position:relative; width:min(92vw, 900px); height:min(92vw, 600px); margin: 0 auto; }
     .table-surface {
@@ -69,6 +69,12 @@
   </div>
 
   <div class="tavern" style="position:relative; width:95%; max-width:1280px; margin:clamp(180px, 14vw, 300px) auto 28px;">
+    <!-- Lobby Panel -->
+    <div id="lobby-panel" style="background:rgba(255,244,233,0.96); border:4px solid #7800cd; border-radius:12px; padding:16px; color:#2b1e12; margin-bottom:12px; display:none;">
+      <h2 style="margin:6px 0 10px;">Faro Lobby</h2>
+      <div id="lobby-list" style="display:flex; flex-wrap:wrap; gap:10px;"></div>
+      <p class="muted" style="font-size:12px; margin-top:8px;">A second table opens automatically when the first is full. Empty tables close automatically.</p>
+    </div>
     <div id="rules-overlay" style="position:fixed; inset:0; background:rgba(0,0,0,0.6); display:none; align-items:center; justify-content:center; z-index:9999;">
       <div style="background:rgba(255,244,233,0.96); border:4px solid #7800cd; border-radius:12px; padding:16px; width:min(92vw, 900px); max-height:90vh; overflow:auto; text-align:left; color:#2b1e12;">
         <h2 style="margin-top:0;">Faro Rules</h2>
@@ -105,7 +111,7 @@
         <button id="tweet-win" style="display:none;">Tweet your win</button>
       </div>
 
-      <div class="faro-panel">
+      <div class="faro-panel" id="table-panel" style="display:none;">
         <div class="faro-controls">
           <label>Bet (MON):</label>
           <input id="bet-amt" type="number" min="0.001" step="0.001" value="0.01" style="width:110px; text-align:center;" />
@@ -130,6 +136,7 @@
 
       <div class="table-canvas">
         <div class="table-surface"></div>
+        <div id="center-readout" style="position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); background:rgba(255,244,233,0.92); border:3px solid #7800cd; border-radius:12px; padding:10px 12px; color:#2b1e12; min-width:240px; text-align:center; pointer-events:none; font-weight:600;"></div>
         <!-- 6 seats positioned around the surface -->
         <div class="seat" data-index="0" style="left:50%; top:8%; transform:translateX(-50%);"></div>
         <div class="seat" data-index="1" style="left:8%; top:28%;"></div>
@@ -143,6 +150,36 @@
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
-  <script type="module" src="table.js"></script>
+  <script type="module">
+    (async()=>{
+      try{
+        const b = await fetch('/assets/build.json', { cache: 'no-store' }).then(r=>r.ok?r.json():null).catch(()=>null);
+        const tag = (b && b.commit) ? String(b.commit).slice(0,12) : Date.now();
+        await import(`./table.js?v=${tag}`);
+      }catch(e){ console.error('table import failed', e); }
+    })();
+  </script>
+  <!-- Build footer: shows Version + Commit + Built time -->
+  <div style="position:fixed; left:12px; bottom:12px; z-index:10000;">
+    <div id="footer-meta" style="font-size:12px; color:#2b1e12; opacity:.95; background:rgba(255,244,233,0.96); border:2px solid #7800cd; border-radius:10px; padding:6px 8px; display:inline-block;">
+      Loading build info...
+    </div>
+  </div>
+  <script>
+    (function(){
+      async function text(u){ try{ const r=await fetch(u,{cache:'no-store'}); if(!r.ok) return null; return await r.text(); }catch{return null} }
+      async function json(u){ try{ const r=await fetch(u,{cache:'no-store'}); if(!r.ok) return null; return await r.json(); }catch{return null} }
+      (async()=>{
+        const el=document.getElementById('footer-meta'); if(!el) return;
+        try{
+          const ver=(await text('/assets/version.txt')||'').trim();
+          const b=await json('/assets/build.json');
+          const c=b?.commit?String(b.commit).slice(0,12):'unknown';
+          const at=b?.builtAt||new Date().toISOString();
+          el.textContent=`Version: ${ver||'n/a'} | Commit: ${c} | Built: ${at}`;
+        }catch{ el.textContent='Version info unavailable'; }
+      })();
+    })();
+  </script>
 </body>
 </html>
