@@ -3,7 +3,12 @@ Param(
   [Parameter(Mandatory=$true)][string]$User,
   [string]$IdentityFile,
   [int]$Port = 22,
-  [string[]]$Paths = @('/var/www/thedakandchog.xyz/html','/var/www/html')
+  [string[]]$Paths = @('/var/www/thedakandchog.xyz/html','/var/www/html'),
+  [string]$Domain = 'thedakandchog.xyz',
+  [string]$CFZoneId,
+  [string]$CFToken,
+  [string]$CFEmail,
+  [string]$CFApiKey
 )
 
 $ErrorActionPreference = 'Stop'
@@ -66,8 +71,40 @@ ls -la "$base" | sed -n '1,60p'
 ls -la "$base/assets" | sed -n '1,60p' || true
 '@
   $script = $script.Replace('__BASE__', $targetPath).Replace('__TMP__', $tmp).Replace('__COMMIT__', $commit).Replace('__BUILT__', $builtAt)
+  # normalize newlines to LF to avoid CRLF issues on remote bash
+  $script = $script -replace "`r`n", "`n"
   $script | & ssh @sshArgs $sshTarget bash -s
   if ($LASTEXITCODE -ne 0) { throw "SSH swap failed for $targetPath" }
 }
 
 Write-Host "\nDone. Verify: /assets/build.json and /assets/deploy_check.txt on your domain."
+
+try {
+  if ($CFZoneId) {
+    Write-Host "Purging Cloudflare HTML for https://$Domain ..."
+    $files = @(
+      "https://$Domain/",
+      "https://$Domain/index.html",
+      "https://$Domain/landing.html",
+      "https://$Domain/admin/index.html",
+      "https://$Domain/games/shell/index.html",
+      "https://$Domain/games/hazard/index.html",
+      "https://$Domain/games/dakchog/index.html",
+      "https://$Domain/games/table/index.html"
+    )
+    $body = @{ files = $files } | ConvertTo-Json -Depth 4
+    $uri = "https://api.cloudflare.com/client/v4/zones/$CFZoneId/purge_cache"
+    if ($CFToken) {
+      $headers = @{ 'Authorization' = "Bearer $CFToken"; 'Content-Type' = 'application/json' }
+    } elseif ($CFEmail -and $CFApiKey) {
+      $headers = @{ 'X-Auth-Email' = $CFEmail; 'X-Auth-Key' = $CFApiKey; 'Content-Type' = 'application/json' }
+    } else {
+      Write-Host "Cloudflare purge skipped (no CFToken or CFEmail/CFApiKey provided)."; throw 'No CF credentials'
+    }
+    $resp = Invoke-RestMethod -Method Post -Uri $uri -Headers $headers -Body $body -ErrorAction Stop
+    if ($resp.success -eq $true) { Write-Host "Cloudflare purge: success" }
+    else { Write-Host "Cloudflare purge: response indicates failure" }
+  } else {
+    Write-Host "Cloudflare purge skipped (no CFZoneId provided)."
+  }
+} catch { Write-Host "Cloudflare purge failed: $($_.Exception.Message)" }

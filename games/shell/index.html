@@ -33,7 +33,7 @@
       background: url('../../assets/images/shell-bg.png') no-repeat 50% calc(50% + 5vh) fixed;
       background-size: cover;
     }
-    /* Game page logo at top */
+    /* Overlapping logo aesthetic, with safe padding to avoid collisions */
     .game-logo {
       display:block;
       height:auto;
@@ -46,10 +46,10 @@
       pointer-events:none; user-select:none;
     }
     /* add breathing room so content sits below the overlapped logo */
-    .tavern { padding-top: clamp(120px, 18vw, 200px); }
+    .tavern { padding-top: clamp(160px, 24vw, 280px); }
     @media (max-width: 600px) {
       .game-logo { transform: translate(-50%, -50%) scale(0.8); }
-      .tavern { padding-top: clamp(110px, 24vw, 180px); }
+      .tavern { padding-top: clamp(150px, 26vw, 260px); }
     }
     /* Decorative hovering cup (base: bottom-left) */
     .decor-cup {
