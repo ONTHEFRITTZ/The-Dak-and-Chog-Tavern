@@ -192,6 +192,8 @@ body.home .tavern {
   font-weight: 700;
 }
 .top-banner #nb-top-info .pill a { color: #fff; text-decoration: none; }
+/* Optional variant for notices; currently same style for consistency */
+.top-banner #nb-top-info .pill-note { background: rgba(0,0,0,0.6); }
 
 /* Center logo + container as a unit */
 .hero {
@@ -382,3 +384,13 @@ body.age-landing {
   margin-right: 8px;
 }
 #network-banner .pill a { color: #fff; text-decoration: none; }
+/* Optional variant for notices; consistent styling */
+#network-banner .pill-note { background: rgba(0,0,0,0.6); }
+/* Also style connected wallet pill in standalone banner */
+#network-banner span[title="Connected wallet"] {
+  background: rgba(0,0,0,0.6);
+  color: #fff;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-weight: 700;
+}
