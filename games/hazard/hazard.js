@@ -247,7 +247,16 @@ window.addEventListener('DOMContentLoaded', async () => {
     if (animationsEnabled) animateDice();
 
     try {
-      const tx = await contract.playHazard(selectedMain, { value: ethers.utils.parseEther(bet) });
+      const wager = ethers.utils.parseEther(bet);
+      // Preflight: surface revert reason
+      try { await contract.callStatic.playHazard(selectedMain, { value: wager }); }
+      catch (pre) {
+        const msg = pre?.error?.message || pre?.data?.message || pre?.reason || pre?.message || 'Reverted';
+        statusEl.innerText = 'Rejected: ' + msg;
+        rollBtn.disabled = false;
+        return;
+      }
+      const tx = await contract.playHazard(selectedMain, { value: wager });
       await tx.wait();
       // event listener will handle UI update
     } catch (err) {

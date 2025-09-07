@@ -11,6 +11,7 @@
       const b = await fetch('/assets/build.json', { cache:'no-store' }).then(r=>r.ok?r.json():null).catch(()=>null);
       const tag = (b && b.commit) ? String(b.commit).slice(0,12) : Date.now();
       const addHead = (el)=> document.head.appendChild(el);
+      window.__BUILD_TAG = tag;
       const css = document.createElement('link'); css.rel='stylesheet'; css.href = `css/style.css?v=${tag}`; addHead(css);
       const abi = document.createElement('script'); abi.src = `js/TavernABI.js?v=${tag}`; addHead(abi);
       const s1 = document.createElement('script'); s1.type='module'; s1.src = `js/tavern.js?v=${tag}`; addHead(s1);

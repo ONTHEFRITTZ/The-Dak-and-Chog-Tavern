@@ -9,6 +9,7 @@
       try{
         const b = await fetch('/assets/build.json', { cache:'no-store' }).then(r=>r.ok?r.json():null).catch(()=>null);
         const tag = (b && b.commit) ? String(b.commit).slice(0,12) : Date.now();
+        window.__BUILD_TAG = tag;
         const css = document.createElement('link'); css.rel='stylesheet'; css.href = `../../css/style.css?v=${tag}`; document.head.appendChild(css);
         const e = document.createElement('script'); e.src = 'https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js'; document.head.appendChild(e);
         const abi = document.createElement('script'); abi.src = `../../js/FaroV3ABI.js?v=${tag}`; document.head.appendChild(abi);

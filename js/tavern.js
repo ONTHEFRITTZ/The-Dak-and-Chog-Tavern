@@ -1,5 +1,24 @@
 import { ethers } from 'https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.esm.min.js';
-import { getAddressFor, detectChainId, getAddress, renderTavernBanner, CONTRACTS, showToast } from './config.js';
+// Defer loading of config.js with a version tag to avoid stale cache
+let cfgLoaded = false;
+let getAddressFor, detectChainId, getAddress, renderTavernBanner, CONTRACTS, showToast;
+async function ensureConfig() {
+  if (cfgLoaded) return;
+  try {
+    const tag = (window.__BUILD_TAG ? String(window.__BUILD_TAG) : String(Date.now()));
+    const mod = await import(`./config.js?v=${encodeURIComponent(tag)}`);
+    getAddressFor = mod.getAddressFor;
+    detectChainId = mod.detectChainId;
+    getAddress = mod.getAddress;
+    renderTavernBanner = mod.renderTavernBanner;
+    CONTRACTS = mod.CONTRACTS;
+    showToast = mod.showToast;
+    cfgLoaded = true;
+  } catch (e) {
+    console.error('Failed to load config.js', e);
+    throw e;
+  }
+}
 import { profileLoad } from './profile.js';
 
 let provider;
@@ -63,6 +82,7 @@ async function ensureAbiLoaded(contractKey) {
 
 // Connect Wallet
 export async function connectWallet() {
+  await ensureConfig();
   if (!window.ethereum) return alert('MetaMask not detected.');
 
   try {
@@ -106,6 +126,7 @@ export async function connectWallet() {
 
 // Auto-connect if previously connected
 window.addEventListener('load', async () => {
+  await ensureConfig();
   try {
     const chainId = await detectChainId(undefined);
     const address = getAddress('tavern', chainId);
