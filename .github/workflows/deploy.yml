@@ -41,15 +41,19 @@ jobs:
           mkdir -p assets
           echo "{\"commit\":\"${GITHUB_SHA}\",\"builtAt\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" > assets/build.json
 
-      - name: Create site tarball
+      - name: Create site tarball (stable staging)
         run: |
           set -e
-          echo "Packing tracked files into site.tgz (plus build.json)"
-          TMP_LIST=$(mktemp)
-          git ls-files > "$TMP_LIST"
-          echo "assets/build.json" >> "$TMP_LIST"
-          tar -czf site.tgz -T "$TMP_LIST"
-          rm -f "$TMP_LIST"
+          echo "Staging tracked files..."
+          rm -rf site_stage
+          mkdir -p site_stage
+          git checkout-index -a -f --prefix=site_stage/
+          # ensure build.json is included/updated in staged copy
+          mkdir -p site_stage/assets
+          cp -f assets/build.json site_stage/assets/build.json
+          echo "Creating tarball from staged directory"
+          tar -czf site.tgz -C site_stage .
+          ls -lh site.tgz
 
       - name: Verify package exists
         run: |
@@ -110,6 +114,15 @@ jobs:
             # Fix permissions so Nginx can read (dirs=755, files=644)
             find "$REMOTE_PATH" -type d -exec chmod 755 {} +
             find "$REMOTE_PATH" -type f -exec chmod 644 {} +
+            # Write deploy markers for diagnostics
+            mkdir -p "$REMOTE_PATH/assets"
+            COMMIT=$(echo "${GITHUB_SHA}" | cut -c1-12)
+            BUILT=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+            echo "$COMMIT @ $BUILT" > "$REMOTE_PATH/assets/deploy_check.txt"
+            echo "$COMMIT" > "$REMOTE_PATH/deployed_commit.txt"
+            echo "Listing top-level and assets to confirm swap:"
+            ls -la "$REMOTE_PATH" | sed -n '1,80p'
+            ls -la "$REMOTE_PATH/assets" | sed -n '1,80p' || true
 
       - name: Prune old remote backups (keep last 3)
         uses: appleboy/ssh-action@v1.0.3
@@ -157,3 +170,6 @@ jobs:
             echo "HTTPS failed, try HTTP"; curl -fsS "http://$DOMAIN/assets/build.json" -o build.json || true
           fi
           test -s build.json && echo "Live build.json present" || echo "Live build.json not accessible"
+          echo "Fetch deploy marker: https://$DOMAIN/assets/deploy_check.txt"
+          curl -fsS "https://$DOMAIN/assets/deploy_check.txt" -o deploy_check.txt || true
+          test -s deploy_check.txt && (echo "Deploy marker:"; cat deploy_check.txt) || echo "Deploy marker not accessible"
