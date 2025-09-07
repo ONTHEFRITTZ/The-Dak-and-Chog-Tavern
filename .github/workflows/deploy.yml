@@ -41,6 +41,12 @@ jobs:
           mkdir -p assets
           echo "{\"commit\":\"${GITHUB_SHA}\",\"builtAt\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" > assets/build.json
 
+      - name: Create site tarball
+        run: |
+          set -e
+          echo "Packing repository into site.tgz (excluding VCS/CI)"
+          tar --exclude-vcs --exclude=.github -czf site.tgz .
+
       - name: Prepare temp upload directory
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -54,32 +60,17 @@ jobs:
             mkdir -p "$UPLOAD_PATH"
             rm -rf "$UPLOAD_PATH"/*
 
-      - name: Upload site files to temp dir
+      - name: Upload site tarball to temp dir
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
-          source: |
-            index.html
-            landing.html
-            admin/**
-            css/**
-            js/**
-            images/**
-            img/**
-            assets/**
-            fonts/**
-            media/**
-            *.ico
-            *.png
-            *.jpg
-            *.jpeg
-            *.svg
-            *.webp
+          source: site.tgz
           target: /tmp/tavern_upload
           overwrite: true
+          debug: true
 
       - name: Atomic swap upload into place
         uses: appleboy/ssh-action@v1.0.3
@@ -95,12 +86,18 @@ jobs:
             DOMAIN="${{ secrets.DEPLOY_DOMAIN }}"; [ -z "$DOMAIN" ] && DOMAIN="thedakandchog.xyz"
             REMOTE_PATH="${{ secrets.REMOTE_PATH }}"
             if [ -z "$REMOTE_PATH" ]; then REMOTE_PATH="$BASE/$DOMAIN/html"; fi
-            UPLOAD_PATH="/tmp/tavern_upload"
+            UPLOAD_TGZ="/tmp/tavern_upload/site.tgz"
             echo "Remote web path: $REMOTE_PATH"
             TS=$(date +%s)
+            NEW_DIR="${REMOTE_PATH}_new_${TS}"
+            mkdir -p "$NEW_DIR"
+            echo "Unpacking $UPLOAD_TGZ to $NEW_DIR"
+            tar -xzf "$UPLOAD_TGZ" -C "$NEW_DIR"
+            # Prune non-web directories we don't need to serve
+            rm -rf "$NEW_DIR/.git" "$NEW_DIR/.github" "$NEW_DIR/server" 2>/dev/null || true
+            # Atomic swap
             if [ -d "$REMOTE_PATH" ]; then mv "$REMOTE_PATH" "${REMOTE_PATH}_prev_${TS}"; fi
-            mkdir -p "$(dirname "$REMOTE_PATH")"
-            mv "$UPLOAD_PATH" "$REMOTE_PATH"
+            mv "$NEW_DIR" "$REMOTE_PATH"
             # Fix permissions so Nginx can read (dirs=755, files=644)
             find "$REMOTE_PATH" -type d -exec chmod 755 {} +
             find "$REMOTE_PATH" -type f -exec chmod 644 {} +
