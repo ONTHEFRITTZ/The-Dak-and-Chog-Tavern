@@ -232,6 +232,15 @@
     <img src="../../assets/images/dice/standard/dice4.png" alt="" aria-hidden="true" class="decor-die decor-top-right">
   </div>
 
+  <script>
+    // Ensure Return button navigates back to Tavern
+    (function(){
+      try {
+        var r = document.getElementById('return');
+        if (r) r.addEventListener('click', function(){ window.location.href = '/index.html'; });
+      } catch (e) {}
+    })();
+  </script>
   <script type="module">
     (async()=>{
       try{
