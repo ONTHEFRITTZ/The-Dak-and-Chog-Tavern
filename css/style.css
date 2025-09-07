@@ -183,6 +183,16 @@ body.home .tavern {
   font-weight: 700;
 }
 
+/* Highlight network + address pills like the connected wallet */
+.top-banner #nb-top-info .pill {
+  background: rgba(0,0,0,0.6);
+  color: #fff;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-weight: 700;
+}
+.top-banner #nb-top-info .pill a { color: #fff; text-decoration: none; }
+
 /* Center logo + container as a unit */
 .hero {
   display: flex;
