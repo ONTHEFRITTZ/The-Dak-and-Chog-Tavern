@@ -58,6 +58,17 @@ jobs:
           echo "upload_path=$upload_path" >> $GITHUB_OUTPUT
           echo "Commit: $commit  BuiltAt: $builtAt"
 
+      - name: Check remote disk space and prune old backups
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Remote disk usage before prune:"
+          ssh deploy-host "df -h | sed -n '1p;$p'"
+          # Prune older html_prev_* backups, keep latest 2 if present
+          ssh deploy-host "set -e; base='${{ steps.meta.outputs.remote_base }}'; ls -1dt \"$base\"/html_prev_* 2>/dev/null | tail -n +3 | xargs -r sudo rm -rf"
+          echo "Remote disk usage after prune:"
+          ssh deploy-host "df -h | sed -n '1p;$p'"
+
       - name: Prepare remote directories
         shell: bash
         run: |
@@ -87,12 +98,35 @@ jobs:
         run: |
           set -euo pipefail
           ssh deploy-host "set -e; ts=\$(date +%s); if [ -d '${{ steps.meta.outputs.remote_root }}' ]; then sudo mv '${{ steps.meta.outputs.remote_root }}' '${{ steps.meta.outputs.remote_base }}/html_prev_'\$ts; fi; sudo mv '${{ steps.meta.outputs.upload_path }}' '${{ steps.meta.outputs.remote_root }}'"
+          # Post-swap prune again to prevent backup buildup
+          ssh deploy-host "set -e; base='${{ steps.meta.outputs.remote_base }}'; ls -1dt \"$base\"/html_prev_* 2>/dev/null | tail -n +4 | xargs -r sudo rm -rf"
 
       - name: Fix permissions and verify
         shell: bash
         run: |
           set -euo pipefail
-          ssh deploy-host "set -e; sudo find '${{ steps.meta.outputs.remote_root }}' -type d -exec chmod 755 {} +; sudo find '${{ steps.meta.outputs.remote_root }}' -type f -exec chmod 644 {} +; if [ -f '${{ steps.meta.outputs.remote_root }}/admin/index.html' ] && [ -f '${{ steps.meta.outputs.remote_root }}/assets/images/tavern-bg.png' ]; then echo VERIFY_OK; else echo VERIFY_FAIL; fi"
+          ssh deploy-host "set -e; sudo find '${{ steps.meta.outputs.remote_root }}' -type d -exec chmod 755 {} +; sudo find '${{ steps.meta.outputs.remote_root }}' -type f -exec chmod 644 {} +; if [ -f '${{ steps.meta.outputs.remote_root }}/admin/index.html' ] && [ -f '${{ steps.meta.outputs.remote_root }}/assets/images/tavern-bg.png' ]; then echo VERIFY_OK; else echo VERIFY_FAIL; exit 1; fi"
+
+      - name: Verify game pages exist
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT='${{ steps.meta.outputs.remote_root }}'
+          echo "Docroot: ${ROOT}"
+          ssh deploy-host "ls -ld '${{ steps.meta.outputs.remote_root }}' || true; ls -l '${{ steps.meta.outputs.remote_root }}/games' || true"
+          missing=0
+          for p in games/shell/index.html games/hazard/index.html games/table/index.html games/dakchog/index.html; do
+            if ssh deploy-host "test -f '${{ steps.meta.outputs.remote_root }}/$p'"; then
+              echo "OK $p"
+            else
+              echo "::error file=$p::Missing $p"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            echo "One or more game pages are missing under ${ROOT}. Check REMOTE_PATH or upload step."
+            exit 1
+          fi
 
       - name: Optional Cloudflare purge
         if: ${{ env.CF_ZONE_ID && env.CF_API_TOKEN }}
