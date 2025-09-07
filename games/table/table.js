@@ -120,7 +120,7 @@ rankButtons.forEach(btn => {
   });
 });
 
-returnBtn?.addEventListener('click', () => { window.location.href = '../../index.html'; });
+returnBtn?.addEventListener('click', () => { window.location.href = '/index.html'; });
 
 // Resolve address (if connected previously via Tavern) for display/identity
 (async () => {

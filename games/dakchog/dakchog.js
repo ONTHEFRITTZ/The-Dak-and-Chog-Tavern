@@ -14,6 +14,21 @@ const rulesAck = document.getElementById('rules-ack');
 const openRulesBtn = document.getElementById('open-rules');
 const returnBtn = document.getElementById('return');
 
+// Normalize any mojibake in status messages (e.g., bad ellipses/dashes)
+try {
+  function sanitizeStatus() {
+    try {
+      const t = statusEl?.textContent || '';
+      if (!t) return;
+      let u = t.replace(/�\?�/g, '…')
+               .replace(/�\?"/g, ' — ');
+      if (u !== t) statusEl.textContent = u;
+    } catch {}
+  }
+  const mo = new MutationObserver(sanitizeStatus);
+  if (statusEl) mo.observe(statusEl, { childList: true, characterData: true, subtree: true });
+} catch {}
+
 let provider, signer, wallet, tavern;
 let choice = 'dak';
 let rulesOK = false;
@@ -123,7 +138,7 @@ flipBtn.addEventListener('click', async () => {
 
 chooseDak.addEventListener('click', () => setChoice('dak'));
 chooseChog.addEventListener('click', () => setChoice('chog'));
-returnBtn?.addEventListener('click', () => { window.location.href = '../../index.html'; });
+returnBtn?.addEventListener('click', () => { window.location.href = '/index.html'; });
 
 window.addEventListener('DOMContentLoaded', async () => {
   setCoin('dak');

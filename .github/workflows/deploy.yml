@@ -1,33 +1,13 @@
-name: Deploy static site to EC2
+name: Deploy (Rebuilt)
 
 on:
   push:
     branches: [ "main" ]
-    paths:
-      - "**.html"
-      - "admin/**"
-      - "games/**"
-      - "css/**"
-      - "js/**"
-      - "images/**"
-      - "img/**"
-      - "assets/**"
-      - "fonts/**"
-      - "media/**"
-      - "**.ico"
-      - "**.png"
-      - "**.jpg"
-      - "**.jpeg"
-      - "**.svg"
-      - "**.webp"
   workflow_dispatch:
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment:
-      name: production
-      url: https://thedakandchog.xyz
     concurrency:
       group: deploy-production
       cancel-in-progress: false
@@ -35,7 +15,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Write build metadata
+      - name: Build metadata
         run: |
           set -e
           mkdir -p assets
@@ -44,36 +24,15 @@ jobs:
       - name: Create site tarball (stable staging)
         run: |
           set -e
-          echo "Staging tracked files..."
           rm -rf site_stage
           mkdir -p site_stage
           git checkout-index -a -f --prefix=site_stage/
-          # ensure build.json is included/updated in staged copy
           mkdir -p site_stage/assets
           cp -f assets/build.json site_stage/assets/build.json
-          echo "Creating tarball from staged directory"
           tar -czf site.tgz -C site_stage .
           ls -lh site.tgz
 
-      - name: Verify package exists
-        run: |
-          set -e
-          ls -l site.tgz || (echo "site.tgz missing" && exit 1)
-
-      - name: Prepare temp upload directory
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_KEY }}
-          port: ${{ secrets.SSH_PORT || 22 }}
-          script: |
-            set -e
-            UPLOAD_PATH="/tmp/tavern_upload"
-            mkdir -p "$UPLOAD_PATH"
-            rm -rf "$UPLOAD_PATH"/*
-
-      - name: Upload site tarball to temp dir
+      - name: Upload tarball to server
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -81,11 +40,11 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
           source: ./site.tgz
-          target: /tmp/tavern_upload
+          target: /tmp
           overwrite: true
           debug: true
 
-      - name: Atomic swap upload into place
+      - name: Atomic release + symlink swap
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -94,82 +53,69 @@ jobs:
           port: ${{ secrets.SSH_PORT || 22 }}
           script: |
             set -e
-            # Resolve web root path
             BASE="${{ secrets.DEPLOY_BASE }}"; [ -z "$BASE" ] && BASE="/var/www"
             DOMAIN="${{ secrets.DEPLOY_DOMAIN }}"; [ -z "$DOMAIN" ] && DOMAIN="thedakandchog.xyz"
-            REMOTE_PATH="${{ secrets.REMOTE_PATH }}"
-            if [ -z "$REMOTE_PATH" ]; then REMOTE_PATH="$BASE/$DOMAIN/html"; fi
-            UPLOAD_TGZ="/tmp/tavern_upload/site.tgz"
-            echo "Remote web path: $REMOTE_PATH"
-            TS=$(date +%s)
-            NEW_DIR="${REMOTE_PATH}_new_${TS}"
-            mkdir -p "$NEW_DIR"
-            echo "Unpacking $UPLOAD_TGZ to $NEW_DIR"
-            tar -xzf "$UPLOAD_TGZ" -C "$NEW_DIR"
-            # Prune non-web directories we don't need to serve
-            rm -rf "$NEW_DIR/.git" "$NEW_DIR/.github" "$NEW_DIR/server" 2>/dev/null || true
-            # Atomic swap
-            if [ -d "$REMOTE_PATH" ]; then mv "$REMOTE_PATH" "${REMOTE_PATH}_prev_${TS}"; fi
-            mv "$NEW_DIR" "$REMOTE_PATH"
-            # Fix permissions so Nginx can read (dirs=755, files=644)
-            find "$REMOTE_PATH" -type d -exec chmod 755 {} +
-            find "$REMOTE_PATH" -type f -exec chmod 644 {} +
-            # Write deploy markers for diagnostics
-            mkdir -p "$REMOTE_PATH/assets"
+            ROOT_OVERRIDE="${{ secrets.REMOTE_PATH }}"
+            if [ -n "$ROOT_OVERRIDE" ]; then WEB_ROOT="$ROOT_OVERRIDE"; RELEASES_DIR="$(dirname "$ROOT_OVERRIDE")/releases"; else WEB_ROOT="$BASE/$DOMAIN/current"; RELEASES_DIR="$BASE/$DOMAIN/releases"; fi
+            mkdir -p "$RELEASES_DIR"
+            TS=$(date +%Y%m%d%H%M%S)
+            REL="$RELEASES_DIR/$TS"
+            echo "Release dir: $REL"
+            mkdir -p "$REL"
+            echo "Unpacking /tmp/site.tgz to $REL"
+            tar -xzf /tmp/site.tgz -C "$REL"
+            rm -f /tmp/site.tgz
+            find "$REL" -type d -exec chmod 755 {} +
+            find "$REL" -type f -exec chmod 644 {} +
+            if [ -n "$ROOT_OVERRIDE" ]; then
+              echo "ROOT_OVERRIDE in use -> swapping directory"
+              if [ -d "$WEB_ROOT" ]; then mv "$WEB_ROOT" "${WEB_ROOT}_prev_$TS"; fi
+              mv "$REL" "$WEB_ROOT"
+              CUR="$WEB_ROOT"
+            else
+              ln -sfn "$REL" "$WEB_ROOT"
+              CUR="$WEB_ROOT"
+            fi
+            mkdir -p "$CUR/assets"
             COMMIT=$(echo "${GITHUB_SHA}" | cut -c1-12)
-            BUILT=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-            echo "$COMMIT @ $BUILT" > "$REMOTE_PATH/assets/deploy_check.txt"
-            echo "$COMMIT" > "$REMOTE_PATH/deployed_commit.txt"
-            echo "Listing top-level and assets to confirm swap:"
-            ls -la "$REMOTE_PATH" | sed -n '1,80p'
-            ls -la "$REMOTE_PATH/assets" | sed -n '1,80p' || true
+            echo "$COMMIT @ $(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$CUR/assets/deploy_check.txt"
+            echo "Web root now points to: $CUR"
+            ls -la "$(dirname "$CUR")" | sed -n '1,80p'
+            ls -la "$CUR" | sed -n '1,80p'
 
-      - name: Prune old remote backups (keep last 3)
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_KEY }}
-          port: ${{ secrets.SSH_PORT || 22 }}
-          script: |
-            set -e
-            BASE="${{ secrets.DEPLOY_BASE }}"; [ -z "$BASE" ] && BASE="/var/www"
-            DOMAIN="${{ secrets.DEPLOY_DOMAIN }}"; [ -z "$DOMAIN" ] && DOMAIN="thedakandchog.xyz"
-            REMOTE_PATH="${{ secrets.REMOTE_PATH }}"; [ -z "$REMOTE_PATH" ] && REMOTE_PATH="$BASE/$DOMAIN/html"
-            cd "$(dirname "$REMOTE_PATH")"
-            base="$(basename "$REMOTE_PATH")"
-            ls -1dt "${base}_prev_"* 2>/dev/null | tail -n +4 | xargs -r rm -rf
-
-      - name: Verify key files exist
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_KEY }}
-          port: ${{ secrets.SSH_PORT || 22 }}
-          script: |
-            set -e
-            BASE="${{ secrets.DEPLOY_BASE }}"; [ -z "$BASE" ] && BASE="/var/www"
-            DOMAIN="${{ secrets.DEPLOY_DOMAIN }}"; [ -z "$DOMAIN" ] && DOMAIN="thedakandchog.xyz"
-            REMOTE_PATH="${{ secrets.REMOTE_PATH }}"; [ -z "$REMOTE_PATH" ] && REMOTE_PATH="$BASE/$DOMAIN/html"
-            test -f "$REMOTE_PATH/index.html" && echo "ok index" || (echo "missing index" && exit 1)
-            test -f "$REMOTE_PATH/admin/index.html" && echo "ok admin" || (echo "missing admin" && exit 1)
-            test -f "$REMOTE_PATH/assets/images/tavern-bg.png" && echo "ok bg" || (echo "missing bg" && exit 1)
-
-      - name: Verify live site (best effort)
-        shell: bash
+      - name: Purge Cloudflare HTML
+        if: ${{ secrets.CF_ZONE_ID && secrets.CF_API_TOKEN }}
         run: |
           set -e
           DOMAIN="${{ secrets.DEPLOY_DOMAIN }}"; [ -z "$DOMAIN" ] && DOMAIN="thedakandchog.xyz"
-          echo "Fetch https://$DOMAIN/assets/build.json"
+          BASE="https://$DOMAIN"
+          FILES_JSON=$(cat <<EOF
+          [
+            "$BASE/",
+            "$BASE/index.html",
+            "$BASE/landing.html",
+            "$BASE/admin/index.html",
+            "$BASE/games/shell/index.html",
+            "$BASE/games/hazard/index.html",
+            "$BASE/games/dakchog/index.html",
+            "$BASE/games/table/index.html"
+          ]
+          EOF
+          )
+          echo "Purging HTML paths on Cloudflare for $DOMAIN"
+          curl -fsS -X POST "https://api.cloudflare.com/client/v4/zones/${{ secrets.CF_ZONE_ID }}/purge_cache" \
+            -H "Authorization: Bearer ${{ secrets.CF_API_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            --data "{\"files\": $FILES_JSON}"
+
+      - name: Verify live deploy marker
+        run: |
+          set -e
+          DOMAIN="${{ secrets.DEPLOY_DOMAIN }}"; [ -z "$DOMAIN" ] && DOMAIN="thedakandchog.xyz"
+          echo "Fetch https://$DOMAIN/assets/deploy_check.txt"
           for i in {1..6}; do
-            if curl -fsS "https://$DOMAIN/assets/build.json" -o build.json; then cat build.json; break; fi
+            if curl -fsS "https://$DOMAIN/assets/deploy_check.txt" -o marker.txt; then cat marker.txt; break; fi
             echo "retry $i"; sleep 2;
           done
-          if [ ! -s build.json ]; then
-            echo "HTTPS failed, try HTTP"; curl -fsS "http://$DOMAIN/assets/build.json" -o build.json || true
-          fi
-          test -s build.json && echo "Live build.json present" || echo "Live build.json not accessible"
-          echo "Fetch deploy marker: https://$DOMAIN/assets/deploy_check.txt"
-          curl -fsS "https://$DOMAIN/assets/deploy_check.txt" -o deploy_check.txt || true
-          test -s deploy_check.txt && (echo "Deploy marker:"; cat deploy_check.txt) || echo "Deploy marker not accessible"
+          test -s marker.txt || (echo "Deploy marker not accessible" && exit 1)
+

@@ -57,8 +57,21 @@ const poolAuthInput = document.getElementById('pool-auth');
 const poolAuthorizeBtn = document.getElementById('pool-authorize');
 const poolDeauthorizeBtn = document.getElementById('pool-deauthorize');
 
+// Whitelist elements
+const wlAddrEl = document.getElementById('wl-address');
+const wlOverrideInput = document.getElementById('wl-override');
+const wlSetAddrBtn = document.getElementById('wl-set-addr');
+const wlOneInput = document.getElementById('wl-one');
+const wlAddBtn = document.getElementById('wl-add');
+const wlRemoveBtn = document.getElementById('wl-remove');
+const wlBulkInput = document.getElementById('wl-bulk');
+const wlBulkAddBtn = document.getElementById('wl-bulk-add');
+const wlBulkRemoveBtn = document.getElementById('wl-bulk-remove');
+const wlMsgEl = document.getElementById('wl-msg');
+
 let provider, signer, wallet;
 let tavernAddr = null, faroAddr = null, poolAddr = null;
+let whitelistAddr = null;
 let tavern, faro, pool;
 let tavernOwner = null, faroOwner = null;
 let ioSocket = null;
@@ -80,12 +93,15 @@ async function refresh() {
     tavernAddr = await getAddressFor('tavern', provider);
     faroAddr = await getAddressFor('faro', provider);
     poolAddr = await getAddressFor('pool', provider);
+    whitelistAddr = await getAddressFor('whitelist', provider);
     tavAddrEl.textContent = tavernAddr || '-';
     faroAddrEl.textContent = faroAddr || '-';
     if (poolAddrEl) poolAddrEl.textContent = poolAddr || '-';
+    if (wlAddrEl) wlAddrEl.textContent = whitelistAddr || '(not set)';
     if (tavOverrideInput) tavOverrideInput.placeholder = tavernAddr || '';
     if (faroOverrideInput) faroOverrideInput.placeholder = faroAddr || '';
     if (poolOverrideInput) poolOverrideInput.placeholder = poolAddr || '';
+    if (wlOverrideInput) wlOverrideInput.placeholder = whitelistAddr || '';
     renderTavernBanner({ contractKey: 'tavern', address: tavernAddr, chainId, wallet });
 
     if (tavernAddr && window.TavernABI && signer) {
@@ -176,6 +192,72 @@ async function connect() {
 
 connectBtn?.addEventListener('click', connect);
 returnBtn?.addEventListener('click', () => { window.location.href = '/index.html'; });
+
+// Whitelist handlers (owner only)
+wlSetAddrBtn?.addEventListener('click', async () => {
+  try {
+    const v = (wlOverrideInput?.value||'').trim();
+    if (!v || v.length !== 42 || !v.startsWith('0x')) { wlMsgEl.textContent = 'Enter a valid address'; return; }
+    try { localStorage.setItem('contract.whitelist', v); } catch {}
+    whitelistAddr = v; if (wlAddrEl) wlAddrEl.textContent = v;
+    wlMsgEl.textContent = 'Whitelist address set (local override).';
+  } catch { wlMsgEl.textContent = 'Failed to set override.'; }
+});
+
+function parseBulk(addrs){
+  return String(addrs||'')
+    .split(/[,\n\r\t ]+/)
+    .map(s=>s.trim()).filter(s=>/^0x[0-9a-fA-F]{40}$/.test(s));
+}
+
+async function wlContract(){
+  if (!whitelistAddr || !window.WhitelistABI || !signer) throw new Error('Whitelist address/ABI missing or wallet not connected');
+  return new window.ethers.Contract(whitelistAddr, window.WhitelistABI, signer);
+}
+
+wlAddBtn?.addEventListener('click', async () => {
+  try { const c = await wlContract(); const a=(wlOneInput?.value||'').trim(); if(!/^0x[0-9a-fA-F]{40}$/.test(a)){ wlMsgEl.textContent='Bad address'; return; }
+    const tx = await c.add(a); wlMsgEl.textContent = `Adding... ${tx.hash.slice(0,10)}...`; await tx.wait(); wlMsgEl.textContent='Added.'; } catch(e){ wlMsgEl.textContent = e?.data?.message||e?.message||'Failed'; }
+});
+wlRemoveBtn?.addEventListener('click', async () => {
+  try { const c = await wlContract(); const a=(wlOneInput?.value||'').trim(); if(!/^0x[0-9a-fA-F]{40}$/.test(a)){ wlMsgEl.textContent='Bad address'; return; }
+    const tx = await c.remove(a); wlMsgEl.textContent = `Removing... ${tx.hash.slice(0,10)}...`; await tx.wait(); wlMsgEl.textContent='Removed.'; } catch(e){ wlMsgEl.textContent = e?.data?.message||e?.message||'Failed'; }
+});
+wlBulkAddBtn?.addEventListener('click', async () => {
+  try { const c = await wlContract(); const list=parseBulk(wlBulkInput?.value); if(!list.length){ wlMsgEl.textContent='No valid addresses'; return; }
+    const tx = await c.addMany(list); wlMsgEl.textContent = `Bulk add... ${tx.hash.slice(0,10)}...`; await tx.wait(); wlMsgEl.textContent='Bulk added.'; } catch(e){ wlMsgEl.textContent=e?.data?.message||e?.message||'Failed'; }
+});
+wlBulkRemoveBtn?.addEventListener('click', async () => {
+  try { const c = await wlContract(); const list=parseBulk(wlBulkInput?.value); if(!list.length){ wlMsgEl.textContent='No valid addresses'; return; }
+    const tx = await c.removeMany(list); wlMsgEl.textContent = `Bulk remove... ${tx.hash.slice(0,10)}...`; await tx.wait(); wlMsgEl.textContent='Bulk removed.'; } catch(e){ wlMsgEl.textContent=e?.data?.message||e?.message||'Failed'; }
+});
+// Site Health: build.json, deploy marker, whoami
+async function refreshHealth() {
+  try {
+    const buildEl = document.getElementById('health-build');
+    const markerEl = document.getElementById('health-marker');
+    const whoEl = document.getElementById('health-whoami');
+    const tag = Date.now();
+    // Build metadata
+    try {
+      const r = await fetch('/assets/build.json?now=' + tag, { cache: 'no-store' });
+      if (r.ok) { const b = await r.json(); buildEl.textContent = `commit=${String(b.commit||'').slice(0,12)} builtAt=${b.builtAt||''}`; }
+      else { buildEl.textContent = 'unavailable'; }
+    } catch { try { document.getElementById('health-build').textContent = 'unavailable'; } catch {} }
+    // Deploy marker
+    try {
+      const r = await fetch('/assets/deploy_check.txt?now=' + tag, { cache: 'no-store' });
+      markerEl.textContent = r.ok ? (await r.text()).trim() : 'unavailable';
+    } catch { try { document.getElementById('health-marker').textContent = 'unavailable'; } catch {} }
+    // WhoAmI
+    try {
+      const r = await fetch('/__whoami.txt?now=' + tag, { cache: 'no-store' });
+      whoEl.textContent = r.ok ? (await r.text()).trim() : 'unavailable';
+    } catch { try { document.getElementById('health-whoami').textContent = 'unavailable'; } catch {} }
+  } catch {}
+}
+document.getElementById('health-refresh')?.addEventListener('click', refreshHealth);
+window.addEventListener('DOMContentLoaded', () => { try { refreshHealth(); } catch {} });
 
 // Set pool on Tavern (owner only)
 tavSetPoolBtn?.addEventListener('click', async () => {

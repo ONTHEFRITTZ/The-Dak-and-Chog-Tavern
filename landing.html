@@ -27,29 +27,41 @@
     </section>
   </main>
 
+  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
   <script>
+    (async()=>{ try{ const b=await fetch('/assets/build.json',{cache:'no-store'}).then(r=>r.ok?r.json():null).catch(()=>null); const tag=(b&&b.commit)?String(b.commit).slice(0,12):Date.now(); window.__BUILD_TAG=tag; const wl=document.createElement('script'); wl.src=`./js/WhitelistABI.js?v=${tag}`; document.head.appendChild(wl);}catch{}})();
+  </script>
+  <script type="module">
+    import { detectChainId, getAddressFor } from './js/config.js';
     (function(){
       const btn = document.getElementById('enter-tavern');
-      if (btn) {
-        btn.addEventListener('click', () => { window.location.href = 'index.html'; });
-      }
-      // Allow Enter key to activate button
-      window.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') { try { btn.click(); } catch {} }
-      });
-      // Auto sign-in if familiar wallet already authorized
-      (async () => {
+      async function proceed(){
+        // Require wallet connection
+        if (!window.ethereum || !window.ethereum.request) { alert('MetaMask not detected.'); return; }
         try {
-          if (window.ethereum?.request) {
-            const accounts = await window.ethereum.request({ method: 'eth_accounts' });
-            if (accounts && accounts.length) {
-              try { sessionStorage.setItem('walletConnected', 'true'); localStorage.setItem('lastWallet', (accounts[0]||'').toLowerCase()); } catch {}
-              // Optionally surface prompt to finish profile connection
-              const pp = document.getElementById('profile-prompt'); if (pp) pp.style.fontWeight = '700';
+          await window.ethereum.request({ method: 'eth_requestAccounts' });
+          const provider = new ethers.providers.Web3Provider(window.ethereum,'any');
+          const signer = provider.getSigner();
+          const wallet = await signer.getAddress();
+          try { localStorage.setItem('walletConnected','true'); sessionStorage.setItem('walletConnected','true'); } catch {}
+          // Optional whitelist
+          try {
+            const wlAddr = await getAddressFor('whitelist', provider);
+            if (wlAddr && window.WhitelistABI) {
+              const c = new ethers.Contract(wlAddr, window.WhitelistABI, provider);
+              const ok = await c.isAllowed(wallet);
+              if (!ok) { alert('This wallet is not whitelisted for early access.'); return; }
             }
-          }
-        } catch {}
-      })();
+          } catch {}
+          window.location.href = 'index.html';
+        } catch (e) {
+          // user rejected or error
+        }
+      }
+      if (btn) btn.addEventListener('click', proceed);
+      window.addEventListener('keydown', (e) => { if (e.key === 'Enter') { try { btn?.click(); } catch {} } });
+      // Best-effort auto state if already authorized
+      (async () => { try { const provider = window.ethereum? new ethers.providers.Web3Provider(window.ethereum,'any'):null; if (provider){ const acc=await provider.listAccounts(); if (acc && acc.length){ localStorage.setItem('walletConnected','true'); } } } catch {} })();
     })();
   </script>
 </body>

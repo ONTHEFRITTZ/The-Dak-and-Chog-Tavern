@@ -82,7 +82,7 @@ playBtn.addEventListener('click', async () => {
   }
 });
 
-returnBtn?.addEventListener('click', () => { window.location.href = '../../index.html'; });
+returnBtn?.addEventListener('click', () => { window.location.href = '/index.html'; });
 
 // Rules overlay (reference only)
 rulesOpen?.addEventListener('click', () => { try { rulesOverlay.style.display = 'flex'; } catch {} });

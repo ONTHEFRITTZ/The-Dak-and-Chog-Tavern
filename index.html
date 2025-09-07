@@ -1,9 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>The Dak and Chog Tavern</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The Dak and Chog Tavern</title>
+  <script>
+    (function(){ try { if (localStorage.getItem('walletConnected')!=='true' && sessionStorage.getItem('walletConnected')!=='true') { window.location.replace('landing.html'); } } catch {} })();
+  </script>
 <link rel="icon" type="image/png" href="/assets/images/dakandchog-logo.png">
 <script>
   (async()=>{
