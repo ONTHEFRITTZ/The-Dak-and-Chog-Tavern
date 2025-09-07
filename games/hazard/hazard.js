@@ -304,7 +304,16 @@ onReady(async () => {
         rollBtn.disabled = false;
         return;
       }
-      const tx = await contract.playHazard(selectedMain, { value: wager });
+      // Estimate gas and add a safety buffer; fallback to a conservative limit
+      let gasLimit;
+      try {
+        const est = await contract.estimateGas.playHazard(selectedMain, { value: wager });
+        gasLimit = est.mul(120).div(100); // +20% headroom
+      } catch {
+        // Fallback if estimation fails (RPCs sometimes balk on value transfers)
+        gasLimit = ethers.utils.hexlify(300000);
+      }
+      const tx = await contract.playHazard(selectedMain, { value: wager, gasLimit });
       await tx.wait();
       // event listener will handle UI update
     } catch (err) {
