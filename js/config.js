@@ -298,10 +298,9 @@ export function renderTavernBanner({ contractKey, address, chainId, wallet, labe
 
     if (!useTopBanner && el) el.innerHTML = `
       <div>
-        <strong>Network:</strong> ${name}${chainId ? ` (${chainId})` : ''}
-        ${mismatch ? '<span style="margin-left:8px;padding:2px 6px;border-radius:6px;background:#9200fa;color:#fff;">Using default address</span>' : ''}
-        <span style="margin-left:12px; white-space:nowrap;"><strong>${keyLabel}:</strong> ${explorer ? `<a id=\"nb-addr\" href=\"${explorer}\" target=\"_blank\" rel=\"noopener\" style=\"white-space:nowrap; display:inline-block; letter-spacing:0; word-spacing:0; font-variant-ligatures:none;\">${short(address)}</a>` : short(address)}
-        </span>
+        <span class="pill" title="Network">Network: ${name}${chainId ? ` (${chainId})` : ''}</span>
+        ${mismatch ? '<span class="pill" title="Notice">Using default address</span>' : ''}
+        <span class="pill" title="Address" style="white-space:nowrap;">${keyLabel}: ${explorer ? `<a id=\"nb-addr\" href=\"${explorer}\" target=\"_blank\" rel=\"noopener\" style=\"white-space:nowrap; display:inline-block; letter-spacing:0; word-spacing:0; font-variant-ligatures:none;\">${short(address)}</a>` : short(address)}</span>
       </div>
       <div>
         ${wallet ? `<span title=\\"Connected wallet\\" style=\\"margin-right:8px; white-space:nowrap; display:inline-block; letter-spacing:0; word-spacing:0; font-variant-ligatures:none; font-weight:600;\\">${short(wallet)}</span>` : ''}

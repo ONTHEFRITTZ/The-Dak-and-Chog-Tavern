@@ -370,3 +370,15 @@ body.age-landing {
   bottom: 12px !important;
   z-index: 10000 !important;
 }
+
+/* Standalone network banner pills */
+#network-banner .pill {
+  background: rgba(0,0,0,0.6);
+  color: #fff;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-weight: 700;
+  display: inline-block;
+  margin-right: 8px;
+}
+#network-banner .pill a { color: #fff; text-decoration: none; }
