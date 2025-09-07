@@ -140,7 +140,8 @@ chooseDak.addEventListener('click', () => setChoice('dak'));
 chooseChog.addEventListener('click', () => setChoice('chog'));
 returnBtn?.addEventListener('click', () => { window.location.href = '/index.html'; });
 
-window.addEventListener('DOMContentLoaded', async () => {
+const onReady = (fn) => { if (document.readyState === 'loading') { window.addEventListener('DOMContentLoaded', fn, { once: true }); } else { fn(); } };
+onReady(async () => {
   setCoin('dak');
   setChoice('dak');
   // Require rules acknowledgement every load

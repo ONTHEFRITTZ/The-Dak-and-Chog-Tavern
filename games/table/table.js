@@ -53,13 +53,37 @@ function renderLobby(list) {
     lobbyPanel.style.display = 'block';
     tablePanel.style.display = 'none';
     lobbyList.innerHTML = '';
-    list.forEach(row => {
+    // Sort: open tables first, then by id
+    const sorted = Array.isArray(list)
+      ? list.slice().sort((a,b) => {
+          const aFull = Number(a.seated||0) >= Number(a.capacity||6);
+          const bFull = Number(b.seated||0) >= Number(b.capacity||6);
+          if (aFull !== bFull) return aFull ? 1 : -1; // full go last
+          return String(a.id||'').localeCompare(String(b.id||''));
+        })
+      : [];
+    sorted.forEach(row => {
+      const seated = Number(row.seated||0);
+      const cap = Number(row.capacity||6);
+      const isFull = seated >= cap;
       const card = document.createElement('div');
-      card.style.cssText = 'background:rgba(255,255,255,0.6); border:2px solid #7800cd; border-radius:10px; padding:10px; min-width:200px;';
-      card.innerHTML = `<div><strong>${row.id}</strong></div><div>Players: ${row.seated}/6</div>`;
+      card.style.cssText = 'background:rgba(255,255,255,0.6); border:2px solid #7800cd; border-radius:10px; padding:10px; min-width:220px; display:flex; align-items:center; gap:10px; justify-content:space-between;';
+      const left = document.createElement('div');
+      const name = document.createElement('div');
+      name.innerHTML = `<strong>${row.id}</strong>`;
+      if (isFull) name.style.cssText = 'opacity:.55;';
+      const count = document.createElement('div');
+      count.textContent = `Players: ${seated}/${cap}`;
+      left.appendChild(name); left.appendChild(count);
       const btn = document.createElement('button');
-      btn.textContent = 'Join';
-      btn.onclick = () => { socket?.emit('join_table', { table: row.id }); };
+      if (isFull) {
+        btn.textContent = 'Full';
+        btn.disabled = true;
+      } else {
+        btn.textContent = 'Join';
+        btn.onclick = () => { socket?.emit('join_table', { table: row.id }); };
+      }
+      card.appendChild(left);
       card.appendChild(btn);
       lobbyList.appendChild(card);
     });
