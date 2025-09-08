@@ -166,10 +166,17 @@ function connect() {
   socket.on('connect', () => {
     log('Connected to server');
     if (myAddr) socket.emit('identify', { addr: myAddr });
-    showLobby('Loading tables…');
+    // Auto-join table from URL ?table=ID if present; otherwise load lobby
+    let tableId = null;
+    try { const u = new URL(window.location.href); tableId = u.searchParams.get('table'); } catch {}
+    if (tableId) {
+      try { socket.emit('join_table', { table: tableId }); } catch {}
+    } else {
+      showLobby('Loading tables…');
+      try { socket.emit('lobby:get'); } catch {}
+    }
     // Publish public handle from localStorage if available
     try { const x = localStorage.getItem('profile.public.x'); if (x) socket.emit('profile_public', { x }); } catch {}
-    try { socket.emit('lobby:get'); } catch {}
   });
   socket.on('connect_error', (err) => {
     log('Connection error: ' + (err?.message || 'unknown'));
