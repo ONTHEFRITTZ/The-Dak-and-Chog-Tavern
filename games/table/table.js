@@ -155,9 +155,19 @@ function renderTable(table) {
   dealBtn.disabled = !myIsOwner;
 }
 
-function connect() {
+async function ensureIo(){
+  if (window.io) return;
+  await new Promise((resolve)=>{
+    const s=document.createElement('script');
+    s.src='https://cdn.socket.io/4.7.5/socket.io.min.js';
+    s.onload=resolve; s.onerror=resolve; document.head.appendChild(s);
+  });
+}
+
+async function connect() {
+  await ensureIo();
   // Prefer websocket but allow polling fallback through proxies/CDNs
-  socket = io({ path: '/socket.io', transports: ['websocket', 'polling'], reconnection: true, reconnectionAttempts: 10, reconnectionDelay: 800 });
+  socket = io(window.location.origin, { path: '/socket.io', transports: ['websocket', 'polling'], reconnection: true, reconnectionAttempts: 10, reconnectionDelay: 800 });
   const showLobby = (msg) => {
     try { tablePanel.style.display = 'none'; lobbyPanel.style.display = 'block'; } catch {}
     try { if (msg) { lobbyList.innerHTML = `<div style="opacity:.7; font-size:13px;">${msg}</div>`; } } catch {}
@@ -265,7 +275,7 @@ returnBtn?.addEventListener('click', () => { window.location.href = '/index.html
       } catch {}
     }
   } catch {}
-  connect();
+  await connect();
 })();
 
 // Session-based rules modal for Faro
