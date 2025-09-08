@@ -23,7 +23,10 @@ const server = http.createServer((req, res) => {
   res.writeHead(200, { 'Content-Type': 'text/plain' });
   res.end('Tavern realtime OK');
 });
-const io = new Server(server, { cors: { origin: '*' } });
+const io = new Server(server, {
+  path: '/socket.io',
+  cors: { origin: true, methods: ['GET','POST'] },
+});
 
 // In-memory stores
 const tables = new Map(); // tableId -> { id, seats: [{id, addr, ready, balance}], started, bets: Map(addrLower -> {rank, amount, copper}), ownerId, lastActive }
