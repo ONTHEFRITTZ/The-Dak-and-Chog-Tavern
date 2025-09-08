@@ -156,16 +156,27 @@ function renderTable(table) {
 }
 
 function connect() {
-  socket = io({ path: '/socket.io' });
+  // Prefer websocket but allow polling fallback through proxies/CDNs
+  socket = io({ path: '/socket.io', transports: ['websocket', 'polling'], reconnection: true, reconnectionAttempts: 10, reconnectionDelay: 800 });
+  const showLobby = (msg) => {
+    try { tablePanel.style.display = 'none'; lobbyPanel.style.display = 'block'; } catch {}
+    try { if (msg) { lobbyList.innerHTML = `<div style="opacity:.7; font-size:13px;">${msg}</div>`; } } catch {}
+  };
+
   socket.on('connect', () => {
     log('Connected to server');
     if (myAddr) socket.emit('identify', { addr: myAddr });
-    // Request lobby; user will choose a table to join
-    try { tablePanel.style.display = 'none'; lobbyPanel.style.display = 'block'; } catch {}
+    showLobby('Loading tables…');
     // Publish public handle from localStorage if available
     try { const x = localStorage.getItem('profile.public.x'); if (x) socket.emit('profile_public', { x }); } catch {}
     try { socket.emit('lobby:get'); } catch {}
   });
+  socket.on('connect_error', (err) => {
+    log('Connection error: ' + (err?.message || 'unknown'));
+    showLobby('Lobby server unavailable. Retrying…');
+  });
+  socket.on('reconnect_error', () => { showLobby('Reconnecting to lobby…'); });
+  socket.on('reconnect_failed', () => { showLobby('Unable to reach lobby. Please retry.'); });
   socket.on('lobby:list', (list) => { renderLobby(Array.isArray(list)?list:[]); });
   socket.on('table:update', (table) => { renderTable(table); });
   socket.on('table:started', (table) => { log('Game started!'); renderTable(table); });
@@ -183,7 +194,7 @@ function connect() {
   });
   socket.on('chat', (m) => { log(`${m.from}: ${m.text}`); });
   socket.on('error', (e) => { log(`Error: ${e?.message || 'unknown'}`); });
-  socket.on('disconnect', () => { log('Disconnected. Reconnecting in 2s...'); setTimeout(connect, 2000); });
+  socket.on('disconnect', () => { log('Disconnected. Reconnecting in 2s...'); setTimeout(connect, 2000); showLobby('Disconnected. Reconnecting…'); });
 }
 
 // Attach UI handlers
