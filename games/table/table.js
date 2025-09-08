@@ -187,9 +187,9 @@ function connect() {
 }
 
 // Attach UI handlers
-joinBtn.addEventListener('click', () => {
+joinBtn?.addEventListener('click', () => {
   if (!faroAck) { try { rulesOverlay.style.display='flex'; } catch{}; return; }
-  const id = (tableInput.value || 'lobby').trim();
+  const id = (tableInput?.value || 'lobby').trim();
   socket?.emit('join_table', { table: id });
 });
 
