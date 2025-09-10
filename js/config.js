@@ -17,7 +17,7 @@ export const ADDRESS_BOOK = {
   10143: { // Monad Testnet
     // Use the deployed V4 Faro address consistently across environments
     tavern: "0xc91A9A1FC428a3fd6EB6030242c23A352810Ddb9",
-    faro:   "0x934305e0F4b92eb318aBe0A8f701510d3BdF1d8f",
+    faro:   "0xA020F34b536ED7341bFD9F01BD73d3F569B84Fd4",
     pool:   "0x78F62d85244621493b5c3961bBaD4069Ab979C86",
     whitelist: "0xB5e34B3C6c66aE92FC2999413eeb0D7d51122eA3",
     // shell/hazard can fall back to defaults unless specified later
