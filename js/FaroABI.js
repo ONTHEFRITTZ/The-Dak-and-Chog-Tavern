@@ -25,6 +25,10 @@
     { "inputs": [], "name": "feesAccrued", "outputs": [{"internalType":"uint256","name":"","type":"uint256"}], "stateMutability": "view", "type": "function" },
     { "inputs": [{"internalType":"uint16","name":"_bps","type":"uint16"}], "name": "setFeeBps", "outputs": [], "stateMutability": "nonpayable", "type": "function" },
     { "inputs": [{"internalType":"uint256","name":"_max","type":"uint256"}], "name": "setMaxBet", "outputs": [], "stateMutability": "nonpayable", "type": "function" },
+    // V4: pool wiring and pause support
+    { "inputs": [], "name": "pool", "outputs": [{"internalType":"address","name":"","type":"address"}], "stateMutability": "view", "type": "function" },
+    { "inputs": [{"internalType":"address","name":"poolAddr","type":"address"}], "name": "setPool", "outputs": [], "stateMutability": "nonpayable", "type": "function" },
+    { "inputs": [{"internalType":"bool","name":"p","type":"bool"}], "name": "pause", "outputs": [], "stateMutability": "nonpayable", "type": "function" },
     { "inputs": [{"internalType":"address payable","name":"to","type":"address"},{"internalType":"uint256","name":"amount","type":"uint256"}], "name": "withdraw", "outputs": [], "stateMutability": "nonpayable", "type": "function" },
     { "inputs": [{"internalType":"address payable","name":"to","type":"address"},{"internalType":"uint256","name":"amount","type":"uint256"}], "name": "withdrawFees", "outputs": [], "stateMutability": "nonpayable", "type": "function" },
     { "inputs": [{"internalType":"address payable","name":"to","type":"address"}], "name": "emergencyWithdrawAll", "outputs": [], "stateMutability": "nonpayable", "type": "function" }

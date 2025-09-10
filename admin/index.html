@@ -217,6 +217,7 @@
         <div class="muted">Owner Match: <span id="faro-owner-match">No</span></div>
         <div class="muted">Bankroll: <span id="faro-balance">-</span></div>
         <div class="muted">Fees Accrued: <span id="faro-fees">-</span></div>
+        <div class="muted">Pool: <span id="faro-pool">-</span></div>
         <div class="row" style="margin-top:8px;">
           <div style="flex:1;">
             <label>Max Bet (MON)</label>
@@ -230,6 +231,17 @@
             <input id="faro-fee" type="number" min="0" max="1000" step="1" placeholder="100 = 1%">
           </div>
           <button id="faro-set-fee" class="btn">Set</button>
+        </div>
+        <div class="row" style="margin-top:8px;">
+          <div style="flex:1;">
+            <label>Set Pool Address</label>
+            <input id="faro-pool-input" type="text" placeholder="0x...">
+          </div>
+          <button id="faro-set-pool" class="btn">Set Pool</button>
+        </div>
+        <div class="row" style="margin-top:8px;">
+          <button id="faro-pause" class="btn danger">Pause</button>
+          <button id="faro-resume" class="btn ok">Resume</button>
         </div>
         <div class="row" style="margin-top:8px;">
           <div style="flex:1;">

@@ -41,6 +41,11 @@ const faroFeesAmtInput = document.getElementById('faro-fees-amt');
 const faroWithdrawFeesBtn = document.getElementById('faro-withdraw-fees');
 const faroFundAmtInput = document.getElementById('faro-fund-amt');
 const faroFundBtn = document.getElementById('faro-fund');
+const faroPoolEl = document.getElementById('faro-pool');
+const faroPoolInput = document.getElementById('faro-pool-input');
+const faroSetPoolBtn = document.getElementById('faro-set-pool');
+const faroPauseBtn = document.getElementById('faro-pause');
+const faroResumeBtn = document.getElementById('faro-resume');
 
 // Pool elements
 const poolAddrEl = document.getElementById('pool-address');
@@ -136,6 +141,7 @@ async function refresh() {
         try { const feesAcc = await faro.feesAccrued(); if (faroFeesEl) faroFeesEl.textContent = fmtEth(feesAcc) + ' MON'; } catch {}
         try { faroAmtInput.placeholder = fmtEth(bal); } catch {}
         try { const feesAcc = await faro.feesAccrued(); faroFeesAmtInput.placeholder = fmtEth(feesAcc); } catch {}
+        try { const p = await faro.pool(); if (faroPoolEl) faroPoolEl.textContent = p; } catch { if (faroPoolEl) faroPoolEl.textContent = '(n/a)'; }
         if (faroOwnerMatchEl) {
           const match = isFaroOwnerNow();
           faroOwnerMatchEl.textContent = match ? 'Yes' : 'No';
@@ -160,7 +166,7 @@ async function refresh() {
     
     // Enable/disable owner-only controls
     [tavSetMaxBetBtn, tavWithdrawBtn, tavFundBtn].forEach(el => { if (el) el.classList.toggle('readonly', !isTavOwner); });
-    [faroSetMaxBetBtn, faroSetFeeBtn, faroWithdrawBtn, faroWithdrawFeesBtn, faroFundBtn].forEach(el => { if (el) el.classList.toggle('readonly', !isFaroOwner); });
+    [faroSetMaxBetBtn, faroSetFeeBtn, faroWithdrawBtn, faroWithdrawFeesBtn, faroFundBtn, faroSetPoolBtn, faroPauseBtn, faroResumeBtn].forEach(el => { if (el) el.classList.toggle('readonly', !isFaroOwner); });
     document.getElementById('owner-note').textContent = (isTavOwner || isFaroOwner) ? 'Owner controls enabled.' : 'Connect the owner wallet. Controls are disabled for non-owners.';
 
     // Realtime controls rely on Tavern owner
@@ -456,6 +462,42 @@ faroFundBtn?.addEventListener('click', async () => {
     if (!amt) { statusEl.textContent = 'Enter fund amount'; return; }
     const tx = await signer.sendTransaction({ to: faroAddr, value: window.ethers.utils.parseEther(amt) });
     statusEl.textContent = 'Faro fund tx sent';
+    await tx.wait();
+    await refresh();
+  } catch (e) { statusEl.textContent = e?.data?.message || e?.message || 'Failed'; }
+});
+
+// Faro: setPool (owner only)
+faroSetPoolBtn?.addEventListener('click', async () => {
+  try {
+    if (!faro) { statusEl.textContent = 'Faro not connected'; return; }
+    if (!isFaroOwnerNow()) { statusEl.textContent = 'Owner only: Faro'; return; }
+    const v = String(faroPoolInput?.value||'').trim();
+    if (!/^0x[0-9a-fA-F]{40}$/.test(v)) { statusEl.textContent = 'Enter a valid pool address'; return; }
+    const tx = await faro.setPool(v);
+    statusEl.textContent = 'Faro setPool tx sent';
+    await tx.wait();
+    await refresh();
+  } catch (e) { statusEl.textContent = e?.data?.message || e?.message || 'Failed'; }
+});
+
+// Faro: pause/resume (owner only)
+faroPauseBtn?.addEventListener('click', async () => {
+  try {
+    if (!faro) { statusEl.textContent = 'Faro not connected'; return; }
+    if (!isFaroOwnerNow()) { statusEl.textContent = 'Owner only: Faro'; return; }
+    const tx = await faro.pause(true);
+    statusEl.textContent = 'Faro pause tx sent';
+    await tx.wait();
+    await refresh();
+  } catch (e) { statusEl.textContent = e?.data?.message || e?.message || 'Failed'; }
+});
+faroResumeBtn?.addEventListener('click', async () => {
+  try {
+    if (!faro) { statusEl.textContent = 'Faro not connected'; return; }
+    if (!isFaroOwnerNow()) { statusEl.textContent = 'Owner only: Faro'; return; }
+    const tx = await faro.pause(false);
+    statusEl.textContent = 'Faro resume tx sent';
     await tx.wait();
     await refresh();
   } catch (e) { statusEl.textContent = e?.data?.message || e?.message || 'Failed'; }
