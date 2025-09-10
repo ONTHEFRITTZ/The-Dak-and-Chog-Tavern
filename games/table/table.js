@@ -20,6 +20,7 @@ const seatsEls = Array.from(document.querySelectorAll('.seat'));
 const returnBtn = document.getElementById('return');
 const betAmtInput = document.getElementById('bet-amt');
 const betCopperInput = document.getElementById('bet-copper');
+const clearBetsBtn = document.getElementById('clear-bets');
 const rankButtons = Array.from(document.querySelectorAll('.rank-btn'));
 
 let socket; let myAddr = null; let currentTable = null; let mySeatId = null; let myIsOwner = false;
@@ -117,6 +118,13 @@ function renderTable(table) {
     } else {
       centerReadout.textContent = 'All players ready';
     }
+    // Toggle Clear Bets visibility: only during placing bets stage for my seat
+    try {
+      if (clearBetsBtn) {
+        const show = !!meSeat && !!table.started && !meSeat.ready && Number(meSeat?.betTotal||0) > 0;
+        clearBetsBtn.style.display = show ? 'inline-block' : 'none';
+      }
+    } catch {}
   } catch {}
   // No manual start/deal controls
 }
@@ -162,14 +170,15 @@ async function connect() {
     renderTable(table);
   });
   socket.on('table:coup', (m) => {
-    const bank = m.bankRank; const player = m.playerRank;
-    log(`Coup: bank=${bank}, player=${player}${m.doublet ? ' (doublet)' : ''}`);
+    const bank = Number(m.bankRank); const player = Number(m.playerRank);
+    const name = (r)=> ({1:'A',11:'J',12:'Q',13:'K'}[r] || String(r));
+    log(`Coup: bank=${bank}(${name(bank)}), player=${player}(${name(player)})${m.doublet ? ' (doublet)' : ''}`);
+    const winners = Array.isArray(m.results) ? m.results.filter(r => Number(r.delta||0) > 0).map(r => short(String(r.addr||''))) : [];
     if (Array.isArray(m.results)) m.results.forEach(r => log(`${short(r.addr)}: ${r.delta >= 0 ? '+' : ''}${r.delta}`));
     try {
-      const me = (myAddr||'').toLowerCase();
-      const myRes = Array.isArray(m.results) ? m.results.find(r => (String(r.addr||'').toLowerCase()===me)) : null;
-      const verdict = myRes ? (myRes.delta>0 ? 'You won!' : (myRes.delta<0 ? 'You lost.' : 'Push.')) : '';
-      centerReadout.textContent = `Bank ${bank} vs Player ${player}${m.doublet?' (doublet)':''}${verdict? ' — '+verdict : ''}`;
+      const label = `Bank ${name(bank)} vs Player ${name(player)}${m.doublet?' (doublet)':''}`;
+      const who = winners.length ? ` Winners: ${winners.join(', ')}` : '';
+      centerReadout.textContent = label + who;
     } catch {}
     renderTable(m.table);
   });
@@ -201,6 +210,11 @@ rankButtons.forEach(btn => {
     try { const chips = Math.max(1, Math.floor(amt * 100)); socket?.emit('place_bet', { rank: rankNum, amount: chips, copper }); } catch {}
     placeOnchainBet(rankNum, amt, copper).catch(e=> log('Tx failed: ' + (e?.data?.message || e?.message || 'unknown')));
   });
+});
+
+// Clear bets handler
+clearBetsBtn?.addEventListener('click', () => {
+  try { socket?.emit('clear_bets'); } catch {}
 });
 
 returnBtn?.addEventListener('click', () => { window.location.href = '/index.html'; });

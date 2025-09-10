@@ -258,6 +258,22 @@ io.on('connection', (socket) => {
     } catch {}
   });
 
+  // Allow a player to clear their pending bets before readying
+  socket.on('clear_bets', () => {
+    try {
+      if (paused) return;
+      if (!currentTableId) return;
+      const t = getTable(currentTableId);
+      const s = t.seats.find(x => x && x.addr === addrLower);
+      if (!s) return;
+      if (s.ready) { socket.emit('error', { message: 'Already ready' }); return; }
+      try { t.bets.delete(String(addrLower||'')); } catch {}
+      s.lastActive = nowMs();
+      t.lastActive = nowMs();
+      emitUpdate(t);
+    } catch {}
+  });
+
   socket.on('deal', () => {
     try {
       if (paused) { socket.emit('error', { message: 'paused' }); return; }
@@ -368,7 +384,7 @@ setInterval(() => {
   try { ensureLobbyPolicy(); emitLobby(); } catch {}
 }, 15_000);
 
-// Auto-eject inactive seats during an active shoe (60s)
+// Auto-eject inactive seats during an active shoe (90s) if not ready
 setInterval(() => {
   try {
     const now = nowMs();
@@ -379,7 +395,7 @@ setInterval(() => {
         const s = t.seats[i];
         if (!s) continue;
         const last = Number(s.lastActive || 0);
-        if (last && (now - last) > 60_000) {
+        if (!s.ready && last && (now - last) > 90_000) {
           const key = String(s.addr||'').toLowerCase();
           t.seats[i] = null;
           try { t.bets.delete(key); } catch {}
