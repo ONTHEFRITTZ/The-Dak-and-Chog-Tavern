@@ -71,8 +71,8 @@
 
   <img class="game-logo" src="../../assets/images/faro-logo.png" alt="Faro">
   <div class="tavern" style="position:relative; width:95%; max-width:1280px; margin:12px auto 28px;">
-    <!-- Lobby Panel -->
-    <div id="lobby-panel" style="background:rgba(255,244,233,0.96); border:4px solid #7800cd; border-radius:12px; padding:16px; color:#2b1e12; margin-bottom:12px; display:block;">
+    <!-- Lobby Panel (hidden on game page) -->
+    <div id="lobby-panel" style="background:rgba(255,244,233,0.96); border:4px solid #7800cd; border-radius:12px; padding:16px; color:#2b1e12; margin-bottom:12px; display:none;">
       <h2 style="margin:6px 0 10px;">Faro Lobby</h2>
       <div id="lobby-list" style="display:flex; flex-wrap:wrap; gap:10px;">
         <div style="opacity:.7; font-size:13px;">Connecting to lobby…</div>
@@ -107,7 +107,7 @@
         <button id="tweet-win" style="display:block;">Tweet your win</button>
       </div>
 
-      <div class="faro-panel" id="table-panel" style="display:block;">
+      <div class="faro-panel" id="table-panel" style="display:none;">
         <div class="faro-controls">
           <label>Bet (MON):</label>
           <input id="bet-amt" type="number" min="0.001" step="0.001" value="0.01" style="width:110px; text-align:center;" />

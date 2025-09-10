@@ -48,51 +48,12 @@ async function resolveFaroAddress() {
   } catch {}
 }
 
-function renderLobby(list) {
-  try {
-    lobbyPanel.style.display = 'block';
-    tablePanel.style.display = 'none';
-    lobbyList.innerHTML = '';
-    // Sort: open tables first, then by id
-    const sorted = Array.isArray(list)
-      ? list.slice().sort((a,b) => {
-          const aFull = Number(a.seated||0) >= Number(a.capacity||6);
-          const bFull = Number(b.seated||0) >= Number(b.capacity||6);
-          if (aFull !== bFull) return aFull ? 1 : -1; // full go last
-          return String(a.id||'').localeCompare(String(b.id||''));
-        })
-      : [];
-    sorted.forEach(row => {
-      const seated = Number(row.seated||0);
-      const cap = Number(row.capacity||6);
-      const isFull = seated >= cap;
-      const card = document.createElement('div');
-      card.style.cssText = 'background:rgba(255,255,255,0.6); border:2px solid #7800cd; border-radius:10px; padding:10px; min-width:220px; display:flex; align-items:center; gap:10px; justify-content:space-between;';
-      const left = document.createElement('div');
-      const name = document.createElement('div');
-      name.innerHTML = `<strong>${row.id}</strong>`;
-      if (isFull) name.style.cssText = 'opacity:.55;';
-      const count = document.createElement('div');
-      count.textContent = `Players: ${seated}/${cap}`;
-      left.appendChild(name); left.appendChild(count);
-      const btn = document.createElement('button');
-      if (isFull) {
-        btn.textContent = 'Full';
-        btn.disabled = true;
-      } else {
-        btn.textContent = 'Join';
-        btn.onclick = () => { socket?.emit('join_table', { table: row.id }); };
-      }
-      card.appendChild(left);
-      card.appendChild(btn);
-      lobbyList.appendChild(card);
-    });
-  } catch {}
-}
+// Lobby rendering is disabled on the game page
+function renderLobby() { try { lobbyPanel.style.display = 'none'; } catch {} }
 
 function renderTable(table) {
   currentTable = table;
-  try { lobbyPanel.style.display = 'none'; tablePanel.style.display = 'block'; } catch {}
+  try { lobbyPanel.style.display = 'none'; tablePanel.style.display = table?.started ? 'block' : 'none'; } catch {}
   myIsOwner = false; mySeatId = null;
   try { centerReadout.textContent = ''; } catch {}
   for (const el of seatsEls) {
@@ -144,14 +105,21 @@ function renderTable(table) {
   }
   const seated = table.seats.filter(Boolean);
   const allReady = seated.length && seated.every(s => !!s.ready);
-  if (!allReady) {
-    try {
-      const meSeat = seated.find(s => s.addr && myAddr && s.addr.toLowerCase()===myAddr.toLowerCase());
-      if (meSeat && !meSeat.ready) centerReadout.textContent = 'Place your bet and click Ready';
+  try {
+    const meSeat = seated.find(s => s?.addr && myAddr && s.addr.toLowerCase()===String(myAddr).toLowerCase());
+    const iAmOwner = !!meSeat && table?.ownerId === meSeat.id;
+    if (!table.started) {
+      centerReadout.textContent = iAmOwner ? 'Click Start Shoe to begin' : 'Waiting for shoe to start...';
+    } else if (!allReady) {
+      const myBetPlaced = !!meSeat?.bet;
+      if (meSeat && !meSeat.ready) centerReadout.textContent = myBetPlaced ? 'Click Ready to lock your bet' : 'Place your bet';
       else centerReadout.textContent = 'Waiting for players to Ready...';
-    } catch {}
-  }
-  startBtn.disabled = !(myIsOwner && seated.length >= 2 && allReady);
+    } else {
+      centerReadout.textContent = 'All players ready';
+    }
+  } catch {}
+  // Allow owner to start with at least one seated player; no all-ready requirement
+  startBtn.disabled = !(myIsOwner && seated.length >= 1);
   dealBtn.disabled = !myIsOwner;
 }
 
@@ -168,23 +136,16 @@ async function connect() {
   await ensureIo();
   // Prefer websocket but allow polling fallback through proxies/CDNs
   socket = io(window.location.origin, { path: '/socket.io', transports: ['websocket', 'polling'], reconnection: true, reconnectionAttempts: 10, reconnectionDelay: 800 });
-  const showLobby = (msg) => {
-    try { tablePanel.style.display = 'none'; lobbyPanel.style.display = 'block'; } catch {}
-    try { if (msg) { lobbyList.innerHTML = `<div style="opacity:.7; font-size:13px;">${msg}</div>`; } } catch {}
-  };
+  const showLobby = () => { try { lobbyPanel.style.display = 'none'; } catch {} };
 
   socket.on('connect', () => {
     log('Connected to server');
     if (myAddr) socket.emit('identify', { addr: myAddr });
-    // Auto-join table from URL ?table=ID if present; otherwise load lobby
+    // Auto-join table from URL ?table=ID if present; otherwise default to 'faro-1'
     let tableId = null;
     try { const u = new URL(window.location.href); tableId = u.searchParams.get('table'); } catch {}
-    if (tableId) {
-      try { socket.emit('join_table', { table: tableId }); } catch {}
-    } else {
-      showLobby('Loading tables…');
-      try { socket.emit('lobby:get'); } catch {}
-    }
+    if (!tableId) tableId = 'faro-1';
+    try { socket.emit('join_table', { table: tableId }); } catch {}
     // Publish public handle from localStorage if available
     try { const x = localStorage.getItem('profile.public.x'); if (x) socket.emit('profile_public', { x }); } catch {}
   });
@@ -211,7 +172,7 @@ async function connect() {
   });
   socket.on('chat', (m) => { log(`${m.from}: ${m.text}`); });
   socket.on('error', (e) => { log(`Error: ${e?.message || 'unknown'}`); });
-  socket.on('disconnect', () => { log('Disconnected. Reconnecting in 2s...'); setTimeout(connect, 2000); showLobby('Disconnected. Reconnecting…'); });
+  socket.on('disconnect', () => { log('Disconnected. Reconnecting in 2s...'); setTimeout(connect, 2000); showLobby(); });
 }
 
 // Attach UI handlers
