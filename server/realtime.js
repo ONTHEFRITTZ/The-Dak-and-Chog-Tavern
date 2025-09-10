@@ -96,6 +96,7 @@ function tablePublic(t) {
       addr: s.addr,
       ready: !!s.ready,
       balance: s.balance,
+      lastActive: Number(s.lastActive||0),
       // Aggregate bet info for UI
       betTotal: (() => { try { const bs = t.bets.get(String(s.addr||'').toLowerCase()) || []; return bs.reduce((a,b)=>a + Number(b?.amount||0), 0); } catch { return 0; } })(),
       betCount: (() => { try { const bs = t.bets.get(String(s.addr||'').toLowerCase()) || []; return bs.length; } catch { return 0; } })(),

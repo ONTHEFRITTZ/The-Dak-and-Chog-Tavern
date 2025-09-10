@@ -96,6 +96,16 @@ function renderTable(table) {
         btns.appendChild(readyBtn);
         el.appendChild(btns);
       }
+      // Countdown placeholder element
+      try {
+        let cd = el.querySelector('.countdown');
+        if (!cd) {
+          cd = document.createElement('div');
+          cd.className = 'countdown';
+          cd.style.cssText = 'position:absolute; top:-10px; left:-10px; background:#8b0000; color:#fff; font-size:12px; padding:2px 6px; border-radius:999px; display:none;';
+          el.appendChild(cd);
+        }
+      } catch {}
     } else {
       const a = document.createElement('div'); a.className = 'addr'; a.textContent = 'Empty'; el.appendChild(a);
       const btns = document.createElement('div'); btns.className = 'btns';
@@ -128,6 +138,35 @@ function renderTable(table) {
   } catch {}
   // No manual start/deal controls
 }
+
+// Update per-seat countdown timers (visible only in last 30s of a 90s window)
+const INACTIVITY_MS = 90_000; const SHOW_WINDOW_MS = 30_000;
+function updateCountdowns() {
+  try {
+    if (!currentTable || !currentTable.started) return;
+    const seats = Array.isArray(currentTable.seats) ? currentTable.seats : [];
+    seatsEls.forEach((el) => {
+      try {
+        const idx = Number(el.dataset.index);
+        const s = seats[idx];
+        const cd = el.querySelector('.countdown');
+        if (!s || !cd) { if (cd) cd.style.display = 'none'; return; }
+        if (s.ready) { cd.style.display = 'none'; return; }
+        const last = Number(s.lastActive||0);
+        if (!last) { cd.style.display = 'none'; return; }
+        const rem = INACTIVITY_MS - (Date.now() - last);
+        if (rem <= 0) { cd.style.display = 'none'; return; }
+        if (rem <= SHOW_WINDOW_MS) {
+          cd.textContent = `${Math.ceil(rem/1000)}s`;
+          cd.style.display = 'inline-block';
+        } else {
+          cd.style.display = 'none';
+        }
+      } catch {}
+    });
+  } catch {}
+}
+setInterval(updateCountdowns, 1000);
 
 async function ensureIo(){
   if (window.io) return;
