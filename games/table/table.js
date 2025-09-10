@@ -118,8 +118,8 @@ function renderTable(table) {
       centerReadout.textContent = 'All players ready';
     }
   } catch {}
-  // Allow owner to start with at least one seated player; no all-ready requirement
-  startBtn.disabled = !(myIsOwner && seated.length >= 1);
+  // Allow starting the shoe without requiring seating/ownership
+  startBtn.disabled = !!table.started;
   dealBtn.disabled = !myIsOwner;
 }
 
@@ -157,7 +157,12 @@ async function connect() {
   socket.on('reconnect_failed', () => { showLobby('Unable to reach lobby. Please retry.'); });
   socket.on('lobby:list', (list) => { renderLobby(Array.isArray(list)?list:[]); });
   socket.on('table:update', (table) => { renderTable(table); });
-  socket.on('table:started', (table) => { log('Game started!'); renderTable(table); });
+  socket.on('table:started', (table) => {
+    log('Game started!');
+    try { tablePanel.style.display = 'block'; } catch {}
+    try { centerReadout.textContent = 'Place your bet'; } catch {}
+    renderTable(table);
+  });
   socket.on('table:coup', (m) => {
     const bank = m.bankRank; const player = m.playerRank;
     log(`Coup: bank=${bank}, player=${player}${m.doublet ? ' (doublet)' : ''}`);
