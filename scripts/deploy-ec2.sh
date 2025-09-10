@@ -29,9 +29,10 @@ sudo rsync -a --delete \
   ./ "$UPLOAD"/
 
 # Atomic swap into place, preserving previous as html_prev_<ts>
-sudo bash -s <<EOF
+# Quote the heredoc delimiter to avoid parent-shell expansion under `set -u`
+# and pass WEBROOT/UPLOAD via env so they are available inside sudo's shell.
+sudo WEBROOT="$WEBROOT" UPLOAD="$UPLOAD" bash -s <<'EOF'
 set -e
-ts=
 ts=$(date +%s)
 BASE_DIR=$(dirname "$WEBROOT")
 # Move current live to a timestamped backup if present
