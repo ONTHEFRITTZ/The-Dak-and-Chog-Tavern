@@ -16,8 +16,6 @@ const lobbyPanel = document.getElementById('lobby-panel');
 const lobbyList = document.getElementById('lobby-list');
 const tablePanel = document.getElementById('table-panel');
 const centerReadout = document.getElementById('center-readout');
-const startBtn = document.getElementById('start');
-const dealBtn = document.getElementById('deal');
 const seatsEls = Array.from(document.querySelectorAll('.seat'));
 const returnBtn = document.getElementById('return');
 const betAmtInput = document.getElementById('bet-amt');
@@ -53,7 +51,11 @@ function renderLobby() { try { lobbyPanel.style.display = 'none'; } catch {} }
 
 function renderTable(table) {
   currentTable = table;
-  try { lobbyPanel.style.display = 'none'; tablePanel.style.display = table?.started ? 'block' : 'none'; } catch {}
+  try {
+    const seatedNow = Array.isArray(table?.seats) ? table.seats.filter(Boolean).length : 0;
+    lobbyPanel.style.display = 'none';
+    tablePanel.style.display = (table?.started || seatedNow > 0) ? 'block' : 'none';
+  } catch {}
   myIsOwner = false; mySeatId = null;
   try { centerReadout.textContent = ''; } catch {}
   for (const el of seatsEls) {
@@ -107,9 +109,8 @@ function renderTable(table) {
   const allReady = seated.length && seated.every(s => !!s.ready);
   try {
     const meSeat = seated.find(s => s?.addr && myAddr && s.addr.toLowerCase()===String(myAddr).toLowerCase());
-    const iAmOwner = !!meSeat && table?.ownerId === meSeat.id;
     if (!table.started) {
-      centerReadout.textContent = iAmOwner ? 'Click Start Shoe to begin' : 'Waiting for shoe to start...';
+      centerReadout.textContent = 'Place your bet';
     } else if (!allReady) {
       const myBetPlaced = !!meSeat?.bet;
       if (meSeat && !meSeat.ready) centerReadout.textContent = myBetPlaced ? 'Click Ready to lock your bet' : 'Place your bet';
@@ -118,9 +119,7 @@ function renderTable(table) {
       centerReadout.textContent = 'All players ready';
     }
   } catch {}
-  // Allow starting the shoe without requiring seating/ownership
-  startBtn.disabled = !!table.started;
-  dealBtn.disabled = !myIsOwner;
+  // No manual start/deal controls
 }
 
 async function ensureIo(){
@@ -188,13 +187,7 @@ joinBtn?.addEventListener('click', () => {
 });
 
 
-startBtn.addEventListener('click', () => {
-  socket?.emit('start');
-});
-
-dealBtn.addEventListener('click', () => {
-  socket?.emit('deal');
-});
+// No start/deal buttons
 
 rankButtons.forEach(btn => {
   btn.addEventListener('click', () => {

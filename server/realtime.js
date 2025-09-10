@@ -138,10 +138,6 @@ io.on('connection', (socket) => {
       socket.join(tableId);
       const t = getTable(tableId);
       t.lastActive = nowMs();
-      // Assign owner if empty
-      if (t.ownerId == null) {
-        t.ownerId = 0;
-      }
       emitUpdate(t);
       io.to(tableId).emit('system', `${short(socket.id)} joined ${tableId}`);
       ensureLobbyPolicy();
@@ -162,6 +158,7 @@ io.on('connection', (socket) => {
     try {
       if (!currentTableId) return;
       const t = getTable(currentTableId);
+      const before = seatCount(t);
       const idx = Number(m.index);
       if (idx === -1) {
         // leave seat
@@ -170,8 +167,15 @@ io.on('connection', (socket) => {
       } else if (idx >= 0 && idx < t.seats.length) {
         if (!t.seats[idx]) {
           t.seats[idx] = { id: idx, addr: addrLower, ready: false, balance: 0 };
-          if (t.ownerId == null) t.ownerId = idx;
         }
+      }
+      // Auto-start shoe when first player sits
+      const after = seatCount(t);
+      if (!t.started && before === 0 && after > 0 && !paused) {
+        t.started = true;
+        t.bets.clear();
+        t.lastActive = nowMs();
+        io.to(currentTableId).emit('table:started', tablePublic(t));
       }
       t.lastActive = nowMs();
       emitUpdate(t);
@@ -227,18 +231,8 @@ io.on('connection', (socket) => {
     } catch {}
   });
 
-  socket.on('start', () => {
-    try {
-      if (paused) { socket.emit('error', { message: 'paused' }); return; }
-      if (!currentTableId) return;
-      const t = getTable(currentTableId);
-      t.started = true;
-      t.bets.clear();
-      t.lastActive = nowMs();
-      io.to(currentTableId).emit('table:started', tablePublic(t));
-      emitUpdate(t);
-    } catch {}
-  });
+  // Starting/stopping the shoe is automatic; ignore manual start requests
+  socket.on('start', () => { /* no-op by design */ });
 
   socket.on('place_bet', (m) => {
     try {
