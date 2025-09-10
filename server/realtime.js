@@ -29,7 +29,7 @@ const io = new Server(server, {
 });
 
 // In-memory stores
-const tables = new Map(); // tableId -> { id, seats: [{id, addr, ready, balance}], started, bets: Map(addrLower -> {rank, amount, copper}), ownerId, lastActive }
+const tables = new Map(); // tableId -> { id, seats: [{id, addr, ready, balance, lastActive}], started, bets: Map(addrLower -> Array<{rank, amount, copper}>), ownerId, lastActive }
 const profiles = new Map(); // addrLower -> { cipher }
 const publicProfiles = new Map(); // addrLower -> { x }
 const stats = new Map(); // addrLower -> { rounds, wagered, won, lost }
@@ -96,7 +96,9 @@ function tablePublic(t) {
       addr: s.addr,
       ready: !!s.ready,
       balance: s.balance,
-      bet: (s.addr ? (t.bets.get(String(s.addr||'').toLowerCase()) || null) : null),
+      // Aggregate bet info for UI
+      betTotal: (() => { try { const bs = t.bets.get(String(s.addr||'').toLowerCase()) || []; return bs.reduce((a,b)=>a + Number(b?.amount||0), 0); } catch { return 0; } })(),
+      betCount: (() => { try { const bs = t.bets.get(String(s.addr||'').toLowerCase()) || []; return bs.length; } catch { return 0; } })(),
       x: (publicProfiles.get(s.addr||'')||{}).x || null
     }),
     started: !!t.started,
@@ -163,10 +165,14 @@ io.on('connection', (socket) => {
       if (idx === -1) {
         // leave seat
         const curIdx = t.seats.findIndex(s => s && s.addr === addrLower);
-        if (curIdx >= 0) t.seats[curIdx] = null;
+        if (curIdx >= 0) {
+          const leaving = t.seats[curIdx];
+          t.seats[curIdx] = null;
+          try { t.bets.delete(String(leaving.addr||'').toLowerCase()); } catch {}
+        }
       } else if (idx >= 0 && idx < t.seats.length) {
         if (!t.seats[idx]) {
-          t.seats[idx] = { id: idx, addr: addrLower, ready: false, balance: 0 };
+          t.seats[idx] = { id: idx, addr: addrLower, ready: false, balance: 0, lastActive: nowMs() };
         }
       }
       // Auto-start shoe when first player sits
@@ -189,7 +195,7 @@ io.on('connection', (socket) => {
       if (!currentTableId) return;
       const t = getTable(currentTableId);
       const s = t.seats.find(x => x && x.addr === addrLower);
-      if (s) s.ready = !!m.ready;
+      if (s) { s.ready = !!m.ready; s.lastActive = nowMs(); }
       t.lastActive = nowMs();
       emitUpdate(t);
       const active = t.seats.filter(Boolean);
@@ -200,28 +206,24 @@ io.on('connection', (socket) => {
         const doublet = (bankRank === playerRank);
         const results = [];
         active.forEach(seat => {
-          const bet = t.bets.get(String(seat.addr||'').toLowerCase());
-          if (!bet) return;
-          let delta = 0;
-          const fee = Math.floor((Number(bet.amount||0) * Number(rakeBps)) / 10000);
-          const stake = Math.max(0, Number(bet.amount||0) - fee);
-          feesAccrued += fee;
-          const target = bet.rank;
-          if (doublet) {
-            delta = 0;
-          } else {
-            const matchedBank = (target === bankRank);
-            const matchedPlayer = (target === playerRank);
-            if (bet.copper) {
-              if (matchedBank) delta = +stake; else if (matchedPlayer) delta = -stake; else delta = 0;
-            } else {
-              if (matchedPlayer) delta = +stake; else if (matchedBank) delta = -stake; else delta = 0;
-            }
-          }
-          seat.balance = Number(seat.balance||0) + delta;
+          const list = t.bets.get(String(seat.addr||'').toLowerCase()) || [];
+          if (!list.length) return;
+          let seatDelta = 0;
+          let totalStake = 0;
+          list.forEach(bet => {
+            const fee = Math.floor((Number(bet.amount||0) * Number(rakeBps)) / 10000);
+            const stake = Math.max(0, Number(bet.amount||0) - fee);
+            totalStake += stake; feesAccrued += fee;
+            if (doublet) return; // push in simplified model
+            const matchedBank = (bet.rank === bankRank);
+            const matchedPlayer = (bet.rank === playerRank);
+            if (bet.copper) { if (matchedBank) seatDelta += stake; else if (matchedPlayer) seatDelta -= stake; }
+            else { if (matchedPlayer) seatDelta += stake; else if (matchedBank) seatDelta -= stake; }
+          });
+          seat.balance = Number(seat.balance||0) + seatDelta;
           const st = ensureStats(seat.addr);
-          st.rounds += 1; st.wagered += stake; if (delta>0) st.won += delta; if (delta<0) st.lost += (-delta);
-          results.push({ addr: seat.addr, delta });
+          st.rounds += 1; st.wagered += totalStake; if (seatDelta>0) st.won += seatDelta; if (seatDelta<0) st.lost += (-seatDelta);
+          results.push({ addr: seat.addr, delta: seatDelta });
         });
         t.bets.clear();
         active.forEach(seat => { seat.ready = false; });
@@ -246,7 +248,11 @@ io.on('connection', (socket) => {
       const s = t.seats.find(x => x && x.addr === addrLower);
       if (!s) return;
       if (s.ready) { socket.emit('error', { message: 'Already ready' }); return; }
-      t.bets.set(String(addrLower||''), { rank, amount, copper });
+      const key = String(addrLower||'');
+      const list = t.bets.get(key) || [];
+      list.push({ rank, amount, copper });
+      t.bets.set(key, list);
+      s.lastActive = nowMs();
       t.lastActive = nowMs();
       emitUpdate(t);
     } catch {}
@@ -264,32 +270,22 @@ io.on('connection', (socket) => {
       const results = [];
       t.seats.forEach(seat => {
         if (!seat) return;
-        const bet = t.bets.get(String(seat.addr||'').toLowerCase());
-        if (!bet) return;
-        let delta = 0;
-        // apply rake on every bet
-        const fee = Math.floor((Number(bet.amount||0) * Number(rakeBps)) / 10000);
-        const stake = Math.max(0, Number(bet.amount||0) - fee);
-        feesAccrued += fee;
-        // copper (brass) means bet against the rank
-        const target = bet.rank;
-        if (doublet) {
-          delta = 0; // push in simplified model (fee still taken)
-        } else {
-          const matchedBank = (target === bankRank);
-          const matchedPlayer = (target === playerRank);
-          if (bet.copper) {
-            // against the rank: opposite outcome of standard, using stake
-            if (matchedBank) delta = +stake; // bank hit -> against wins
-            else if (matchedPlayer) delta = -stake; else delta = 0;
-          } else {
-            if (matchedPlayer) delta = +stake;
-            else if (matchedBank) delta = -stake; else delta = 0;
-          }
-        }
+        const list = t.bets.get(String(seat.addr||'').toLowerCase()) || [];
+        if (!list.length) return;
+        let delta = 0; let totalStake = 0;
+        list.forEach(bet => {
+          const fee = Math.floor((Number(bet.amount||0) * Number(rakeBps)) / 10000);
+          const stake = Math.max(0, Number(bet.amount||0) - fee);
+          totalStake += stake; feesAccrued += fee;
+          if (doublet) return;
+          const matchedBank = (bet.rank === bankRank);
+          const matchedPlayer = (bet.rank === playerRank);
+          if (bet.copper) { if (matchedBank) delta += stake; else if (matchedPlayer) delta -= stake; }
+          else { if (matchedPlayer) delta += stake; else if (matchedBank) delta -= stake; }
+        });
         seat.balance = Number(seat.balance||0) + delta;
         const st = ensureStats(seat.addr);
-        st.rounds += 1; st.wagered += stake; if (delta>0) st.won += delta; if (delta<0) st.lost += (-delta);
+        st.rounds += 1; st.wagered += totalStake; if (delta>0) st.won += delta; if (delta<0) st.lost += (-delta);
         results.push({ addr: seat.addr, delta });
       });
       t.bets.clear();
@@ -371,6 +367,29 @@ io.on('connection', (socket) => {
 setInterval(() => {
   try { ensureLobbyPolicy(); emitLobby(); } catch {}
 }, 15_000);
+
+// Auto-eject inactive seats during an active shoe (60s)
+setInterval(() => {
+  try {
+    const now = nowMs();
+    for (const [id, t] of tables.entries()) {
+      if (!t.started) continue;
+      let changed = false;
+      for (let i = 0; i < t.seats.length; i++) {
+        const s = t.seats[i];
+        if (!s) continue;
+        const last = Number(s.lastActive || 0);
+        if (last && (now - last) > 60_000) {
+          const key = String(s.addr||'').toLowerCase();
+          t.seats[i] = null;
+          try { t.bets.delete(key); } catch {}
+          changed = true;
+        }
+      }
+      if (changed) { t.lastActive = nowMs(); emitUpdate(t); emitLobby(); }
+    }
+  } catch {}
+}, 5_000);
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log('RT server on', PORT));

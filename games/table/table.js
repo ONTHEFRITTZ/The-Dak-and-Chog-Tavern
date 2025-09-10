@@ -64,8 +64,6 @@ function renderTable(table) {
     el.classList.toggle('ready', !!s?.ready);
     el.innerHTML = '';
     if (s) {
-      const owner = (table.ownerId && s.id === table.ownerId);
-      if (owner) { const b = document.createElement('div'); b.className = 'owner-badge'; b.textContent = 'Owner'; el.appendChild(b); }
       // Avatar from X handle (public profile); else blank
       try {
         const handle = (s.x||'').replace(/^@/, '').trim();
@@ -80,12 +78,13 @@ function renderTable(table) {
       } catch {}
       const a = document.createElement('div'); a.className = 'addr'; a.textContent = s?.x ? (`${s.x} (${short(s.addr||s.id)})`) : short(s.addr || s.id); el.appendChild(a);
       const bal = document.createElement('div'); bal.className = 'bal'; bal.textContent = `Bal: ${Number(s.balance ?? 0)}`; el.appendChild(bal);
-      // Show bet chip if present
-      if (s.bet && Number(s.bet.amount||0) > 0) {
-        const chip = document.createElement('div'); chip.className = 'chip'; chip.textContent = String(s.bet.amount); el.appendChild(chip);
-      }
+      // Show aggregate bet chip if present
+      try {
+        const total = Number(s.betTotal || 0);
+        if (total > 0) { const chip = document.createElement('div'); chip.className = 'chip'; chip.textContent = String(total); el.appendChild(chip); }
+      } catch {}
       const me = (s.addr && myAddr && s.addr.toLowerCase() === myAddr.toLowerCase());
-      if (me) { mySeatId = s.id; myIsOwner = owner; }
+      if (me) { mySeatId = s.id; }
       if (me) {
         const btns = document.createElement('div'); btns.className = 'btns';
         const vacate = document.createElement('button'); vacate.textContent = 'Leave';
@@ -112,7 +111,7 @@ function renderTable(table) {
     if (!table.started) {
       centerReadout.textContent = 'Place your bet';
     } else if (!allReady) {
-      const myBetPlaced = !!meSeat?.bet;
+      const myBetPlaced = Number(meSeat?.betTotal||0) > 0;
       if (meSeat && !meSeat.ready) centerReadout.textContent = myBetPlaced ? 'Click Ready to lock your bet' : 'Place your bet';
       else centerReadout.textContent = 'Waiting for players to Ready...';
     } else {
