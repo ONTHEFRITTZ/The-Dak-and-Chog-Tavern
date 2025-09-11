@@ -175,7 +175,7 @@ function renderTable(table) {
     tablePanel.style.display = (table?.started || seatedNow > 0) ? 'block' : 'none';
   } catch {}
   myIsOwner = false; mySeatId = null;
-  try { centerReadout.textContent = ''; } catch {}
+  try { if (Date.now() >= centerLockUntil) centerReadout.textContent = ''; } catch {}
   for (const el of seatsEls) {
     const idx = Number(el.dataset.index);
     const s = table.seats[idx];
