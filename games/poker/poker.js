@@ -25,7 +25,13 @@ function renderTable(table){
         continue;
       }
       const a = document.createElement('div'); a.className='addr'; a.textContent = short(s.addr||s.id); el.appendChild(a);
-      if (s.addr && myAddr && s.addr.toLowerCase()===String(myAddr).toLowerCase()) mySeatId = s.id;
+      if (s.addr && myAddr && s.addr.toLowerCase()===String(myAddr).toLowerCase()) {
+        mySeatId = s.id;
+        const btns = document.createElement('div'); btns.className='btns';
+        const leave = document.createElement('button'); leave.textContent='Leave'; leave.onclick=()=> socket?.emit('seat',{ index: -1 });
+        const ready = document.createElement('button'); ready.textContent = s.ready ? 'Unready' : 'Ready'; ready.onclick=()=> socket?.emit('ready', { ready: !s.ready });
+        btns.appendChild(leave); btns.appendChild(ready); el.appendChild(btns);
+      }
     }
   } catch {}
 }
@@ -40,7 +46,15 @@ async function connect(){
     try { socket.emit('join_table', { table: currentTableId }); } catch {}
   });
   socket.on('table:update', (table)=>{ if (table?.id===currentTableId) renderTable(table); });
+  socket.on('poker:hand', (m)=>{
+    try {
+      if (m?.table?.id !== currentTableId) return;
+      renderTable(m.table);
+      const winners = Array.isArray(m.winners)? m.winners.map(w=> short(w.addr||'')) : [];
+      const cards = Array.isArray(m.community)? m.community.join(' ') : '';
+      centerEl.textContent = `Board: ${cards}${winners.length? ' — Winners: '+winners.join(', ') : ''}`;
+    } catch {}
+  });
 }
 
 (async()=>{ try { if (window.ethereum){ const provider=new ethers.providers.Web3Provider(window.ethereum,'any'); const acc=await provider.listAccounts(); if(acc&&acc.length) myAddr=acc[0]; } } catch {} await connect(); })();
-

@@ -240,35 +240,59 @@ io.on('connection', (socket) => {
       emitUpdate(t);
       const active = t.seats.filter(Boolean);
       const allReady = active.length && active.every(x => !!x.ready);
-      if (allReady && t.bets.size > 0 && !paused) {
-        const bankRank = rand13();
-        const playerRank = rand13();
-        const doublet = (bankRank === playerRank);
-        const results = [];
-        active.forEach(seat => {
-          const list = t.bets.get(String(seat.addr||'').toLowerCase()) || [];
-          if (!list.length) return;
-          let seatDelta = 0;
-          let totalStake = 0;
-          list.forEach(bet => {
-            const fee = Math.floor((Number(bet.amount||0) * Number(rakeBps)) / 10000);
-            const stake = Math.max(0, Number(bet.amount||0) - fee);
-            totalStake += stake; feesAccrued += fee;
-            if (doublet) return; // push in simplified model
-            const matchedBank = (bet.rank === bankRank);
-            const matchedPlayer = (bet.rank === playerRank);
-            if (bet.copper) { if (matchedBank) seatDelta += stake; else if (matchedPlayer) seatDelta -= stake; }
-            else { if (matchedPlayer) seatDelta += stake; else if (matchedBank) seatDelta -= stake; }
+      if (paused) return;
+      const isFaro = String(currentTableId).startsWith('faro-');
+      const isPoker = String(currentTableId).startsWith('poker-');
+      if (isFaro) {
+        if (allReady && t.bets.size > 0) {
+          const bankRank = rand13();
+          const playerRank = rand13();
+          const doublet = (bankRank === playerRank);
+          const results = [];
+          active.forEach(seat => {
+            const list = t.bets.get(String(seat.addr||'').toLowerCase()) || [];
+            if (!list.length) return;
+            let seatDelta = 0;
+            let totalStake = 0;
+            list.forEach(bet => {
+              const fee = Math.floor((Number(bet.amount||0) * Number(rakeBps)) / 10000);
+              const stake = Math.max(0, Number(bet.amount||0) - fee);
+              totalStake += stake; feesAccrued += fee;
+              if (doublet) return; // push in simplified model
+              const matchedBank = (bet.rank === bankRank);
+              const matchedPlayer = (bet.rank === playerRank);
+              if (bet.copper) { if (matchedBank) seatDelta += stake; else if (matchedPlayer) seatDelta -= stake; }
+              else { if (matchedPlayer) seatDelta += stake; else if (matchedBank) seatDelta -= stake; }
+            });
+            seat.balance = Number(seat.balance||0) + seatDelta;
+            const st = ensureStats(seat.addr);
+            st.rounds += 1; st.wagered += totalStake; if (seatDelta>0) st.won += seatDelta; if (seatDelta<0) st.lost += (-seatDelta);
+            results.push({ addr: seat.addr, delta: seatDelta });
           });
-          seat.balance = Number(seat.balance||0) + seatDelta;
-          const st = ensureStats(seat.addr);
-          st.rounds += 1; st.wagered += totalStake; if (seatDelta>0) st.won += seatDelta; if (seatDelta<0) st.lost += (-seatDelta);
-          results.push({ addr: seat.addr, delta: seatDelta });
-        });
-        t.bets.clear();
-        active.forEach(seat => { seat.ready = false; });
-        io.to(currentTableId).emit('table:coup', { bankRank, playerRank, doublet, results, table: tablePublic(t) });
-        emitUpdate(t);
+          t.bets.clear();
+          active.forEach(seat => { seat.ready = false; });
+          io.to(currentTableId).emit('table:coup', { bankRank, playerRank, doublet, results, table: tablePublic(t) });
+          emitUpdate(t);
+        }
+      } else if (isPoker) {
+        if (allReady && active.length >= 2) {
+          // Minimal poker hand: deal random board and pick a random winner
+          const ranks = ['2','3','4','5','6','7','8','9','T','J','Q','K','A'];
+          const suits = ['♣','♦','♥','♠'];
+          const toCard = (n)=> ranks[n%13] + suits[Math.floor(n/13)];
+          const deck = Array.from({length:52}, (_,i)=>i);
+          for (let i=deck.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [deck[i],deck[j]]=[deck[j],deck[i]]; }
+          // Deal hole cards (not emitted yet; future)
+          let ptr = 0;
+          active.forEach(seat => { seat.hole = [deck[ptr++], deck[ptr++]]; });
+          const community = [toCard(deck[ptr++]), toCard(deck[ptr++]), toCard(deck[ptr++]), toCard(deck[ptr++]), toCard(deck[ptr++])];
+          const winnerSeat = active[Math.floor(Math.random()*active.length)];
+          const winners = [{ addr: winnerSeat.addr }];
+          // Reset readiness for next hand
+          active.forEach(seat => { seat.ready = false; });
+          io.to(currentTableId).emit('poker:hand', { community, winners, table: tablePublic(t) });
+          emitUpdate(t);
+        }
       }
     } catch {}
   });
