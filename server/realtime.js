@@ -141,6 +141,163 @@ function ensureStats(addr) {
 
 function rand13() { return Math.floor(Math.random()*13)+1; }
 
+// ---------------- Poker helpers (beta state machine) -----------------
+function makeDeck() {
+  const ranks = ['2','3','4','5','6','7','8','9','T','J','Q','K','A'];
+  const suits = ['h','d','c','s'];
+  const deck = [];
+  for (const r of ranks) for (const s of suits) deck.push(r + s);
+  for (let i = deck.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [deck[i], deck[j]] = [deck[j], deck[i]];
+  }
+  return deck;
+}
+
+function emitPokerState(tableId, t) {
+  try {
+    const state = t.poker;
+    if (!state) return;
+    const pubActors = state.actors.map((a, i) => ({
+      addr: a.addr,
+      seatId: a.seatId,
+      folded: !!a.folded,
+      acted: !!a.acted,
+      contrib: Number(a.contrib||0),
+      isDealer: (i === state.dealerIndex),
+      isSB: (i === state.sbIndex),
+      isBB: (i === state.bbIndex),
+    }));
+    io.to(tableId).emit('poker:state', {
+      stage: state.stage,
+      pot: Number(state.pot||0),
+      toCall: Number(state.toCall||0),
+      community: Array.from(state.community||[]),
+      turnIndex: state.turnIndex,
+      turnAddr: state.actors?.[state.turnIndex]?.addr || null,
+      dealerIndex: state.dealerIndex,
+      actors: pubActors,
+      table: tablePublic(t),
+    });
+  } catch {}
+}
+
+function nextActiveIndex(actors, from) {
+  if (!actors.length) return -1;
+  let i = (from + 1) % actors.length;
+  let spins = 0;
+  while (spins < actors.length) {
+    if (!actors[i]?.folded) return i;
+    i = (i + 1) % actors.length;
+    spins++;
+  }
+  return -1;
+}
+
+function anyUnfolded(actors) { return actors.some(a => !a.folded); }
+
+function bettingRoundComplete(state) {
+  const target = Number(state.toCall||0);
+  return state.actors.filter(a => !a.folded).every(a => a.acted && Number(a.contrib||0) === target);
+}
+
+function startPokerHand(tableId, t) {
+  try {
+    const seated = t.seats.map((s, i) => s && ({ seatId: i, addr: s.addr })).filter(Boolean);
+    if (seated.length < 2) return;
+    const prev = t.poker?.dealerSeatId;
+    let dealerSeatId;
+    if (typeof prev === 'number') {
+      const idx = seated.findIndex(x => x.seatId === prev);
+      dealerSeatId = seated[(idx >= 0 ? (idx + 1) % seated.length : 0)].seatId;
+    } else {
+      dealerSeatId = seated[0].seatId;
+    }
+    // Build actors in seating order starting at dealer (inclusive)
+    const startIdx = seated.findIndex(x => x.seatId === dealerSeatId);
+    const ordered = seated.slice(startIdx).concat(seated.slice(0, startIdx));
+    const actors = ordered.map(p => ({ addr: p.addr, seatId: p.seatId, folded: false, acted: false, contrib: 0 }));
+    const deck = makeDeck();
+    const community = [];
+    const pot = 0;
+    const SB = 1; // minimal blinds
+    const BB = 2;
+    // Positions relative to dealer: SB = +1, BB = +2
+    const dealerIndex = 0;
+    const sbIndex = (dealerIndex + 1) % actors.length;
+    const bbIndex = (dealerIndex + 2) % actors.length;
+    // Post blinds
+    actors[sbIndex].contrib = SB;
+    actors[bbIndex].contrib = BB;
+    let toCall = BB;
+    let newPot = pot + SB + BB;
+    // Deal hole cards (not sent to clients in this beta)
+    actors.forEach(a => { a.cards = [deck.pop(), deck.pop()]; });
+    // Preflop action starts at UTG = left of BB
+    let turnIndex = (bbIndex + 1) % actors.length;
+    // Heads-up: SB acts first preflop
+    if (actors.length === 2) { turnIndex = sbIndex; }
+
+    t.poker = {
+      stage: 'preflop',
+      deck, community,
+      actors,
+      dealerIndex, sbIndex, bbIndex,
+      dealerSeatId,
+      pot: newPot,
+      toCall,
+      turnIndex,
+      startedAt: nowMs(),
+    };
+    emitPokerState(tableId, t);
+  } catch {}
+}
+
+function advancePokerStage(tableId, t) {
+  try {
+    const state = t.poker; if (!state) return;
+    const actors = state.actors;
+    // Reset betting attributes
+    actors.forEach(a => { a.acted = false; a.contrib = 0; });
+    state.toCall = 0;
+    if (state.stage === 'preflop') {
+      // Flop
+      state.community.push(state.deck.pop(), state.deck.pop(), state.deck.pop());
+      state.stage = 'flop';
+    } else if (state.stage === 'flop') {
+      // Turn
+      state.community.push(state.deck.pop());
+      state.stage = 'turn';
+    } else if (state.stage === 'turn') {
+      // River
+      state.community.push(state.deck.pop());
+      state.stage = 'river';
+    } else if (state.stage === 'river') {
+      // Showdown: pick random winner among not-folded
+      const alive = actors.filter(a => !a.folded);
+      let winners = [];
+      if (alive.length > 0) {
+        const win = alive[Math.floor(Math.random()*alive.length)];
+        winners = [{ addr: win.addr }];
+      }
+      const payload = { winners, community: Array.from(state.community||[]), pot: state.pot||0, table: tablePublic(t) };
+      io.to(tableId).emit('poker:hand', payload);
+      // Cleanup and reset readiness for next hand
+      t.poker = null;
+      try { t.seats.filter(Boolean).forEach(s => { s.ready = false; }); } catch {}
+      emitUpdate(t);
+      return;
+    }
+    // Determine first to act postflop: left of dealer
+    let idx = (state.dealerIndex + 1) % actors.length;
+    // Find next not folded
+    let spins = 0;
+    while (actors[idx]?.folded && spins < actors.length) { idx = (idx + 1) % actors.length; spins++; }
+    state.turnIndex = idx;
+    emitPokerState(tableId, t);
+  } catch {}
+}
+
 io.on('connection', (socket) => {
   let currentTableId = null;
   let addrLower = null;
@@ -202,6 +359,8 @@ io.on('connection', (socket) => {
         t.bets.clear();
         t.lastActive = nowMs();
         io.to(currentTableId).emit('table:started', tablePublic(t));
+        // Initialize poker state container
+        if (String(currentTableId).startsWith('poker-')) t.poker = null;
       }
       t.lastActive = nowMs();
       emitUpdate(t);
@@ -275,25 +434,72 @@ io.on('connection', (socket) => {
           emitUpdate(t);
         }
       } else if (isPoker) {
-        if (allReady && active.length >= 2) {
-          // Minimal poker hand: deal random board and pick a random winner
-          const ranks = ['2','3','4','5','6','7','8','9','T','J','Q','K','A'];
-          const suits = ['♣','♦','♥','♠'];
-          const toCard = (n)=> ranks[n%13] + suits[Math.floor(n/13)];
-          const deck = Array.from({length:52}, (_,i)=>i);
-          for (let i=deck.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [deck[i],deck[j]]=[deck[j],deck[i]]; }
-          // Deal hole cards (not emitted yet; future)
-          let ptr = 0;
-          active.forEach(seat => { seat.hole = [deck[ptr++], deck[ptr++]]; });
-          const community = [toCard(deck[ptr++]), toCard(deck[ptr++]), toCard(deck[ptr++]), toCard(deck[ptr++]), toCard(deck[ptr++])];
-          const winnerSeat = active[Math.floor(Math.random()*active.length)];
-          const winners = [{ addr: winnerSeat.addr }];
-          // Reset readiness for next hand
-          active.forEach(seat => { seat.ready = false; });
-          io.to(currentTableId).emit('poker:hand', { community, winners, table: tablePublic(t) });
-          emitUpdate(t);
+        if (allReady && active.length >= 2 && !t.poker) {
+          startPokerHand(currentTableId, t);
         }
       }
+    } catch {}
+  });
+
+  // Poker actions (beta): fold/check only; advance stages until river then random winner
+  socket.on('poker:act', (m) => {
+    try {
+      if (!currentTableId) return;
+      const t = getTable(currentTableId);
+      if (!String(currentTableId).startsWith('poker-')) return;
+      if (!t.poker) return;
+      const state = t.poker;
+      const actorIdx = state.turnIndex;
+      const actors = state.actors;
+      if (actorIdx < 0 || actorIdx >= actors.length) return;
+      const actor = actors[actorIdx];
+      if (!actor) return;
+      if (actor.addr !== addrLower) return; // not your turn
+      const action = String(m?.action||'').toLowerCase();
+      if (action === 'fold') {
+        actor.folded = true;
+        actor.acted = true;
+        // If only one remains, end hand immediately
+        const alive = actors.filter(a => !a.folded);
+        if (alive.length === 1) {
+          const payload = { winners: [{ addr: alive[0].addr }], community: Array.from(state.community||[]), pot: state.pot||0, table: tablePublic(t) };
+          io.to(currentTableId).emit('poker:hand', payload);
+          t.poker = null;
+          try { t.seats.filter(Boolean).forEach(s => { s.ready = false; }); } catch {}
+          emitUpdate(t);
+          return;
+        }
+      } else if (action === 'check') {
+        const need = Number(state.toCall||0) - Number(actor.contrib||0);
+        if (need <= 0) {
+          actor.acted = true;
+        } else {
+          // treat as call in this minimal flow
+          actor.acted = true;
+          actor.contrib = Number(state.toCall||0);
+          state.pot = Number(state.pot||0) + Math.max(0, need);
+        }
+      } else if (action === 'call') {
+        const need = Math.max(0, Number(state.toCall||0) - Number(actor.contrib||0));
+        actor.contrib = Number(state.toCall||0);
+        state.pot = Number(state.pot||0) + need;
+        actor.acted = true;
+      } else {
+        // unsupported actions (bet/raise) ignored in beta
+        actor.acted = true;
+      }
+      // Advance turn to next active (not folded)
+      let next = (state.turnIndex + 1) % actors.length;
+      let loop = 0;
+      while (actors[next] && actors[next].folded && loop < actors.length) { next = (next + 1) % actors.length; loop++; }
+      state.turnIndex = next;
+      // If betting round complete, advance stage
+      if (bettingRoundComplete(state)) {
+        advancePokerStage(currentTableId, t);
+        return;
+      }
+      // Broadcast updated turn
+      emitPokerState(currentTableId, t);
     } catch {}
   });
 

@@ -26,6 +26,9 @@
     .seat .btns button { padding:4px 8px; font-size:12px; border-radius:6px; }
     .owner-badge { position:absolute; top:-10px; right:-10px; background:#9200fa; color:#fff; font-size:11px; padding:2px 6px; border-radius:999px; }
     .center { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); background:rgba(255,244,233,0.92); border:3px solid #7800cd; border-radius:12px; padding:10px 12px; color:#2b1e12; min-width:240px; text-align:center; pointer-events:none; font-weight:600; }
+    .actions { position:absolute; left:50%; bottom:12px; transform:translateX(-50%); display:none; gap:10px; }
+    .actions button { padding:8px 14px; font-size:14px; border-radius:8px; border:2px solid #2b1e12; background:#fff; cursor:pointer; }
+    .actions button:hover { background:#f6efe7; }
   </style>
 </head>
 <body class="game">
@@ -47,6 +50,10 @@
     <div class="poker-table">
       <div class="table-surface"></div>
       <div id="center" class="center">Texas Hold'em (Beta)</div>
+      <div id="actions" class="actions">
+        <button id="btn-fold">Fold</button>
+        <button id="btn-check-call">Check</button>
+      </div>
       <!-- 6 seats around the surface -->
       <div class="seat" data-index="0" style="left:50%; top:8%; transform:translateX(-50%);"></div>
       <div class="seat" data-index="1" style="left:8%; top:28%;"></div>
