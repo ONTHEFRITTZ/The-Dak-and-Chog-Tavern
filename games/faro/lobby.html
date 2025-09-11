@@ -60,7 +60,11 @@
   </div>
 
   <script src="/socket.io/socket.io.js" onerror="(function(){var s=document.createElement('script');s.src='https://cdn.socket.io/4.7.5/socket.io.min.js';document.head.appendChild(s);})();"></script>
-  <script type="module" src="lobby.js"></script>
+  <script type="module">
+    (async()=>{
+      try { const tag = window.__BUILD_TAG || Date.now(); const s=document.createElement('script'); s.type='module'; s.src=`lobby.js?v=${encodeURIComponent(tag)}`; document.body.appendChild(s); } catch(e) { console.error('faro lobby boot failed', e); }
+    })();
+  </script>
 </body>
 </html>
 
