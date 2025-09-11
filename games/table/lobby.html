@@ -18,8 +18,11 @@
   </script>
   <style>
     body { background: url('../../assets/images/tavern-bg.webp') no-repeat center center fixed; background-size: cover; }
-    /* Stack logo above lobby list (match Hazard) */
-    body.game { display:flex; flex-direction:column; align-items:center; justify-content:flex-start; }
+    /* Stack and center: logo on top, lobby centered on page */
+    body.game {
+      display:flex; flex-direction:column; align-items:center; justify-content:center;
+      min-height: 100vh;
+    }
     /* Place logo above container with a soft backglow (match Hazard sizing) */
     .game-logo {
       display:block; height:auto; max-width: clamp(180px, 26vw, 420px);
