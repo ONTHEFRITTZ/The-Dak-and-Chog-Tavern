@@ -11,7 +11,6 @@
         const tag = (b && b.commit) ? String(b.commit).slice(0,12) : Date.now();
         window.__BUILD_TAG = tag;
         const css = document.createElement('link'); css.rel='stylesheet'; css.href = `../../css/style.css?v=${tag}`; document.head.appendChild(css);
-        const e = document.createElement('script'); e.src = 'https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js'; document.head.appendChild(e);
         const abi = document.createElement('script'); abi.src = `../../js/FaroV3ABI.js?v=${tag}`; document.head.appendChild(abi);
         const s1 = document.createElement('script'); s1.type='module'; s1.src = `../../js/tavern.js?v=${tag}`; document.head.appendChild(s1);
         const s2 = document.createElement('script'); s2.type='module'; s2.src = `../../js/state.js?v=${tag}`; document.head.appendChild(s2);

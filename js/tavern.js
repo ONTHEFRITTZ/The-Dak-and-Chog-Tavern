@@ -185,3 +185,5 @@ connectButton.addEventListener('click', connectWallet);
 
 // Export signer and provider for games
 export { signer, provider, userAddress };
+// Re-export ethers so consumers can avoid loading the UMD build (CSP-safe)
+export { ethers };

@@ -1,6 +1,6 @@
 // Minimal client for multiplayer table (hybrid: on-chain bets to Faro contract)
 import { getAddressFor } from '../../js/config.js';
-import { signer as walletSigner, provider as walletProvider } from '../../js/tavern.js';
+import { signer as walletSigner, provider as walletProvider, ethers } from '../../js/tavern.js';
 const __isLocalHost = ['localhost','127.0.0.1'].includes(location.hostname);
 
 const statusEl = document.getElementById('status');
