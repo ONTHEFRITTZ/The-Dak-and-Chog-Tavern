@@ -7,7 +7,7 @@ const statusEl = document.getElementById('status');
 const rulesOverlay = document.getElementById('rules-overlay');
 const rulesAck = document.getElementById('rules-ack');
 const openRulesBtn = document.getElementById('open-rules');
-let faroAck = false;
+let faroAck = true;
 const RULES_VERSION = 'v2';
 const logEl = document.getElementById('log');
 const tableInput = document.getElementById('table-id');
@@ -123,8 +123,7 @@ function renderTable(table) {
       const a = document.createElement('div'); a.className = 'addr'; a.textContent = 'Empty'; el.appendChild(a);
       const btns = document.createElement('div'); btns.className = 'btns';
       const sit = document.createElement('button'); sit.textContent = 'Sit';
-      if (!faroAck) { sit.disabled = true; sit.title = 'Acknowledge rules to join'; }
-      sit.onclick = () => { if (!faroAck) { try { rulesOverlay.style.display='flex'; } catch{}; return; } socket?.emit('seat', { index: idx }); };
+      sit.onclick = () => { try { socket?.emit('seat', { index: idx }); } catch{} };
       btns.appendChild(sit); el.appendChild(btns);
     }
   }
