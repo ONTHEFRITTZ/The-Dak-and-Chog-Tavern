@@ -37,6 +37,26 @@ let paused = false;
 let rakeBps = Number(process.env.RT_RAKE_BPS || 100); // 1% default
 let feesAccrued = 0; // unitless, same units as bet amounts in table game
 const admins = new Set(String(process.env.ADMIN_ADDR || '').toLowerCase().split(',').map(s => s.trim()).filter(Boolean));
+// Preparatory flag for splitting games onto separate services/ports
+const enabledGames = new Set(
+  String(process.env.GAME_TYPES || 'FARO,POKER')
+    .split(',')
+    .map(s => s.trim().toUpperCase())
+    .filter(Boolean)
+);
+function gameEnabled(name) { return enabledGames.has(String(name||'').toUpperCase()); }
+function tableGameKind(id) {
+  const x = String(id||'').toLowerCase();
+  if (x.startsWith('faro-')) return 'FARO';
+  if (x.startsWith('poker-')) return 'POKER';
+  return 'OTHER';
+}
+function defaultTableId() {
+  // Prefer FARO when both are enabled; otherwise pick the enabled one
+  if (gameEnabled('FARO')) return 'faro-1';
+  if (gameEnabled('POKER')) return 'poker-1';
+  return 'faro-1';
+}
 
 function nowMs() { return Date.now(); }
 
@@ -67,8 +87,12 @@ function nextTableId() {
 
 function ensureLobbyPolicy() {
   // Ensure at least one Faro and one Poker table exist
-  if (!Array.from(tables.keys()).some(id => String(id).startsWith('faro-'))) getTable('faro-1');
-  if (!Array.from(tables.keys()).some(id => String(id).startsWith('poker-'))) getTable('poker-1');
+  if (gameEnabled('FARO')) {
+    if (!Array.from(tables.keys()).some(id => String(id).startsWith('faro-'))) getTable('faro-1');
+  }
+  if (gameEnabled('POKER')) {
+    if (!Array.from(tables.keys()).some(id => String(id).startsWith('poker-'))) getTable('poker-1');
+  }
 
   const now = nowMs();
   const ids = Array.from(tables.keys()).sort();
@@ -93,16 +117,20 @@ function ensureLobbyPolicy() {
   }
 
   // Ensure free seat exists; if all Faro tables are full, create new
-  const faroFree = faroIds.some(id => seatCount(getTable(id)) < 6);
-  if (!faroFree) getTable(nextTableId());
+  if (gameEnabled('FARO')) {
+    const faroFree = faroIds.some(id => seatCount(getTable(id)) < 6);
+    if (!faroFree) getTable(nextTableId());
+  }
   // Ensure free seat for Poker; create new poker-N if all full
   const nextPokerTableId = () => {
     const nums = pokerIds.map(id => /^poker-(\d+)$/.exec(id)).filter(Boolean).map(m => Number(m[1]));
     const next = nums.length ? Math.max(...nums) + 1 : 1;
     return `poker-${next}`;
   };
-  const pokerFree = pokerIds.some(id => seatCount(getTable(id)) < 6);
-  if (!pokerFree) tables.set(nextPokerTableId(), getTable(nextPokerTableId()));
+  if (gameEnabled('POKER')) {
+    const pokerFree = pokerIds.some(id => seatCount(getTable(id)) < 6);
+    if (!pokerFree) tables.set(nextPokerTableId(), getTable(nextPokerTableId()));
+  }
 }
 
 function short(v) { return (v && v.length > 10) ? (v.slice(0,6) + '...' + v.slice(-4)) : (v || ''); }
@@ -130,7 +158,12 @@ function tablePublic(t) {
 function emitUpdate(t) { io.to(t.id).emit('table:update', tablePublic(t)); }
 
 function emitLobby() {
-  const list = Array.from(tables.values()).map(t => ({ id: t.id, seated: seatCount(t), capacity: 6, started: !!t.started }));
+  const list = Array.from(tables.values())
+    .filter(t => {
+      const kind = tableGameKind(t.id);
+      return (kind === 'FARO' && gameEnabled('FARO')) || (kind === 'POKER' && gameEnabled('POKER'));
+    })
+    .map(t => ({ id: t.id, seated: seatCount(t), capacity: 6, started: !!t.started }));
   io.emit('lobby:list', list.sort((a,b)=> a.id.localeCompare(b.id)));
 }
 
@@ -313,8 +346,14 @@ io.on('connection', (socket) => {
 
   socket.on('join_table', (m) => {
     try {
-      const reqId = String(m.table||m.tableId||'faro-1');
-      const tableId = (tables.has(reqId) ? reqId : 'faro-1');
+      const reqId = String(m.table||m.tableId||'');
+      let wanted = reqId || defaultTableId();
+      // If requested id belongs to a disabled game, fall back
+      const kind = tableGameKind(wanted);
+      if ((kind==='FARO' && !gameEnabled('FARO')) || (kind==='POKER' && !gameEnabled('POKER'))) {
+        wanted = defaultTableId();
+      }
+      const tableId = (tables.has(wanted) ? wanted : defaultTableId());
       if (currentTableId) socket.leave(currentTableId);
       currentTableId = tableId;
       socket.join(tableId);
