@@ -10,7 +10,7 @@ module.exports = {
       watch: false,
       env: {
         NODE_ENV: 'production',
-        PORT: '3000',
+        PORT: '3100',
         // Optional: set ADMIN_ADDR (comma-separated lowercased addresses) before starting pm2
         ADMIN_ADDR: process.env.ADMIN_ADDR || ''
       }
