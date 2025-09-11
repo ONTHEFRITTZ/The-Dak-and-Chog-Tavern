@@ -39,7 +39,7 @@ let feesAccrued = 0; // unitless, same units as bet amounts in table game
 const admins = new Set(String(process.env.ADMIN_ADDR || '').toLowerCase().split(',').map(s => s.trim()).filter(Boolean));
 // Preparatory flag for splitting games onto separate services/ports
 const enabledGames = new Set(
-  String(process.env.GAME_TYPES || 'FARO,POKER')
+  String(process.env.GAME_TYPES || 'FARO')
     .split(',')
     .map(s => s.trim().toUpperCase())
     .filter(Boolean)
