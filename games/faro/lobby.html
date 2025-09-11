@@ -11,8 +11,6 @@
         const tag = (b && b.commit) ? String(b.commit).slice(0,12) : Date.now();
         window.__BUILD_TAG = tag;
         const css = document.createElement('link'); css.rel='stylesheet'; css.href = `../../css/style.css?v=${tag}`; document.head.appendChild(css);
-        const e = document.createElement('script'); e.src = 'https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js'; document.head.appendChild(e);
-        const s1 = document.createElement('script'); s1.type='module'; s1.src = `../../js/tavern.js?v=${tag}`; document.head.appendChild(s1);
       }catch(e){ console.error('head loader failed', e); }
     })();
   </script>
