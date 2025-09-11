@@ -47,6 +47,19 @@ async function resolveFaroAddress() {
   } catch {}
 }
 
+// Match ACK behavior used by other games (e.g., Hazard)
+const onReady = (fn) => { if (document.readyState === 'loading') { window.addEventListener('DOMContentLoaded', fn, { once: true }); } else { fn(); } };
+onReady(() => {
+  // Require rules acknowledgement every load
+  faroAck = false;
+  try { if (rulesOverlay) { rulesOverlay.style.display = 'flex'; } } catch {}
+  rulesAck?.addEventListener('click', () => {
+    faroAck = true;
+    try { if (rulesOverlay) rulesOverlay.style.display = 'none'; } catch {}
+  });
+  openRulesBtn?.addEventListener('click', () => { try { if (rulesOverlay) rulesOverlay.style.display = 'flex'; } catch {} });
+});
+
 // Lobby rendering is disabled on the game page
 function renderLobby() { try { lobbyPanel.style.display = 'none'; } catch {} }
 
