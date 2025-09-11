@@ -243,6 +243,11 @@ function renderTable(table) {
       btns.appendChild(sit); el.appendChild(btns);
     }
   }
+  // Enable betting only when seated
+  try {
+    const canBet = (typeof mySeatId === 'number');
+    rankButtons.forEach(b => { b.disabled = !canBet; b.title = canBet ? '' : 'Click Sit to place bets'; });
+  } catch {}
   const seated = table.seats.filter(Boolean);
   const allReady = seated.length && seated.every(s => !!s.ready);
   try {
@@ -377,6 +382,9 @@ rankButtons.forEach(btn => {
     const lbl = btn.dataset.rank;
     const rnum = rankNumber(lbl);
     if (!(rnum>=1 && rnum<=13)) return;
+    // Gating: require rules ACK and being seated before placing bets
+    if (!faroAck) { try { rulesOverlay.style.display = 'flex'; } catch {}; return; }
+    if (!(typeof mySeatId === 'number')) { log('Take a seat to place bets.'); return; }
     openBetModal(rnum);
   });
 });
