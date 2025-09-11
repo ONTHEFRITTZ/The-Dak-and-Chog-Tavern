@@ -239,6 +239,12 @@ function renderTable(table) {
       const a = document.createElement('div'); a.className = 'addr'; a.textContent = 'Empty'; el.appendChild(a);
       const btns = document.createElement('div'); btns.className = 'btns';
       const sit = document.createElement('button'); sit.textContent = 'Sit';
+      // Require wallet connection before seating
+      try {
+        const connected = !!myAddr;
+        sit.disabled = !connected;
+        sit.title = connected ? '' : 'Connect wallet to sit';
+      } catch {}
       sit.onclick = async () => { try { const ok = await ensureIdentity(); if (ok) socket?.emit('seat', { index: idx }); } catch{} };
       btns.appendChild(sit); el.appendChild(btns);
     }
@@ -448,7 +454,13 @@ returnBtn?.addEventListener('click', () => { window.location.href = '/index.html
         // React to network/account changes by refreshing address
         if (window.ethereum?.on) {
           window.ethereum.on('chainChanged', async () => { try { await resolveFaroAddress(); } catch {} });
-          window.ethereum.on('accountsChanged', async (accs) => { try { myAddr = (accs && accs[0]) || myAddr; } catch {} });
+          window.ethereum.on('accountsChanged', async (accs) => {
+            try {
+              myAddr = (accs && accs[0]) ? accs[0] : null;
+              // Refresh seat UI to enable/disable Sit button when wallet connects/disconnects
+              try { if (currentTable) renderTable(currentTable); } catch {}
+            } catch {}
+          });
         }
       } catch {}
     }
