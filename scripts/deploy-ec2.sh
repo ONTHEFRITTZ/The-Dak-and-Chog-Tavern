@@ -1,50 +1,66 @@
 #!/usr/bin/env bash
+# Minimal, reliable pull-based deploy for EC2
+# Usage (from EC2):
+#   DOMAIN="thedakandchog.xyz" WEBROOT="/var/www/${DOMAIN}/html" UPLOAD="/var/www/${DOMAIN}/html_upload" bash scripts/deploy-ec2.sh
+# Or rely on defaults and just set DOMAIN
+#   DOMAIN="thedakandchog.xyz" bash scripts/deploy-ec2.sh
+
 set -euo pipefail
 
-# Simple EC2 deploy script for Nginx static site
-# Usage:
-#   bash scripts/deploy-ec2.sh
-# Optional env overrides:
-#   WEBROOT=/var/www/thedakandchog.xyz/html UPLOAD=/var/www/thedakandchog.xyz/html_upload bash scripts/deploy-ec2.sh
+# --- Resolve paths and inputs ---
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$PROJECT_ROOT"
 
-WEBROOT=${WEBROOT:-/var/www/thedakandchog.xyz/html}
-UPLOAD=${UPLOAD:-/var/www/thedakandchog.xyz/html_upload}
+DOMAIN="${DOMAIN:-thedakandchog.xyz}"
+BASE="/var/www/${DOMAIN}"
+WEBROOT="${WEBROOT:-${BASE}/html}"
+UPLOAD="${UPLOAD:-${BASE}/html_upload}"
 
-echo "Deploying to $WEBROOT (temp: $UPLOAD)"
+echo "DOMAIN       : $DOMAIN"
+echo "WEBROOT      : $WEBROOT"
+echo "UPLOAD (temp): $UPLOAD"
 
+# --- Generate build metadata ---
+commit=$(git rev-parse --short HEAD 2>/dev/null || echo local)
+builtAt=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+mkdir -p assets
+printf '{"commit":"%s","builtAt":"%s"}\n' "$commit" "$builtAt" > assets/build.json
+
+# --- Prepare upload directory fresh ---
 sudo mkdir -p "$UPLOAD" "$WEBROOT"
-sudo rm -rf "$UPLOAD"/*
+sudo rm -rf "${UPLOAD}"/*
 
-# Sync repo → temp upload, excluding dev-only files/dirs
-sudo rsync -a --delete \
-  --exclude='.git/' \
-  --exclude='.github/' \
-  --exclude='.vscode/' \
-  --exclude='scripts/' \
-  --exclude='server/' \
-  --exclude='hardhat/' \
-  --exclude='archive/' \
-  --exclude='artifacts/' \
-  --exclude='Contracts/' \
-  ./ "$UPLOAD"/
+# --- Upload root HTML and top-level icons/images ---
+rsync -a --exclude "*" --include "*.html" ./ "$UPLOAD/"
+rsync -a --exclude "*" \
+  --include "*.ico" --include "*.png" --include "*.jpg" --include "*.jpeg" --include "*.webp" --include "*.svg" \
+  ./ "$UPLOAD/"
 
-# Atomic swap into place, preserving previous as html_prev_<ts>
-# Quote the heredoc delimiter to avoid parent-shell expansion under `set -u`
-# and pass WEBROOT/UPLOAD via env so they are available inside sudo's shell.
-sudo WEBROOT="$WEBROOT" UPLOAD="$UPLOAD" bash -s <<'EOF'
-set -e
+# --- Upload common site directories ---
+for d in css js img images assets fonts media admin games; do
+  if [ -d "$d" ]; then
+    rsync -a "$d" "$UPLOAD/"
+  fi
+done
+
+# --- Atomic swap into place ---
 ts=$(date +%s)
-BASE_DIR=$(dirname "$WEBROOT")
-# Move current live to a timestamped backup if present
-if [ -d "$WEBROOT" ]; then mv "$WEBROOT" "${BASE_DIR}/html_prev_${ts}"; fi
-# Promote upload to live
-mv "$UPLOAD" "$WEBROOT"
-# Ensure safe permissions for Nginx
-find "$WEBROOT" -type d -exec chmod 755 {} +
-find "$WEBROOT" -type f -exec chmod 644 {} +
-# Prune older backups, keep the latest 3
-cd "$BASE_DIR"
-ls -1dt html_prev_* 2>/dev/null | tail -n +4 | xargs -r rm -rf
-EOF
+if [ -d "$WEBROOT" ]; then
+  sudo mv "$WEBROOT" "${BASE}/html_prev_${ts}" || true
+fi
+sudo mv "$UPLOAD" "$WEBROOT"
 
-echo "Deployment complete. Active path: $WEBROOT"
+# --- Permissions and deploy marker ---
+sudo mkdir -p "$WEBROOT/assets"
+printf '%s @ %s\n' "$commit" "$builtAt" | sudo tee "$WEBROOT/assets/deploy_check.txt" >/dev/null
+sudo find "$WEBROOT" -type d -exec chmod 755 {} +
+sudo find "$WEBROOT" -type f -exec chmod 644 {} +
+
+# --- Summary ---
+echo "--- LIVE MARKERS ---"
+head -n 1 "$WEBROOT/assets/build.json" || true
+cat "$WEBROOT/assets/deploy_check.txt" || true
+ls -la "$WEBROOT" | sed -n '1,80p'
+
+echo "Deploy complete to: $WEBROOT"
