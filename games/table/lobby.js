@@ -26,7 +26,7 @@ function renderLobby(list) {
       left.appendChild(name); left.appendChild(count);
       const btn = document.createElement('button');
       if (isFull) { btn.textContent = 'Full'; btn.disabled = true; }
-      else { btn.textContent = 'Join'; btn.onclick = () => { window.location.href = `/games/table/index.html?table=${encodeURIComponent(row.id)}`; }; }
+      else { btn.textContent = 'Join'; btn.onclick = () => { window.location.href = `/games/faro/index.html?table=${encodeURIComponent(row.id)}`; }; }
       card.appendChild(left); card.appendChild(btn);
       lobbyList.appendChild(card);
     });
