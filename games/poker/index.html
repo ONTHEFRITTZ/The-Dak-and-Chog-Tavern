@@ -70,6 +70,16 @@
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
-  <script type="module" src="poker.js"></script>
+  <script type="module">
+    (async()=>{
+      try {
+        const tag = (window.__BUILD_TAG ? String(window.__BUILD_TAG) : String(Date.now()));
+        const s = document.createElement('script');
+        s.type = 'module';
+        s.src = `poker.js?v=${encodeURIComponent(tag)}`;
+        document.body.appendChild(s);
+      } catch(e) { console.error('failed to load poker.js', e); }
+    })();
+  </script>
 </body>
 </html>
