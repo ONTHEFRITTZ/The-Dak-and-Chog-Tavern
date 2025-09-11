@@ -63,7 +63,7 @@ function renderBetRows(){
       const row = document.createElement('div');
       row.style.cssText = 'display:flex; align-items:center; gap:8px; flex-wrap:wrap;';
 
-      const sel = document.createElement('select');
+      const sel = document.createElement('select'); sel.setAttribute('aria-label','Rank');
       sel.style.cssText = 'padding:4px;';
       allRanks().forEach(n=>{
         const opt = document.createElement('option');
@@ -80,6 +80,7 @@ function renderBetRows(){
       const amt = document.createElement('input');
       amt.type='number'; amt.min='0.001'; amt.step='0.001'; amt.value=String(b.amountEth);
       amt.style.cssText = 'width:110px; text-align:center;';
+      try { amt.name = 'amount'; amt.setAttribute('aria-label','Amount (MON)'); } catch {}
       amt.oninput = () => { const v = Number(amt.value||0); b.amountEth = v>0 ? v : b.amountEth; };
 
       const lab = document.createElement('label');
