@@ -33,18 +33,15 @@ sudo mkdir -p "$UPLOAD" "$WEBROOT"
 sudo chown -R "$(id -u)":"$(id -g)" "$UPLOAD"
 sudo rm -rf "${UPLOAD}"/*
 
-# --- Upload root HTML and top-level icons/images ---
-rsync -rlt --delete --exclude "*" --include "*.html" ./ "$UPLOAD/"
-rsync -rlt --delete --exclude "*" \
-  --include "*.ico" --include "*.png" --include "*.jpg" --include "*.jpeg" --include "*.webp" --include "*.svg" \
+# --- Upload site (single rsync pass: root files + directories) ---
+rsync -rlt --delete --prune-empty-dirs \
+  --include '*/' \
+  --include '*.html' \
+  --include '*.ico' --include '*.png' --include '*.jpg' --include '*.jpeg' --include '*.webp' --include '*.svg' \
+  --include 'css/***' --include 'js/***' --include 'assets/***' --include 'admin/***' --include 'games/***' \
+  --include 'images/***' --include 'img/***' --include 'fonts/***' --include 'media/***' \
+  --exclude '*' \
   ./ "$UPLOAD/"
-
-# --- Upload common site directories ---
-for d in css js img images assets fonts media admin games; do
-  if [ -d "$d" ]; then
-    rsync -rlt --delete "$d" "$UPLOAD/"
-  fi
-done
 
 # --- Atomic swap into place ---
 ts=$(date +%s)
