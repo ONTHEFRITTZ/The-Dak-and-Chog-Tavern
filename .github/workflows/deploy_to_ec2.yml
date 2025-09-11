@@ -1,0 +1,120 @@
+name: Deploy to EC2 (Manual)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      SSH_HOST: ${{ secrets.SSH_HOST }}
+      SSH_USER: ${{ secrets.SSH_USER }}
+      SSH_KEY: ${{ secrets.SSH_KEY }}
+      SSH_PORT: ${{ secrets.SSH_PORT || '22' }}
+      DEPLOY_BASE: ${{ secrets.DEPLOY_BASE || '/var/www' }}
+      DEPLOY_DOMAIN: ${{ secrets.DEPLOY_DOMAIN || 'thedakandchog.xyz' }}
+      REMOTE_PATH: ${{ secrets.REMOTE_PATH }}
+      CF_ZONE_ID: ${{ secrets.CF_ZONE_ID }}
+      CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up SSH
+        run: |
+          install -d -m 700 ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          cat > ~/.ssh/config <<CFG
+          Host deploy-host
+            HostName ${SSH_HOST}
+            User ${SSH_USER}
+            Port ${SSH_PORT}
+            IdentityFile ~/.ssh/deploy_key
+            StrictHostKeyChecking no
+          CFG
+
+      - name: Compute paths and build metadata
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          commit=$(git rev-parse --short HEAD || echo local)
+          builtAt=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          echo "{"commit":"$commit","builtAt":"$builtAt"}" > assets/build.json
+          if [ -n "${REMOTE_PATH}" ]; then
+            remote_root="$REMOTE_PATH"
+            remote_base="$(dirname "$REMOTE_PATH")"
+          else
+            remote_base="$DEPLOY_BASE/$DEPLOY_DOMAIN"
+            remote_root="$remote_base/html"
+          fi
+          upload_path="$remote_base/html_upload"
+          echo "remote_root=$remote_root" >> $GITHUB_OUTPUT
+          echo "remote_base=$remote_base" >> $GITHUB_OUTPUT
+          echo "upload_path=$upload_path" >> $GITHUB_OUTPUT
+          echo "Resolved remote_base: $remote_base"
+          echo "Resolved remote_root: $remote_root"
+          echo "Resolved upload_path: $upload_path"
+          echo "Commit: $commit  BuiltAt: $builtAt"
+
+      - name: Prepare remote directories
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh deploy-host "sudo mkdir -p '${{ steps.meta.outputs.upload_path }}' '${{ steps.meta.outputs.remote_root }}' && sudo chown -R ${SSH_USER}:${SSH_USER} '${{ steps.meta.outputs.remote_base }}' && sudo rm -rf '${{ steps.meta.outputs.upload_path }}'/*"
+
+      - name: Upload site files
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          # HTML files
+          for f in *.html; do scp "$f" deploy-host:'${{ steps.meta.outputs.upload_path }}/'; done
+          # Top-level icons/images (if any)
+          for f in *.ico *.png *.jpg *.jpeg *.webp *.svg; do [ -e "$f" ] && scp "$f" deploy-host:'${{ steps.meta.outputs.upload_path }}/' || true; done
+          # Directories
+          for d in css js img images assets fonts media admin games; do [ -d "$d" ] && scp -r "$d" deploy-host:'${{ steps.meta.outputs.upload_path }}/' || true; done
+
+      - name: Atomic swap into place
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh deploy-host "set -e; ts=\$(date +%s); \
+            if [ -d '${{ steps.meta.outputs.remote_root }}' ]; then \
+              sudo mv '${{ steps.meta.outputs.remote_root }}' '${{ steps.meta.outputs.remote_base }}/html_prev_'\$ts; \
+            fi; \
+            sudo mkdir -p '${{ steps.meta.outputs.remote_root }}'; \
+            if [ ! -d '${{ steps.meta.outputs.upload_path }}' ]; then \
+              echo 'ERROR: upload path missing: ${{ steps.meta.outputs.upload_path }}' >&2; exit 1; \
+            fi; \
+            sudo cp -a '${{ steps.meta.outputs.upload_path }}'/. '${{ steps.meta.outputs.remote_root }}'/; \
+            sudo rm -rf '${{ steps.meta.outputs.upload_path }}'"
+
+      - name: Write deploy marker and fix permissions
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh deploy-host "set -e; sudo mkdir -p '${{ steps.meta.outputs.remote_root }}/assets'; echo '${{ github.sha }} @ $(date -u +"%Y-%m-%dT%H:%M:%SZ")' | sudo tee '${{ steps.meta.outputs.remote_root }}/assets/deploy_check.txt' >/dev/null; sudo find '${{ steps.meta.outputs.remote_root }}' -type d -exec chmod 755 {} +; sudo find '${{ steps.meta.outputs.remote_root }}' -type f -exec chmod 644 {} +; ls -la '${{ steps.meta.outputs.remote_root }}/assets' | sed -n '1,80p'"
+
+      - name: Debug: Compare common docroots
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Comparing common docroots for build markers..."
+          for ROOT in \
+            '/var/www/thedakandchog.xyz/html' \
+            '/var/www/html'
+          do
+            ssh deploy-host "set -e; echo ROOT=\"$ROOT\"; if [ -d \"$ROOT\" ]; then ls -ld \"$ROOT\" || true; fi; if [ -f \"$ROOT/assets/build.json\" ]; then echo 'build.json:'; sudo stat -c '%y %n' \"$ROOT/assets/build.json\" || true; sudo head -n 1 \"$ROOT/assets/build.json\" || true; else echo 'build.json missing'; fi; if [ -f \"$ROOT/assets/deploy_check.txt\" ]; then echo 'deploy_check:'; sudo cat \"$ROOT/assets/deploy_check.txt\" || true; else echo 'deploy_check missing'; fi; echo '---'"
+
+      - name: Optional Cloudflare purge
+        if: ${{ env.CF_ZONE_ID && env.CF_API_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -s -X POST "https://api.cloudflare.com/client/v4/zones/${CF_ZONE_ID}/purge_cache" \
+            -H "Authorization: Bearer ${CF_API_TOKEN}" \
+            -H "Content-Type: application/json" \
+            --data '{"purge_everything":true}' || true
+

@@ -301,18 +301,7 @@ returnBtn?.addEventListener('click', () => { window.location.href = '/index.html
   await connect();
 })();
 
-// Session-based rules modal for Faro
-const onReady = (fn) => { if (document.readyState === 'loading') { window.addEventListener('DOMContentLoaded', fn, { once: true }); } else { fn(); } };
-onReady(() => {
-  // Require rules acknowledgement every load
-  faroAck = false;
-  try { rulesOverlay.style.display='flex'; } catch {}
-  rulesAck?.addEventListener('click', () => {
-    faroAck = true;
-    try { rulesOverlay.style.display='none'; } catch {}
-  });
-  openRulesBtn?.addEventListener('click', () => { try { rulesOverlay.style.display='flex'; } catch {} });
-});
+// (removed duplicate onReady/rules handler)
 
 async function placeOnchainBet(rankNum, ethAmount, copper) {
   // Ensure ABI present (FaroV3 preferred)
