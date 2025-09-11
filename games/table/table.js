@@ -317,12 +317,15 @@ async function connect() {
     log(`Coup: bank=${bank}(${name(bank)}), player=${player}(${name(player)})${m.doublet ? ' (doublet)' : ''}`);
     const winners = Array.isArray(m.results) ? m.results.filter(r => Number(r.delta||0) > 0).map(r => short(String(r.addr||''))) : [];
     if (Array.isArray(m.results)) m.results.forEach(r => log(`${short(r.addr)}: ${r.delta >= 0 ? '+' : ''}${r.delta}`));
+    // Render table first (updates seats), then override center readout with results so it isn't overwritten
+    try { renderTable(m.table); } catch {}
     try {
+      const mine = Array.isArray(m.results) ? m.results.find(r => r.addr && myAddr && r.addr.toLowerCase()===String(myAddr).toLowerCase()) : null;
+      const myTxt = mine ? (mine.delta>0 ? ` You won +${mine.delta}` : (mine.delta<0 ? ` You lost ${mine.delta}` : ' Push')) : '';
       const label = `Bank ${name(bank)} vs Player ${name(player)}${m.doublet?' (doublet)':''}`;
       const who = winners.length ? ` Winners: ${winners.join(', ')}` : '';
-      centerReadout.textContent = label + who;
+      centerReadout.textContent = `${label}${who}${myTxt ? ' —'+myTxt : ''}`;
     } catch {}
-    renderTable(m.table);
   });
   socket.on('chat', (m) => { log(`${m.from}: ${m.text}`); });
   socket.on('error', (e) => { log(`Error: ${e?.message || 'unknown'}`); });
