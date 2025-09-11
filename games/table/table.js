@@ -32,6 +32,7 @@ let onchainSigner = null;
 let faroAddr = null;
 let currentTable = null;
 let faroAck = false;
+let attemptedAutoSeat = false;
 
 // Multi-bet state
 let stagedBets = [];     // [{ rank: 1..13, amountEth: number, copper: bool }]
@@ -197,19 +198,30 @@ function renderTable(table){
   currentTable = table;
   try { tablePanel.style.display = (table?.started ? 'block' : 'none'); } catch {}
   try { centerReadout.textContent = ''; } catch {}
+  const addrLower = (myAddr||'').toLowerCase();
+  let iAmSeated = false;
   for (const el of seatsEls) {
     const idx = Number(el.dataset.index);
     const s = table?.seats?.[idx] || null;
     el.classList.toggle('ready', !!s?.ready);
     el.innerHTML = '';
-    if (!s) continue;
+    if (!s) {
+      // Empty seat: allow click-to-sit
+      try {
+        el.style.cursor = myAddr ? 'pointer' : 'default';
+        el.title = myAddr ? 'Click to take this seat' : '';
+        el.onclick = () => { if (myAddr) socket?.emit('seat', { index: idx }); };
+      } catch{}
+      continue;
+    }
     const a = document.createElement('div'); a.className = 'addr'; a.textContent = short(s.addr||s.id); el.appendChild(a);
     const bal = document.createElement('div'); bal.className = 'bal'; bal.textContent = `Bal: ${Number(s.balance||0)}`; el.appendChild(bal);
     try { const total = Number(s.betTotal||0); if (total>0) { const chip=document.createElement('div'); chip.className='chip'; chip.textContent=String(total); el.appendChild(chip); } } catch{}
     // my seat controls
     try {
-      const me = (s.addr && myAddr && s.addr.toLowerCase() === myAddr.toLowerCase());
+      const me = (s.addr && addrLower && s.addr.toLowerCase() === addrLower);
       if (me) {
+        iAmSeated = true;
         const btns = document.createElement('div'); btns.className='btns';
         const vacate = document.createElement('button'); vacate.textContent='Leave'; vacate.onclick=()=> socket?.emit('seat',{ index:-1 });
         const readyBtn = document.createElement('button'); readyBtn.textContent = s.ready ? 'Unready' : 'Ready';
@@ -231,6 +243,13 @@ function renderTable(table){
     // countdown badge placeholder
     try { let cd = el.querySelector('.countdown'); if (!cd){ cd=document.createElement('div'); cd.className='countdown'; cd.style.cssText='position:absolute; top:-10px; left:-10px; background:#8b0000; color:#fff; font-size:12px; padding:2px 6px; border-radius:999px; display:none;'; el.appendChild(cd);} } catch{}
   }
+  // Auto-seat: first empty seat, once
+  try {
+    if (myAddr && !iAmSeated && !attemptedAutoSeat) {
+      const empties = Array.isArray(table?.seats) ? table.seats.map((s,i)=>s?null:i).filter(i=>i!==null) : [];
+      if (empties.length) { socket?.emit('seat', { index: empties[0] }); attemptedAutoSeat = true; }
+    }
+  } catch{}
 }
 
 const INACTIVITY_MS = 90_000; const SHOW_WINDOW_MS = 30_000;
@@ -294,4 +313,3 @@ async function placeOnchainBet(rankNum, ethAmount, copper){
     try { const ev = rc.events?.find(e => e.event === 'FaroPlayed'); if (ev && ev.args) { const win=!!ev.args.win; const push=!!ev.args.push; const bank=Number(ev.args.bankRank); const player=Number(ev.args.playerRank); log(push?`Push. bank=${bank}, player=${player}`:(win?`You won! bank=${bank}, player=${player}`:`You lost. bank=${bank}, player=${player}`)); } else { log('Confirmed on-chain.'); } } catch{}
   } catch(e){ log(e?.data?.message || e?.message || 'Transaction failed'); }
 }
-
