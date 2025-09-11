@@ -173,7 +173,7 @@ io.on('connection', (socket) => {
         }
       } else if (idx >= 0 && idx < t.seats.length) {
         if (!t.seats[idx]) {
-          t.seats[idx] = { id: idx, addr: addrLower, ready: false, balance: 0, lastActive: nowMs() };
+          t.seats[idx] = { id: idx, addr: addrLower, ready: false, balance: 0, lastActive: nowMs(), socketId: socket.id };
         }
       }
       // Auto-start shoe when first player sits
@@ -188,6 +188,26 @@ io.on('connection', (socket) => {
       emitUpdate(t);
       ensureLobbyPolicy();
       emitLobby();
+    } catch {}
+  });
+
+  // On disconnect, vacate any seats held by this socket or address (prevents sticky seating on reload)
+  socket.on('disconnect', () => {
+    try {
+      for (const [id, t] of tables.entries()) {
+        let changed = false;
+        for (let i = 0; i < t.seats.length; i++) {
+          const s = t.seats[i];
+          if (!s) continue;
+          if ((addrLower && s.addr === addrLower) || s.socketId === socket.id) {
+            const key = String(s.addr||'').toLowerCase();
+            t.seats[i] = null;
+            try { t.bets.delete(key); } catch {}
+            changed = true;
+          }
+        }
+        if (changed) { t.lastActive = nowMs(); emitUpdate(t); emitLobby(); }
+      }
     } catch {}
   });
 
