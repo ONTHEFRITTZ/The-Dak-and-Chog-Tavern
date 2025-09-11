@@ -154,11 +154,35 @@ onReady(() => {
   // Require rules acknowledgement every load
   faroAck = false;
   try { if (rulesOverlay) { rulesOverlay.style.display = 'flex'; } } catch {}
-  rulesAck?.addEventListener('click', () => {
-    faroAck = true;
-    try { if (rulesOverlay) rulesOverlay.style.display = 'none'; } catch {}
-  });
-  openRulesBtn?.addEventListener('click', () => { try { if (rulesOverlay) rulesOverlay.style.display = 'flex'; } catch {} });
+  const attach = () => {
+    try {
+      const btn = document.getElementById('rules-ack');
+      if (btn && !btn.__ackBound) {
+        btn.__ackBound = true;
+        btn.addEventListener('click', () => {
+          faroAck = true;
+          try { if (rulesOverlay) rulesOverlay.style.display = 'none'; } catch {}
+        });
+      }
+      const op = document.getElementById('open-rules');
+      if (op && !op.__openBound) {
+        op.__openBound = true;
+        op.addEventListener('click', () => { try { if (rulesOverlay) rulesOverlay.style.display = 'flex'; } catch {} });
+      }
+    } catch {}
+  };
+  // Attach now and also after a short delay (defensive if DOM mutated late)
+  attach();
+  setTimeout(attach, 0);
+  setTimeout(attach, 300);
+  // Allow Escape to close if visible
+  try {
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && rulesOverlay && rulesOverlay.style.display !== 'none') {
+        faroAck = true; rulesOverlay.style.display = 'none';
+      }
+    });
+  } catch {}
 });
 
 // Lobby rendering is disabled on the game page
