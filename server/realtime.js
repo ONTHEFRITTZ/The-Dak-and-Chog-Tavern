@@ -751,7 +751,13 @@ setInterval(() => {
 }, 5_000);
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log('RT server on', PORT));
+server.listen(PORT, () => {
+  try {
+    console.log('RT server on', PORT, '| enabled games:', Array.from(enabledGames).join(','));
+  } catch {
+    console.log('RT server on', PORT);
+  }
+});
 
 // Simple bot driver for dev testing; auto-acts on its turns
 function maybeTriggerBot(tableId, t) {
