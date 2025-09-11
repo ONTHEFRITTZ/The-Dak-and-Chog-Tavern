@@ -11,6 +11,7 @@ module.exports = {
       env: {
         NODE_ENV: 'production',
         PORT: '3100',
+        GAME_TYPES: 'FARO',
         // Optional: set ADMIN_ADDR (comma-separated lowercased addresses) before starting pm2
         ADMIN_ADDR: process.env.ADMIN_ADDR || ''
       }

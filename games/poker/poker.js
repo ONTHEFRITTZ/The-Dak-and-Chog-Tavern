@@ -66,7 +66,7 @@ async function ensureIo(){ if (window.io) return; await new Promise((resolve)=>{
 
 async function connect(){
   await ensureIo();
-  socket = io(window.location.origin, { path: '/socket.io', transports:['websocket','polling'], reconnection:true, reconnectionAttempts:10, reconnectionDelay:800 });
+  socket = io(window.location.origin, { path: '/poker.io', transports:['websocket','polling'], reconnection:true, reconnectionAttempts:10, reconnectionDelay:800 });
   socket.on('connect', ()=>{
     try { const u=new URL(window.location.href); currentTableId=u.searchParams.get('table')||'poker-1'; } catch { currentTableId='poker-1'; }
     try { socket.emit('join_table', { table: currentTableId }); } catch {}

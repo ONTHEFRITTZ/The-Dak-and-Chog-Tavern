@@ -37,7 +37,7 @@ async function ensureIo(){ if (window.io) return; await new Promise((resolve)=>{
 
 async function connect() {
   await ensureIo();
-  const socket = io(window.location.origin, { path: '/socket.io', transports: ['websocket','polling'], reconnection:true, reconnectionAttempts:10, reconnectionDelay:800 });
+  const socket = io(window.location.origin, { path: '/poker.io', transports: ['websocket','polling'], reconnection:true, reconnectionAttempts:10, reconnectionDelay:800 });
   const status = (msg)=>{ try { lobbyList.innerHTML = `<div style=\"opacity:.7; font-size:13px;\">${msg}</div>`; } catch {} };
   socket.on('connect', ()=>{ status('Loading poker tables…'); try { socket.emit('lobby:get'); } catch {} });
   socket.on('connect_error', ()=> status('Lobby unavailable. Retrying…'));
@@ -47,4 +47,3 @@ async function connect() {
 }
 
 connect();
-
