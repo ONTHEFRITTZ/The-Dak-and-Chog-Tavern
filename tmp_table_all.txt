@@ -1,0 +1,493 @@
+   1: // Minimal client for multiplayer table (hybrid: on-chain bets to Faro contract)
+   2: import { getAddressFor } from '../../js/config.js';
+   3: import { signer as walletSigner, provider as walletProvider } from '../../js/tavern.js';
+   4: const __isLocalHost = ['localhost','127.0.0.1'].includes(location.hostname);
+   5: 
+   6: const statusEl = document.getElementById('status');
+   7: const rulesOverlay = document.getElementById('rules-overlay');
+   8: const rulesAck = document.getElementById('rules-ack');
+   9: const openRulesBtn = document.getElementById('open-rules');
+  10: let faroAck = true;
+  11: const RULES_VERSION = 'v2';
+  12: const logEl = document.getElementById('log');
+  13: const tableInput = document.getElementById('table-id');
+  14: const joinBtn = document.getElementById('join-table');
+  15: const lobbyPanel = document.getElementById('lobby-panel');
+  16: const lobbyList = document.getElementById('lobby-list');
+  17: const tablePanel = document.getElementById('table-panel');
+  18: const centerReadout = document.getElementById('center-readout');
+  19: const seatsEls = Array.from(document.querySelectorAll('.seat'));
+  20: const returnBtn = document.getElementById('return');
+  21: const betAmtInput = document.getElementById('bet-amt');
+  22: const betCopperInput = document.getElementById('bet-copper');
+  23: const clearBetsBtn = document.getElementById('clear-bets');
+  24: const rankButtons = Array.from(document.querySelectorAll('.rank-btn'));
+  25: 
+  26: // Modal elements for multi-bet flow
+  27: const betModal = document.getElementById('bet-modal');
+  28: const betRowsEl = document.getElementById('bet-rows');
+  29: const betAddBtn = document.getElementById('bet-add');
+  30: const betClearBtn = document.getElementById('bet-clear');
+  31: const betCancelBtn = document.getElementById('bet-cancel');
+  32: const betConfirmBtn = document.getElementById('bet-confirm');
+  33: 
+  34: // Local state
+  35: let stagedBets = [];     // [{ rank: 1..13, amountEth: number, copper: bool }]
+  36: let myPendingBets = [];  // queued for on-chain when Ready
+  37: 
+  38: function rankLabel(n){ return ({1:'A',11:'J',12:'Q',13:'K'}[n] || String(n)); }
+  39: function rankNumber(l){ const map={A:1,J:11,Q:12,K:13}; return map[l] || Number(l); }
+  40: function allRanks(){ return [1,2,3,4,5,6,7,8,9,10,11,12,13]; }
+  41: 
+  42: // Open modal seeded with clicked rank
+  43: function openBetModal(initialRank){
+  44:   try{
+  45:     const r = Number(initialRank);
+  46:     if (!stagedBets.length) {
+  47:       stagedBets = [{ rank: r, amountEth: Number(betAmtInput?.value||0.01)||0.01, copper: !!betCopperInput?.checked }];
+  48:     } else if (!stagedBets.some(b => b.rank === r)) {
+  49:       stagedBets.push({ rank: r, amountEth: Number(betAmtInput?.value||0.01)||0.01, copper: !!betCopperInput?.checked });
+  50:     }
+  51:     renderBetRows();
+  52:     if (betModal) betModal.style.display = 'flex';
+  53:   }catch(e){}
+  54: }
+  55: 
+  56: // Build rows (rank select, amount, copper, remove), prevent duplicate ranks
+  57: function renderBetRows(){
+  58:   try{
+  59:     if (!betRowsEl) return;
+  60:     betRowsEl.innerHTML = '';
+  61:     const used = new Set(stagedBets.map(b=>b.rank));
+  62:     stagedBets.forEach((b, idx) => {
+  63:       const row = document.createElement('div');
+  64:       row.style.cssText = 'display:flex; align-items:center; gap:8px; flex-wrap:wrap;';
+  65: 
+  66:       const sel = document.createElement('select'); sel.setAttribute('aria-label','Rank');
+  67:       sel.style.cssText = 'padding:4px;';
+  68:       allRanks().forEach(n=>{
+  69:         const opt = document.createElement('option');
+  70:         opt.value=String(n); opt.textContent=rankLabel(n);
+  71:         if (n===b.rank) opt.selected=true; else if (used.has(n)) opt.disabled=true;
+  72:         sel.appendChild(opt);
+  73:       });
+  74:       sel.onchange = () => {
+  75:         const nr = Number(sel.value);
+  76:         if (stagedBets.some((x,i)=> i!==idx && x.rank===nr)) { sel.value = String(b.rank); return; }
+  77:         used.delete(b.rank); b.rank = nr; used.add(nr); renderBetRows();
+  78:       };
+  79: 
+  80:       const amt = document.createElement('input');
+  81:       amt.type='number'; amt.min='0.001'; amt.step='0.001'; amt.value=String(b.amountEth);
+  82:       amt.style.cssText = 'width:110px; text-align:center;';
+  83:       try { amt.name = 'amount'; amt.setAttribute('aria-label','Amount (MON)'); } catch {}
+  84:       amt.oninput = () => { const v = Number(amt.value||0); b.amountEth = v>0 ? v : b.amountEth; };
+  85: 
+  86:       const lab = document.createElement('label');
+  87:       lab.style.cssText='font-size:13px; display:flex; align-items:center; gap:4px;';
+  88:       const cb = document.createElement('input'); cb.type='checkbox'; cb.checked=!!b.copper; cb.onchange=()=>{ b.copper = !!cb.checked; };
+  89:       lab.appendChild(cb); lab.appendChild(document.createTextNode('Copper'));
+  90: 
+  91:       const del = document.createElement('button');
+  92:       del.textContent='Remove'; del.className='btn danger'; del.style.cssText='padding:4px 8px; border-radius:6px;';
+  93:       del.onclick = () => { stagedBets.splice(idx,1); renderBetRows(); };
+  94: 
+  95:       row.appendChild(sel);
+  96:       row.appendChild(document.createTextNode('Amount (MON):'));
+  97:       row.appendChild(amt);
+  98:       row.appendChild(lab);
+  99:       if (stagedBets.length>1) row.appendChild(del);
+ 100:       betRowsEl.appendChild(row);
+ 101:     });
+ 102:     if (betConfirmBtn) betConfirmBtn.textContent = stagedBets.length>1 ? 'Confirm bets' : 'Confirm bet';
+ 103:   }catch(e){}
+ 104: }
+ 105: 
+ 106: let socket; let myAddr = null; let currentTable = null; let mySeatId = null; let myIsOwner = false;
+ 107: let onchainSigner = null; let onchainProvider = null; let faroAddr = null;
+ 108: 
+ 109: function short(v) { return v && v.length > 10 ? `${v.slice(0,6)}...${v.slice(-4)}` : (v || ''); }
+ 110: function log(msg) { try { logEl.textContent = `[${new Date().toLocaleTimeString()}] ${msg}\n` + (logEl.textContent || ''); } catch {} }
+ 111: 
+ 112: // Resolve Faro address based on current provider/network and overrides
+ 113: async function resolveFaroAddress() {
+ 114:   try {
+ 115:     if (!onchainProvider && window.ethereum) {
+ 116:       const provider = new ethers.providers.Web3Provider(window.ethereum, 'any');
+ 117:       onchainProvider = provider;
+ 118:       onchainSigner = provider.getSigner();
+ 119:     }
+ 120:   } catch {}
+ 121:   try {
+ 122:     const addr = await getAddressFor('faro', onchainProvider);
+ 123:     if (addr && addr !== faroAddr) {
+ 124:       faroAddr = addr;
+ 125:       log(`Using Faro: ${short(faroAddr)}`);
+ 126:     }
+ 127:   } catch {}
+ 128: }
+ 129: 
+ 130: // Ensure wallet identity is known and sent to server before seat/bets
+ 131: async function ensureIdentity() {
+ 132:   try {
+ 133:     if (myAddr) { try { socket?.emit('identify', { addr: myAddr }); } catch {} return true; }
+ 134:     if (window.ethereum) {
+ 135:       const provider = new ethers.providers.Web3Provider(window.ethereum, 'any');
+ 136:       let accounts = await provider.listAccounts();
+ 137:       if (!accounts || !accounts.length) {
+ 138:         try { accounts = await window.ethereum.request({ method: 'eth_requestAccounts' }); } catch {}
+ 139:       }
+ 140:       if (accounts && accounts.length) {
+ 141:         myAddr = accounts[0];
+ 142:         onchainProvider = walletProvider || provider;
+ 143:         onchainSigner = walletSigner || provider.getSigner();
+ 144:         try { socket?.emit('identify', { addr: myAddr }); } catch {}
+ 145:         return true;
+ 146:       }
+ 147:     }
+ 148:   } catch {}
+ 149:   log('Connect wallet first');
+ 150:   return false;
+ 151: }
+ 152: 
+ 153: // Match ACK behavior used by other games (e.g., Hazard)
+ 154: const onReady = (fn) => { if (document.readyState === 'loading') { window.addEventListener('DOMContentLoaded', fn, { once: true }); } else { fn(); } };
+ 155: onReady(() => {
+ 156:   // Require rules acknowledgement every load
+ 157:   faroAck = false;
+ 158:   try { if (rulesOverlay) { rulesOverlay.style.display = 'flex'; } } catch {}
+ 159:   rulesAck?.addEventListener('click', () => {
+ 160:     faroAck = true;
+ 161:     try { if (rulesOverlay) rulesOverlay.style.display = 'none'; } catch {}
+ 162:   });
+ 163:   openRulesBtn?.addEventListener('click', () => { try { if (rulesOverlay) rulesOverlay.style.display = 'flex'; } catch {} });
+ 164: });
+ 165: 
+ 166: // Lobby rendering is disabled on the game page
+ 167: function renderLobby() { try { lobbyPanel.style.display = 'none'; } catch {} }
+ 168: 
+ 169: function renderTable(table) {
+ 170:   currentTable = table;
+ 171:   try {
+ 172:     const seatedNow = Array.isArray(table?.seats) ? table.seats.filter(Boolean).length : 0;
+ 173:     lobbyPanel.style.display = 'none';
+ 174:     tablePanel.style.display = (table?.started || seatedNow > 0) ? 'block' : 'none';
+ 175:   } catch {}
+ 176:   myIsOwner = false; mySeatId = null;
+ 177:   try { centerReadout.textContent = ''; } catch {}
+ 178:   for (const el of seatsEls) {
+ 179:     const idx = Number(el.dataset.index);
+ 180:     const s = table.seats[idx];
+ 181:     el.classList.toggle('ready', !!s?.ready);
+ 182:     el.innerHTML = '';
+ 183:     if (s) {
+ 184:       // Avatar from X handle (public profile); else blank
+ 185:       try {
+ 186:         const handle = (s.x||'').replace(/^@/, '').trim();
+ 187:         if (handle) {
+ 188:           const img = document.createElement('img');
+ 189:           img.className = 'avatar';
+ 190:           img.alt = '';
+ 191:           img.referrerPolicy = 'no-referrer';
+ 192:           img.src = `https://unavatar.io/twitter/${encodeURIComponent(handle)}`;
+ 193:           el.appendChild(img);
+ 194:         }
+ 195:       } catch {}
+ 196:       const a = document.createElement('div'); a.className = 'addr'; a.textContent = s?.x ? (`${s.x} (${short(s.addr||s.id)})`) : short(s.addr || s.id); el.appendChild(a);
+ 197:       const betDiv = document.createElement('div'); betDiv.className = 'bal'; betDiv.textContent = `Bets: ${Number(s.betTotal||0)}`; el.appendChild(betDiv);
+ 198:       // Show aggregate bet chip if present
+ 199:       try {
+ 200:         const total = Number(s.betTotal || 0);
+ 201:         if (total > 0) { const chip = document.createElement('div'); chip.className = 'chip'; chip.textContent = String(total); el.appendChild(chip); }
+ 202:       } catch {}
+ 203:       const me = (s.addr && myAddr && s.addr.toLowerCase() === myAddr.toLowerCase());
+ 204:       if (me) { mySeatId = s.id; }
+ 205:       if (me) {
+ 206:         const btns = document.createElement('div'); btns.className = 'btns';
+ 207:         const vacate = document.createElement('button'); vacate.textContent = 'Leave';
+ 208:         vacate.onclick = () => socket?.emit('seat', { index: -1 });
+ 209:         const readyBtn = document.createElement('button'); readyBtn.textContent = s.ready ? 'Unready' : 'Ready';
+ 210:         readyBtn.onclick = async () => {
+ 211:           try {
+ 212:             const willReady = !s.ready;
+ 213:             if (willReady && Array.isArray(myPendingBets) && myPendingBets.length) {
+ 214:               for (const b of myPendingBets) {
+ 215:                 try { await placeOnchainBet(b.rank, b.amountEth, !!b.copper); }
+ 216:                 catch (e) { log('Tx failed: ' + (e?.data?.message || e?.message || 'unknown')); }
+ 217:               }
+ 218:               myPendingBets = [];
+ 219:             }
+ 220:           } catch(e){}
+ 221:           socket?.emit('ready', { ready: !s.ready });
+ 222:         };
+ 223:         btns.appendChild(vacate);
+ 224:         btns.appendChild(readyBtn);
+ 225:         el.appendChild(btns);
+ 226:       }
+ 227:       // Countdown placeholder element
+ 228:       try {
+ 229:         let cd = el.querySelector('.countdown');
+ 230:         if (!cd) {
+ 231:           cd = document.createElement('div');
+ 232:           cd.className = 'countdown';
+ 233:           cd.style.cssText = 'position:absolute; top:-10px; left:-10px; background:#8b0000; color:#fff; font-size:12px; padding:2px 6px; border-radius:999px; display:none;';
+ 234:           el.appendChild(cd);
+ 235:         }
+ 236:       } catch {}
+ 237:     } else {
+ 238:       const a = document.createElement('div'); a.className = 'addr'; a.textContent = 'Empty'; el.appendChild(a);
+ 239:       const btns = document.createElement('div'); btns.className = 'btns';
+ 240:       const sit = document.createElement('button'); sit.textContent = 'Sit';
+ 241:       sit.onclick = async () => { try { const ok = await ensureIdentity(); if (ok) socket?.emit('seat', { index: idx }); } catch{} };
+ 242:       btns.appendChild(sit); el.appendChild(btns);
+ 243:     }
+ 244:   }
+ 245:   const seated = table.seats.filter(Boolean);
+ 246:   const allReady = seated.length && seated.every(s => !!s.ready);
+ 247:   try {
+ 248:     const meSeat = seated.find(s => s?.addr && myAddr && s.addr.toLowerCase()===String(myAddr).toLowerCase());
+ 249:     if (!table.started) {
+ 250:       centerReadout.textContent = 'Place your bet';
+ 251:     } else if (!allReady) {
+ 252:       const myBetPlaced = Number(meSeat?.betTotal||0) > 0;
+ 253:       if (meSeat && !meSeat.ready) centerReadout.textContent = myBetPlaced ? 'Click Ready to lock your bet' : 'Place your bet';
+ 254:       else centerReadout.textContent = 'Waiting for players to Ready...';
+ 255:     } else {
+ 256:       centerReadout.textContent = 'All players ready';
+ 257:     }
+ 258:     // Toggle Clear Bets visibility: only during placing bets stage for my seat
+ 259:     try {
+ 260:       if (clearBetsBtn) {
+ 261:         const show = !!meSeat && !!table.started && !meSeat.ready && Number(meSeat?.betTotal||0) > 0;
+ 262:         clearBetsBtn.style.display = show ? 'inline-block' : 'none';
+ 263:       }
+ 264:     } catch {}
+ 265:   } catch {}
+ 266:   // No manual start/deal controls
+ 267: }
+ 268: 
+ 269: // Update per-seat countdown timers (visible only in last 30s of a 90s window)
+ 270: const INACTIVITY_MS = 90_000; const SHOW_WINDOW_MS = 30_000;
+ 271: function updateCountdowns() {
+ 272:   try {
+ 273:     if (!currentTable || !currentTable.started) return;
+ 274:     const seats = Array.isArray(currentTable.seats) ? currentTable.seats : [];
+ 275:     seatsEls.forEach((el) => {
+ 276:       try {
+ 277:         const idx = Number(el.dataset.index);
+ 278:         const s = seats[idx];
+ 279:         const cd = el.querySelector('.countdown');
+ 280:         if (!s || !cd) { if (cd) cd.style.display = 'none'; return; }
+ 281:         if (s.ready) { cd.style.display = 'none'; return; }
+ 282:         const last = Number(s.lastActive||0);
+ 283:         if (!last) { cd.style.display = 'none'; return; }
+ 284:         const rem = INACTIVITY_MS - (Date.now() - last);
+ 285:         if (rem <= 0) { cd.style.display = 'none'; return; }
+ 286:         if (rem <= SHOW_WINDOW_MS) {
+ 287:           cd.textContent = `${Math.ceil(rem/1000)}s`;
+ 288:           cd.style.display = 'inline-block';
+ 289:         } else {
+ 290:           cd.style.display = 'none';
+ 291:         }
+ 292:       } catch {}
+ 293:     });
+ 294:   } catch {}
+ 295: }
+ 296: setInterval(updateCountdowns, 1000);
+ 297: 
+ 298: async function ensureIo(){
+ 299:   if (window.io) return;
+ 300:   await new Promise((resolve)=>{
+ 301:     const s=document.createElement('script');
+ 302:     s.src='https://cdn.socket.io/4.7.5/socket.io.min.js';
+ 303:     s.onload=resolve; s.onerror=resolve; document.head.appendChild(s);
+ 304:   });
+ 305: }
+ 306: 
+ 307: async function connect() {
+ 308:   await ensureIo();
+ 309:   // Prefer websocket but allow polling fallback through proxies/CDNs
+ 310:   socket = io(window.location.origin, { path: '/socket.io', transports: ['websocket', 'polling'], reconnection: true, reconnectionAttempts: 10, reconnectionDelay: 800 });
+ 311:   const showLobby = () => { try { lobbyPanel.style.display = 'none'; } catch {} };
+ 312: 
+ 313:   socket.on('connect', () => {
+ 314:     log('Connected to server');
+ 315:     if (myAddr) socket.emit('identify', { addr: myAddr }); else { try { ensureIdentity(); } catch {} }
+ 316:     // Auto-join table from URL ?table=ID if present; otherwise default to 'faro-1'
+ 317:     let tableId = null;
+ 318:     try { const u = new URL(window.location.href); tableId = u.searchParams.get('table'); } catch {}
+ 319:     if (!tableId) tableId = 'faro-1';
+ 320:     try { socket.emit('join_table', { table: tableId }); } catch {}
+ 321:     // Publish public handle from localStorage if available
+ 322:     try { const x = localStorage.getItem('profile.public.x'); if (x) socket.emit('profile_public', { x }); } catch {}
+ 323:   });
+ 324:   socket.on('connect_error', (err) => {
+ 325:     log('Connection error: ' + (err?.message || 'unknown'));
+ 326:     showLobby('Lobby server unavailable. Retrying…');
+ 327:   });
+ 328:   socket.on('reconnect_error', () => { showLobby('Reconnecting to lobby…'); });
+ 329:   socket.on('reconnect_failed', () => { showLobby('Unable to reach lobby. Please retry.'); });
+ 330:   socket.on('lobby:list', (list) => { renderLobby(Array.isArray(list)?list:[]); });
+ 331:   socket.on('table:update', (table) => { renderTable(table); });
+ 332:   socket.on('table:started', (table) => {
+ 333:     log('Game started!');
+ 334:     try { tablePanel.style.display = 'block'; } catch {}
+ 335:     try { centerReadout.textContent = 'Place your bet'; } catch {}
+ 336:     renderTable(table);
+ 337:   });
+ 338:   socket.on('table:coup', (m) => {
+ 339:     const bank = Number(m.bankRank); const player = Number(m.playerRank);
+ 340:     const name = (r)=> ({1:'A',11:'J',12:'Q',13:'K'}[r] || String(r));
+ 341:     log(`Coup: bank=${bank}(${name(bank)}), player=${player}(${name(player)})${m.doublet ? ' (doublet)' : ''}`);
+ 342:     const winners = Array.isArray(m.results) ? m.results.filter(r => Number(r.delta||0) > 0).map(r => short(String(r.addr||''))) : [];
+ 343:     if (Array.isArray(m.results)) m.results.forEach(r => log(`${short(r.addr)}: ${r.delta >= 0 ? '+' : ''}${r.delta}`));
+ 344:     // Render table first (updates seats), then override center readout with results so it isn't overwritten
+ 345:     try { renderTable(m.table); } catch {}
+ 346:     try {
+ 347:       const mine = Array.isArray(m.results) ? m.results.find(r => r.addr && myAddr && r.addr.toLowerCase()===String(myAddr).toLowerCase()) : null;
+ 348:       const myTxt = mine ? (mine.delta>0 ? ` You won +${mine.delta}` : (mine.delta<0 ? ` You lost ${mine.delta}` : ' Push')) : '';
+ 349:       const label = `Bank ${name(bank)} vs Player ${name(player)}${m.doublet?' (doublet)':''}`;
+ 350:       const who = winners.length ? ` Winners: ${winners.join(', ')}` : '';
+ 351:       centerReadout.textContent = `${label}${who}${myTxt ? ' —'+myTxt : ''}`;
+ 352:     } catch {}
+ 353:   });
+ 354:   socket.on('chat', (m) => { log(`${m.from}: ${m.text}`); });
+ 355:   socket.on('error', (e) => { log(`Error: ${e?.message || 'unknown'}`); });
+ 356:   socket.on('disconnect', () => { log('Disconnected. Reconnecting in 2s...'); setTimeout(connect, 2000); showLobby(); });
+ 357: }
+ 358: 
+ 359: // Attach UI handlers
+ 360: joinBtn?.addEventListener('click', () => {
+ 361:   if (!faroAck) { try { rulesOverlay.style.display='flex'; } catch{}; return; }
+ 362:   const id = (tableInput?.value || 'lobby').trim();
+ 363:   socket?.emit('join_table', { table: id });
+ 364: });
+ 365: 
+ 366: 
+ 367: // No start/deal buttons
+ 368: 
+ 369: // Replace rank click with bet builder modal
+ 370: rankButtons.forEach(btn => {
+ 371:   btn.addEventListener('click', () => {
+ 372:     const lbl = btn.dataset.rank;
+ 373:     const rnum = rankNumber(lbl);
+ 374:     if (!(rnum>=1 && rnum<=13)) return;
+ 375:     openBetModal(rnum);
+ 376:   });
+ 377: });
+ 378: 
+ 379: // Clear bets handler
+ 380: clearBetsBtn?.addEventListener('click', () => { try { socket?.emit('clear_bets'); } catch {} });
+ 381: 
+ 382: // Modal controls
+ 383: betAddBtn?.addEventListener('click', () => {
+ 384:   try {
+ 385:     const used = new Set(stagedBets.map(b=>b.rank));
+ 386:     const next = allRanks().find(n => !used.has(n));
+ 387:     if (next) { stagedBets.push({ rank: next, amountEth: Number(betAmtInput?.value||0.01)||0.01, copper: false }); renderBetRows(); }
+ 388:   } catch(e){}
+ 389: });
+ 390: betClearBtn?.addEventListener('click', () => {
+ 391:   try { stagedBets = []; myPendingBets = []; socket?.emit('clear_bets'); if (betModal) betModal.style.display='none'; } catch(e){}
+ 392: });
+ 393: betCancelBtn?.addEventListener('click', () => { try { stagedBets = []; if (betModal) betModal.style.display='none'; } catch(e){} });
+ 394: betConfirmBtn?.addEventListener('click', async () => {
+ 395:   try {
+ 396:     const ok = await ensureIdentity(); if (!ok) return;
+ 397:     const seen = new Set();
+ 398:     for (const b of stagedBets) {
+ 399:       if (!b || !(b.rank>=1&&b.rank<=13) || !(Number(b.amountEth)>0) || seen.has(b.rank)) { log('Invalid bet selection'); return; }
+ 400:       seen.add(b.rank);
+ 401:     }
+ 402:     socket?.emit('clear_bets');
+ 403:     stagedBets.forEach(b => {
+ 404:       const chips = Math.max(1, Math.floor(Number(b.amountEth)*100));
+ 405:       socket?.emit('place_bet', { rank: b.rank, amount: chips, copper: !!b.copper });
+ 406:     });
+ 407:     myPendingBets = stagedBets.map(b => ({ rank: b.rank, amountEth: Number(b.amountEth), copper: !!b.copper }));
+ 408:     stagedBets = [];
+ 409:     if (betModal) betModal.style.display = 'none';
+ 410:   } catch(e){}
+ 411: });
+ 412: 
+ 413: returnBtn?.addEventListener('click', () => { window.location.href = '/index.html'; });
+ 414: 
+ 415: // Resolve address (if connected previously via Tavern) for display/identity
+ 416: (async () => {
+ 417:   try {
+ 418:     if (window.ethereum) {
+ 419:       const provider = new ethers.providers.Web3Provider(window.ethereum, 'any');
+ 420:       const accounts = await provider.listAccounts();
+ 421:       if (accounts && accounts.length) myAddr = accounts[0];
+ 422:       // Auto-connect if previously authorized on this domain
+ 423:       try {
+ 424:         if ((!accounts || !accounts.length) && localStorage.getItem('walletConnected') === 'true') {
+ 425:           await window.ethereum.request({ method: 'eth_requestAccounts' });
+ 426:           const acc2 = await provider.listAccounts();
+ 427:           if (acc2 && acc2.length) myAddr = acc2[0];
+ 428:         }
+ 429:       } catch {}
+ 430:       onchainProvider = walletProvider || provider;
+ 431:       onchainSigner = walletSigner || provider.getSigner();
+ 432:       // Resolve Faro address
+ 433:       try { await resolveFaroAddress(); } catch {}
+ 434:       try {
+ 435:         // React to network/account changes by refreshing address
+ 436:         if (window.ethereum?.on) {
+ 437:           window.ethereum.on('chainChanged', async () => { try { await resolveFaroAddress(); } catch {} });
+ 438:           window.ethereum.on('accountsChanged', async (accs) => { try { myAddr = (accs && accs[0]) || myAddr; } catch {} });
+ 439:         }
+ 440:       } catch {}
+ 441:     }
+ 442:   } catch {}
+ 443:   await connect();
+ 444: })();
+ 445: 
+ 446: // (removed duplicate onReady/rules handler)
+ 447: 
+ 448: async function placeOnchainBet(rankNum, ethAmount, copper) {
+ 449:   // Ensure ABI present (FaroV3 preferred)
+ 450:   async function ensureAbi() {
+ 451:     if (window.FaroV3ABI || window.FaroABI) return true;
+ 452:     const candidates = ['/js/FaroV3ABI.js','/js/FaroABI.js','../../js/FaroV3ABI.js','../../js/FaroABI.js'];
+ 453:     for (const src of candidates) {
+ 454:       try {
+ 455:         await new Promise((resolve) => { const s=document.createElement('script'); s.src=src; s.onload=()=>resolve(true); s.onerror=()=>resolve(false); document.head.appendChild(s); });
+ 456:         if (window.FaroV3ABI || window.FaroABI) return true;
+ 457:       } catch {}
+ 458:     }
+ 459:     return !!(window.FaroV3ABI || window.FaroABI);
+ 460:   }
+ 461:   await ensureAbi();
+ 462:   const hasAbi = !!(window.FaroV3ABI || window.FaroABI);
+ 463:   // Re-resolve address in case network/overrides changed
+ 464:   try { await resolveFaroAddress(); } catch {}
+ 465:   if (!onchainSigner || !faroAddr || !hasAbi) {
+ 466:     if (!onchainSigner) log('Connect wallet first');
+ 467:     else if (!faroAddr) log('Faro address missing. Set it on Admin (Override) or run: localStorage.setItem(\'contract.faro\',\'0x...\'); then reload');
+ 468:     else if (!hasAbi) log('Faro ABI not loaded. Ensure /js/FaroV3ABI.js or /js/FaroABI.js is present');
+ 469:     else log('Connect wallet; Faro contract not configured');
+ 470:     return;
+ 471:   }
+ 472:   const ethersRef = window.ethers;
+ 473:   let abi = window.FaroV3ABI || window.FaroABI; // prefer V3 with copper
+ 474:   const c = new ethersRef.Contract(faroAddr, abi, onchainSigner);
+ 475:   log(`Submitting on-chain bet ${ethAmount} MON on ${rankNum}${copper ? ' (copper)' : ''}…`);
+ 476:   const tx = window.FaroV3ABI
+ 477:     ? await c.playFaro(rankNum, copper, { value: ethersRef.utils.parseEther(String(ethAmount)) })
+ 478:     : await c.playFaro(rankNum, { value: ethersRef.utils.parseEther(String(ethAmount)) });
+ 479:   log(`Tx sent: ${tx.hash.slice(0,10)}… waiting…`);
+ 480:   const rc = await tx.wait();
+ 481:   try {
+ 482:     const ev = rc.events?.find(e => e.event === 'FaroPlayed');
+ 483:     if (ev && ev.args) {
+ 484:       const win = !!ev.args.win; const push = !!ev.args.push;
+ 485:       const bank = Number(ev.args.bankRank); const player = Number(ev.args.playerRank);
+ 486:       log(push ? `Push. bank=${bank}, player=${player}` : (win ? `You won! bank=${bank}, player=${player}` : `You lost. bank=${bank}, player=${player}`));
+ 487:     } else {
+ 488:       log('Confirmed on-chain. Check explorer for details.');
+ 489:     }
+ 490:   } catch {}
+ 491: }
+ 492: 
+
