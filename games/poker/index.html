@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Poker (Beta)</title>
+  <script>
+    (async()=>{
+      try{
+        const b = await fetch('/assets/build.json', { cache:'no-store' }).then(r=>r.ok?r.json():null).catch(()=>null);
+        const tag = (b && b.commit) ? String(b.commit).slice(0,12) : Date.now();
+        window.__BUILD_TAG = tag;
+        const css = document.createElement('link'); css.rel='stylesheet'; css.href = `../../css/style.css?v=${tag}`; document.head.appendChild(css);
+        const s1 = document.createElement('script'); s1.type='module'; s1.src = `../../js/tavern.js?v=${tag}`; document.head.appendChild(s1);
+      }catch(e){ console.error('head loader failed', e); }
+    })();
+  </script>
+  <style>
+    body.game { display:flex; flex-direction:column; align-items:center; justify-content:flex-start; }
+    .game-logo { display:block; height:auto; max-width: clamp(180px, 26vw, 420px); margin: 8px auto 12px; filter: drop-shadow(0 0 18px rgba(255,244,233,0.45)) drop-shadow(0 4px 12px rgba(0,0,0,0.25)); pointer-events:none; user-select:none; }
+    .tavern { padding-top: 16px; }
+    .poker-table { position:relative; width:min(92vw, 960px); height:min(92vw, 600px); margin: 0 auto; }
+    .table-surface { position:absolute; inset:0; border-radius:24px; background: url('../../assets/images/table.png') no-repeat center / contain, rgba(255,244,233,0.78); box-shadow:0 0 24px rgba(0,0,0,0.2); }
+    .seat { position:absolute; width:120px; height:120px; border-radius:12px; background: rgba(255,255,255,0.5); border:2px solid #7800cd; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; padding:6px; }
+    .seat .addr { font-size:12px; color:#2b1e12; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; width: 100%; text-align:center; }
+    .seat .btns button { padding:4px 8px; font-size:12px; border-radius:6px; }
+    .owner-badge { position:absolute; top:-10px; right:-10px; background:#9200fa; color:#fff; font-size:11px; padding:2px 6px; border-radius:999px; }
+    .center { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); background:rgba(255,244,233,0.92); border:3px solid #7800cd; border-radius:12px; padding:10px 12px; color:#2b1e12; min-width:240px; text-align:center; pointer-events:none; font-weight:600; }
+  </style>
+</head>
+<body class="game">
+  <div class="top-banner" role="region" aria-label="Wallet and status">
+    <div class="banner-left">
+      <button id="return" class="return-btn">Return to Tavern</button>
+      <div id="status" class="banner-status"></div>
+    </div>
+    <div class="banner-right">
+      <div class="controls">
+        <button id="connect-wallet">Connect Wallet</button>
+      </div>
+    </div>
+  </div>
+
+  <img class="game-logo" src="../../assets/images/sign.png" alt="Poker (Beta)">
+  <div class="tavern" style="position:relative; width:95%; max-width:1280px; margin:12px auto 28px;">
+    <h1 class="visually-hidden">Poker</h1>
+    <div class="poker-table">
+      <div class="table-surface"></div>
+      <div id="center" class="center">Texas Hold'em (Beta)</div>
+      <!-- 6 seats around the surface -->
+      <div class="seat" data-index="0" style="left:50%; top:8%; transform:translateX(-50%);"></div>
+      <div class="seat" data-index="1" style="left:8%; top:28%;"></div>
+      <div class="seat" data-index="2" style="right:8%; top:28%;"></div>
+      <div class="seat" data-index="3" style="left:8%; bottom:14%;"></div>
+      <div class="seat" data-index="4" style="right:8%; bottom:14%;"></div>
+      <div class="seat" data-index="5" style="left:50%; bottom:4%; transform:translateX(-50%);"></div>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script type="module" src="poker.js"></script>
+</body>
+</html>
+

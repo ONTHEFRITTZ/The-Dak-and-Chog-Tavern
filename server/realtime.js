@@ -66,24 +66,43 @@ function nextTableId() {
 }
 
 function ensureLobbyPolicy() {
-  // Ensure at least one table exists
-  if (tables.size === 0) getTable('faro-1');
+  // Ensure at least one Faro and one Poker table exist
+  if (!Array.from(tables.keys()).some(id => String(id).startsWith('faro-'))) getTable('faro-1');
+  if (!Array.from(tables.keys()).some(id => String(id).startsWith('poker-'))) getTable('poker-1');
 
-  // Close idle empty tables (no seats) after 60s, but always keep at least one table
   const now = nowMs();
   const ids = Array.from(tables.keys()).sort();
-  const keepIds = new Set(ids);
-  for (const id of ids) {
+
+  // Prune idle empty Faro tables, keep at least one
+  const faroIds = ids.filter(id => String(id).startsWith('faro-'));
+  for (const id of faroIds) {
     const t = getTable(id);
-    if (seatCount(t) === 0 && (now - (t.lastActive || 0)) > 60_000 && tables.size > 1) {
+    const faroCount = faroIds.length;
+    if (seatCount(t) === 0 && (now - (t.lastActive || 0)) > 60_000 && faroCount > 1) {
       tables.delete(id);
-      keepIds.delete(id);
+    }
+  }
+  // Prune idle empty Poker tables, keep at least one
+  const pokerIds = ids.filter(id => String(id).startsWith('poker-'));
+  for (const id of pokerIds) {
+    const t = getTable(id);
+    const pokerCount = pokerIds.length;
+    if (seatCount(t) === 0 && (now - (t.lastActive || 0)) > 60_000 && pokerCount > 1) {
+      tables.delete(id);
     }
   }
 
-  // Ensure there is at least one table available with a free seat. If all are full, create a new one.
-  const anyFree = Array.from(tables.values()).some(t => seatCount(t) < 6);
-  if (!anyFree) getTable(nextTableId());
+  // Ensure free seat exists; if all Faro tables are full, create new
+  const faroFree = faroIds.some(id => seatCount(getTable(id)) < 6);
+  if (!faroFree) getTable(nextTableId());
+  // Ensure free seat for Poker; create new poker-N if all full
+  const nextPokerTableId = () => {
+    const nums = pokerIds.map(id => /^poker-(\d+)$/.exec(id)).filter(Boolean).map(m => Number(m[1]));
+    const next = nums.length ? Math.max(...nums) + 1 : 1;
+    return `poker-${next}`;
+  };
+  const pokerFree = pokerIds.some(id => seatCount(getTable(id)) < 6);
+  if (!pokerFree) tables.set(nextPokerTableId(), getTable(nextPokerTableId()));
 }
 
 function short(v) { return (v && v.length > 10) ? (v.slice(0,6) + '...' + v.slice(-4)) : (v || ''); }

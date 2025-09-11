@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Poker Lobby</title>
+  <script>
+    (async()=>{
+      try{
+        const b = await fetch('/assets/build.json', { cache:'no-store' }).then(r=>r.ok?r.json():null).catch(()=>null);
+        const tag = (b && b.commit) ? String(b.commit).slice(0,12) : Date.now();
+        window.__BUILD_TAG = tag;
+        const css = document.createElement('link'); css.rel='stylesheet'; css.href = `../../css/style.css?v=${tag}`; document.head.appendChild(css);
+      }catch(e){ console.error('head loader failed', e); }
+    })();
+  </script>
+  <style>
+    body { background: url('../../assets/images/tavern-bg.webp') no-repeat center center fixed; background-size: cover; }
+    /* Center everything; stack logo above lobby list */
+    body.game { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:100vh; padding-top: 48px; }
+    .game-logo { display:block; height:auto; max-width: clamp(180px, 26vw, 420px); margin: 4px auto 18px; filter: drop-shadow(0 0 18px rgba(255,244,233,0.45)) drop-shadow(0 4px 12px rgba(0,0,0,0.25)); pointer-events:none; user-select:none; }
+    .lobby-wrap { width:95%; max-width:1000px; margin:12px auto 28px; position:relative; display:block; clear:both; }
+    .lobby-card { background:rgba(255,244,233,0.96); border:4px solid #7800cd; border-radius:12px; padding:16px; color:#2b1e12; }
+    .lobby-list { display:flex; flex-wrap:wrap; gap:10px; align-items:center; justify-content:center; }
+    .lobby-item { background:rgba(255,255,255,0.6); border:2px solid #7800cd; border-radius:10px; padding:10px; min-width:260px; display:flex; align-items:center; justify-content:space-between; gap:10px; }
+    .lobby-item .name.full { opacity:.55; }
+  </style>
+</head>
+<body class="game">
+  <div class="top-banner" role="region" aria-label="Wallet and status">
+    <div class="banner-left">
+      <button id="return" class="return-btn">Return to Tavern</button>
+      <div id="status" class="banner-status"></div>
+    </div>
+    <div class="banner-right">
+      <div class="controls">
+        <button id="connect-wallet">Connect Wallet</button>
+      </div>
+    </div>
+  </div>
+
+  <img class="game-logo" src="../../assets/images/sign.png" alt="Poker (Beta)">
+  <div class="tavern lobby-wrap">
+    <div class="lobby-card">
+      <h2 style="margin:6px 0 10px;">Poker Lobby (Beta)</h2>
+      <div id="lobby-list" class="lobby-list">
+        <div style="opacity:.7; font-size:13px;">Connecting to lobby…</div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script type="module" src="lobby.js"></script>
+</body>
+</html>
+
