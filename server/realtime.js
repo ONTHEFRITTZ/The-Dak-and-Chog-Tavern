@@ -123,6 +123,7 @@ function tablePublic(t) {
     }),
     started: !!t.started,
     ownerId: t.ownerId,
+    devBotEnabled: !!t.devBotEnabled,
   };
 }
 
@@ -250,6 +251,7 @@ function startPokerHand(tableId, t) {
       startedAt: nowMs(),
     };
     emitPokerState(tableId, t);
+    maybeTriggerBot(tableId, t);
   } catch {}
 }
 
@@ -295,6 +297,7 @@ function advancePokerStage(tableId, t) {
     while (actors[idx]?.folded && spins < actors.length) { idx = (idx + 1) % actors.length; spins++; }
     state.turnIndex = idx;
     emitPokerState(tableId, t);
+    maybeTriggerBot(tableId, t);
   } catch {}
 }
 
@@ -496,10 +499,41 @@ io.on('connection', (socket) => {
       // If betting round complete, advance stage
       if (bettingRoundComplete(state)) {
         advancePokerStage(currentTableId, t);
+        maybeTriggerBot(currentTableId, t);
         return;
       }
       // Broadcast updated turn
       emitPokerState(currentTableId, t);
+      maybeTriggerBot(currentTableId, t);
+    } catch {}
+  });
+
+  // Toggle dev bot for current poker table
+  socket.on('poker:devbot', (m) => {
+    try {
+      if (!currentTableId) return;
+      const t = getTable(currentTableId);
+      const enabled = !!m?.enabled;
+      t.devBotEnabled = enabled;
+      const botIdx = t.seats.findIndex(s => s && typeof s.addr === 'string' && s.addr.startsWith('bot:'));
+      if (enabled) {
+        if (botIdx === -1) {
+          const slot = t.seats.findIndex(s => !s);
+          if (slot >= 0) {
+            t.seats[slot] = { id: slot, addr: 'bot:dev', ready: true, balance: 0, lastActive: nowMs(), socketId: 'bot' };
+          }
+        } else {
+          try { t.seats[botIdx].ready = true; } catch {}
+        }
+      } else {
+        if (botIdx >= 0) t.seats[botIdx] = null;
+        try { if (t.poker?.botTimer) { clearTimeout(t.poker.botTimer); t.poker.botTimer = null; } } catch {}
+      }
+      t.lastActive = nowMs();
+      emitUpdate(t);
+      ensureLobbyPolicy();
+      emitLobby();
+      if (enabled) maybeTriggerBot(currentTableId, t);
     } catch {}
   });
 
@@ -679,3 +713,49 @@ setInterval(() => {
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log('RT server on', PORT));
+
+// Simple bot driver for dev testing; auto-acts on its turns
+function maybeTriggerBot(tableId, t) {
+  try {
+    if (!t?.devBotEnabled) return;
+    const state = t.poker; if (!state) return;
+    // find bot actor by addr prefix
+    const idx = state.actors.findIndex(a => typeof a?.addr === 'string' && a.addr.startsWith('bot:'));
+    if (idx === -1) return;
+    if (state.turnIndex !== idx) return;
+    if (state.actors[idx].folded) return;
+    if (state.botTimer) return; // debounce
+    state.botTimer = setTimeout(() => {
+      try {
+        state.botTimer = null;
+        const actor = state.actors[idx];
+        const need = Math.max(0, Number(state.toCall||0) - Number(actor.contrib||0));
+        let action = 'check';
+        if (need > 0) action = (Math.random() < 0.8) ? 'call' : 'fold';
+        if (action === 'fold') {
+          actor.folded = true; actor.acted = true;
+          const alive = state.actors.filter(a => !a.folded);
+          if (alive.length === 1) {
+            io.to(tableId).emit('poker:hand', { winners: [{ addr: alive[0].addr }], community: Array.from(state.community||[]), pot: state.pot||0, table: tablePublic(t) });
+            t.poker = null;
+            try { t.seats.filter(Boolean).forEach(s => { s.ready = false; }); } catch {}
+            emitUpdate(t);
+            return;
+          }
+        } else if (action === 'check') {
+          if (need <= 0) {
+            actor.acted = true;
+          } else {
+            actor.acted = true; actor.contrib = Number(state.toCall||0); state.pot = Number(state.pot||0) + need;
+          }
+        } else if (action === 'call') {
+          actor.contrib = Number(state.toCall||0); state.pot = Number(state.pot||0) + need; actor.acted = true;
+        }
+        state.turnIndex = nextActiveIndex(state.actors, state.turnIndex);
+        if (bettingRoundComplete(state)) { advancePokerStage(tableId, t); maybeTriggerBot(tableId, t); return; }
+        emitPokerState(tableId, t);
+        maybeTriggerBot(tableId, t);
+      } catch {}
+    }, 700 + Math.floor(Math.random()*900));
+  } catch {}
+}

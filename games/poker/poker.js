@@ -4,6 +4,7 @@ const centerEl = document.getElementById('center');
 const actionsEl = document.getElementById('actions');
 const btnFold = document.getElementById('btn-fold');
 const btnCheckCall = document.getElementById('btn-check-call');
+const devToggle = document.getElementById('toggle-devbot');
 const seatsEls = Array.from(document.querySelectorAll('.seat'));
 const returnBtn = document.getElementById('return');
 let socket; let myAddr = null; let mySeatId = null; let currentTableId = null;
@@ -69,6 +70,7 @@ async function connect(){
   socket.on('connect', ()=>{
     try { const u=new URL(window.location.href); currentTableId=u.searchParams.get('table')||'poker-1'; } catch { currentTableId='poker-1'; }
     try { socket.emit('join_table', { table: currentTableId }); } catch {}
+    try { if (myAddr) socket.emit('identify', { addr: myAddr }); } catch {}
   });
   socket.on('table:update', (table)=>{ if (table?.id===currentTableId) renderTable(table); });
   socket.on('poker:state', (m)=>{ try { if (m?.table?.id===currentTableId) { renderTable(m.table); renderPokerState(m); } } catch {} });
@@ -83,7 +85,19 @@ async function connect(){
   });
 }
 
-(async()=>{ try { if (window.ethereum){ const provider=new ethers.providers.Web3Provider(window.ethereum,'any'); const acc=await provider.listAccounts(); if(acc&&acc.length) myAddr=acc[0]; } } catch {} await connect(); })();
+(async()=>{ try { if (window.ethereum){ const provider=new ethers.providers.Web3Provider(window.ethereum,'any'); const acc=await provider.listAccounts(); if(acc&&acc.length) { myAddr=acc[0]; try { if (socket?.connected) socket.emit('identify', { addr: myAddr }); } catch {} } } } catch {} await connect(); })();
+
+// Update identity on account change (best-effort)
+try {
+  if (window.ethereum) {
+    window.ethereum.on?.('accountsChanged', (acc)=>{
+      try {
+        myAddr = Array.isArray(acc) && acc.length ? acc[0] : null;
+        if (socket?.connected && myAddr) socket.emit('identify', { addr: myAddr });
+      } catch {}
+    });
+  }
+} catch {}
 
 // Wire action buttons
 btnFold?.addEventListener('click', () => { try { socket?.emit('poker:act', { action: 'fold' }); if (actionsEl) actionsEl.style.display='none'; } catch {} });
@@ -94,3 +108,20 @@ btnCheckCall?.addEventListener('click', () => { try {
   if (actionsEl) actionsEl.style.display='none';
 } catch {} });
 
+// Dev bot toggle
+try {
+  const key = 'pokerDevBotEnabled';
+  if (devToggle) {
+    try { devToggle.checked = localStorage.getItem(key) === '1'; } catch {}
+    devToggle.addEventListener('change', () => {
+      try {
+        const enabled = !!devToggle.checked;
+        localStorage.setItem(key, enabled ? '1' : '0');
+        socket?.emit('poker:devbot', { enabled });
+      } catch {}
+    });
+  }
+  // re-apply on connect
+  const applyDevPref = () => { try { if (devToggle && devToggle.checked) socket?.emit('poker:devbot', { enabled: true }); } catch {} };
+  setInterval(applyDevPref, 3000);
+} catch {}
