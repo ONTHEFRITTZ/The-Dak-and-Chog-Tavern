@@ -187,3 +187,5 @@ connectButton.addEventListener('click', connectWallet);
 export { signer, provider, userAddress };
 // Re-export ethers so consumers can avoid loading the UMD build (CSP-safe)
 export { ethers };
+// Also expose on window for non-module consumers
+try { window.ethers = ethers; } catch {}
