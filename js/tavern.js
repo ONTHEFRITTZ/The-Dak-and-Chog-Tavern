@@ -117,8 +117,7 @@ export async function connectWallet() {
     } catch {}
 
     try { localStorage.setItem('walletConnected', 'true'); } catch {}
-    // Re-establish profile connections and apply settings where possible
-    try { await profileLoad(); } catch {}
+    // Do not auto-load profile here to avoid signature prompts on non-game pages
   } catch (err) {
     statusEl.innerText = 'Connection failed: ' + err.message;
   }
@@ -151,7 +150,7 @@ async function silentConnect() {
       } catch { ensureAdminLink(false); }
     } catch {}
     try { localStorage.setItem('walletConnected', 'true'); } catch {}
-    try { await profileLoad(); } catch {}
+    // Avoid auto-loading profile on silent connect
     return true;
   } catch {
     return false;

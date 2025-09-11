@@ -18,6 +18,8 @@
   </script>
   <style>
     body { background: url('../../assets/images/tavern-bg.webp') no-repeat center center fixed; background-size: cover; }
+    /* Stack logo above lobby list (match Hazard) */
+    body.game { display:flex; flex-direction:column; align-items:center; justify-content:flex-start; }
     /* Place logo above container with a soft backglow (match Hazard sizing) */
     .game-logo {
       display:block; height:auto; max-width: clamp(180px, 26vw, 420px);
@@ -25,7 +27,7 @@
       filter: drop-shadow(0 0 18px rgba(255,244,233,0.45)) drop-shadow(0 4px 12px rgba(0,0,0,0.25));
       pointer-events:none; user-select:none;
     }
-    .lobby-wrap { width:95%; max-width:1000px; margin:12px auto 28px; position:relative; }
+    .lobby-wrap { width:95%; max-width:1000px; margin:12px auto 28px; position:relative; display:block; clear:both; }
     .lobby-card { background:rgba(255,244,233,0.96); border:4px solid #7800cd; border-radius:12px; padding:16px; color:#2b1e12; }
     .lobby-list { display:flex; flex-wrap:wrap; gap:10px; }
     .lobby-item { background:rgba(255,255,255,0.6); border:2px solid #7800cd; border-radius:10px; padding:10px; min-width:220px; display:flex; align-items:center; justify-content:space-between; gap:10px; }
