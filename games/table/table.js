@@ -127,6 +127,29 @@ async function resolveFaroAddress() {
   } catch {}
 }
 
+// Ensure wallet identity is known and sent to server before seat/bets
+async function ensureIdentity() {
+  try {
+    if (myAddr) { try { socket?.emit('identify', { addr: myAddr }); } catch {} return true; }
+    if (window.ethereum) {
+      const provider = new ethers.providers.Web3Provider(window.ethereum, 'any');
+      let accounts = await provider.listAccounts();
+      if (!accounts || !accounts.length) {
+        try { accounts = await window.ethereum.request({ method: 'eth_requestAccounts' }); } catch {}
+      }
+      if (accounts && accounts.length) {
+        myAddr = accounts[0];
+        onchainProvider = walletProvider || provider;
+        onchainSigner = walletSigner || provider.getSigner();
+        try { socket?.emit('identify', { addr: myAddr }); } catch {}
+        return true;
+      }
+    }
+  } catch {}
+  log('Connect wallet first');
+  return false;
+}
+
 // Match ACK behavior used by other games (e.g., Hazard)
 const onReady = (fn) => { if (document.readyState === 'loading') { window.addEventListener('DOMContentLoaded', fn, { once: true }); } else { fn(); } };
 onReady(() => {
@@ -215,7 +238,7 @@ function renderTable(table) {
       const a = document.createElement('div'); a.className = 'addr'; a.textContent = 'Empty'; el.appendChild(a);
       const btns = document.createElement('div'); btns.className = 'btns';
       const sit = document.createElement('button'); sit.textContent = 'Sit';
-      sit.onclick = () => { try { socket?.emit('seat', { index: idx }); } catch{} };
+      sit.onclick = async () => { try { const ok = await ensureIdentity(); if (ok) socket?.emit('seat', { index: idx }); } catch{} };
       btns.appendChild(sit); el.appendChild(btns);
     }
   }
@@ -289,7 +312,7 @@ async function connect() {
 
   socket.on('connect', () => {
     log('Connected to server');
-    if (myAddr) socket.emit('identify', { addr: myAddr });
+    if (myAddr) socket.emit('identify', { addr: myAddr }); else { try { ensureIdentity(); } catch {} }
     // Auto-join table from URL ?table=ID if present; otherwise default to 'faro-1'
     let tableId = null;
     try { const u = new URL(window.location.href); tableId = u.searchParams.get('table'); } catch {}
@@ -368,8 +391,9 @@ betClearBtn?.addEventListener('click', () => {
   try { stagedBets = []; myPendingBets = []; socket?.emit('clear_bets'); if (betModal) betModal.style.display='none'; } catch(e){}
 });
 betCancelBtn?.addEventListener('click', () => { try { stagedBets = []; if (betModal) betModal.style.display='none'; } catch(e){} });
-betConfirmBtn?.addEventListener('click', () => {
+betConfirmBtn?.addEventListener('click', async () => {
   try {
+    const ok = await ensureIdentity(); if (!ok) return;
     const seen = new Set();
     for (const b of stagedBets) {
       if (!b || !(b.rank>=1&&b.rank<=13) || !(Number(b.amountEth)>0) || seen.has(b.rank)) { log('Invalid bet selection'); return; }
