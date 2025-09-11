@@ -1,6 +1,14 @@
 // Minimal client for multiplayer table (hybrid: on-chain bets to Faro contract)
-import { getAddressFor } from '../../js/config.js';
-import { signer as walletSigner, provider as walletProvider } from '../../js/tavern.js';
+// Avoid ESM imports to prevent module parsing issues in some environments
+let walletSigner = null; let walletProvider = null;
+async function getAddressFor(key /* 'faro' */, provider) {
+  try {
+    const v = localStorage.getItem(`contract.${key}`);
+    if (v && /^0x[0-9a-fA-F]{40}$/.test(v)) return v;
+  } catch {}
+  // Fallback: no address known without config; caller should handle null
+  return null;
+}
 const __isLocalHost = ['localhost','127.0.0.1'].includes(location.hostname);
 
 const statusEl = document.getElementById('status');
