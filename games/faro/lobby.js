@@ -6,14 +6,13 @@ returnBtn?.addEventListener('click', () => { window.location.href = '/index.html
 function renderLobby(list) {
   try {
     lobbyList.innerHTML = '';
-    const sorted = Array.isArray(list)
-      ? list.slice().sort((a,b)=>{
-          const aFull = Number(a.seated||0) >= Number(a.capacity||6);
-          const bFull = Number(b.seated||0) >= Number(b.capacity||6);
-          if (aFull !== bFull) return aFull ? 1 : -1;
-          return String(a.id||'').localeCompare(String(b.id||''));
-        })
-      : [];
+    const onlyFaro = Array.isArray(list) ? list.filter(r => String(r.id||'').startsWith('faro-')) : [];
+    const sorted = onlyFaro.slice().sort((a,b)=>{
+      const aFull = Number(a.seated||0) >= Number(a.capacity||6);
+      const bFull = Number(b.seated||0) >= Number(b.capacity||6);
+      if (aFull !== bFull) return aFull ? 1 : -1;
+      return String(a.id||'').localeCompare(String(b.id||''));
+    });
     sorted.forEach(row => {
       const seated = Number(row.seated||0);
       const cap = Number(row.capacity||6);
