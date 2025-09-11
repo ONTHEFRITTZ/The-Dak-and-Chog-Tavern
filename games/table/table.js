@@ -194,7 +194,7 @@ function renderTable(table) {
         }
       } catch {}
       const a = document.createElement('div'); a.className = 'addr'; a.textContent = s?.x ? (`${s.x} (${short(s.addr||s.id)})`) : short(s.addr || s.id); el.appendChild(a);
-      const bal = document.createElement('div'); bal.className = 'bal'; bal.textContent = `Bal: ${Number(s.balance ?? 0)}`; el.appendChild(bal);
+      const betDiv = document.createElement('div'); betDiv.className = 'bal'; betDiv.textContent = `Bets: ${Number(s.betTotal||0)}`; el.appendChild(betDiv);
       // Show aggregate bet chip if present
       try {
         const total = Number(s.betTotal || 0);
