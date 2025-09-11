@@ -56,6 +56,10 @@ jobs:
           echo "remote_root=$remote_root" >> $GITHUB_OUTPUT
           echo "remote_base=$remote_base" >> $GITHUB_OUTPUT
           echo "upload_path=$upload_path" >> $GITHUB_OUTPUT
+          # Log resolved paths for debugging
+          echo "Resolved remote_base: $remote_base"
+          echo "Resolved remote_root: $remote_root"
+          echo "Resolved upload_path: $upload_path"
           echo "Commit: $commit  BuiltAt: $builtAt"
 
       - name: Optimize images to WebP (lossy q=82)
@@ -133,6 +137,12 @@ jobs:
           # Post-swap prune again to prevent backup buildup
           ssh deploy-host "set -e; base='${{ steps.meta.outputs.remote_base }}'; ls -1dt \"\$base\"/html_prev_* 2>/dev/null | tail -n +4 | xargs -r sudo rm -rf"
 
+      - name: Write deploy marker
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh deploy-host "set -e; sudo mkdir -p '${{ steps.meta.outputs.remote_root }}/assets'; echo '${{ github.sha }} @ $(date -u +"%Y-%m-%dT%H:%M:%SZ")' | sudo tee '${{ steps.meta.outputs.remote_root }}/assets/deploy_check.txt' >/dev/null; ls -la '${{ steps.meta.outputs.remote_root }}/assets' | sed -n '1,80p'"
+
       - name: Fix permissions and verify
         shell: bash
         run: |
@@ -169,4 +179,15 @@ jobs:
             -H "Authorization: Bearer ${CF_API_TOKEN}" \
             -H "Content-Type: application/json" \
             --data '{"purge_everything":true}' || true
+
+      - name: Debug: Compare common docroots
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Comparing common docroots for build markers..."
+          for ROOT in \
+            '/var/www/thedakandchog.xyz/html' \
+            '/var/www/html'
+          do
+            ssh deploy-host "set -e; echo ROOT=\"$ROOT\"; if [ -d \"$ROOT\" ]; then ls -ld \"$ROOT\" || true; fi; if [ -f \"$ROOT/assets/build.json\" ]; then echo 'build.json:'; sudo stat -c '%y %n' \"$ROOT/assets/build.json\" || true; sudo head -n 1 \"$ROOT/assets/build.json\" || true; else echo 'build.json missing'; fi; if [ -f \"$ROOT/assets/deploy_check.txt\" ]; then echo 'deploy_check:'; sudo cat \"$ROOT/assets/deploy_check.txt\" || true; else echo 'deploy_check missing'; fi; echo '---'"
 
