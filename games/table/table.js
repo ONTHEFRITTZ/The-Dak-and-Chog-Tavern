@@ -126,6 +126,28 @@ async function resolveFaroAddress() {
   } catch {}
 }
 
+// Ensure we know the wallet address and notify server (identify)
+async function ensureIdentity() {
+  try {
+    if (myAddr && socket) { try { socket.emit('identify', { addr: myAddr }); } catch {} return myAddr; }
+    if (window.ethereum) {
+      const provider = new ethers.providers.Web3Provider(window.ethereum, 'any');
+      let accounts = await provider.listAccounts();
+      if (!accounts || !accounts.length) {
+        try { accounts = await window.ethereum.request({ method: 'eth_requestAccounts' }); } catch {}
+      }
+      if (accounts && accounts.length) {
+        myAddr = accounts[0];
+        onchainProvider = walletProvider || provider;
+        onchainSigner = walletSigner || provider.getSigner();
+        try { socket?.emit('identify', { addr: myAddr }); } catch {}
+        return myAddr;
+      }
+    }
+  } catch {}
+  return null;
+}
+
 // Match ACK behavior used by other games (e.g., Hazard)
 const onReady = (fn) => { if (document.readyState === 'loading') { window.addEventListener('DOMContentLoaded', fn, { once: true }); } else { fn(); } };
 onReady(() => {
@@ -289,6 +311,7 @@ async function connect() {
   socket.on('connect', () => {
     log('Connected to server');
     if (myAddr) socket.emit('identify', { addr: myAddr });
+    else { try { ensureIdentity(); } catch {} }
     // Auto-join table from URL ?table=ID if present; otherwise default to 'faro-1'
     let tableId = null;
     try { const u = new URL(window.location.href); tableId = u.searchParams.get('table'); } catch {}
@@ -372,6 +395,8 @@ betConfirmBtn?.addEventListener('click', () => {
       seen.add(b.rank);
     }
     socket?.emit('clear_bets');
+    // Ensure identity so server associates bets with your seat
+    try { await ensureIdentity(); } catch {}
     stagedBets.forEach(b => {
       const chips = Math.max(1, Math.floor(Number(b.amountEth)*100));
       socket?.emit('place_bet', { rank: b.rank, amount: chips, copper: !!b.copper });
