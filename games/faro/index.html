@@ -1,20 +1,195 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- Prevent cached old UI and redirect to the new multiplayer table (relative path) -->
-  <meta http-equiv="Cache-Control" content="no-store, max-age=0">
-  <meta http-equiv="Pragma" content="no-cache">
-  <meta http-equiv="Expires" content="0">
-  <meta http-equiv="refresh" content="0; url=../table/index.html">
-  <meta name="robots" content="noindex,nofollow">
-  <title>Redirecting to Faro (Multiplayer)…</title>
-  <link rel="stylesheet" href="../../css/style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Faro (up to 6)</title>
+  <script>
+    (async()=>{
+      try{
+        const b = await fetch('/assets/build.json', { cache:'no-store' }).then(r=>r.ok?r.json():null).catch(()=>null);
+        const tag = (b && b.commit) ? String(b.commit).slice(0,12) : Date.now();
+        window.__BUILD_TAG = tag;
+        const css = document.createElement('link'); css.rel='stylesheet'; css.href = `../../css/style.css?v=${tag}`; document.head.appendChild(css);
+        const abi = document.createElement('script'); abi.src = `../../js/FaroV3ABI.js?v=${tag}`; document.head.appendChild(abi);
+        const s1 = document.createElement('script'); s1.type='module'; s1.src = `../../js/tavern.js?v=${tag}`; document.head.appendChild(s1);
+        const s2 = document.createElement('script'); s2.type='module'; s2.src = `../../js/state.js?v=${tag}`; document.head.appendChild(s2);
+      }catch(e){ console.error('head loader failed', e); }
+    })();
+  </script>
+  <style>
+    /* Stack logo above container; avoid side-by-side with body flex */
+    body.game { display:flex; flex-direction:column; align-items:center; justify-content:flex-start; }
+    body { background: url('../../assets/images/tavern-bg.webp') no-repeat center center fixed; background-size: cover; }
+    /* Overlapping logo aesthetic, with safe padding to avoid collisions */
+    .game-logo { display:block; height:auto; max-width: clamp(180px, 28vw, 420px); margin: 8px auto 12px; filter: drop-shadow(0 0 18px rgba(255,244,233,0.45)) drop-shadow(0 4px 12px rgba(0,0,0,0.25)); pointer-events:none; user-select:none; }
+    /* Normal container padding since logo no longer overlaps */
+    .tavern { padding-top: 16px; }
+    .table-wrap { display:flex; flex-direction:column; align-items:center; gap:16px; margin: 40px auto; }
+    .table-canvas { position:relative; width:min(92vw, 900px); height:min(92vw, 600px); margin: 0 auto; }
+    .table-surface {
+      position:absolute; inset:0; border-radius:24px;
+      background: url('../../assets/images/table.webp') no-repeat center / contain, rgba(255,244,233,0.78);
+      box-shadow: 0 0 24px rgba(0,0,0,0.2);
+    }
+    .seat { position:absolute; width:120px; height:120px; border-radius:12px; background: rgba(255,255,255,0.5); border:2px solid #7800cd; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; padding:6px; }
+    .seat .addr { font-size:12px; color:#2b1e12; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; width: 100%; text-align:center; }
+    .seat .bal { font-size:12px; color:#2b1e12; }
+    .seat .avatar { width:46px; height:46px; border-radius:999px; object-fit:cover; border:2px solid #7800cd; box-shadow:0 2px 8px rgba(0,0,0,0.2); }
+    .seat .btns button { padding:4px 8px; font-size:12px; border-radius:6px; }
+    .owner-badge { position:absolute; top:-10px; right:-10px; background:#9200fa; color:#fff; font-size:11px; padding:2px 6px; border-radius:999px; }
+    .ready { background: rgba(146,255,170,0.45); }
+    .controls-inline { display:flex; align-items:center; gap:8px; }
+    .log { width:min(92vw, 720px); margin: 0 auto; background: rgba(255,255,255,0.5); border-radius:10px; padding:8px 10px; font-size:13px; }
+
+    /* Faro betting board */
+    .faro-panel { display:flex; flex-direction:column; gap:10px; align-items:center; }
+    .faro-controls { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+    .faro-board { display:grid; grid-template-columns: repeat(13, minmax(36px, 1fr)); gap:6px; width:min(92vw, 720px); }
+    .rank-btn { background:#9200fa; color:#fff; border:none; border-radius:10px; padding:8px 0; font-size:14px; cursor:pointer; position:relative; }
+    .rank-btn:hover { background:#7800cd; }
+    .rank-btn:disabled { opacity: .6; cursor: not-allowed; }
+    .rank-btn .chip { position:absolute; right:6px; bottom:4px; background:#fff; color:#2b1e12; border:2px solid #7800cd; border-radius:999px; padding:1px 6px; font-size:12px; line-height:1.2; box-shadow:0 2px 6px rgba(0,0,0,0.2); }
+    @media (max-width: 720px) {
+      .rank-btn { font-size:13px; padding:6px 0; }
+    }
+  </style>
 </head>
-<body class="game" style="display:flex; align-items:center; justify-content:center; min-height:100vh;">
-  <div style="background:rgba(255,244,233,0.96); border:4px solid #7800cd; border-radius:12px; padding:16px; color:#2b1e12; text-align:center;">
-    <h3 style="margin-top:0;">Faro has moved</h3>
-    <p>Redirecting to Faro (Multiplayer)… <a href="/games/table/index.html">click here if not redirected</a>.</p>
+<body class="game">
+  <div class="top-banner" role="region" aria-label="Wallet and status">
+    <div class="banner-left">
+      <button id="return" class="return-btn">Return to Tavern</button>
+      <div id="status" class="banner-status"></div>
+    </div>
+    <div class="banner-right">
+      <div class="controls">
+        <button id="connect-wallet">Connect Wallet</button>
+      </div>
+    </div>
   </div>
+
+  <img class="game-logo" src="../../assets/images/faro-logo.png" alt="Faro">
+  <div class="tavern" style="position:relative; width:95%; max-width:1280px; margin:12px auto 28px;">
+    <!-- Lobby Panel (hidden on game page) -->
+    <div id="lobby-panel" style="background:rgba(255,244,233,0.96); border:4px solid #7800cd; border-radius:12px; padding:16px; color:#2b1e12; margin-bottom:12px; display:none;">
+      <h2 style="margin:6px 0 10px;">Faro Lobby</h2>
+      <div id="lobby-list" style="display:flex; flex-wrap:wrap; gap:10px;">
+        <div style="opacity:.7; font-size:13px;">Connecting to lobby…</div>
+      </div>
+      <p class="muted" style="font-size:12px; margin-top:8px;">A second table opens automatically when the first is full. Empty tables close automatically.</p>
+    </div>
+    <div id="rules-overlay" style="position:fixed; inset:0; background:rgba(0,0,0,0.6); display:flex; align-items:center; justify-content:center; z-index:20000;">
+      <div style="background:rgba(255,244,233,0.96); border:4px solid #7800cd; border-radius:12px; padding:16px; width:min(92vw, 900px); max-height:90vh; overflow:auto; text-align:left; color:#2b1e12;">
+        <h2 style="margin-top:0;">Faro Rules</h2>
+        <ul>
+          <li>Deck: 52 cards; suits ignored; ranks A–K.</li>
+          <li>Before each coup, place bets on ranks (A–K). ‘Copper’ flips a bet to wager against that rank.</li>
+          <li>Burn first card (soda) once per shoe. Each coup: reveal two cards — bank then player.</li>
+          <li>Bank card: uncoppered bets on that rank lose; coppered bets win even money.</li>
+          <li>Player card: uncoppered bets on that rank win even money; coppered bets lose.</li>
+          <li>Doublet (both ranks same): house takes half of all bets on that rank.</li>
+          <li>Repeat coups until deck ends; then reshuffle and continue.</li>
+          <li>You must be ready within the round timer; failing to ready may forfeit pending bets and eject you.</li>
+        </ul>
+        <button id="rules-ack" style="margin-top:8px; cursor:pointer;">I have read and understand</button>
+      </div>
+    </div>
+    
+    <div style="text-align:center; margin-top:6px;">
+      <button id="open-rules">Rules</button>
+    </div>
+    <div class="table-wrap">
+      <h1 class="visually-hidden">Faro</h1>
+      <div class="controls-inline">
+        <button id="tweet-win" style="display:block;">Tweet your win</button>
+      </div>
+
+      <div class="faro-panel" id="table-panel" style="display:none;">
+        <div class="faro-controls">
+          <label for="bet-amt">Bet (MON):</label>
+          <input id="bet-amt" type="number" min="0.001" step="0.001" value="0.01" style="width:110px; text-align:center;" />
+          <label style="font-size:13px;"><input type="checkbox" id="bet-copper"> Copper (bet against)</label>
+          <button id="clear-bets" style="display:none;">Clear Bets</button>
+        </div>
+        <div class="faro-board" aria-label="Faro ranks">
+          <button class="rank-btn" data-rank="A">A</button>
+          <button class="rank-btn" data-rank="2">2</button>
+          <button class="rank-btn" data-rank="3">3</button>
+          <button class="rank-btn" data-rank="4">4</button>
+          <button class="rank-btn" data-rank="5">5</button>
+          <button class="rank-btn" data-rank="6">6</button>
+          <button class="rank-btn" data-rank="7">7</button>
+          <button class="rank-btn" data-rank="8">8</button>
+          <button class="rank-btn" data-rank="9">9</button>
+          <button class="rank-btn" data-rank="10">10</button>
+          <button class="rank-btn" data-rank="J">J</button>
+          <button class="rank-btn" data-rank="Q">Q</button>
+          <button class="rank-btn" data-rank="K">K</button>
+        </div>
+      </div>
+
+      <div class="table-canvas">
+        <div class="table-surface"></div>
+        <div id="center-readout" style="position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); background:rgba(255,244,233,0.92); border:3px solid #7800cd; border-radius:12px; padding:10px 12px; color:#2b1e12; min-width:240px; text-align:center; pointer-events:none; font-weight:600;"></div>
+        <!-- 6 seats positioned around the surface -->
+        <div class="seat" data-index="0" style="left:50%; top:8%; transform:translateX(-50%);"></div>
+        <div class="seat" data-index="1" style="left:8%; top:28%;"></div>
+        <div class="seat" data-index="2" style="right:8%; top:28%;"></div>
+        <div class="seat" data-index="3" style="left:8%; bottom:14%;"></div>
+        <div class="seat" data-index="4" style="right:8%; bottom:14%;"></div>
+        <div class="seat" data-index="5" style="left:50%; bottom:4%; transform:translateX(-50%);"></div>
+      </div>
+      <div class="log" id="log"></div>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js" onerror="(function(){var s=document.createElement('script');s.src='https://cdn.socket.io/4.7.5/socket.io.min.js';document.head.appendChild(s);})();"></script>
+  <!-- Bet builder modal -->
+  <div id="bet-modal" style="position:fixed; inset:0; background:rgba(0,0,0,0.55); display:none; align-items:center; justify-content:center; z-index:21000;">
+    <div style="background:rgba(255,244,233,0.98); border:4px solid #7800cd; border-radius:12px; padding:14px; width:min(92vw, 560px); color:#2b1e12; box-shadow:0 10px 24px rgba(0,0,0,0.25);">
+      <h3 style="margin:0 0 8px 0;">Your Bets</h3>
+      <div id="bet-rows" style="display:flex; flex-direction:column; gap:8px; margin-top:6px;"></div>
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-top:10px; gap:8px;">
+        <button id="bet-add" class="btn" style="padding:6px 10px; border-radius:6px; cursor:pointer;">+ Make another bet</button>
+        <div style="margin-left:auto; display:flex; align-items:center; gap:8px;">
+          <button id="bet-clear" class="btn danger" style="padding:6px 10px; border-radius:6px; cursor:pointer;">Clear bets</button>
+          <button id="bet-cancel" class="btn" style="padding:6px 10px; border-radius:6px; cursor:pointer;">Cancel</button>
+          <button id="bet-confirm" class="btn ok" style="padding:6px 10px; border-radius:6px; cursor:pointer;">Confirm bet</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script type="module">
+    (async()=>{
+      try{
+        const b = await fetch('/assets/build.json', { cache: 'no-store' }).then(r=>r.ok?r.json():null).catch(()=>null);
+        const tag = (b && b.commit) ? String(b.commit).slice(0,12) : Date.now();
+        await import(`./table.js?v=${tag}`);
+      }catch(e){ console.error('table import failed', e); }
+    })();
+  </script>
+  <!-- Build footer: shows Version + Commit + Built time -->
+  <div style="position:fixed; left:12px; bottom:12px; z-index:10000;">
+    <div id="footer-meta" style="font-size:12px; color:#2b1e12; opacity:.95; background:rgba(255,244,233,0.96); border:2px solid #7800cd; border-radius:10px; padding:6px 8px; display:inline-block;">
+      Loading build info...
+    </div>
+  </div>
+  <script>
+    (function(){
+      async function text(u){ try{ const r=await fetch(u,{cache:'no-store'}); if(!r.ok) return null; return await r.text(); }catch{return null} }
+      async function json(u){ try{ const r=await fetch(u,{cache:'no-store'}); if(!r.ok) return null; return await r.json(); }catch{return null} }
+      (async()=>{
+        const el=document.getElementById('footer-meta'); if(!el) return;
+        try{
+          const ver=(await text('/assets/version.txt')||'').trim();
+          const b=await json('/assets/build.json');
+          const c=b?.commit?String(b.commit).slice(0,12):'unknown';
+          const at=b?.builtAt||new Date().toISOString();
+          el.textContent=`Version: ${ver||'n/a'} | Commit: ${c} | Built: ${at}`;
+        }catch{ el.textContent='Version info unavailable'; }
+      })();
+    })();
+  </script>
 </body>
 </html>
 
