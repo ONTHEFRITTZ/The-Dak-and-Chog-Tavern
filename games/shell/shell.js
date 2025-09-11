@@ -48,7 +48,8 @@ shellElements.forEach((shell) => {
     try {
       await init();
 
-      const guess = parseInt(shell.dataset.guess);
+      const guessDisplay = parseInt(shell.dataset.guess); // 1,2,3 for UI
+      const guess = Math.max(0, (guessDisplay|0) - 1);    // 0,1,2 for contract
       let betAmount = parseFloat(betInput.value);
       if (isNaN(betAmount) || betAmount < 0.001) betAmount = 0.001;
 
@@ -87,9 +88,11 @@ shellElements.forEach((shell) => {
 
       const { guess: guessEvent, won, winningCup } = playedEvent;
 
+      const displayGuess = Number(guessEvent) + 1;
+      const displayWin = Number(winningCup) + 1;
       const resultText = won
-        ? `You won! Your guess: ${guessEvent}, Winning cup: ${winningCup}`
-        : `You lost. Your guess: ${guessEvent}, Winning cup: ${winningCup}`;
+        ? `You won! Your guess: ${displayGuess}, Winning cup: ${displayWin}`
+        : `You lost. Your guess: ${displayGuess}, Winning cup: ${displayWin}`;
       try { showToast(won ? 'You won!' : 'You lost', won ? 'success' : 'info'); } catch {}
 
       statusEl.innerText = resultText;
