@@ -23,6 +23,85 @@ const betCopperInput = document.getElementById('bet-copper');
 const clearBetsBtn = document.getElementById('clear-bets');
 const rankButtons = Array.from(document.querySelectorAll('.rank-btn'));
 
+// Modal elements for multi-bet flow
+const betModal = document.getElementById('bet-modal');
+const betRowsEl = document.getElementById('bet-rows');
+const betAddBtn = document.getElementById('bet-add');
+const betClearBtn = document.getElementById('bet-clear');
+const betCancelBtn = document.getElementById('bet-cancel');
+const betConfirmBtn = document.getElementById('bet-confirm');
+
+// Local state
+let stagedBets = [];     // [{ rank: 1..13, amountEth: number, copper: bool }]
+let myPendingBets = [];  // queued for on-chain when Ready
+
+function rankLabel(n){ return ({1:'A',11:'J',12:'Q',13:'K'}[n] || String(n)); }
+function rankNumber(l){ const map={A:1,J:11,Q:12,K:13}; return map[l] || Number(l); }
+function allRanks(){ return [1,2,3,4,5,6,7,8,9,10,11,12,13]; }
+
+// Open modal seeded with clicked rank
+function openBetModal(initialRank){
+  try{
+    const r = Number(initialRank);
+    if (!stagedBets.length) {
+      stagedBets = [{ rank: r, amountEth: Number(betAmtInput?.value||0.01)||0.01, copper: !!betCopperInput?.checked }];
+    } else if (!stagedBets.some(b => b.rank === r)) {
+      stagedBets.push({ rank: r, amountEth: Number(betAmtInput?.value||0.01)||0.01, copper: !!betCopperInput?.checked });
+    }
+    renderBetRows();
+    if (betModal) betModal.style.display = 'flex';
+  }catch(e){}
+}
+
+// Build rows (rank select, amount, copper, remove), prevent duplicate ranks
+function renderBetRows(){
+  try{
+    if (!betRowsEl) return;
+    betRowsEl.innerHTML = '';
+    const used = new Set(stagedBets.map(b=>b.rank));
+    stagedBets.forEach((b, idx) => {
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex; align-items:center; gap:8px; flex-wrap:wrap;';
+
+      const sel = document.createElement('select');
+      sel.style.cssText = 'padding:4px;';
+      allRanks().forEach(n=>{
+        const opt = document.createElement('option');
+        opt.value=String(n); opt.textContent=rankLabel(n);
+        if (n===b.rank) opt.selected=true; else if (used.has(n)) opt.disabled=true;
+        sel.appendChild(opt);
+      });
+      sel.onchange = () => {
+        const nr = Number(sel.value);
+        if (stagedBets.some((x,i)=> i!==idx && x.rank===nr)) { sel.value = String(b.rank); return; }
+        used.delete(b.rank); b.rank = nr; used.add(nr); renderBetRows();
+      };
+
+      const amt = document.createElement('input');
+      amt.type='number'; amt.min='0.001'; amt.step='0.001'; amt.value=String(b.amountEth);
+      amt.style.cssText = 'width:110px; text-align:center;';
+      amt.oninput = () => { const v = Number(amt.value||0); b.amountEth = v>0 ? v : b.amountEth; };
+
+      const lab = document.createElement('label');
+      lab.style.cssText='font-size:13px; display:flex; align-items:center; gap:4px;';
+      const cb = document.createElement('input'); cb.type='checkbox'; cb.checked=!!b.copper; cb.onchange=()=>{ b.copper = !!cb.checked; };
+      lab.appendChild(cb); lab.appendChild(document.createTextNode('Copper'));
+
+      const del = document.createElement('button');
+      del.textContent='Remove'; del.className='btn danger'; del.style.cssText='padding:4px 8px; border-radius:6px;';
+      del.onclick = () => { stagedBets.splice(idx,1); renderBetRows(); };
+
+      row.appendChild(sel);
+      row.appendChild(document.createTextNode('Amount (MON):'));
+      row.appendChild(amt);
+      row.appendChild(lab);
+      if (stagedBets.length>1) row.appendChild(del);
+      betRowsEl.appendChild(row);
+    });
+    if (betConfirmBtn) betConfirmBtn.textContent = stagedBets.length>1 ? 'Confirm bets' : 'Confirm bet';
+  }catch(e){}
+}
+
 let socket; let myAddr = null; let currentTable = null; let mySeatId = null; let myIsOwner = false;
 let onchainSigner = null; let onchainProvider = null; let faroAddr = null;
 
@@ -104,7 +183,19 @@ function renderTable(table) {
         const vacate = document.createElement('button'); vacate.textContent = 'Leave';
         vacate.onclick = () => socket?.emit('seat', { index: -1 });
         const readyBtn = document.createElement('button'); readyBtn.textContent = s.ready ? 'Unready' : 'Ready';
-        readyBtn.onclick = () => socket?.emit('ready', { ready: !s.ready });
+        readyBtn.onclick = async () => {
+          try {
+            const willReady = !s.ready;
+            if (willReady && Array.isArray(myPendingBets) && myPendingBets.length) {
+              for (const b of myPendingBets) {
+                try { await placeOnchainBet(b.rank, b.amountEth, !!b.copper); }
+                catch (e) { log('Tx failed: ' + (e?.data?.message || e?.message || 'unknown')); }
+              }
+              myPendingBets = [];
+            }
+          } catch(e){}
+          socket?.emit('ready', { ready: !s.ready });
+        };
         btns.appendChild(vacate);
         btns.appendChild(readyBtn);
         el.appendChild(btns);
@@ -248,24 +339,47 @@ joinBtn?.addEventListener('click', () => {
 
 // No start/deal buttons
 
+// Replace rank click with bet builder modal
 rankButtons.forEach(btn => {
   btn.addEventListener('click', () => {
-    if (!faroAck) { try { rulesOverlay.style.display='flex'; } catch{}; return; }
-    const rankLabel = btn.dataset.rank;
-    const map = { A:1, J:11, Q:12, K:13 };
-    const rankNum = map[rankLabel] || Number(rankLabel);
-    const amt = Number(betAmtInput.value || 0);
-    if (!(rankNum>=1 && rankNum<=13)) return;
-    if (!(amt>0)) { log('Enter a valid MON amount'); return; }
-    const copper = !!betCopperInput.checked;
-    try { const chips = Math.max(1, Math.floor(amt * 100)); socket?.emit('place_bet', { rank: rankNum, amount: chips, copper }); } catch {}
-    placeOnchainBet(rankNum, amt, copper).catch(e=> log('Tx failed: ' + (e?.data?.message || e?.message || 'unknown')));
+    const lbl = btn.dataset.rank;
+    const rnum = rankNumber(lbl);
+    if (!(rnum>=1 && rnum<=13)) return;
+    openBetModal(rnum);
   });
 });
 
 // Clear bets handler
-clearBetsBtn?.addEventListener('click', () => {
-  try { socket?.emit('clear_bets'); } catch {}
+clearBetsBtn?.addEventListener('click', () => { try { socket?.emit('clear_bets'); } catch {} });
+
+// Modal controls
+betAddBtn?.addEventListener('click', () => {
+  try {
+    const used = new Set(stagedBets.map(b=>b.rank));
+    const next = allRanks().find(n => !used.has(n));
+    if (next) { stagedBets.push({ rank: next, amountEth: Number(betAmtInput?.value||0.01)||0.01, copper: false }); renderBetRows(); }
+  } catch(e){}
+});
+betClearBtn?.addEventListener('click', () => {
+  try { stagedBets = []; myPendingBets = []; socket?.emit('clear_bets'); if (betModal) betModal.style.display='none'; } catch(e){}
+});
+betCancelBtn?.addEventListener('click', () => { try { stagedBets = []; if (betModal) betModal.style.display='none'; } catch(e){} });
+betConfirmBtn?.addEventListener('click', () => {
+  try {
+    const seen = new Set();
+    for (const b of stagedBets) {
+      if (!b || !(b.rank>=1&&b.rank<=13) || !(Number(b.amountEth)>0) || seen.has(b.rank)) { log('Invalid bet selection'); return; }
+      seen.add(b.rank);
+    }
+    socket?.emit('clear_bets');
+    stagedBets.forEach(b => {
+      const chips = Math.max(1, Math.floor(Number(b.amountEth)*100));
+      socket?.emit('place_bet', { rank: b.rank, amount: chips, copper: !!b.copper });
+    });
+    myPendingBets = stagedBets.map(b => ({ rank: b.rank, amountEth: Number(b.amountEth), copper: !!b.copper }));
+    stagedBets = [];
+    if (betModal) betModal.style.display = 'none';
+  } catch(e){}
 });
 
 returnBtn?.addEventListener('click', () => { window.location.href = '/index.html'; });

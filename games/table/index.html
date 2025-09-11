@@ -145,6 +145,21 @@
   </div>
 
   <script src="/socket.io/socket.io.js" onerror="(function(){var s=document.createElement('script');s.src='https://cdn.socket.io/4.7.5/socket.io.min.js';document.head.appendChild(s);})();"></script>
+  <!-- Bet builder modal -->
+  <div id="bet-modal" style="position:fixed; inset:0; background:rgba(0,0,0,0.55); display:none; align-items:center; justify-content:center; z-index:21000;">
+    <div style="background:rgba(255,244,233,0.98); border:4px solid #7800cd; border-radius:12px; padding:14px; width:min(92vw, 560px); color:#2b1e12; box-shadow:0 10px 24px rgba(0,0,0,0.25);">
+      <h3 style="margin:0 0 8px 0;">Your Bets</h3>
+      <div id="bet-rows" style="display:flex; flex-direction:column; gap:8px; margin-top:6px;"></div>
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-top:10px; gap:8px;">
+        <button id="bet-add" class="btn" style="padding:6px 10px; border-radius:6px; cursor:pointer;">+ Make another bet</button>
+        <div style="margin-left:auto; display:flex; align-items:center; gap:8px;">
+          <button id="bet-clear" class="btn danger" style="padding:6px 10px; border-radius:6px; cursor:pointer;">Clear bets</button>
+          <button id="bet-cancel" class="btn" style="padding:6px 10px; border-radius:6px; cursor:pointer;">Cancel</button>
+          <button id="bet-confirm" class="btn ok" style="padding:6px 10px; border-radius:6px; cursor:pointer;">Confirm bet</button>
+        </div>
+      </div>
+    </div>
+  </div>
   <script type="module">
     (async()=>{
       try{
