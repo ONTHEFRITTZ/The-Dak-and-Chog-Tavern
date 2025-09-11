@@ -29,18 +29,20 @@ printf '{"commit":"%s","builtAt":"%s"}\n' "$commit" "$builtAt" > assets/build.js
 
 # --- Prepare upload directory fresh ---
 sudo mkdir -p "$UPLOAD" "$WEBROOT"
+# Ensure upload dir is writable by current user
+sudo chown -R "$(id -u)":"$(id -g)" "$UPLOAD"
 sudo rm -rf "${UPLOAD}"/*
 
 # --- Upload root HTML and top-level icons/images ---
-rsync -a --exclude "*" --include "*.html" ./ "$UPLOAD/"
-rsync -a --exclude "*" \
+rsync -rlt --delete --exclude "*" --include "*.html" ./ "$UPLOAD/"
+rsync -rlt --delete --exclude "*" \
   --include "*.ico" --include "*.png" --include "*.jpg" --include "*.jpeg" --include "*.webp" --include "*.svg" \
   ./ "$UPLOAD/"
 
 # --- Upload common site directories ---
 for d in css js img images assets fonts media admin games; do
   if [ -d "$d" ]; then
-    rsync -a "$d" "$UPLOAD/"
+    rsync -rlt --delete "$d" "$UPLOAD/"
   fi
 done
 
