@@ -34,6 +34,7 @@ const betConfirmBtn = document.getElementById('bet-confirm');
 // Local state
 let stagedBets = [];     // [{ rank: 1..13, amountEth: number, copper: bool }]
 let myPendingBets = [];  // queued for on-chain when Ready
+let centerLockUntil = 0; // keep results visible briefly after a coup
 
 function rankLabel(n){ return ({1:'A',11:'J',12:'Q',13:'K'}[n] || String(n)); }
 function rankNumber(l){ const map={A:1,J:11,Q:12,K:13}; return map[l] || Number(l); }
@@ -246,14 +247,17 @@ function renderTable(table) {
   const allReady = seated.length && seated.every(s => !!s.ready);
   try {
     const meSeat = seated.find(s => s?.addr && myAddr && s.addr.toLowerCase()===String(myAddr).toLowerCase());
-    if (!table.started) {
-      centerReadout.textContent = 'Place your bet';
-    } else if (!allReady) {
-      const myBetPlaced = Number(meSeat?.betTotal||0) > 0;
-      if (meSeat && !meSeat.ready) centerReadout.textContent = myBetPlaced ? 'Click Ready to lock your bet' : 'Place your bet';
-      else centerReadout.textContent = 'Waiting for players to Ready...';
-    } else {
-      centerReadout.textContent = 'All players ready';
+    const now = Date.now();
+    if (now >= centerLockUntil) {
+      if (!table.started) {
+        centerReadout.textContent = 'Place your bet';
+      } else if (!allReady) {
+        const myBetPlaced = Number(meSeat?.betTotal||0) > 0;
+        if (meSeat && !meSeat.ready) centerReadout.textContent = myBetPlaced ? 'Click Ready to lock your bet' : 'Place your bet';
+        else centerReadout.textContent = 'Waiting for players to Ready...';
+      } else {
+        centerReadout.textContent = 'All players ready';
+      }
     }
     // Toggle Clear Bets visibility: only during placing bets stage for my seat
     try {
@@ -343,6 +347,7 @@ async function connect() {
     if (Array.isArray(m.results)) m.results.forEach(r => log(`${short(r.addr)}: ${r.delta >= 0 ? '+' : ''}${r.delta}`));
     // Render table first (updates seats), then override center readout with results so it isn't overwritten
     try { renderTable(m.table); } catch {}
+    try { centerLockUntil = Date.now() + 8000; } catch {}
     try {
       const mine = Array.isArray(m.results) ? m.results.find(r => r.addr && myAddr && r.addr.toLowerCase()===String(myAddr).toLowerCase()) : null;
       const myTxt = mine ? (mine.delta>0 ? ` You won +${mine.delta}` : (mine.delta<0 ? ` You lost ${mine.delta}` : ' Push')) : '';
