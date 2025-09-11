@@ -20,15 +20,15 @@ fi
 
 cp -a "$VHOST" "${VHOST}.bak.$(date +%s)"
 
-# 1) Remove any inline duplicates of the include (keep first)
+# 1) Remove any inline duplicates of the include (keep first) using literal match
 awk -v pat="$INCLUDE_LINE" '
   BEGIN{kept=0}
   {
-    if ($0 ~ pat) {
-      kept++
-      if (kept>1) next
+    if (index($0, pat) > 0) {
+      kept++;
+      if (kept>1) next;
     }
-    print
+    print;
   }
 ' "$VHOST" >"${VHOST}.tmp1"
 
@@ -57,4 +57,3 @@ echo "Updated: $VHOST"
 nginx -t
 systemctl reload nginx
 echo "Nginx reloaded."
-
