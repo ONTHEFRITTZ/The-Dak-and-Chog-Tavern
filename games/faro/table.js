@@ -515,3 +515,4 @@ async function placeOnchainBet(rankNum, ethAmount, copper) {
   } catch {}
 }
 
+
