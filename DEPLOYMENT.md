@@ -90,11 +90,30 @@ sudo grep -n "/games/" /var/www/thedakandchog.xyz/html/index.html
 
 # Build markers
 curl -s https://thedakandchog.xyz/assets/build.json
-curl -s https://thedakandchog.xyz/assets/deploy_check.txt
+  curl -s https://thedakandchog.xyz/assets/deploy_check.txt
 
 # Origin sanity (bypasses CDN)
-curl -s http://127.0.0.1/index.html | grep -n "/games/"
+  curl -s http://127.0.0.1/index.html | grep -n "/games/"
 ```
+
+Replace NGINX vhost (clean, isolated Socket.IO)
+
+To overwrite a broken/duplicated vhost and install a clean config that isolates Faro and Poker sockets:
+
+1) On EC2, run:
+```
+cd ~/The-Dak-and-Chog-Tavern
+sudo bash scripts/install-nginx-conf.sh
+```
+
+2) Verify routes (polling handshake must not return HTML):
+```
+curl -i "https://thedakandchog.xyz/poker.io/?EIO=4&transport=polling&t=$(date +%s)" | sed -n '1,10p'
+# Expect HTTP/2 200 and a short packet starting with 0{, not an HTML page
+```
+
+3) Faro remains on `/socket.io` (→ 3100). Poker is on `/poker.io` (→ 3101).
+
 
 Cloudflare
 - If HTML looks stale after a green deploy, purge once (Caching → Configuration → Purge Everything).
