@@ -1,6 +1,8 @@
 const statusEl = document.getElementById('status');
 const lobbyEl = document.getElementById('lobby');
-let socket;
+const tableEl = document.getElementById('table');
+const connectBtn = document.getElementById('connect-wallet');
+let socket; let myAddr = null; let currentTableId = null;
 
 function setStatus(t){ try { statusEl.textContent = t; } catch {} }
 
@@ -10,9 +12,9 @@ function renderLobby(list){
     lobbyEl.innerHTML = '';
     items.forEach(row => {
       const card = document.createElement('div'); card.className='lobby-item';
-      const left = document.createElement('div'); left.textContent = `${row.id} — Players ${row.seated}/${row.capacity}`;
+      const left = document.createElement('div'); left.textContent = `${row.id} - Players ${row.seated}/${row.capacity}`;
       const btn = document.createElement('button'); btn.textContent = 'Join';
-      btn.onclick = () => { try { socket.emit('join_table', { table: row.id }); } catch {} };
+      btn.onclick = () => { try { currentTableId = row.id; socket.emit('join_table', { table: row.id }); setStatus(`Joined ${row.id}.`);} catch {} };
       card.appendChild(left); card.appendChild(btn);
       lobbyEl.appendChild(card);
     });
@@ -20,21 +22,82 @@ function renderLobby(list){
   } catch {}
 }
 
+function short(a){ try { return a && a.length>10 ? (a.slice(0,6)+'...'+a.slice(-4)) : (a||''); } catch { return a||''; } }
+
+function renderTable(t){
+  try {
+    if (!t || t.id !== currentTableId) return;
+    tableEl.innerHTML = '';
+    const title = document.createElement('div'); title.style.marginBottom='8px'; title.textContent = `Table ${t.id}`; tableEl.appendChild(title);
+    const grid = document.createElement('div'); grid.style.cssText='display:grid; grid-template-columns: repeat(3, minmax(120px,1fr)); gap:10px;';
+    const seats = Array.isArray(t.seats) ? t.seats : [];
+    for (let i=0;i<6;i++){
+      const panel = document.createElement('div'); panel.style.cssText='border:1px solid #7800cd; border-radius:8px; padding:8px; background:rgba(255,255,255,0.6);';
+      const s = seats[i];
+      const label = document.createElement('div'); label.textContent = `Seat ${i}`; panel.appendChild(label);
+      const info = document.createElement('div'); info.style.fontSize='12px'; info.style.margin='6px 0';
+      if (s) { info.textContent = short(s.addr||s.id); panel.appendChild(info);
+        if (myAddr && s.addr && String(s.addr).toLowerCase()===String(myAddr).toLowerCase()){
+          const btnLeave = document.createElement('button'); btnLeave.textContent='Leave'; btnLeave.onclick=()=> socket.emit('seat',{ index:-1 }); panel.appendChild(btnLeave);
+          const btnReady = document.createElement('button'); btnReady.style.marginLeft='6px'; btnReady.textContent = s.ready? 'Unready':'Ready'; btnReady.onclick=()=> socket.emit('ready',{ ready: !s.ready }); panel.appendChild(btnReady);
+        }
+      } else {
+        info.textContent = 'Empty'; panel.appendChild(info);
+        const btnSit = document.createElement('button'); btnSit.textContent='Sit';
+        if (!myAddr) { btnSit.disabled=true; btnSit.title='Connect wallet to sit'; }
+        btnSit.onclick=()=>{ if (!myAddr) return; socket.emit('seat',{ index:i }); };
+        panel.appendChild(btnSit);
+      }
+      grid.appendChild(panel);
+    }
+    tableEl.appendChild(grid);
+  } catch {}
+}
+
 async function connect(){
   try {
-    // Use isolated path proxied by NGINX to 3101
-    socket = io(window.location.origin, { path: '/poker.io', transports: ['websocket','polling'], reconnection: true, reconnectionAttempts: 10, reconnectionDelay: 800 });
+    socket = io(window.location.origin, {
+      path: '/poker.io/',
+      transports: ['polling','websocket'],
+      upgrade: true,
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 800,
+      forceNew: true
+    });
   } catch (e) {
     setStatus('Socket.IO not available');
     return;
   }
-  socket.on('connect', () => { setStatus('Connected'); try { socket.emit('lobby:get'); } catch {} });
-  socket.on('connect_error', () => { setStatus('Lobby unavailable. Retrying…'); });
-  socket.on('reconnect_error', () => { setStatus('Reconnecting…'); });
+  socket.on('connect', () => {
+    setStatus('Connected');
+    if (myAddr) { try { socket.emit('identify', { addr: myAddr }); } catch {} }
+    try { socket.emit('lobby:get'); if (currentTableId) try { socket.emit('join_table', { table: currentTableId }); } catch {} } catch {}
+  });
+  socket.on('connect_error', (err) => { setStatus('Lobby unavailable. Retrying...'); try { console.error('connect_error', err && err.message); } catch {} });
+  socket.on('reconnect_error', () => { setStatus('Reconnecting...'); });
   socket.on('disconnect', () => setStatus('Disconnected'));
   socket.on('lobby:list', (list) => renderLobby(list));
+  socket.on('table:update', (t) => { renderTable(t); });
   socket.on('system', (m) => { /* noop */ });
 }
 
 connect();
 
+// Wallet connect (isolated): gate seating until wallet connected
+connectBtn?.addEventListener('click', async () => {
+  try {
+    if (!window.ethereum || !window.ethers) { setStatus('No wallet provider found'); return; }
+    await window.ethereum.request({ method: 'eth_requestAccounts' });
+    const provider = new window.ethers.providers.Web3Provider(window.ethereum, 'any');
+    const signer = provider.getSigner();
+    const addr = await signer.getAddress();
+    myAddr = String(addr||'').toLowerCase();
+    setStatus(`Wallet: ${short(myAddr)}`);
+    try { if (socket && socket.connected) socket.emit('identify', { addr: myAddr }); } catch {}
+    // Re-render table to enable Sit buttons
+    try { if (currentTableId) socket.emit('lobby:get'); if (currentTableId) try { socket.emit('join_table', { table: currentTableId }); } catch {} } catch {}
+  } catch (e) {
+    setStatus('Wallet connect failed');
+  }
+});

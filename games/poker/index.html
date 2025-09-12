@@ -7,17 +7,30 @@
   <link rel="stylesheet" href="../../css/style.css">
 </head>
 <body>
+  <div class="top-banner" role="region" aria-label="Wallet and status">
+    <div class="banner-left">
+      <div id="status" class="banner-status">Connecting...</div>
+    </div>
+    <div class="banner-right">
+      <div class="controls">
+        <button id="connect-wallet">Connect Wallet</button>
+      </div>
+    </div>
+  </div>
+
   <div class="tavern" style="position:relative; width:95%; max-width:1000px; margin:12px auto 28px;">
     <img class="game-logo" src="../../assets/images/texas-holdem-logo.png" alt="Poker (Isolated)" style="display:block; height:auto; max-width: clamp(180px, 26vw, 420px); margin: 8px auto 12px;">
     <h1 class="visually-hidden">Poker (Isolated)</h1>
     <div class="lobby-card" style="background:rgba(255,244,233,0.96); border:4px solid #7800cd; border-radius:12px; padding:16px; color:#2b1e12;">
-      <div id="status" class="banner-status" style="margin-bottom:10px;">Connecting…</div>
       <div id="lobby" class="lobby-list"></div>
+      <div id="table" style="margin-top:14px;"></div>
     </div>
   </div>
-  <!-- Load Socket.IO client from CDN to avoid relying on server-served JS -->
+
+  <!-- Wallet + Socket.IO (CDN) -->
+  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-  <!-- Load poker.js as a classic script (not a module) with cache-busting -->
+  <!-- Load poker.js as a classic script with cache-busting -->
   <script>
     (function(){
       function load(src){ try { var s=document.createElement('script'); s.src=src; s.defer=true; document.body.appendChild(s); } catch(e) { console.error('inject failed', e); } }
@@ -30,7 +43,4 @@
     })();
   </script>
 </body>
-<script>
-  // Note: Socket.IO served by NGINX; /poker.io/ is proxied to 3101
-</script>
 </html>
