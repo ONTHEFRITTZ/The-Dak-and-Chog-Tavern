@@ -15,8 +15,20 @@
       <div id="lobby" class="lobby-list"></div>
     </div>
   </div>
-  <script src="/socket.io/socket.io.js"></script>
-  <script type="module" src="poker.js"></script>
+  <!-- Load Socket.IO client from CDN to avoid relying on server-served JS -->
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <!-- Load poker.js as a classic script (not a module) with cache-busting -->
+  <script>
+    (function(){
+      function load(src){ try { var s=document.createElement('script'); s.src=src; s.defer=true; document.body.appendChild(s); } catch(e) { console.error('inject failed', e); } }
+      try {
+        fetch('/assets/build.json', { cache:'no-store' })
+          .then(function(r){ return r.ok ? r.json() : null; })
+          .then(function(b){ var tag=(b&&b.commit)? String(b.commit).slice(0,12) : Date.now(); load('poker.js?v='+encodeURIComponent(tag)); })
+          .catch(function(){ load('poker.js?v='+Date.now()); });
+      } catch(e) { load('poker.js?v='+Date.now()); }
+    })();
+  </script>
 </body>
 <script>
   // Note: Socket.IO served by NGINX; /poker.io/ is proxied to 3101
