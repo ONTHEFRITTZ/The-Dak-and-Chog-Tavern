@@ -1,0 +1,6 @@
+.wrap { max-width: 720px; margin: 40px auto; font-family: system-ui, sans-serif; }
+h1 { margin-bottom: 8px; }
+#status { padding: 8px 10px; border: 1px solid #ccc; border-radius: 6px; background: #fafafa; margin-bottom: 12px; }
+.lobby-item { display:flex; justify-content:space-between; align-items:center; padding:8px; border:1px solid #ddd; border-radius:6px; margin:6px 0; }
+.lobby-item button { padding:6px 10px; }
+
