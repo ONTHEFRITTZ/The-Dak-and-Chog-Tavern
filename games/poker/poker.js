@@ -1,8 +1,7 @@
 const statusEl = document.getElementById('status');
 const lobbyEl = document.getElementById('lobby');
-const tableEl = document.getElementById('table');
 const connectBtn = document.getElementById('connect-wallet');
-let socket; let myAddr = null; let currentTableId = null;
+let socket; let myAddr = null;
 
 function setStatus(t){ try { statusEl.textContent = t; } catch {} }
 
@@ -13,8 +12,17 @@ function renderLobby(list){
     items.forEach(row => {
       const card = document.createElement('div'); card.className='lobby-item';
       const left = document.createElement('div'); left.textContent = `${row.id} - Players ${row.seated}/${row.capacity}`;
-      const btn = document.createElement('button'); btn.textContent = 'Join';
-      btn.onclick = () => { try { currentTableId = row.id; socket.emit('join_table', { table: row.id }); setStatus(`Joined ${row.id}.`);} catch {} };
+      const btn = document.createElement('button'); btn.textContent = 'Open Table';
+      btn.onclick = () => {
+        try {
+          const u = new URL(window.location.href);
+          u.pathname = '/games/poker/table.html';
+          u.searchParams.set('table', row.id);
+          window.location.href = u.toString();
+        } catch {
+          window.location.href = `/games/poker/table.html?table=${encodeURIComponent(row.id)}`;
+        }
+      };
       card.appendChild(left); card.appendChild(btn);
       lobbyEl.appendChild(card);
     });
@@ -69,16 +77,12 @@ async function connect(){
     setStatus('Socket.IO not available');
     return;
   }
-  socket.on('connect', () => {
-    setStatus('Connected');
-    if (myAddr) { try { socket.emit('identify', { addr: myAddr }); } catch {} }
-    try { socket.emit('lobby:get'); if (currentTableId) try { socket.emit('join_table', { table: currentTableId }); } catch {} } catch {}
-  });
+  socket.on('connect', () => { setStatus('Connected'); if (myAddr) { try { socket.emit('identify', { addr: myAddr }); } catch {} } try { socket.emit('lobby:get'); } catch {} });
   socket.on('connect_error', (err) => { setStatus('Lobby unavailable. Retrying...'); try { console.error('connect_error', err && err.message); } catch {} });
   socket.on('reconnect_error', () => { setStatus('Reconnecting...'); });
   socket.on('disconnect', () => setStatus('Disconnected'));
   socket.on('lobby:list', (list) => renderLobby(list));
-  socket.on('table:update', (t) => { renderTable(t); });
+  // No in-lobby seat rendering; seating happens on table.html
   socket.on('system', (m) => { /* noop */ });
 }
 
