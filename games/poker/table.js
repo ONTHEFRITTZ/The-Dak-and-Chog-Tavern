@@ -12,8 +12,7 @@ function ensureActionBar(){
   if (actionBar) return actionBar;
   const canvas = document.querySelector('.table-canvas');
   actionBar = document.createElement('div');
-  actionBar.style.cssText = 'position:absolute; left:50%; bottom:8px; transform:translateX(-50%); display:flex; gap:8px; background:rgba(255,244,233,0.95); border:3px solid #7800cd; border-radius:12px; padding:8px 10px; box-shadow:0 4px 12px rgba(0,0,0,0.2); align-items:center;';
-  const lab = document.createElement('div'); lab.textContent = 'Your Action:'; lab.style.fontWeight='600'; lab.style.color='#2b1e12'; actionBar.appendChild(lab);
+  actionBar.style.cssText = 'position:absolute; left:50%; bottom:8px; transform:translateX(-50%); display:none; gap:8px; background:rgba(255,244,233,0.95); border:3px solid #7800cd; border-radius:12px; padding:8px 10px; box-shadow:0 4px 12px rgba(0,0,0,0.2); align-items:center;';
   infoText = document.createElement('div'); infoText.style.color='#2b1e12'; infoText.style.fontSize='12px'; actionBar.appendChild(infoText);
   const btns = document.createElement('div'); btns.style.display='flex'; btns.style.gap='8px'; btns.className='action-btns'; actionBar.appendChild(btns);
   amountInput = document.createElement('input'); amountInput.type='number'; amountInput.min='1'; amountInput.step='1'; amountInput.value='2'; amountInput.style.width='70px'; amountInput.placeholder='amt'; amountInput.title='Bet/Raise amount'; actionBar.appendChild(amountInput);
@@ -124,6 +123,8 @@ async function connect(){
     const btnWrap = actionBar && actionBar.querySelector('.action-btns');
     if (btnWrap) {
       btnWrap.innerHTML = '';
+      if (actionBar) actionBar.style.display = mine ? 'flex' : 'none';
+      if (!mine && infoText) infoText.textContent = '';
       if (mine) {
         const me = (Array.isArray(st.actors)? st.actors : []).find(function(a){ return a && a.addr && String(a.addr).toLowerCase()===String(myAddr).toLowerCase(); });
         const need = Math.max(0, Number(st.toCall||0) - Number(me && me.contrib || 0));
