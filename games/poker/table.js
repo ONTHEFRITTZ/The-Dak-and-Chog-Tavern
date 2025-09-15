@@ -125,7 +125,7 @@ async function connect(){
   socket.on('connect', function(){
     try {
       if (myAddr) {
-        setStatus('Connected');
+        setStatus('Wallet: ' + short(myAddr));
         try { socket.emit('identify', { addr: myAddr }); } catch(e){}
         try { socket.emit('join_table', { table: currentTableId }); } catch(e){}
       } else {
@@ -266,6 +266,7 @@ async function ensureWallet(promptIfNeeded) {
       const got = await signer.getAddress();
       myAddr = String(got||addr||'').toLowerCase();
       setStatus('Wallet: ' + short(myAddr));
+      try { if (connectBtn) connectBtn.style.display = 'none'; } catch(e){}
       if (devBotBtn) { devBotBtn.disabled = false; devBotBtn.title = 'Add/remove a test bot to play solo'; }
       if (socket && socket.connected) {
         try { socket.emit('identify', { addr: myAddr }); } catch(e){}
