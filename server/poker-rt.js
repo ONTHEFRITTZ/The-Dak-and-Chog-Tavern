@@ -89,6 +89,15 @@ io.on('connection', (socket) => {
       currentTableId = tableId;
       socket.join(tableId);
       const t = getTable(tableId);
+      // On page load/join, ensure bot is not seated and sim mode is off by default
+      try {
+        let changed = false;
+        if (t.devBotEnabled) { t.devBotEnabled = false; changed = true; }
+        const before = t.seats.filter(s => s && typeof s.addr === 'string' && s.addr.startsWith('bot:')).length;
+        if (before) { for (let i=0;i<t.seats.length;i++){ const s=t.seats[i]; if (s && typeof s.addr === 'string' && s.addr.startsWith('bot:')) t.seats[i]=null; } changed = true; }
+        if (t.simMode) { t.simMode = false; changed = true; }
+        if (changed) { io.to(tableId).emit('poker:mode', { simulated: false }); }
+      } catch {}
       try {
         if (!t.devBotEnabled) {
           for (let i = 0; i < t.seats.length; i++) {

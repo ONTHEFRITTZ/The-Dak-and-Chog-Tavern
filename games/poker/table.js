@@ -27,9 +27,9 @@ function ensureActionBar(){
   communityStrip.style.cssText = 'position:absolute; left:50%; top:50%; transform:translate(-50%,-105%); display:flex; gap:8px; z-index:2;';
   canvas.appendChild(communityStrip);
 
-  // Burn card pile: backs, under the community row (fully visible)
+  // Burn card pile: backs, under the community row aligned toward left side
   burnStrip = document.createElement('div');
-  burnStrip.style.cssText = 'position:absolute; left:50%; top:50%; transform:translate(-50%, -72%); display:flex; gap:8px; pointer-events:none; z-index:1; align-items:center;';
+  burnStrip.style.cssText = 'position:absolute; left:50%; top:50%; transform:translate(calc(-50% - 160px), -72%); display:flex; gap:8px; pointer-events:none; z-index:1; align-items:center;';
   canvas.appendChild(burnStrip);
 }
 
