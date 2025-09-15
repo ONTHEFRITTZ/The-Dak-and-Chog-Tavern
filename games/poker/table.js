@@ -90,7 +90,14 @@ function renderTable(t){
           if (actor) {
             const row=document.createElement('div'); row.style.cssText='display:flex; gap:6px; margin-top:4px;';
             const exp = exposures[addrLower];
-            if (Array.isArray(exp) && exp.length===2) { const isWin = winnersNow && winnersNow[addrLower] != null; exp.forEach(function(code){ row.appendChild(makeCardImg(code,{hole:true,flip:true,win:isWin})); }); el.appendChild(row); if (isWin) { const badge=document.createElement('div'); badge.className='win-badge'; const amt=winnersNow[addrLower]; badge.textContent = 'Winner ' + (amt>0?'+':'') + String(amt); el.appendChild(badge); } }
+            if (Array.isArray(exp) && exp.length===2) {
+              const winInfo = winnersNow && winnersNow[addrLower];
+              const isWin = !!winInfo;
+              const usedHole = (winInfo && Array.isArray(winInfo.usedHole)) ? winInfo.usedHole : null;
+              exp.forEach(function(code, i){ const img = makeCardImg(code,{hole:true,flip:true,win: isWin && (!usedHole || usedHole.indexOf(i)>=0)}); row.appendChild(img); });
+              el.appendChild(row);
+              if (isWin) { const badge=document.createElement('div'); badge.className='win-badge'; const amt=Number((winInfo && winInfo.amount) || 0); badge.textContent = 'Winner ' + (amt>0?'+':'') + String(amt); el.appendChild(badge); }
+            }
             else if (!actor.folded) { for (var k=0;k<2;k++){ row.appendChild(makeCardImg('BACK',{hole:true,flip:true})); } el.appendChild(row); }
           }
         } catch(e){}
@@ -196,10 +203,13 @@ async function connect(){
     // If folded to bot, clear the board (no community shown)
     var winners = Array.isArray(m && m.winners) ? m.winners : [];
     var botWon = false; try { botWon = winners.some(function(w){ var a = String((w && w.addr) || ''); return a.startsWith('bot:'); }); } catch(_){ botWon = false; }
+    // Capture used community indices to highlight winning board cards
+    usedBoard = [];
+    try { winners.forEach(function(w){ var uc = Array.isArray(w && w.usedCommunity) ? w.usedCommunity : []; uc.forEach(function(i){ if (usedBoard.indexOf(i)===-1) usedBoard.push(i); }); }); } catch(_){ usedBoard = []; }
     if (communityStrip) {
       communityStrip.innerHTML='';
       var comm = botWon ? [] : (Array.isArray(m && m.community)? m.community:[]);
-      comm.forEach(function(code){ communityStrip.appendChild(makeCardImg(code, { flip:true })); });
+      comm.forEach(function(code, idx){ var img = makeCardImg(code, { flip:true }); if (!botWon && usedBoard.indexOf(idx)>=0) img.classList.add('card--win'); communityStrip.appendChild(img); });
       // Nudge community up at showdown to spotlight board while keeping all visible
       if (!botWon && comm.length) {
         communityStrip.classList.add('showdown');
@@ -207,7 +217,7 @@ async function connect(){
       }
     }
     try { const arr = Array.isArray(m && m.exposures) ? m.exposures : []; exposures = {}; arr.forEach(function(e){ const a = String((e && e.addr) || '').toLowerCase(); const cards = Array.isArray(e && e.cards) ? e.cards : []; if (a && cards.length===2) exposures[a] = cards; }); } catch(e){}
-    try { winnersNow = {}; (Array.isArray(m && m.winners)? m.winners:[]).forEach(function(w){ const a=String((w && w.addr) || '').toLowerCase(); const amt = Number((w && w.amount) || 0); if (a) winnersNow[a] = amt; }); } catch(e){}
+    try { winnersNow = {}; (Array.isArray(m && m.winners)? m.winners:[]).forEach(function(w){ const a=String((w && w.addr) || '').toLowerCase(); const amt = Number((w && w.amount) || 0); const usedHole = Array.isArray(w && w.usedHole) ? w.usedHole : null; if (a) winnersNow[a] = { amount: amt, usedHole: usedHole }; }); } catch(e){}
     if (lastTable) renderTable(lastTable);
     myHole = [];
     if (burnStrip) burnStrip.innerHTML = '';
