@@ -6,7 +6,7 @@ let devBotOn = false;
 let socket; let myAddr = null; let currentTableId = null; let lastTable = null; let myHole = [];
 let lastState = null; let exposures = {}; let winnersNow = {};
 
-let actionBar = null; let communityEl = null; let amountInput = null; let infoText = null; let communityStrip = null;
+let actionBar = null; let communityEl = null; let amountInput = null; let infoText = null; let communityStrip = null; let burnStrip = null;
 
 function ensureActionBar(){
   if (actionBar) return actionBar;
@@ -26,6 +26,11 @@ function ensureActionBar(){
   communityStrip = document.createElement('div');
   communityStrip.style.cssText = 'position:absolute; left:50%; top:50%; transform:translate(-50%,-105%); display:flex; gap:8px;';
   canvas.appendChild(communityStrip);
+
+  // Burn card stack: backs overlapped, tucked bottom-left of community area
+  burnStrip = document.createElement('div');
+  burnStrip.style.cssText = 'position:absolute; left:50%; top:50%; transform:translate(calc(-50% - 120px), calc(-50% - 50px)); display:flex; gap:0; pointer-events:none;';
+  canvas.appendChild(burnStrip);
 }
 
 function short(a){ return (a && a.length>10) ? (a.slice(0,6)+'...'+a.slice(-4)) : (a||''); }
@@ -106,6 +111,22 @@ async function connect(){
     const cards = Array.isArray(st && st.community) ? st.community : [];
     if (communityEl) communityEl && (communityEl.style.display='none');
     if (communityStrip) { communityStrip.innerHTML = ''; cards.forEach(function(code){ communityStrip.appendChild(makeCardImg(code, { flip:true })); }); }
+    // Burn cards: show back-faced overlapped stack to indicate burns that occurred
+    try {
+      const stage = String(st && st.stage || '');
+      const burnCount = stage === 'flop' ? 1 : stage === 'turn' ? 2 : stage === 'river' ? 3 : 0;
+      if (burnStrip) {
+        burnStrip.innerHTML = '';
+        for (let i = 0; i < burnCount; i++) {
+          const img = makeCardImg('BACK', { flip:false });
+          img.style.width = '50px';
+          img.style.marginLeft = i === 0 ? '0' : '-34px';
+          img.style.filter = 'brightness(0.95)';
+          img.style.transform = 'rotate(-8deg)';
+          burnStrip.appendChild(img);
+        }
+      }
+    } catch(e){}
     try {
       seatEls.forEach(function(el){ const tag = el.querySelector('.role'); if (tag) tag.remove(); });
       if (Array.isArray(st && st.actors) && typeof st.dealerIndex === 'number'){
@@ -151,6 +172,7 @@ async function connect(){
     try { winnersNow = {}; (Array.isArray(m && m.winners)? m.winners:[]).forEach(function(w){ const a=String((w && w.addr) || '').toLowerCase(); const amt = Number((w && w.amount) || 0); if (a) winnersNow[a] = amt; }); } catch(e){}
     if (lastTable) renderTable(lastTable);
     myHole = [];
+    if (burnStrip) burnStrip.innerHTML = '';
   } catch(e){} });
 
   if (devBotBtn) devBotBtn.addEventListener('click', function(){ try { devBotOn = !devBotOn; devBotBtn.classList.toggle('active', devBotOn); devBotBtn.textContent = devBotOn ? 'Dev Bot: ON' : 'Dev Bot'; socket.emit('poker:devbot', { enabled: devBotOn }); } catch(e){} });
