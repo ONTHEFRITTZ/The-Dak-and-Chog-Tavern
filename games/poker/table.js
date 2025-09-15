@@ -248,25 +248,38 @@ async function connect(){
   });
 }
 
-connect();
-
-if (connectBtn) connectBtn.addEventListener('click', async function(){
+// Attempt to connect wallet automatically; prompt only if none authorized
+async function ensureWallet(promptIfNeeded) {
   try {
     if (!window.ethereum || !window.ethers) { setStatus('No wallet provider'); return; }
-    await window.ethereum.request({ method:'eth_requestAccounts' });
-    const provider = new window.ethers.providers.Web3Provider(window.ethereum,'any');
-    const signer = provider.getSigner();
-    const addr = await signer.getAddress();
-    myAddr = String(addr||'').toLowerCase();
-    setStatus('Wallet: ' + short(myAddr));
-    try {
+    const accounts = await window.ethereum.request({ method:'eth_accounts' });
+    let addr = (Array.isArray(accounts) && accounts[0]) ? accounts[0] : null;
+    if (!addr && promptIfNeeded) {
+      try {
+        const req = await window.ethereum.request({ method:'eth_requestAccounts' });
+        addr = (Array.isArray(req) && req[0]) ? req[0] : null;
+      } catch(_) {}
+    }
+    if (addr) {
+      const provider = new window.ethers.providers.Web3Provider(window.ethereum,'any');
+      const signer = provider.getSigner();
+      const got = await signer.getAddress();
+      myAddr = String(got||addr||'').toLowerCase();
+      setStatus('Wallet: ' + short(myAddr));
       if (devBotBtn) { devBotBtn.disabled = false; devBotBtn.title = 'Add/remove a test bot to play solo'; }
       if (socket && socket.connected) {
-        socket.emit('identify', { addr: myAddr });
-        socket.emit('join_table', { table: currentTableId });
+        try { socket.emit('identify', { addr: myAddr }); } catch(e){}
+        try { socket.emit('join_table', { table: currentTableId }); } catch(e){}
       }
-    } catch(e){}
-  } catch (e) { setStatus('Wallet connect failed'); }
-});
+    } else {
+      setStatus('Connect wallet to join table');
+    }
+  } catch(e) { setStatus('Wallet connect failed'); }
+}
+
+connect();
+ensureWallet(true);
+
+if (connectBtn) connectBtn.addEventListener('click', function(){ ensureWallet(true); });
 
 
