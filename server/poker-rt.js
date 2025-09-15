@@ -18,6 +18,8 @@ const io = new Server(server, {
   cors: { origin: true, methods: ['GET','POST'] },
 });
 
+const ADDR_ROOM_PREFIX = 'addr:';
+
 // Minimal isolated state (no reuse)
 // tableId -> {
 //   id,
@@ -71,6 +73,7 @@ io.on('connection', (socket) => {
 
   socket.on('identify', (m) => {
     try { addrLower = String(m?.addr||'').toLowerCase(); } catch {}
+    try { if (addrLower) socket.join(ADDR_ROOM_PREFIX + addrLower); } catch {}
     socket.emit('rt:state', { ok: true, game: 'POKER' });
   });
 
@@ -337,6 +340,13 @@ function startPokerHand(tableId, t) {
     let turnIndex = (bbIndex + 1) % actors.length; if (actors.length === 2) turnIndex = sbIndex;
     t.poker = { stage:'preflop', deck, community, actors, dealerIndex, sbIndex, bbIndex, dealerSeatId, pot, toCall, sb:SB, bb:BB, minRaise:BB, lastAgg:BB, turnIndex, startedAt: now() };
     emitPokerState(tableId, t);
+    // Send private hole cards to each player address room
+    try {
+      actors.forEach(a => {
+        const room = ADDR_ROOM_PREFIX + String(a.addr||'');
+        io.to(room).emit('poker:cards', { tableId, hole: Array.from(a.cards||[]) });
+      });
+    } catch {}
     maybeTriggerBot(tableId, t);
   } catch {}
 }
@@ -353,7 +363,7 @@ function advancePokerStage(tableId, t) {
     else if (state.stage === 'flop') { state.community.push(state.deck.pop()); state.stage = 'turn'; }
     else if (state.stage === 'turn') { state.community.push(state.deck.pop()); state.stage = 'river'; }
     else if (state.stage === 'river') {
-      // Final add of contribs then showdown with side pots
+    // Final add of contribs then showdown with side pots
       try { const add2 = actors.reduce((s,a)=> s + Number(a.contrib||0), 0); state.pot = Number(state.pot||0) + add2; } catch {}
       endPokerWithSidePots(tableId, t);
       return;
@@ -413,7 +423,9 @@ function endPokerWithSidePots(tableId, t) {
     for (let i=0;i<actors.length;i++) { actors[i].stack = Number(actors[i].stack||0) + Number(payouts[i]||0); }
     state.actors.forEach(a => { const seat = t.seats[a.seatId]; if (seat) seat.chips = Number(a.stack||0); });
     const winnerList = payouts.map((amt,i)=> ({ i, amt })).filter(x=>x.amt>0).map(x=> ({ addr: actors[x.i].addr, amount: x.amt }));
-    io.to(tableId).emit('poker:hand', { winners: winnerList, community: board, pot: state.pot||0, table: tablePublic(t) });
+    // Reveal surviving players' hole cards at showdown for transparency
+    const exposures = actors.filter(a => !a.folded).map(a => ({ addr: a.addr, cards: Array.from(a.cards||[]) }));
+    io.to(tableId).emit('poker:hand', { winners: winnerList, community: board, exposures, pot: state.pot||0, table: tablePublic(t) });
     t.poker = null;
     try { t.seats.filter(Boolean).forEach(s => { s.ready = false; }); } catch {}
     emitUpdate(t);

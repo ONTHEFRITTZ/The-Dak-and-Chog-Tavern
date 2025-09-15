@@ -4,10 +4,10 @@ const seatEls = Array.from(document.querySelectorAll('.seat'));
 const connectBtn = document.getElementById('connect-wallet');
 const devBotBtn = document.getElementById('toggle-dev-bot');
 let devBotOn = false;
-let socket; let myAddr = null; let currentTableId = null;
+let socket; let myAddr = null; let currentTableId = null; let lastTable = null; let myHole = [];
 
 // Build a simple action bar anchored to the table canvas
-let actionBar = null; let communityEl = null; let amountInput = null; let infoText = null;
+let actionBar = null; let communityEl = null; let amountInput = null; let infoText = null; let communityStrip = null;
 function ensureActionBar(){
   try {
     if (actionBar) return actionBar;
@@ -21,15 +21,32 @@ function ensureActionBar(){
     canvas.appendChild(actionBar);
     // community cards banner above center
     communityEl = document.createElement('div');
-    communityEl.style.cssText = 'position:absolute; left:50%; top:50%; transform:translate(-50%,-120%); background:rgba(255,244,233,0.92); border:3px solid #7800cd; border-radius:10px; padding:6px 8px; font-weight:600; color:#2b1e12;';
+    communityEl.style.cssText = 'position:absolute; left:50%; top:50%; transform:translate(-50%,-160%); background:rgba(255,244,233,0.92); border:3px solid #7800cd; border-radius:10px; padding:6px 8px; font-weight:600; color:#2b1e12;';
     communityEl.textContent = '';
     canvas.appendChild(communityEl);
+    // strip for board card images
+    communityStrip = document.createElement('div');
+    communityStrip.style.cssText = 'position:absolute; left:50%; top:50%; transform:translate(-50%,-105%); display:flex; gap:8px;';
+    canvas.appendChild(communityStrip);
   } catch {}
 }
 
 
 function short(a){ try { return a && a.length>10 ? (a.slice(0,6)+'...'+a.slice(-4)) : (a||''); } catch { return a||''; } }
 function setStatus(t){ try { statusEl.textContent = t; } catch {} }
+function cardSrc(code){
+  try {
+    const r = String(code||'').charAt(0).toUpperCase();
+    const s = String(code||'').charAt(1).toLowerCase();
+    const rankMap = { 'A':'ace', 'K':'king', 'Q':'queen', 'J':'jack' };
+    const suitMap = { 's':'spades', 'h':'hearts', 'd':'diamonds', 'c':'clubs' };
+    const rank = rankMap[r] || null;
+    const suit = suitMap[s] || null;
+    if (rank && suit) { return `../../assets/images/chog_cards/chog-${rank}-of-${suit}.png`; }
+  } catch {}
+  // placeholder for missing cards
+  return `../../assets/images/chog_cards/chog-ace-of-spades.png`;
+}
 
 function renderTable(t){
   try {
@@ -77,6 +94,10 @@ async function connect(){
   socket.on('disconnect', () => setStatus('Disconnected'));
   socket.on('table:update', (t) => { renderTable(t); });
   socket.on('system', (m) => { try { centerEl.textContent = String(m); } catch {} });
+  // Receive my private hole cards
+  socket.on('poker:cards', (m) => {
+    try { const tid = String(m?.tableId||''); if (tid && tid !== currentTableId) return; const hole = Array.isArray(m?.hole)? m.hole : []; if (hole.length === 2) { myHole = hole; if (lastTable) renderTable(lastTable); } } catch {}
+  });
   socket.on('poker:mode', (m) => { try { const sim = !!m?.simulated; if (sim) { alert('Simulated mode enabled: on-chain betting is disabled while the dev bot is active.'); } } catch {} });
   // Poker state updates
   socket.on('poker:state', (st) => {
@@ -85,10 +106,9 @@ async function connect(){
       // Update center banner with stage and pot
       if (centerEl) centerEl.textContent = `Stage: ${String(st.stage).toUpperCase()} • Pot: ${Number(st.pot||0)}`;
       // Render community
-      if (communityEl) {
-        const cards = Array.isArray(st.community)? st.community : [];
-        communityEl.textContent = cards.length ? `Board: ${cards.join(' ')}` : '';
-      }
+      const cards = Array.isArray(st.community)? st.community : [];
+      if (communityEl) communityEl.textContent = cards.length ? 'Board' : '';
+      if (communityStrip) { communityStrip.innerHTML = ''; cards.forEach(code => { const img=document.createElement('img'); img.alt=code; img.src=cardSrc(code); img.style.cssText='width:58px; height:auto; border-radius:8px; box-shadow:0 3px 8px rgba(0,0,0,0.25)'; communityStrip.appendChild(img); }); }
       // Dealer/SB/BB markers
       try {
         const seats = Array.isArray(st.actors) ? st.actors.map(a=>a.seatId) : [];
@@ -136,7 +156,9 @@ async function connect(){
       const winners = Array.isArray(m?.winners)? m.winners : [];
       const txt = winners.length ? `Winners: ${winners.map(w=>short(w.addr||''))}. Pot ${Number(m.pot||0)}` : `Hand complete. Pot ${Number(m.pot||0)}`;
       if (centerEl) centerEl.textContent = txt;
-      if (communityEl) communityEl.textContent = Array.isArray(m?.community)&&m.community.length ? `Board: ${m.community.join(' ')}` : '';
+      if (communityEl) communityEl.textContent = Array.isArray(m?.community)&&m.community.length ? 'Board' : '';
+      if (communityStrip) { communityStrip.innerHTML=''; (Array.isArray(m?.community)? m.community:[]).forEach(code => { const img=document.createElement('img'); img.alt=code; img.src=cardSrc(code); img.style.cssText='width:58px; height:auto; border-radius:8px; box-shadow:0 3px 8px rgba(0,0,0,0.25)'; communityStrip.appendChild(img); }); }
+      myHole = [];
       if (actionBar) { const btnWrap = actionBar.querySelector('.action-btns'); if (btnWrap) btnWrap.innerHTML=''; }
     } catch {}
   });
