@@ -27,9 +27,9 @@ function ensureActionBar(){
   communityStrip.style.cssText = 'position:absolute; left:50%; top:50%; transform:translate(-50%,-105%); display:flex; gap:8px; z-index:2;';
   canvas.appendChild(communityStrip);
 
-  // Burn card stack: backs overlapped, tucked bottom-left of community area
+  // Burn card pile: backs, no overlap, directly under community area
   burnStrip = document.createElement('div');
-  burnStrip.style.cssText = 'position:absolute; left:50%; top:50%; transform:translate(calc(-50% - 120px), calc(-50% - 50px)); display:flex; gap:0; pointer-events:none; z-index:1;';
+  burnStrip.style.cssText = 'position:absolute; left:50%; top:50%; transform:translate(-50%, -88%); display:flex; gap:8px; pointer-events:none; z-index:1; align-items:center;';
   canvas.appendChild(burnStrip);
 }
 
@@ -137,7 +137,7 @@ async function connect(){
       communityStrip.classList.remove('showdown');
       cards.forEach(function(code){ communityStrip.appendChild(makeCardImg(code, { flip:true })); });
     }
-    // Burn cards: show back-faced overlapped stack to indicate burns that occurred
+    // Burn cards: show back-faced pile (no overlap) to indicate burns that occurred
     try {
       const stage = String(st && st.stage || '');
       const burnCount = stage === 'flop' ? 1 : stage === 'turn' ? 2 : stage === 'river' ? 3 : 0;
@@ -146,9 +146,9 @@ async function connect(){
         for (let i = 0; i < burnCount; i++) {
           const img = makeCardImg('BACK', { flip:false });
           img.style.width = '50px';
-          img.style.marginLeft = i === 0 ? '0' : '-34px';
           img.style.filter = 'brightness(0.95)';
-          img.style.transform = 'rotate(-8deg)';
+          // Slight per-card offset without overlap
+          img.style.transform = 'translate(' + (i*2) + 'px,' + (i*1) + 'px) rotate(' + (-4 + i*4) + 'deg)';
           burnStrip.appendChild(img);
         }
       }
