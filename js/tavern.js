@@ -181,7 +181,7 @@ async function silentConnect() {
 }
 
 // Auto-connect if previously connected (silent when possible)
-window.addEventListener('load', async () => {
+async function bootConnect() {
   await ensureConfig();
   try {
     const chainId = await detectChainId(undefined);
@@ -189,21 +189,15 @@ window.addEventListener('load', async () => {
     renderTavernBanner({ contractKey: 'tavern', address, chainId, labelOverride: 'Address' });
   } catch {}
   let autoConnected = false;
-  // Try silent authorization first (no prompt)
   autoConnected = await silentConnect();
-  // If flag exists but silent failed (edge), try explicit connect only if user has previously allowed
   if (!autoConnected) {
     try {
-      if (localStorage.getItem('walletConnected') === 'true' || sessionStorage.getItem('walletConnected') === 'true') {
-        // Attempt silent once more (eth_accounts)
-        autoConnected = await silentConnect();
-      }
+      const remembered = (localStorage.getItem('walletConnected') === 'true') || (sessionStorage.getItem('walletConnected') === 'true');
+      if (remembered) autoConnected = await silentConnect();
     } catch {}
   }
   if (!autoConnected) {
     ensureAdminLink(false);
-    // If on Tavern homepage, force a connect prompt so the rest of the site
-    // can reuse the remembered session without further prompts.
     try {
       const path = String(location.pathname||'');
       const isTavern = path === '/' || /\/index\.html$/.test(path);
@@ -214,7 +208,16 @@ window.addEventListener('load', async () => {
       }
     } catch {}
   }
-});
+}
+
+// Run immediately if the module loads after window load (BFCache or async loader),
+// and also register normal load hook.
+try {
+  if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    bootConnect();
+  }
+} catch {}
+window.addEventListener('load', () => { bootConnect().catch(()=>{}); });
 
 // When returning to a page via back/forward cache, silently re-check wallet
 // so the banner reflects the connected state without requiring a click.
