@@ -112,6 +112,7 @@ export async function connectWallet() {
     provider = new ethers.providers.Web3Provider(window.ethereum, 'any');
     signer = provider.getSigner();
     userAddress = await signer.getAddress();
+    try { window.userAddress = userAddress; window.dispatchEvent(new CustomEvent('wallet:connected', { detail: { address: userAddress } })); } catch {}
 
     // Update top banner controls
     setConnectButtonAsDisconnect();
@@ -154,6 +155,7 @@ async function silentConnect() {
     if (!accounts || !accounts.length) return false;
     signer = provider.getSigner();
     userAddress = accounts[0];
+    try { window.userAddress = userAddress; window.dispatchEvent(new CustomEvent('wallet:connected', { detail: { address: userAddress } })); } catch {}
     setConnectButtonAsDisconnect();
     try { statusEl.innerText = ''; } catch {}
     try {

@@ -11,30 +11,24 @@ try { if (devBotBtn) { devBotBtn.disabled = true; devBotBtn.title = 'Connect wal
 
 let actionBar = null; let communityEl = null; let amountInput = null; let infoText = null; let communityStrip = null; let burnStrip = null;
 
-function ensureActionBar(){
-  if (actionBar) return actionBar;
-  const canvas = document.querySelector('.table-canvas');
-  actionBar = document.createElement('div');
-  actionBar.style.cssText = 'position:absolute; left:50%; bottom:12%; transform:translateX(-50%); display:none; gap:8px; background:rgba(255,244,233,0.95); border:3px solid #7800cd; border-radius:12px; padding:8px 10px; box-shadow:0 4px 12px rgba(0,0,0,0.2); align-items:center; z-index:3;';
-  infoText = document.createElement('div'); infoText.style.color='#2b1e12'; infoText.style.fontSize='12px'; actionBar.appendChild(infoText);
-  const btns = document.createElement('div'); btns.style.display='flex'; btns.style.gap='8px'; btns.className='action-btns'; actionBar.appendChild(btns);
-  amountInput = document.createElement('input'); amountInput.type='number'; amountInput.min='1'; amountInput.step='1'; amountInput.value='2'; amountInput.style.width='70px'; amountInput.placeholder='amt'; amountInput.title='Bet/Raise amount'; actionBar.appendChild(amountInput);
-  canvas.appendChild(actionBar);
 
-  communityEl = document.createElement('div');
-  communityEl.style.cssText = 'position:absolute; left:50%; top:50%; transform:translate(-50%,-160%); background:rgba(255,244,233,0.92); border:3px solid #7800cd; border-radius:10px; padding:6px 8px; font-weight:600; color:#2b1e12;';
-  communityEl.textContent = ''; communityEl.style.display='none';
-  canvas.appendChild(communityEl);
 
-  communityStrip = document.createElement('div');
-  communityStrip.style.cssText = 'position:absolute; left:50%; top:50%; transform:translate(-50%,-105%); display:flex; gap:8px; z-index:2;';
-  canvas.appendChild(communityStrip);
-
-  // Burn card pile: backs, under the community row aligned toward left side
-  burnStrip = document.createElement('div');
-  burnStrip.style.cssText = 'position:absolute; left:50%; top:50%; transform:translate(calc(-50% - 240px), -58%); display:flex; gap:0; pointer-events:none; z-index:1; align-items:center;';
-  canvas.appendChild(burnStrip);
+// Position seats in a ring immediately so layout looks correct before data arrives
+function positionSeatsRing(){
+  try {
+    const n = seatEls.length || 8;
+    const rx = 52, ry = 48, startDeg = -90;
+    seatEls.forEach(function(el, i){
+      const ang = (startDeg + (360 / n) * i) * Math.PI / 180;
+      const left = 50 + rx * Math.cos(ang);
+      const top = 50 + ry * Math.sin(ang);
+      el.style.left = left.toFixed(2) + '%';
+      el.style.top = top.toFixed(2) + '%';
+      el.style.transform = 'translate(-50%,-50%)';
+    });
+  } catch {}
 }
+positionSeatsRing();
 
 function short(a){ return (a && a.length>10) ? (a.slice(0,6)+'...'+a.slice(-4)) : (a||''); }
 function setStatus(t){ if (statusEl) statusEl.textContent = t; }
@@ -280,9 +274,11 @@ async function ensureWallet(promptIfNeeded) {
 }
 
 connect();
-ensureWallet(false);
+// If Tavern already connected, pick it up without re-prompting\ntry { if (window.userAddress && String(window.userAddress)) { myAddr = String(window.userAddress).toLowerCase(); } } catch {}\nensureWallet(false);\n// React when Tavern announces wallet connection\ntry {\n  window.addEventListener('wallet:connected', function(ev){\n    try {\n      const addr = String((ev && ev.detail && ev.detail.address) || '').toLowerCase();\n      if (addr) {\n        myAddr = addr; setStatus('');\n        try { if (connectBtn) connectBtn.style.display = 'none'; } catch {}\n        if (devBotBtn) { devBotBtn.disabled = false; devBotBtn.title = 'Add/remove a test bot to play solo'; }\n        if (socket && socket.connected) {\n          try { socket.emit('identify', { addr: myAddr }); } catch(e){}\n          try { socket.emit('join_table', { table: currentTableId }); } catch(e){}\n          try { socket.emit('table:get', { table: currentTableId }); } catch(e){}\n          try { socket.emit('lobby:get'); } catch(e){}\n        }\n      }\n    } catch {}\n  });\n} catch {}
 
 if (connectBtn) connectBtn.addEventListener('click', function(){ ensureWallet(true); });
+
+
 
 
 
