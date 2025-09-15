@@ -74,12 +74,24 @@ const wlBulkAddBtn = document.getElementById('wl-bulk-add');
 const wlBulkRemoveBtn = document.getElementById('wl-bulk-remove');
 const wlMsgEl = document.getElementById('wl-msg');
 
+// Poker (Pooled) elements
+const ppAddrEl = document.getElementById('pokerpooled-address');
+const ppOverrideInput = document.getElementById('pokerpooled-override');
+const ppSetAddrBtn = document.getElementById('pokerpooled-set-addr');
+const ppSeatInput = document.getElementById('pokerpooled-seat');
+const ppAmtInput = document.getElementById('pokerpooled-amt');
+const ppReadBtn = document.getElementById('pokerpooled-read');
+const ppWithdrawBtn = document.getElementById('pokerpooled-withdraw');
+const ppUnseatBtn = document.getElementById('pokerpooled-unseat');
+const ppMsgEl = document.getElementById('pokerpooled-msg');
+
 let provider, signer, wallet;
 let tavernAddr = null, faroAddr = null, poolAddr = null;
 let whitelistAddr = null;
 let tavern, faro, pool;
 let tavernOwner = null, faroOwner = null;
 let ioSocket = null;
+let pokerPooledAddr = null; let pokerPooled = null;
 
 function fmtEth(v) {
   try { return window.ethers.utils.formatEther(v); } catch { return '0'; }
@@ -99,14 +111,17 @@ async function refresh() {
     faroAddr = await getAddressFor('faro', provider);
     poolAddr = await getAddressFor('pool', provider);
     whitelistAddr = await getAddressFor('whitelist', provider);
+    try { pokerPooledAddr = localStorage.getItem('contract.pokerTable') || ''; } catch { pokerPooledAddr = ''; }
     tavAddrEl.textContent = tavernAddr || '-';
     faroAddrEl.textContent = faroAddr || '-';
     if (poolAddrEl) poolAddrEl.textContent = poolAddr || '-';
     if (wlAddrEl) wlAddrEl.textContent = whitelistAddr || '(not set)';
+    if (ppAddrEl) ppAddrEl.textContent = pokerPooledAddr || '(set below)';
     if (tavOverrideInput) tavOverrideInput.placeholder = tavernAddr || '';
     if (faroOverrideInput) faroOverrideInput.placeholder = faroAddr || '';
     if (poolOverrideInput) poolOverrideInput.placeholder = poolAddr || '';
     if (wlOverrideInput) wlOverrideInput.placeholder = whitelistAddr || '';
+    if (ppOverrideInput) ppOverrideInput.placeholder = pokerPooledAddr || '';
     renderTavernBanner({ contractKey: 'tavern', address: tavernAddr, chainId, wallet });
 
     if (tavernAddr && window.TavernABI && signer) {
@@ -124,9 +139,15 @@ async function refresh() {
           const match = isTavOwnerNow();
           tavOwnerMatchEl.textContent = match ? 'Yes' : 'No';
           try { tavOwnerMatchEl.style.color = match ? '#006400' : '#8b0000'; } catch {}
-        }
-      } catch {}
     }
+    // Bind PokerTablePool if available
+    try {
+      if (pokerPooledAddr && window.PokerTablePoolABI && signer) {
+        pokerPooled = new window.ethers.Contract(pokerPooledAddr, window.PokerTablePoolABI, signer);
+      } else { pokerPooled = null; }
+    } catch { pokerPooled = null; }
+  } catch {}
+}
     if (faroAddr && window.FaroABI && signer) {
       faro = new window.ethers.Contract(faroAddr, window.FaroABI, signer);
       try {
@@ -582,4 +603,45 @@ poolDeauthorizeBtn?.addEventListener('click', async () => {
     await tx.wait();
     await refresh();
   } catch (e) { statusEl.textContent = e?.data?.message || e?.message || 'Failed'; }
+});
+
+// --- Poker (Pooled) handlers ---
+ppSetAddrBtn?.addEventListener('click', async () => {
+  try {
+    const v = String(ppOverrideInput?.value||'').trim();
+    if (!/^0x[0-9a-fA-F]{40}$/.test(v)) { if (ppMsgEl) ppMsgEl.textContent='Enter a valid address'; return; }
+    try { localStorage.setItem('contract.pokerTable', v); } catch {}
+    if (ppAddrEl) ppAddrEl.textContent = v; if (ppMsgEl) ppMsgEl.textContent='Poker table address set.';
+    await refresh();
+  } catch (e) { if (ppMsgEl) ppMsgEl.textContent = e?.data?.message||e?.message||'Failed'; }
+});
+
+ppReadBtn?.addEventListener('click', async () => {
+  try {
+    if (!pokerPooled) { if (ppMsgEl) ppMsgEl.textContent='Poker table not bound'; return; }
+    const seatId = Number(ppSeatInput?.value||0);
+    const s = await pokerPooled.seats(seatId);
+    if (ppMsgEl) ppMsgEl.textContent = `Seat ${seatId}: player=${s.player}, balance=${window.ethers.utils.formatEther(s.balance)} ETH`;
+  } catch (e) { if (ppMsgEl) ppMsgEl.textContent = e?.data?.message||e?.message||'Read failed'; }
+});
+
+ppWithdrawBtn?.addEventListener('click', async () => {
+  try {
+    if (!pokerPooled) { if (ppMsgEl) ppMsgEl.textContent='Poker table not bound'; return; }
+    const seatId = Number(ppSeatInput?.value||0);
+    const amt = window.ethers.utils.parseEther(String(ppAmtInput?.value||'0'));
+    const tx = await pokerPooled.withdraw(seatId, amt);
+    if (ppMsgEl) ppMsgEl.textContent = `Withdraw... ${tx.hash.slice(0,10)}...`;
+    await tx.wait(); if (ppMsgEl) ppMsgEl.textContent = 'Withdraw confirmed.';
+  } catch (e) { if (ppMsgEl) ppMsgEl.textContent = e?.data?.message||e?.message||'Withdraw failed (check inHand==false and pool authorization)'; }
+});
+
+ppUnseatBtn?.addEventListener('click', async () => {
+  try {
+    if (!pokerPooled) { if (ppMsgEl) ppMsgEl.textContent='Poker table not bound'; return; }
+    const seatId = Number(ppSeatInput?.value||0);
+    const tx = await pokerPooled.unseat(seatId);
+    if (ppMsgEl) ppMsgEl.textContent = `Unseat... ${tx.hash.slice(0,10)}...`;
+    await tx.wait(); if (ppMsgEl) ppMsgEl.textContent = 'Unseat confirmed.';
+  } catch (e) { if (ppMsgEl) ppMsgEl.textContent = e?.data?.message||e?.message||'Unseat failed'; }
 });
