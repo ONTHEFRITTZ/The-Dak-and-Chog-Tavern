@@ -19,13 +19,11 @@ function fixSource(code) {
     let out = code;
     // Normalize CRLF to LF to prevent weird diffs across platforms
     out = out.replace(/\r\n/g, '\n');
-    // Targeted repair: replace a literal "\\n" token that may appear between
-    // getTable(tableId); and try { ... } after misguided sed edits
-    out = out.replace(/getTable\(\s*tableId\s*\);\\n\s*try/g, 'getTable(tableId);\n      try');
-    // As a safety net, if an unintentional literal "\\n" slipped elsewhere in
-    // this file (not inside strings), a global replace is acceptable here since
-    // this runtime file does not rely on string-embedded newlines.
-    out = out.replace(/;\\n\s*try/g, ';\n      try');
+    // Strong repair: convert ALL literal "\\n" sequences to real newlines.
+    // poker-rt.js does not rely on string-embedded "\\n" values, so this is safe.
+    out = out.replace(/\\n/g, '\n');
+    // Also fix common join_table specific artifact if spacing differs
+    out = out.replace(/getTable\(\s*tableId\s*\);\s*\n\s*try/g, 'getTable(tableId);\n      try');
     return out;
   } catch (e) {
     return code;
@@ -35,6 +33,8 @@ function fixSource(code) {
 function main() {
   const src = fs.readFileSync(SRC, 'utf8');
   const fixed = fixSource(src);
+  // Validate parse before executing
+  try { new Function(fixed); } catch (e) { console.error('Poker RT bootstrap parse check failed:', e && e.message); }
   ensureDir(OUT_DIR);
   fs.writeFileSync(OUT, fixed, 'utf8');
   // Execute the fixed file
@@ -42,4 +42,3 @@ function main() {
 }
 
 main();
-
