@@ -3,7 +3,7 @@ const seatEls = Array.from(document.querySelectorAll('.seat'));
 const connectBtn = document.getElementById('connect-wallet');
 const devBotBtn = document.getElementById('toggle-dev-bot');
 let devBotOn = false;
-let socket; let myAddr = null; let currentTableId = null; let lastTable = null; let myHole = [];
+let socket; let myAddr = null; let currentTableId = null; let lastTable = null; let
 let lastState = null; let exposures = {}; let winnersNow = {};
 
 // Disable Dev Bot toggle until wallet connects
@@ -32,7 +32,7 @@ function ensureActionBar(){
 
   // Burn card pile: backs, under the community row aligned toward left side
   burnStrip = document.createElement('div');
-  burnStrip.style.cssText = 'position:absolute; left:50%; top:50%; transform:translate(calc(-50% - 240px), -58%); display:flex; gap:8px; pointer-events:none; z-index:1; align-items:center;';
+  burnStrip.style.cssText = 'position:absolute; left:50%; top:50%; transform:translate(calc(-50% - 240px), -58%); display:flex; gap:0; pointer-events:none; z-index:1; align-items:center;';
   canvas.appendChild(burnStrip);
 }
 
@@ -167,8 +167,9 @@ async function connect(){
           const img = makeCardImg('BACK', { flip:false });
           img.style.width = '50px';
           img.style.filter = 'brightness(0.95)';
-          // Slight per-card offset without overlap
-          img.style.transform = 'translate(' + (i*2) + 'px,' + (i*1) + 'px) rotate(' + (-4 + i*4) + 'deg)';
+          // Overlap: each subsequent burn shifts further down-left
+          if (i > 0) img.style.marginLeft = '-36px';
+          img.style.transform = 'translate(' + (-4*i) + 'px, ' + (6*i) + 'px) rotate(' + (-8 + 5*i) + 'deg)';
           burnStrip.appendChild(img);
         }
       }
@@ -232,8 +233,7 @@ async function connect(){
     try { const arr = Array.isArray(m && m.exposures) ? m.exposures : []; exposures = {}; arr.forEach(function(e){ const a = String((e && e.addr) || '').toLowerCase(); const cards = Array.isArray(e && e.cards) ? e.cards : []; if (a && cards.length===2) exposures[a] = cards; }); } catch(e){}
     try { winnersNow = {}; (Array.isArray(m && m.winners)? m.winners:[]).forEach(function(w){ const a=String((w && w.addr) || '').toLowerCase(); const amt = Number((w && w.amount) || 0); const usedHole = Array.isArray(w && w.usedHole) ? w.usedHole : null; if (a) winnersNow[a] = { amount: amt, usedHole: usedHole }; }); } catch(e){}
     if (lastTable) renderTable(lastTable);
-    myHole = [];
-    if (burnStrip) burnStrip.innerHTML = '';
+if (burnStrip) burnStrip.innerHTML = '';
   } catch(e){} });
 
   if (devBotBtn) devBotBtn.addEventListener('click', function(){
@@ -279,9 +279,15 @@ async function ensureWallet(promptIfNeeded) {
 }
 
 connect();
-ensureWallet(true);
+ensureWallet(false);
 
 if (connectBtn) connectBtn.addEventListener('click', function(){ ensureWallet(true); });
+
+
+
+
+
+
 
 
 
