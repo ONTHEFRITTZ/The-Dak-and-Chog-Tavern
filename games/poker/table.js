@@ -24,12 +24,12 @@ function ensureActionBar(){
   canvas.appendChild(communityEl);
 
   communityStrip = document.createElement('div');
-  communityStrip.style.cssText = 'position:absolute; left:50%; top:50%; transform:translate(-50%,-105%); display:flex; gap:8px;';
+  communityStrip.style.cssText = 'position:absolute; left:50%; top:50%; transform:translate(-50%,-105%); display:flex; gap:8px; z-index:2;';
   canvas.appendChild(communityStrip);
 
   // Burn card stack: backs overlapped, tucked bottom-left of community area
   burnStrip = document.createElement('div');
-  burnStrip.style.cssText = 'position:absolute; left:50%; top:50%; transform:translate(calc(-50% - 120px), calc(-50% - 50px)); display:flex; gap:0; pointer-events:none;';
+  burnStrip.style.cssText = 'position:absolute; left:50%; top:50%; transform:translate(calc(-50% - 120px), calc(-50% - 50px)); display:flex; gap:0; pointer-events:none; z-index:1;';
   canvas.appendChild(burnStrip);
 }
 
