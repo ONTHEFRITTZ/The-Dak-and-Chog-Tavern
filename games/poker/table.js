@@ -132,7 +132,11 @@ async function connect(){
     ensureActionBar();
     const cards = Array.isArray(st && st.community) ? st.community : [];
     if (communityEl) communityEl && (communityEl.style.display='none');
-    if (communityStrip) { communityStrip.innerHTML = ''; cards.forEach(function(code){ communityStrip.appendChild(makeCardImg(code, { flip:true })); }); }
+    if (communityStrip) {
+      communityStrip.innerHTML = '';
+      communityStrip.classList.remove('showdown');
+      cards.forEach(function(code){ communityStrip.appendChild(makeCardImg(code, { flip:true })); });
+    }
     // Burn cards: show back-faced overlapped stack to indicate burns that occurred
     try {
       const stage = String(st && st.stage || '');
@@ -196,6 +200,11 @@ async function connect(){
       communityStrip.innerHTML='';
       var comm = botWon ? [] : (Array.isArray(m && m.community)? m.community:[]);
       comm.forEach(function(code){ communityStrip.appendChild(makeCardImg(code, { flip:true })); });
+      // Nudge community up at showdown to spotlight board while keeping all visible
+      if (!botWon && comm.length) {
+        communityStrip.classList.add('showdown');
+        try { Array.from(communityStrip.querySelectorAll('img.card')).forEach(function(img){ img.style.transform = 'translateY(-6px)'; }); } catch(_){ }
+      }
     }
     try { const arr = Array.isArray(m && m.exposures) ? m.exposures : []; exposures = {}; arr.forEach(function(e){ const a = String((e && e.addr) || '').toLowerCase(); const cards = Array.isArray(e && e.cards) ? e.cards : []; if (a && cards.length===2) exposures[a] = cards; }); } catch(e){}
     try { winnersNow = {}; (Array.isArray(m && m.winners)? m.winners:[]).forEach(function(w){ const a=String((w && w.addr) || '').toLowerCase(); const amt = Number((w && w.amount) || 0); if (a) winnersNow[a] = amt; }); } catch(e){}
