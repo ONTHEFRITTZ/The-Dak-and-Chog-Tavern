@@ -30,6 +30,7 @@ function ensureActionBar(){
 
 function short(a){ return (a && a.length>10) ? (a.slice(0,6)+'...'+a.slice(-4)) : (a||''); }
 function setStatus(t){ if (statusEl) statusEl.textContent = t; }
+function assetTag(){ try { return String(window.__ASSET_TAG||''); } catch(e){ return ''; } }
 function cardSrc(code){
   try {
     const r = String(code||'').charAt(0).toUpperCase();
@@ -37,11 +38,11 @@ function cardSrc(code){
     const rm = { 'A':'ace','K':'king','Q':'queen','J':'jack' };
     const sm = { 's':'spades','h':'hearts','d':'diamonds','c':'clubs' };
     const rank = rm[r] || null; const suit = sm[s] || null;
-    if (rank && suit) { return '../../assets/images/chog_cards/chog-' + rank + '-of-' + suit + '.png'; }
+    if (rank && suit) { const v = assetTag(); const q = v ? ('?v=' + encodeURIComponent(v)) : ''; return '../../assets/images/chog_cards/chog-' + rank + '-of-' + suit + '.png' + q; }
   } catch(e){}
-  return '../../assets/images/chog_cards/chog-ace-of-spades.png';
+  const v = assetTag(); const q = v ? ('?v=' + encodeURIComponent(v)) : ''; return '../../assets/images/chog_cards/chog-ace-of-spades.png' + q;
 }
-function cardBackSrc(){ return '../../assets/images/chog_cards/dak-and-chog-cardback.png'; }
+function cardBackSrc(){ const v = assetTag(); const q = v ? ('?v=' + encodeURIComponent(v)) : ''; return '../../assets/images/chog_cards/dak-and-chog-cardback.png' + q; }
 function makeCardImg(code, opts){ opts = opts||{}; const hole=!!opts.hole, flip = opts.flip!==false, win = !!opts.win; const img=document.createElement('img'); img.alt=String(code||''); img.src = (code==='BACK')? cardBackSrc() : cardSrc(code); img.className='card' + (hole?' card--hole':'') + (flip?' card--flip':'') + (win?' card--win':''); if (flip) requestAnimationFrame(function(){ img.classList.add('card--show'); }); return img; }
 
 function renderTable(t){

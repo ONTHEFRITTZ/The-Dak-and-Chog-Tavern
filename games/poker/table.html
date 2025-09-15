@@ -62,8 +62,17 @@
   <script>
     (function(){
       function load(src){ try { var s=document.createElement('script'); s.src=src; s.defer=true; document.body.appendChild(s); } catch(e) { console.error('inject failed', e); } }
-      try { fetch('/assets/build.json',{cache:'no-store'}).then(r=>r.ok?r.json():null).then(b=>{ var tag=(b&&b.commit)?String(b.commit).slice(0,12):Date.now(); load('table.js?v='+encodeURIComponent(tag)); }).catch(()=> load('table.js?v='+Date.now())); }
-      catch(e){ load('table.js?v='+Date.now()); }
+      try {
+        fetch('/assets/build.json',{cache:'no-store'})
+          .then(r=>r.ok?r.json():null)
+          .then(b=>{
+            var tag=(b&&b.commit)?String(b.commit).slice(0,12):Date.now();
+            try { window.__ASSET_TAG = tag; } catch(_){ }
+            load('table.js?v='+encodeURIComponent(tag));
+          })
+          .catch(()=> { try { window.__ASSET_TAG = Date.now(); } catch(_){ } load('table.js?v='+Date.now()); });
+      }
+      catch(e){ try { window.__ASSET_TAG = Date.now(); } catch(_){ } load('table.js?v='+Date.now()); }
     })();
   </script>
 </body>
