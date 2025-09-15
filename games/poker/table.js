@@ -2,6 +2,8 @@ const statusEl = document.getElementById('status');
 const centerEl = document.getElementById('center');
 const seatEls = Array.from(document.querySelectorAll('.seat'));
 const connectBtn = document.getElementById('connect-wallet');
+const devBotBtn = document.getElementById('toggle-dev-bot');
+let devBotOn = false;
 let socket; let myAddr = null; let currentTableId = null;
 
 // Build a simple action bar anchored to the table canvas
@@ -135,6 +137,11 @@ async function connect(){
       if (communityEl) communityEl.textContent = Array.isArray(m?.community)&&m.community.length ? `Board: ${m.community.join(' ')}` : '';
       if (actionBar) { const btnWrap = actionBar.querySelector('.action-btns'); if (btnWrap) btnWrap.innerHTML=''; }
     } catch {}
+  });
+
+  // Dev bot toggle
+  devBotBtn?.addEventListener('click', () => {
+    try { devBotOn = !devBotOn; devBotBtn.classList.toggle('active', devBotOn); devBotBtn.textContent = devBotOn ? 'Dev Bot: ON' : 'Dev Bot'; socket.emit('poker:devbot', { enabled: devBotOn }); } catch {}
   });
 }
 

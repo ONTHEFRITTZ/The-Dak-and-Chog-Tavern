@@ -129,6 +129,33 @@ io.on('connection', (socket) => {
 
   socket.on('health', () => { try { socket.emit('health', { ok: true, now: Date.now(), game: 'POKER' }); } catch {} });
 
+  // Toggle a simple dev bot to enable solo testing
+  socket.on('poker:devbot', (m) => {
+    try {
+      if (!currentTableId) return;
+      const t = getTable(currentTableId);
+      const enabled = !!m?.enabled;
+      t.devBotEnabled = enabled;
+      const botIdx = t.seats.findIndex(s => s && typeof s.addr === 'string' && s.addr.startsWith('bot:'));
+      if (enabled) {
+        if (botIdx === -1) {
+          const slot = t.seats.findIndex(s => !s);
+          if (slot >= 0) {
+            t.seats[slot] = { id: slot, addr: 'bot:dev', ready: true, balance: 0, lastActive: now(), socketId: 'bot', chips: 100 };
+          }
+        } else {
+          try { t.seats[botIdx].ready = true; } catch {}
+        }
+      } else {
+        if (botIdx >= 0) t.seats[botIdx] = null;
+        try { if (t.poker?.botTimer) { clearTimeout(t.poker.botTimer); t.poker.botTimer = null; } } catch {}
+      }
+      t.lastActive = now();
+      emitUpdate(t);
+      emitLobby();
+    } catch {}
+  });
+
   // Minimal Texas Hold'em flow (fold/check/call only)
   socket.on('poker:act', (m) => {
     try {
