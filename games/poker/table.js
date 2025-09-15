@@ -21,7 +21,7 @@ function ensureActionBar(){
 
   communityEl = document.createElement('div');
   communityEl.style.cssText = 'position:absolute; left:50%; top:50%; transform:translate(-50%,-160%); background:rgba(255,244,233,0.92); border:3px solid #7800cd; border-radius:10px; padding:6px 8px; font-weight:600; color:#2b1e12;';
-  communityEl.textContent = '';
+  communityEl.textContent = ''; communityEl.style.display='none';
   canvas.appendChild(communityEl);
 
   communityStrip = document.createElement('div');
@@ -65,7 +65,7 @@ function renderTable(t){
         if (Array.isArray(myHole) && myHole.length===2) { const row=document.createElement('div'); row.style.cssText='display:flex; gap:6px; margin-top:4px;'; myHole.forEach(function(code){ row.appendChild(makeCardImg(code,{hole:true,flip:true})); }); el.appendChild(row); }
       } else {
         try {
-          const actors = Array.isArray(lastState && lastState.actors) ? lastState.actors : [];
+          const actors = Array.isArray(lastState && lastState.actorss) ? lastState.actorss : [];
           const actor = actors.find(function(a){ return a && a.addr && String(a.addr).toLowerCase()===addrLower; });
           if (actor) {
             const row=document.createElement('div'); row.style.cssText='display:flex; gap:6px; margin-top:4px;';
@@ -104,7 +104,7 @@ async function connect(){
     lastState = st; try { if (String((st && st.stage) || '') === 'preflop') { exposures = {}; winnersNow = {}; } } catch(e){}
     ensureActionBar();
     const cards = Array.isArray(st && st.community) ? st.community : [];
-    if (communityEl) communityEl.textContent = cards.length ? 'Board' : '';
+    if (communityEl) communityEl && (communityEl.style.display='none');
     if (communityStrip) { communityStrip.innerHTML = ''; cards.forEach(function(code){ communityStrip.appendChild(makeCardImg(code, { flip:true })); }); }
     try {
       seatEls.forEach(function(el){ const tag = el.querySelector('.role'); if (tag) tag.remove(); });
@@ -168,3 +168,5 @@ if (connectBtn) connectBtn.addEventListener('click', async function(){
     try { if (socket && socket.connected) { socket.emit('identify', { addr: myAddr }); socket.emit('join_table', { table: currentTableId }); } } catch(e){}
   } catch (e) { setStatus('Wallet connect failed'); }
 });
+
+
