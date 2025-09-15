@@ -132,39 +132,59 @@ async function connect(){
   });
   socket.on('poker:mode', (m) => { try { const sim = !!m?.simulated; if (sim) { alert('Simulated mode enabled: on-chain betting is disabled while the dev bot is active.'); } } catch {} });
   // Poker state updates
-  socket.on('poker:state', (st) => {\n    try {\n      lastState = st; try { if (String(st?.stage||'')==='preflop') { exposures = {}; } } catch {}
+  // Poker state updates
+  socket.on('poker:state', (st) => {
+    try {
+      lastState = st; try { if (String(st?.stage||'') === 'preflop') { exposures = {}; } } catch {}
       ensureActionBar();
       // Update center banner with stage and pot
-      if (centerEl) centerEl.textContent = `Stage: ${String(st.stage).toUpperCase()} â€¢ Pot: ${Number(st.pot||0)}`;
+      if (centerEl) centerEl.textContent = `Stage: ${String(st.stage).toUpperCase()} • Pot: ${Number(st.pot||0)}`;
       // Render community
-      const cards = Array.isArray(st.community)? st.community : [];
+      const cards = Array.isArray(st.community) ? st.community : [];
       if (communityEl) communityEl.textContent = cards.length ? 'Board' : '';
-      if (communityStrip) { communityStrip.innerHTML = ''; cards.forEach(code => { const img=document.createElement('img'); img.alt=code; img.src=cardSrc(code); img.style.cssText='width:58px; height:auto; border-radius:8px; box-shadow:0 3px 8px rgba(0,0,0,0.25)'; communityStrip.appendChild(img); }); }
+      if (communityStrip) {
+        communityStrip.innerHTML = '';
+        cards.forEach(code => {
+          const img = document.createElement('img');
+          img.alt = code; img.src = cardSrc(code);
+          img.style.cssText = 'width:58px; height:auto; border-radius:8px; box-shadow:0 3px 8px rgba(0,0,0,0.25)';
+          communityStrip.appendChild(img);
+        });
+      }
       // Dealer/SB/BB markers
       try {
-        const seats = Array.isArray(st.actors) ? st.actors.map(a=>a.seatId) : [];
         seatEls.forEach(el => { const tag = el.querySelector('.role'); if (tag) tag.remove(); });
-        if (Array.isArray(st.actors) && typeof st.dealerIndex==='number'){
-          const dSeat = st.actors[st.dealerIndex]?.seatId; if (typeof dSeat==='number'){ const el=seatEls.find(e=>Number(e.dataset.index)===Number(dSeat)); if (el){ const r=document.createElement('div'); r.className='role'; r.style.cssText='position:absolute; top:2px; right:2px; background:#7800cd; color:#fff; font-size:10px; padding:2px 4px; border-radius:6px;'; r.textContent='D'; el.appendChild(r); } }
-          const sbSeat = st.actors[st.sbIndex||-1]?.seatId; if (typeof sbSeat==='number'){ const el=seatEls.find(e=>Number(e.dataset.index)===Number(sbSeat)); if (el){ const r=document.createElement('div'); r.className='role'; r.style.cssText='position:absolute; top:2px; left:2px; background:#2a9d8f; color:#fff; font-size:10px; padding:2px 4px; border-radius:6px;'; r.textContent='SB'; el.appendChild(r); } }
-          const bbSeat = st.actors[st.bbIndex||-1]?.seatId; if (typeof bbSeat==='number'){ const el=seatEls.find(e=>Number(e.dataset.index)===Number(bbSeat)); if (el){ const r=document.createElement('div'); r.className='role'; r.style.cssText='position:absolute; bottom:2px; right:2px; background:#e76f51; color:#fff; font-size:10px; padding:2px 4px; border-radius:6px;'; r.textContent='BB'; el.appendChild(r); } }
+        if (Array.isArray(st.actors) && typeof st.dealerIndex === 'number'){
+          const dSeat = st.actors[st.dealerIndex]?.seatId;
+          if (typeof dSeat === 'number'){
+            const el = seatEls.find(e => Number(e.dataset.index) === Number(dSeat));
+            if (el){ const r=document.createElement('div'); r.className='role'; r.style.cssText='position:absolute; top:2px; right:2px; background:#7800cd; color:#fff; font-size:10px; padding:2px 4px; border-radius:6px;'; r.textContent='D'; el.appendChild(r); }
+          }
+          const sbSeat = st.actors[st.sbIndex||-1]?.seatId;
+          if (typeof sbSeat === 'number'){
+            const el = seatEls.find(e => Number(e.dataset.index) === Number(sbSeat));
+            if (el){ const r=document.createElement('div'); r.className='role'; r.style.cssText='position:absolute; top:2px; left:2px; background:#2a9d8f; color:#fff; font-size:10px; padding:2px 4px; border-radius:6px;'; r.textContent='SB'; el.appendChild(r); }
+          }
+          const bbSeat = st.actors[st.bbIndex||-1]?.seatId;
+          if (typeof bbSeat === 'number'){
+            const el = seatEls.find(e => Number(e.dataset.index) === Number(bbSeat));
+            if (el){ const r=document.createElement('div'); r.className='role'; r.style.cssText='position:absolute; bottom:2px; right:2px; background:#e76f51; color:#fff; font-size:10px; padding:2px 4px; border-radius:6px;'; r.textContent='BB'; el.appendChild(r); }
+          }
         }
       } catch {}
 
       // If it's your turn, show actions; else hide
-      const mine = myAddr && st.turnAddr && String(st.turnAddr).toLowerCase()===String(myAddr).toLowerCase();
+      const mine = myAddr && st.turnAddr && String(st.turnAddr).toLowerCase() === String(myAddr).toLowerCase();
       const btnWrap = actionBar?.querySelector('.action-btns');
       if (btnWrap) {
         btnWrap.innerHTML = '';
         if (mine) {
-          // compute my contrib
           const me = (Array.isArray(st.actors)? st.actors : []).find(a => a && a.addr && String(a.addr).toLowerCase()===String(myAddr).toLowerCase());
           const need = Math.max(0, Number(st.toCall||0) - Number(me?.contrib||0));
           const minRaise = Number(st.minRaise||0);
           const mk = (label, handler) => { const b=document.createElement('button'); b.textContent=label; b.onclick=handler; return b; };
           btnWrap.appendChild(mk('Fold', () => socket.emit('poker:act', { action:'fold' })));
           if (need <= 0) {
-      try { const arr = Array.isArray(m?.exposures) ? m.exposures : []; exposures = {}; arr.forEach(e => { const a = String(e?.addr||'').toLowerCase(); const cards = Array.isArray(e?.cards) ? e.cards : []; if (a && cards.length===2) exposures[a] = cards; }); if (lastTable) renderTable(lastTable); } catch {}
             btnWrap.appendChild(mk('Check', () => socket.emit('poker:act', { action:'check' })));
             btnWrap.appendChild(mk('Bet', () => {
               const v = Math.max(1, Number(amountInput?.value||0)|0);
@@ -177,8 +197,11 @@ async function connect(){
               socket.emit('poker:act', { action:'raise', amount: v });
             }));
           }
-          if (infoText) infoText.textContent = `To call: ${need} â€¢ MinRaise: ${minRaise} â€¢ Stack: ${Number(me?.stack||0)}`;
+          if (infoText) infoText.textContent = `To call: ${need} • MinRaise: ${minRaise} • Stack: ${Number(me?.stack||0)}`;
         }
+      }
+    } catch {}
+  });
       }
     } catch {}
   });
