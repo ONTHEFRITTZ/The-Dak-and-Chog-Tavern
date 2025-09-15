@@ -1,4 +1,4 @@
-const statusEl = document.getElementById('status');
+﻿const statusEl = document.getElementById('status');
 const centerEl = document.getElementById('center');
 const seatEls = Array.from(document.querySelectorAll('.seat'));
 const connectBtn = document.getElementById('connect-wallet');
@@ -6,7 +6,8 @@ const devBotBtn = document.getElementById('toggle-dev-bot');
 let devBotOn = false;
 let socket; let myAddr = null; let currentTableId = null; let lastTable = null; let myHole = [];
 let lastState = null; // latest poker:state
-let exposures = {};   // addrLower -> [c1,c2] revealed at showdown
+let exposures = {};
+let winnersNow = {};  // addrLower -> amount for current showdown
 
 // Build a simple action bar anchored to the table canvas
 let actionBar = null; let communityEl = null; let amountInput = null; let infoText = null; let communityStrip = null;
@@ -34,7 +35,7 @@ function ensureActionBar(){
 }
 
 
-function short(a){ try { return a && a.length>10 ? (a.slice(0,6)+'...'+a.slice(-4)) : (a||''); } catch { return a||''; } }
+function short(a){ try { return a && a.length>10 • (a.slice(0,6)+'...'+a.slice(-4)) : (a||''); } catch { return a||''; } }
 function setStatus(t){ try { statusEl.textContent = t; } catch {} }
 function cardSrc(code){
   try {
@@ -54,18 +55,28 @@ function cardBackSrc(){
   return `../../assets/images/chog_cards/dak-and-chog-cardback.png`;
 }
 
+function makeCardImg(code, { hole=false, flip=true, win=false } = {}){
+  const img = document.createElement('img');
+  img.alt = String(code||'');
+  img.src = code === 'BACK' • cardBackSrc() : cardSrc(code);
+  img.className = 'card' + (hole • ' card--hole' : '') + (flip • ' card--flip' : '') + (win • ' card--win' : '');
+  if (flip) requestAnimationFrame(() => { img.classList.add('card--show'); });
+  return img;
+}
+
+
 function renderTable(t){
   try {
     if (!t || t.id !== currentTableId) return;
     lastTable = t;
     seatEls.forEach(el => {
       const idx = Number(el.dataset.index);
-      const s = Array.isArray(t.seats) ? t.seats[idx] : null;
+      const s = Array.isArray(t.seats) • t.seats[idx] : null;
       el.innerHTML = '';
       const label = document.createElement('div'); label.className='addr'; label.textContent = `Seat ${idx}`; el.appendChild(label);
       const info = document.createElement('div'); info.className='addr';
       if (s) {
-        info.textContent = `${short(s.addr||s.id)}${typeof s.chips==='number' ? ' • '+s.chips+'c' : ''}`; el.appendChild(info);
+        info.textContent = `${short(s.addr||s.id)}${typeof s.chips==='number' • ' â€¢ '+s.chips+'c' : ''}`; el.appendChild(info);
         if (myAddr && s.addr && String(s.addr).toLowerCase()===String(myAddr).toLowerCase()){
           const btns = document.createElement('div'); btns.className='btns';
           const leave = document.createElement('button'); leave.textContent='Leave'; leave.onclick=()=> socket.emit('seat',{ index:-1 });
@@ -90,6 +101,7 @@ function renderTable(t){
               if (Array.isArray(exp) && exp.length===2) {
                 exp.forEach(code => { const img=document.createElement('img'); img.alt=code; img.src=cardSrc(code); img.style.cssText='width:46px; height:auto; border-radius:6px; box-shadow:0 2px 6px rgba(0,0,0,0.25);'; row.appendChild(img); });
                 el.appendChild(row);
+                try { const isWin = winnersNow && winnersNow[addrLower] != null; if (isWin) { const badge=document.createElement('div'); badge.className='win-badge'; const amt=winnersNow[addrLower]; badge.textContent = Winner ; el.appendChild(badge); } } catch {}
               } else if (!actor.folded) {
                 for (let k=0;k<2;k++){ const img=document.createElement('img'); img.alt='card-back'; img.src=cardBackSrc(); img.style.cssText='width:46px; height:auto; border-radius:6px; box-shadow:0 2px 6px rgba(0,0,0,0.25)'; row.appendChild(img); }
                 el.appendChild(row);
@@ -138,10 +150,10 @@ async function connect(){
       lastState = st; try { if (String(st?.stage||'') === 'preflop') { exposures = {}; } } catch {}
       ensureActionBar();
       // Update center banner with stage and pot
-      if (centerEl) centerEl.textContent = `Stage: ${String(st.stage).toUpperCase()} � Pot: ${Number(st.pot||0)}`;
+      if (centerEl) centerEl.textContent = `Stage: ${String(st.stage).toUpperCase()} • Pot: ${Number(st.pot||0)}`;
       // Render community
-      const cards = Array.isArray(st.community) ? st.community : [];
-      if (communityEl) communityEl.textContent = cards.length ? 'Board' : '';
+      const cards = Array.isArray(st.community) • st.community : [];
+      if (communityEl) communityEl.textContent = cards.length • 'Board' : '';
       if (communityStrip) {
         communityStrip.innerHTML = '';
         cards.forEach(code => {
@@ -197,7 +209,7 @@ async function connect(){
               socket.emit('poker:act', { action:'raise', amount: v });
             }));
           }
-          if (infoText) infoText.textContent = `To call: ${need} � MinRaise: ${minRaise} � Stack: ${Number(me?.stack||0)}`;
+          if (infoText) infoText.textContent = `To call: ${need} • MinRaise: ${minRaise} • Stack: ${Number(me?.stack||0)}`;
         }
       }
     } catch {}
@@ -209,10 +221,14 @@ async function connect(){
   socket.on('poker:hand', (m) => {
     try {
       const winners = Array.isArray(m?.winners)? m.winners : [];
-      const txt = winners.length ? `Winners: ${winners.map(w=>short(w.addr||''))}. Pot ${Number(m.pot||0)}` : `Hand complete. Pot ${Number(m.pot||0)}`;
+      const txt = winners.length • `Winners: ${winners.map(w=>short(w.addr||''))}. Pot ${Number(m.pot||0)}` : `Hand complete. Pot ${Number(m.pot||0)}`;
       if (centerEl) centerEl.textContent = txt;
-      if (communityEl) communityEl.textContent = Array.isArray(m?.community)&&m.community.length ? 'Board' : '';
-      if (communityStrip) { communityStrip.innerHTML=''; (Array.isArray(m?.community)? m.community:[]).forEach(code => { const img=document.createElement('img'); img.alt=code; img.src=cardSrc(code); img.style.cssText='width:58px; height:auto; border-radius:8px; box-shadow:0 3px 8px rgba(0,0,0,0.25)'; communityStrip.appendChild(img); }); }
+      if (communityEl) communityEl.textContent = Array.isArray(m?.community)&&m.community.length • 'Board' : '';
+      if (communityStrip) { communityStrip.innerHTML=''; (Array.isArray(m?.community)? m.community:[]).forEach(code => { communityStrip.appendChild(makeCardImg(code, { flip:true })); }); }
+      // winners and exposures
+      try { const arr = Array.isArray(m?.exposures) ? m.exposures : []; exposures = {}; arr.forEach(e => { const a = String(e?.addr||'').toLowerCase(); const cards = Array.isArray(e?.cards) ? e.cards : []; if (a && cards.length===2) exposures[a] = cards; }); } catch {}
+      try { winnersNow = {}; (Array.isArray(m?.winners)? m.winners:[]).forEach(w => { const a=String(w?.addr||'').toLowerCase(); const amt = Number(w?.amount||0); if (a) winnersNow[a] = amt; }); } catch {}
+      if (lastTable) renderTable(lastTable);
       myHole = [];
       if (actionBar) { const btnWrap = actionBar.querySelector('.action-btns'); if (btnWrap) btnWrap.innerHTML=''; }
     } catch {}
@@ -220,7 +236,7 @@ async function connect(){
 
   // Dev bot toggle
   devBotBtn?.addEventListener('click', () => {
-    try { devBotOn = !devBotOn; devBotBtn.classList.toggle('active', devBotOn); devBotBtn.textContent = devBotOn ? 'Dev Bot: ON' : 'Dev Bot'; socket.emit('poker:devbot', { enabled: devBotOn }); } catch {}
+    try { devBotOn = !devBotOn; devBotBtn.classList.toggle('active', devBotOn); devBotBtn.textContent = devBotOn • 'Dev Bot: ON' : 'Dev Bot'; socket.emit('poker:devbot', { enabled: devBotOn }); } catch {}
   });
 }
 
@@ -238,6 +254,8 @@ connectBtn?.addEventListener('click', async () => {
     try { if (socket && socket.connected) { socket.emit('identify', { addr: myAddr }); socket.emit('join_table', { table: currentTableId }); } } catch {}
   } catch (e) { setStatus('Wallet connect failed'); }
 });
+
+
 
 
 
