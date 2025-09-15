@@ -81,6 +81,16 @@ io.on('connection', (socket) => {
 
   socket.on('lobby:get', () => { try { emitLobby(); } catch {} });
 
+  // Allow client to request a fresh snapshot of a table immediately
+  socket.on('table:get', (m) => {
+    try {
+      const req = String(m?.table||m?.tableId||'poker-1');
+      const tableId = tables.has(req) ? req : 'poker-1';
+      const t = getTable(tableId);
+      socket.emit('table:update', tablePublic(t));
+    } catch {}
+  });
+
   socket.on('join_table', (m) => {
     try {
       const req = String(m?.table||m?.tableId||'poker-1');
