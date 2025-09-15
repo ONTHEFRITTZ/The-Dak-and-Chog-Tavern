@@ -5,6 +5,8 @@ const connectBtn = document.getElementById('connect-wallet');
 const devBotBtn = document.getElementById('toggle-dev-bot');
 let devBotOn = false;
 let socket; let myAddr = null; let currentTableId = null; let lastTable = null; let myHole = [];
+let lastState = null; // latest poker:state
+let exposures = {};   // addrLower -> [c1,c2] revealed at showdown
 
 // Build a simple action bar anchored to the table canvas
 let actionBar = null; let communityEl = null; let amountInput = null; let infoText = null; let communityStrip = null;
@@ -48,9 +50,14 @@ function cardSrc(code){
   return `../../assets/images/chog_cards/chog-ace-of-spades.png`;
 }
 
+function cardBackSrc(){
+  return `../../assets/images/chog_cards/dak-and-chog-cardback.png`;
+}
+
 function renderTable(t){
   try {
     if (!t || t.id !== currentTableId) return;
+    lastTable = t;
     seatEls.forEach(el => {
       const idx = Number(el.dataset.index);
       const s = Array.isArray(t.seats) ? t.seats[idx] : null;
@@ -64,6 +71,31 @@ function renderTable(t){
           const leave = document.createElement('button'); leave.textContent='Leave'; leave.onclick=()=> socket.emit('seat',{ index:-1 });
           const ready = document.createElement('button'); ready.textContent = s.ready? 'Unready':'Ready'; ready.onclick=()=> socket.emit('ready',{ ready: !s.ready });
           btns.appendChild(leave); btns.appendChild(ready); el.appendChild(btns);
+          // show my hole cards if known
+          try {
+            if (Array.isArray(myHole) && myHole.length===2) {
+              const row = document.createElement('div'); row.style.cssText='display:flex; gap:6px; margin-top:4px;';
+              myHole.forEach(code => { const img=document.createElement('img'); img.alt=code; img.src=cardSrc(code); img.style.cssText='width:46px; height:auto; border-radius:6px; box-shadow:0 2px 6px rgba(0,0,0,0.25);'; row.appendChild(img); });
+              el.appendChild(row);
+            }
+          } catch {}
+        } else {
+          // other players: card backs during hand, or exposures at showdown
+          try {
+            const addrLower = String(s.addr||'').toLowerCase();
+            const actor = (Array.isArray(lastState?.actors)? lastState.actors : []).find(a => a && a.addr && String(a.addr).toLowerCase()===addrLower);
+            if (actor) {
+              const row = document.createElement('div'); row.style.cssText='display:flex; gap:6px; margin-top:4px;';
+              const exp = exposures[addrLower];
+              if (Array.isArray(exp) && exp.length===2) {
+                exp.forEach(code => { const img=document.createElement('img'); img.alt=code; img.src=cardSrc(code); img.style.cssText='width:46px; height:auto; border-radius:6px; box-shadow:0 2px 6px rgba(0,0,0,0.25);'; row.appendChild(img); });
+                el.appendChild(row);
+              } else if (!actor.folded) {
+                for (let k=0;k<2;k++){ const img=document.createElement('img'); img.alt='card-back'; img.src=cardBackSrc(); img.style.cssText='width:46px; height:auto; border-radius:6px; box-shadow:0 2px 6px rgba(0,0,0,0.25)'; row.appendChild(img); }
+                el.appendChild(row);
+              }
+            }
+          } catch {}
         }
       } else {
         info.textContent = 'Empty'; el.appendChild(info);
@@ -100,8 +132,7 @@ async function connect(){
   });
   socket.on('poker:mode', (m) => { try { const sim = !!m?.simulated; if (sim) { alert('Simulated mode enabled: on-chain betting is disabled while the dev bot is active.'); } } catch {} });
   // Poker state updates
-  socket.on('poker:state', (st) => {
-    try {
+  socket.on('poker:state', (st) => {\n    try {\n      lastState = st; try { if (String(st?.stage||'')==='preflop') { exposures = {}; } } catch {}
       ensureActionBar();
       // Update center banner with stage and pot
       if (centerEl) centerEl.textContent = `Stage: ${String(st.stage).toUpperCase()} • Pot: ${Number(st.pot||0)}`;
@@ -133,6 +164,7 @@ async function connect(){
           const mk = (label, handler) => { const b=document.createElement('button'); b.textContent=label; b.onclick=handler; return b; };
           btnWrap.appendChild(mk('Fold', () => socket.emit('poker:act', { action:'fold' })));
           if (need <= 0) {
+      try { const arr = Array.isArray(m?.exposures) ? m.exposures : []; exposures = {}; arr.forEach(e => { const a = String(e?.addr||'').toLowerCase(); const cards = Array.isArray(e?.cards) ? e.cards : []; if (a && cards.length===2) exposures[a] = cards; }); if (lastTable) renderTable(lastTable); } catch {}
             btnWrap.appendChild(mk('Check', () => socket.emit('poker:act', { action:'check' })));
             btnWrap.appendChild(mk('Bet', () => {
               const v = Math.max(1, Number(amountInput?.value||0)|0);
@@ -183,3 +215,7 @@ connectBtn?.addEventListener('click', async () => {
     try { if (socket && socket.connected) { socket.emit('identify', { addr: myAddr }); socket.emit('join_table', { table: currentTableId }); } } catch {}
   } catch (e) { setStatus('Wallet connect failed'); }
 });
+
+
+
+
