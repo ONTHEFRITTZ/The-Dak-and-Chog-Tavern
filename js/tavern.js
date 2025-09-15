@@ -216,6 +216,14 @@ window.addEventListener('load', async () => {
   }
 });
 
+// When returning to a page via back/forward cache, silently re-check wallet
+// so the banner reflects the connected state without requiring a click.
+try {
+  window.addEventListener('pageshow', async () => {
+    try { await silentConnect(); } catch {}
+  });
+} catch {}
+
 if (connectButton) connectButton.addEventListener('click', connectWallet);
 
 // Export signer and provider for games

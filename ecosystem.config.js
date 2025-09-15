@@ -18,7 +18,7 @@ module.exports = {
     },
     {
       name: 'poker-rt',
-      script: 'server/poker-rt.js',
+      script: 'server/poker-rt-bootstrap.js',
       cwd: '.',
       instances: 1,
       exec_mode: 'fork',
