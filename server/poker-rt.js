@@ -12,7 +12,7 @@ const server = http.createServer((req, res) => {
   res.end('Poker realtime OK');
 });
 
-// Note: keep Socket.IO path at '/socket.io' — NGINX proxies /poker.io/ -> /socket.io
+// Note: keep Socket.IO path at '/socket.io' â€” NGINX proxies /poker.io/ -> /socket.io
 const io = new Server(server, {
   path: '/socket.io',
   cors: { origin: true, methods: ['GET','POST'] },
@@ -45,7 +45,7 @@ const tables = new Map();
 function now() { return Date.now(); }
 function getTable(id) {
   if (!tables.has(id)) {
-    tables.set(id, { id, seats: Array.from({length:6}, () => null), lastActive: now(), started: false, poker: null, devBotEnabled: false });
+    tables.set(id, { id, seats: Array.from({length:8}, () => null), lastActive: now(), started: false, poker: null, devBotEnabled: false });
   }
   return tables.get(id);
 }
@@ -59,7 +59,7 @@ function tablePublic(t) {
   };
 }
 function emitLobby() {
-  const list = Array.from(tables.values()).map(t => ({ id: t.id, seated: seatCount(t), capacity: 6, started: false }));
+  const list = Array.from(tables.values()).map(t => ({ id: t.id, seated: seatCount(t), capacity: 8, started: false }));
   io.emit('lobby:list', list.sort((a,b)=> a.id.localeCompare(b.id)));
 }
 function emitUpdate(t) { io.to(t.id).emit('table:update', tablePublic(t)); }
