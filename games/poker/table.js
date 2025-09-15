@@ -1,4 +1,4 @@
-ï»¿const statusEl = document.getElementById('status');
+const statusEl = document.getElementById('status');
 const seatEls = Array.from(document.querySelectorAll('.seat'));
 const connectBtn = document.getElementById('connect-wallet');
 const devBotBtn = document.getElementById('toggle-dev-bot');
@@ -78,7 +78,7 @@ function renderTable(t){
     const label = document.createElement('div'); label.className='addr'; label.textContent = 'Seat ' + idx; el.appendChild(label);
     const info = document.createElement('div'); info.className='addr';
     if (s) {
-      info.textContent = short(s.addr||s.id) + (typeof s.chips==='number' ? ' â€¢ ' + s.chips + 'c' : ''); el.appendChild(info);
+      info.textContent = short(s.addr||s.id) + (typeof s.chips==='number' ? ' • ' + s.chips + 'c' : ''); el.appendChild(info);
       const addrLower = String(s.addr||'').toLowerCase();
       if (myAddr && addrLower===String(myAddr).toLowerCase()){
         const btns = document.createElement('div'); btns.className='btns';
@@ -125,7 +125,7 @@ async function connect(){
   socket.on('connect', function(){
     try {
       if (myAddr) {
-        setStatus('Wallet: ' + short(myAddr));
+        setStatus('' + short(myAddr));
         try { socket.emit('identify', { addr: myAddr }); } catch(e){}
         try { socket.emit('join_table', { table: currentTableId }); } catch(e){}
       } else {
@@ -206,7 +206,7 @@ async function connect(){
           btnWrap.appendChild(mk('Call '+need, function(){ socket.emit('poker:act', { action:'call' }); }));
           btnWrap.appendChild(mk('Raise +'+minRaise+'+', function(){ const v = Math.max(minRaise, Number(amountInput && amountInput.value || 0) | 0); socket.emit('poker:act', { action:'raise', amount: v }); }));
         }
-        if (infoText) infoText.textContent = 'To call: ' + need + ' â€¢ MinRaise: ' + minRaise + ' â€¢ Stack: ' + Number(me && me.stack || 0);
+        if (infoText) infoText.textContent = 'To call: ' + need + ' • MinRaise: ' + minRaise + ' • Stack: ' + Number(me && me.stack || 0);
       }
     }
   } catch(e){}
@@ -265,7 +265,7 @@ async function ensureWallet(promptIfNeeded) {
       const signer = provider.getSigner();
       const got = await signer.getAddress();
       myAddr = String(got||addr||'').toLowerCase();
-      setStatus('Wallet: ' + short(myAddr));
+      setStatus('' + short(myAddr));
       try { if (connectBtn) connectBtn.style.display = 'none'; } catch(e){}
       if (devBotBtn) { devBotBtn.disabled = false; devBotBtn.title = 'Add/remove a test bot to play solo'; }
       if (socket && socket.connected) {
@@ -282,5 +282,6 @@ connect();
 ensureWallet(true);
 
 if (connectBtn) connectBtn.addEventListener('click', function(){ ensureWallet(true); });
+
 
 
