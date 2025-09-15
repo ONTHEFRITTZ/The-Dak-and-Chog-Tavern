@@ -36,7 +36,8 @@
     .lobby-item .name.full { opacity:.55; }
   </style>
 </head>
-<body class="game">
+
+  <script>(function(){try{var ok=localStorage.getItem('walletConnected')==='true'||sessionStorage.getItem('walletConnected')==='true';if(!ok) location.replace('/landing.html');}catch(e){location.replace('/landing.html');}})();</script>
   <div class="top-banner" role="region" aria-label="Wallet and status">
     <div class="banner-left">
       <button id="return" class="return-btn">Return to Tavern</button>
@@ -59,7 +60,7 @@
     </div>
   </div>
 
-  <script src="/socket.io/socket.io.js" onerror="(function(){var s=document.createElement('script');s.src='https://cdn.socket.io/4.7.5/socket.io.min.js';document.head.appendChild(s);})();"></script>
+  <script src="/socket.io/socket.io.js" onerror="(function(){var s=document.createElement('script');s.src='https://cdn.socket.io/4.7.5/socket.io.min.js';document.head.appendChild(s);})();"></script>`n  <script type="module" src="../../js/tavern.js"></script>
   <script type="module">
     (async()=>{
       try { const tag = window.__BUILD_TAG || Date.now(); const s=document.createElement('script'); s.type='module'; s.src=`lobby.js?v=${encodeURIComponent(tag)}`; document.body.appendChild(s); } catch(e) { console.error('faro lobby boot failed', e); }
@@ -67,4 +68,5 @@
   </script>
 </body>
 </html>
+
 

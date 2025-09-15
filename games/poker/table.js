@@ -32,7 +32,7 @@ function ensureActionBar(){
 
   // Burn card pile: backs, under the community row aligned toward left side
   burnStrip = document.createElement('div');
-  burnStrip.style.cssText = 'position:absolute; left:50%; top:50%; transform:translate(calc(-50% - 160px), -72%); display:flex; gap:8px; pointer-events:none; z-index:1; align-items:center;';
+  burnStrip.style.cssText = 'position:absolute; left:50%; top:50%; transform:translate(calc(-50% - 240px), -58%); display:flex; gap:8px; pointer-events:none; z-index:1; align-items:center;';
   canvas.appendChild(burnStrip);
 }
 
@@ -282,6 +282,7 @@ connect();
 ensureWallet(true);
 
 if (connectBtn) connectBtn.addEventListener('click', function(){ ensureWallet(true); });
+
 
 
 

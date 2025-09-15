@@ -175,5 +175,16 @@
       })();
     })();
   </script>
-</body>
+<script>
+(function(){
+  try {
+    var ok = (localStorage.getItem('walletConnected')==='true') || (sessionStorage.getItem('walletConnected')==='true');
+    var links = document.querySelectorAll('a[href^="/games/"]');
+    for (var i=0;i<links.length;i++){
+      links[i].addEventListener('click', function(e){ if(!((localStorage.getItem('walletConnected')==='true') || (sessionStorage.getItem('walletConnected')==='true'))){ e.preventDefault(); alert('Connect wallet in Tavern first'); } });
+    }
+  } catch (e) {}
+})();
+</script></body>
 </html>
+
