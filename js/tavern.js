@@ -82,6 +82,12 @@ async function ensureAbiLoaded(contractKey) {
 
 function setConnectButtonAsDisconnect() {
   try {
+    const walletBanner = document.getElementById('wallet-banner');
+    // If the top-banner wallet UI is present, hide the inline button to avoid duplicates
+    if (walletBanner && connectButton) {
+      connectButton.style.display = 'none';
+      return;
+    }
     if (!connectButton) return;
     connectButton.style.display = '';
     connectButton.textContent = 'Disconnect';
