@@ -56,6 +56,7 @@ function tablePublic(t) {
     seats: t.seats.map(s => s && ({ id: s.id, addr: s.addr, ready: !!s.ready, lastActive: Number(s.lastActive||0), chips: Number(s.chips||0) })),
     started: !!t.started,
     simulated: !!t.simMode,
+    devBotEnabled: !!t.devBotEnabled,
   };
 }
 function emitLobby() {

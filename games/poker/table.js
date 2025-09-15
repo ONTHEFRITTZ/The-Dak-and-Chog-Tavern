@@ -64,7 +64,7 @@ function renderTable(t){
         if (Array.isArray(myHole) && myHole.length===2) { const row=document.createElement('div'); row.style.cssText='display:flex; gap:6px; margin-top:4px;'; myHole.forEach(function(code){ row.appendChild(makeCardImg(code,{hole:true,flip:true})); }); el.appendChild(row); }
       } else {
         try {
-          const actors = Array.isArray(lastState && lastState.actorss) ? lastState.actorss : [];
+          const actors = Array.isArray(lastState && lastState.actors) ? lastState.actors : [];
           const actor = actors.find(function(a){ return a && a.addr && String(a.addr).toLowerCase()===addrLower; });
           if (actor) {
             const row=document.createElement('div'); row.style.cssText='display:flex; gap:6px; margin-top:4px;';
@@ -95,10 +95,10 @@ async function connect(){
   socket.on('connect_error', function(){ setStatus('Lobby unavailable. Retrying...'); });
   socket.on('reconnect_error', function(){ setStatus('Reconnecting...'); });
   socket.on('disconnect', function(){ setStatus('Disconnected'); });
-  socket.on('table:update', function(t){ renderTable(t); });
+  socket.on('table:update', function(t){ try { if (typeof t?.simulated === 'boolean' && devBotBtn) { devBotOn = !!t.simulated; devBotBtn.classList.toggle('active', devBotOn); devBotBtn.textContent = devBotOn ? 'Dev Bot: ON' : 'Dev Bot'; } } catch(e){} renderTable(t); });
   socket.on('system', function(){ /* no banner */ });
   socket.on('poker:cards', function(m){ try { const tid = String((m && m.tableId) || ''); if (tid && tid !== currentTableId) return; const hole = Array.isArray(m && m.hole) ? m.hole : []; if (hole.length === 2) { myHole = hole; if (lastTable) renderTable(lastTable); } } catch(e){} });
-  socket.on('poker:mode', function(m){ try { const sim = !!(m && m.simulated); if (sim) { alert('Simulated mode enabled: on-chain betting is disabled while the dev bot is active.'); } } catch(e){} });
+  socket.on('poker:mode', function(m){ try { const sim = !!(m && m.simulated); if (devBotBtn) { devBotOn = sim; devBotBtn.classList.toggle('active', devBotOn); devBotBtn.textContent = devBotOn ? 'Dev Bot: ON' : 'Dev Bot'; } if (sim) { alert('Simulated mode enabled: on-chain betting is disabled while the dev bot is active.'); } } catch(e){} });
   socket.on('poker:state', function(st){ try {
     lastState = st; try { if (String((st && st.stage) || '') === 'preflop') { exposures = {}; winnersNow = {}; } } catch(e){}
     ensureActionBar();
