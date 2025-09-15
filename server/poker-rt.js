@@ -53,6 +53,7 @@ function tablePublic(t) {
     id: t.id,
     seats: t.seats.map(s => s && ({ id: s.id, addr: s.addr, ready: !!s.ready, lastActive: Number(s.lastActive||0), chips: Number(s.chips||0) })),
     started: !!t.started,
+    simulated: !!t.simMode,
   };
 }
 function emitLobby() {
@@ -104,6 +105,24 @@ io.on('connection', (socket) => {
           t.started = true;
         }
       }
+      // Enforce bot policy: bot only active when exactly one human seated and devBotEnabled
+      try {
+        const humans = t.seats.filter(s => s && typeof s.addr === 'string' && !s.addr.startsWith('bot:')).length;
+        const botIdx = t.seats.findIndex(s => s && typeof s.addr === 'string' && s.addr.startsWith('bot:'));
+        if (humans >= 2 && botIdx >= 0) {
+          t.seats[botIdx] = null; t.devBotEnabled = false; t.simMode = false;
+          io.to(currentTableId).emit('poker:mode', { simulated: false });
+          io.to(currentTableId).emit('system', 'A second player joined. Exiting simulated mode.');
+        } else if (humans === 1 && t.devBotEnabled && botIdx === -1) {
+          const slot = t.seats.findIndex(s => !s);
+          if (slot >= 0) {
+            t.seats[slot] = { id: slot, addr: 'bot:dev', ready: true, balance: 0, lastActive: now(), socketId: 'bot', chips: 100 };
+            t.simMode = true;
+            io.to(currentTableId).emit('poker:mode', { simulated: true });
+            io.to(currentTableId).emit('system', 'Simulated mode enabled (bot joined).');
+          }
+        }
+      } catch {}
       t.lastActive = now();
       emitUpdate(t);
       emitLobby();
@@ -146,9 +165,15 @@ io.on('connection', (socket) => {
         } else {
           try { t.seats[botIdx].ready = true; } catch {}
         }
+        t.simMode = true;
+        io.to(currentTableId).emit('poker:mode', { simulated: true });
+        io.to(currentTableId).emit('system', 'Simulated mode: on-chain betting disabled while bot is active.');
       } else {
         if (botIdx >= 0) t.seats[botIdx] = null;
         try { if (t.poker?.botTimer) { clearTimeout(t.poker.botTimer); t.poker.botTimer = null; } } catch {}
+        t.simMode = false;
+        io.to(currentTableId).emit('poker:mode', { simulated: false });
+        io.to(currentTableId).emit('system', 'Simulated mode disabled.');
       }
       t.lastActive = now();
       emitUpdate(t);

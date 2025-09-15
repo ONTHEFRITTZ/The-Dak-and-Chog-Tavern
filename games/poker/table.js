@@ -76,6 +76,7 @@ async function connect(){
   socket.on('disconnect', () => setStatus('Disconnected'));
   socket.on('table:update', (t) => { renderTable(t); });
   socket.on('system', (m) => { try { centerEl.textContent = String(m); } catch {} });
+  socket.on('poker:mode', (m) => { try { const sim = !!m?.simulated; if (sim) { alert('Simulated mode enabled: on-chain betting is disabled while the dev bot is active.'); } } catch {} });
   // Poker state updates
   socket.on('poker:state', (st) => {
     try {

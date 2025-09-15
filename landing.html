@@ -44,13 +44,16 @@
           const signer = provider.getSigner();
           const wallet = await signer.getAddress();
           try { localStorage.setItem('walletConnected','true'); sessionStorage.setItem('walletConnected','true'); } catch {}
-          // Optional whitelist
+          // Optional whitelist (disabled for now)
           try {
-            const wlAddr = await getAddressFor('whitelist', provider);
-            if (wlAddr && window.WhitelistABI) {
-              const c = new ethers.Contract(wlAddr, window.WhitelistABI, provider);
-              const ok = await c.isAllowed(wallet);
-              if (!ok) { alert('This wallet is not whitelisted for early access.'); return; }
+            const WL_ENABLED = false; // toggle back to true to re-enable gate
+            if (WL_ENABLED) {
+              const wlAddr = await getAddressFor('whitelist', provider);
+              if (wlAddr && window.WhitelistABI) {
+                const c = new ethers.Contract(wlAddr, window.WhitelistABI, provider);
+                const ok = await c.isAllowed(wallet);
+                if (!ok) { alert('This wallet is not whitelisted for early access.'); return; }
+              }
             }
           } catch {}
           window.location.href = 'index.html';
