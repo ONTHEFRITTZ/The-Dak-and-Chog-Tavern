@@ -391,6 +391,8 @@ function startPokerHand(tableId, t) {
       });
     } catch {}
     maybeTriggerBot(tableId, t);
+    // In simulated solo mode (one human + dev bot), auto-progress community
+    try { if (t.simMode && t.devBotEnabled) scheduleSimProgress(tableId, t); } catch {}
   } catch {}
 }
 
@@ -416,6 +418,8 @@ function advancePokerStage(tableId, t) {
     state.turnIndex = idx;
     emitPokerState(tableId, t);
     maybeTriggerBot(tableId, t);
+    // Continue simulated auto-progress if enabled
+    try { if (t.simMode && t.devBotEnabled) scheduleSimProgress(tableId, t); } catch {}
   } catch {}
 }
 
@@ -439,6 +443,8 @@ function endPokerByShowdown(tableId, t, winnerAddrs) {
       return { addr, amount: each, usedHole: used.usedHole, usedCommunity: used.usedCommunity };
     });
     io.to(tableId).emit('poker:hand', { winners: winnerList, community: board, pot: state.pot||0, table: tablePublic(t) });
+    // Clear any sim timers
+    try { const timers = t.poker && t.poker.simTimers; if (Array.isArray(timers)) timers.forEach(id=>{ try{ clearTimeout(id); }catch{} }); } catch {}
     t.poker = null;
     try { t.seats.filter(Boolean).forEach(s => { s.ready = false; }); } catch {}
     emitUpdate(t);
@@ -483,9 +489,29 @@ function endPokerWithSidePots(tableId, t) {
     // Reveal surviving players' hole cards at showdown for transparency
     const exposures = actors.filter(a => !a.folded).map(a => ({ addr: a.addr, cards: Array.from(a.cards||[]) }));
     io.to(tableId).emit('poker:hand', { winners: winnerList, community: board, exposures, pot: state.pot||0, table: tablePublic(t) });
+    // Clear any sim timers
+    try { const timers = t.poker && t.poker.simTimers; if (Array.isArray(timers)) timers.forEach(id=>{ try{ clearTimeout(id); }catch{} }); } catch {}
     t.poker = null;
     try { t.seats.filter(Boolean).forEach(s => { s.ready = false; }); } catch {}
     emitUpdate(t);
+  } catch {}
+}
+
+// Auto-advance community in simulated solo mode (one human + dev bot)
+function scheduleSimProgress(tableId, t) {
+  try {
+    const state = t.poker; if (!state) return;
+    const humans = t.seats.filter(s => s && typeof s.addr === 'string' && !String(s.addr).startsWith('bot:')).length;
+    if (humans !== 1) return;
+    // Avoid stacking timers
+    if (!state.simTimers) state.simTimers = [];
+    // If betting round could block, just force next stage after a short delay
+    const delay = 700;
+    // Only schedule if not already at river (final)
+    if (['preflop','flop','turn'].includes(state.stage)) {
+      const id = setTimeout(() => { try { advancePokerStage(tableId, t); } catch {} }, delay);
+      state.simTimers.push(id);
+    }
   } catch {}
 }
 
