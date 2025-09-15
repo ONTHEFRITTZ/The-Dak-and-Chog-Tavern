@@ -80,6 +80,28 @@ async function ensureAbiLoaded(contractKey) {
   return !!getAbiFromWindow(contractKey);
 }
 
+function setConnectButtonAsDisconnect() {
+  try {
+    if (!connectButton) return;
+    connectButton.style.display = '';
+    connectButton.textContent = 'Disconnect';
+    connectButton.onclick = () => {
+      try { localStorage.removeItem('walletConnected'); } catch {}
+      try { sessionStorage.removeItem('walletConnected'); } catch {}
+      try { location.reload(); } catch {}
+    };
+  } catch {}
+}
+
+function setConnectButtonAsConnect() {
+  try {
+    if (!connectButton) return;
+    connectButton.style.display = '';
+    connectButton.textContent = 'Connect Wallet';
+    connectButton.onclick = connectWallet;
+  } catch {}
+}
+
 // Connect Wallet
 export async function connectWallet() {
   await ensureConfig();
@@ -91,9 +113,8 @@ export async function connectWallet() {
     signer = provider.getSigner();
     userAddress = await signer.getAddress();
 
-    // Hide connect button once connected
-    try { connectButton.style.display = 'none'; } catch {}
-    // Clear redundant banner status; wallet shows on right side
+    // Update top banner controls
+    setConnectButtonAsDisconnect();
     try { statusEl.innerText = ''; } catch {}
     showToast('Wallet connected', 'success');
 
@@ -133,7 +154,7 @@ async function silentConnect() {
     if (!accounts || !accounts.length) return false;
     signer = provider.getSigner();
     userAddress = accounts[0];
-    try { connectButton.style.display = 'none'; } catch {}
+    setConnectButtonAsDisconnect();
     try { statusEl.innerText = ''; } catch {}
     try {
       const chainId = await detectChainId(provider);
@@ -177,10 +198,23 @@ window.addEventListener('load', async () => {
       }
     } catch {}
   }
-  if (!autoConnected) ensureAdminLink(false);
+  if (!autoConnected) {
+    ensureAdminLink(false);
+    // If on Tavern homepage, force a connect prompt so the rest of the site
+    // can reuse the remembered session without further prompts.
+    try {
+      const path = String(location.pathname||'');
+      const isTavern = path === '/' || /\/index\.html$/.test(path);
+      if (isTavern) {
+        await connectWallet();
+      } else {
+        setConnectButtonAsConnect();
+      }
+    } catch {}
+  }
 });
 
-connectButton.addEventListener('click', connectWallet);
+if (connectButton) connectButton.addEventListener('click', connectWallet);
 
 // Export signer and provider for games
 export { signer, provider, userAddress };

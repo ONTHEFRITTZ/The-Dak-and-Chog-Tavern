@@ -127,7 +127,7 @@ async function connect(){
       if (myAddr) {
         setStatus('' + short(myAddr));
         try { socket.emit('identify', { addr: myAddr }); } catch(e){}
-        try { socket.emit('join_table', { table: currentTableId }); } catch(e){}
+        try { socket.emit('join_table', { table: currentTableId }); try { socket.emit('lobby:get'); } catch(e){} setTimeout(function(){ try { socket.emit('join_table', { table: currentTableId }); } catch(e){} }, 80); } catch(e){}
       } else {
         setStatus('Connect wallet to join table');
       }
@@ -270,7 +270,7 @@ async function ensureWallet(promptIfNeeded) {
       if (devBotBtn) { devBotBtn.disabled = false; devBotBtn.title = 'Add/remove a test bot to play solo'; }
       if (socket && socket.connected) {
         try { socket.emit('identify', { addr: myAddr }); } catch(e){}
-        try { socket.emit('join_table', { table: currentTableId }); } catch(e){}
+        try { socket.emit('join_table', { table: currentTableId }); try { socket.emit('lobby:get'); } catch(e){} setTimeout(function(){ try { socket.emit('join_table', { table: currentTableId }); } catch(e){} }, 80); } catch(e){}
       }
     } else {
       setStatus('Connect wallet to join table');
@@ -282,6 +282,7 @@ connect();
 ensureWallet(false);
 
 if (connectBtn) connectBtn.addEventListener('click', function(){ ensureWallet(true); });
+
 
 
 
