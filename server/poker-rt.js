@@ -1,4 +1,4 @@
-﻿// Isolated Poker realtime server (standalone)
+// Isolated Poker realtime server (standalone)
 // - Runs ONLY Poker on its own port (default: 3101)
 // - No shared imports or runtime state with Faro
 
@@ -12,7 +12,7 @@ const server = http.createServer((req, res) => {
   res.end('Poker realtime OK');
 });
 
-// Note: keep Socket.IO path at '/socket.io' â€” NGINX proxies /poker.io/ -> /socket.io
+// Note: keep Socket.IO path at '/socket.io' � NGINX proxies /poker.io/ -> /socket.io
 const io = new Server(server, {
   path: '/socket.io',
   cors: { origin: true, methods: ['GET','POST'] },
@@ -494,5 +494,6 @@ function straightHigh(cards){ const u = uniqueByRankDesc(cards); const vs = u.ma
 function evaluate7(cards){ const cs = cards.map(parseCard).sort(byvDesc); const bySuit = cs.reduce((m,c)=>{ (m[c.s]=m[c.s]||[]).push(c); return m; },{}); const counts = cs.reduce((m,c)=>{ m[c.v]=(m[c.v]||0)+1; return m; },{}); const groups = Object.entries(counts).map(([v,c])=>({v:Number(v), c})).sort((a,b)=> b.c-a.c || b.v-a.v); let flushSuit=null; for (const s of Object.keys(bySuit)){ if (bySuit[s].length>=5) { flushSuit=s; break; } } if (flushSuit){ const fcs = bySuit[flushSuit].slice(); const hi = straightHigh(fcs); if (hi>0){ return { cls:8, tiebreak:[hi] }; } } if (groups[0]?.c===4){ const kicker = cs.find(c=>c.v!==groups[0].v)?.v||0; return { cls:7, tiebreak:[groups[0].v, kicker] }; } if (groups[0]?.c===3){ const second = groups.find(g=>g.c>=2 && g.v!==groups[0].v); if (second){ return { cls:6, tiebreak:[groups[0].v, second.v] }; } } if (flushSuit){ const top5 = bySuit[flushSuit].slice(0,5).map(c=>c.v); return { cls:5, tiebreak: top5 } } const sh = straightHigh(cs); if (sh>0){ return { cls:4, tiebreak:[sh] }; } if (groups[0]?.c===3){ const kickers = cs.filter(c=>c.v!==groups[0].v).slice(0,2).map(c=>c.v); return { cls:3, tiebreak:[groups[0].v, ...kickers] }; } if (groups[0]?.c===2 && groups[1]?.c===2){ const kicker = cs.find(c=>c.v!==groups[0].v && c.v!==groups[1].v)?.v||0; const hi=Math.max(groups[0].v,groups[1].v), lo=Math.min(groups[0].v,groups[1].v); return { cls:2, tiebreak:[hi, lo, kicker] }; } if (groups[0]?.c===2){ const kickers = cs.filter(c=>c.v!==groups[0].v).slice(0,3).map(c=>c.v); return { cls:1, tiebreak:[groups[0].v, ...kickers] }; } return { cls:0, tiebreak: cs.slice(0,5).map(c=>c.v) }; }
 function cmpRank(a,b){ if (a.cls!==b.cls) return a.cls-b.cls; const n=Math.max(a.tiebreak.length,b.tiebreak.length); for(let i=0;i<n;i++){ const av=a.tiebreak[i]||0, bv=b.tiebreak[i]||0; if (av!==bv) return av-bv; } return 0; }
 function determineWinners(holeCardsArr, actorIdxs, board){ const winners=[]; let best=null; for (let i=0;i<holeCardsArr.length;i++){ const hole=holeCardsArr[i]; const evald=evaluate7([...(hole||[]), ...(board||[])]); if (!best || cmpRank(evald,best)>0){ best=evald; winners.length=0; winners.push(actorIdxs[i]); } else if (cmpRank(evald,best)===0){ winners.push(actorIdxs[i]); } } return winners; }
+
 
 

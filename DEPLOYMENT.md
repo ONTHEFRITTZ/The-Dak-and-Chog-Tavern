@@ -28,6 +28,17 @@ pm2 restart ecosystem.config.js   # or: pm2 restart dakchog-rt
 curl -s http://127.0.0.1:3100/ | cat   # expect: Tavern realtime OK
 ```
 
+Poker realtime (3101)
+
+- If you run the isolated Poker RT (`server/poker-rt.js` on 3101), restart just that app:
+```
+cd ~/The-Dak-and-Chog-Tavern
+pm2 restart poker-rt
+
+# Quick health check
+curl -s http://127.0.0.1:3101/ | cat   # expect: Poker realtime OK
+```
+
 Optional: split realtime by game (Faro vs Poker)
 
 - Why: independent scaling/restarts or fault isolation per game.
@@ -129,3 +140,14 @@ include /var/www/thedakandchog.xyz/html/server/nginx/legacy-block.conf;
 
 Notes
 - Legacy GitHub Actions and PowerShell deploy scripts were removed to avoid multiple, conflicting paths.
+
+Troubleshooting
+
+- SyntaxError: Invalid or unexpected token (poker-rt.js)
+  - If PM2 logs show an error like `const t = getTable(tableId);\\n try {` at `server/poker-rt.js:89`, the source on the EC2 box contains a literal `\\n` sequence instead of a real newline.
+  - Fix on EC2 and restart:
+```
+sudo perl -0777 -pe "s/const t = getTable\(tableId\);\\n[ \t]*try/const t = getTable(tableId);\ntry/" -i /home/ubuntu/The-Dak-and-Chog-Tavern/server/poker-rt.js
+pm2 restart poker-rt && pm2 logs poker-rt
+```
+  - Best fix is to pull latest `main` which already contains the corrected block.
