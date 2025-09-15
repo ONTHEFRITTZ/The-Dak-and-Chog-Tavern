@@ -6,6 +6,9 @@ let devBotOn = false;
 let socket; let myAddr = null; let currentTableId = null; let lastTable = null; let myHole = [];
 let lastState = null; let exposures = {}; let winnersNow = {};
 
+// Disable Dev Bot toggle until wallet connects
+try { if (devBotBtn) { devBotBtn.disabled = true; devBotBtn.title = 'Connect wallet to use Dev Bot'; } } catch(e){}
+
 let actionBar = null; let communityEl = null; let amountInput = null; let infoText = null; let communityStrip = null; let burnStrip = null;
 
 function ensureActionBar(){
@@ -119,7 +122,17 @@ async function connect(){
   try { socket = io(window.location.origin, { path: '/poker.io/', transports:['polling','websocket'], upgrade:true, reconnection:true, reconnectionAttempts:10, reconnectionDelay:800, forceNew:true }); }
   catch (e) { setStatus('Socket.IO not available'); return; }
 
-  socket.on('connect', function(){ setStatus('Connected'); if (myAddr) { try { socket.emit('identify', { addr: myAddr }); } catch(e){} } try { socket.emit('join_table', { table: currentTableId }); } catch(e){} });
+  socket.on('connect', function(){
+    try {
+      if (myAddr) {
+        setStatus('Connected');
+        try { socket.emit('identify', { addr: myAddr }); } catch(e){}
+        try { socket.emit('join_table', { table: currentTableId }); } catch(e){}
+      } else {
+        setStatus('Connect wallet to join table');
+      }
+    } catch(e){}
+  });
   socket.on('connect_error', function(){ setStatus('Lobby unavailable. Retrying...'); });
   socket.on('reconnect_error', function(){ setStatus('Reconnecting...'); });
   socket.on('disconnect', function(){ setStatus('Disconnected'); });
@@ -246,7 +259,13 @@ if (connectBtn) connectBtn.addEventListener('click', async function(){
     const addr = await signer.getAddress();
     myAddr = String(addr||'').toLowerCase();
     setStatus('Wallet: ' + short(myAddr));
-    try { if (socket && socket.connected) { socket.emit('identify', { addr: myAddr }); socket.emit('join_table', { table: currentTableId }); } } catch(e){}
+    try {
+      if (devBotBtn) { devBotBtn.disabled = false; devBotBtn.title = 'Add/remove a test bot to play solo'; }
+      if (socket && socket.connected) {
+        socket.emit('identify', { addr: myAddr });
+        socket.emit('join_table', { table: currentTableId });
+      }
+    } catch(e){}
   } catch (e) { setStatus('Wallet connect failed'); }
 });
 
