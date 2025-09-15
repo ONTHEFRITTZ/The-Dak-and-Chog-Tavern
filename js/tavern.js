@@ -30,6 +30,13 @@ const connectButton = document.getElementById('connect-wallet');
 const statusEl = document.getElementById('status');
 const topRightControls = document.querySelector('.top-banner .controls');
 
+function hideInlineConnectIfBannerPresent() {
+  try {
+    const walletBanner = document.getElementById('wallet-banner');
+    if (walletBanner && connectButton) connectButton.style.display = 'none';
+  } catch {}
+}
+
 function ensureAdminLink(show) {
   try {
     let link = document.getElementById('admin-link');
@@ -122,6 +129,7 @@ export async function connectWallet() {
 
     // Update top banner controls
     setConnectButtonAsDisconnect();
+    hideInlineConnectIfBannerPresent();
     try { statusEl.innerText = ''; } catch {}
     showToast('Wallet connected', 'success');
 
@@ -163,6 +171,7 @@ async function silentConnect() {
     userAddress = accounts[0];
     try { window.userAddress = userAddress; window.dispatchEvent(new CustomEvent('wallet:connected', { detail: { address: userAddress } })); } catch {}
     setConnectButtonAsDisconnect();
+    hideInlineConnectIfBannerPresent();
     try { statusEl.innerText = ''; } catch {}
     try {
       const chainId = await detectChainId(provider);
@@ -193,6 +202,7 @@ async function bootConnect() {
     const chainId = await detectChainId(undefined);
     const address = getAddress('tavern', chainId);
     renderTavernBanner({ contractKey: 'tavern', address, chainId, labelOverride: 'Address' });
+    hideInlineConnectIfBannerPresent();
   } catch {}
   let autoConnected = false;
   autoConnected = await silentConnect();
