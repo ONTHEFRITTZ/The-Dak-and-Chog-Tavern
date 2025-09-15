@@ -27,6 +27,72 @@ function ensureActionBar(){
   } catch {}
 }
 
+// ---- On-chain helpers (PokerTablePool) ----
+let chainProvider = null; let chainSigner = null; let tableContract = null; let tableAddrInput = null; let onMsgEl = null; let onOutEl = null;
+function eth(v){ try { return window.ethers.utils.formatEther(v); } catch { return String(v); } }
+function toWei(str){ try { return window.ethers.utils.parseEther(String(str||'0')); } catch { return window.ethers.BigNumber.from(0); } }
+async function initOnchain(){
+  try {
+    tableAddrInput = document.getElementById('poker-contract');
+    const setBtn = document.getElementById('poker-contract-set');
+    onMsgEl = document.getElementById('onchain-msg');
+    onOutEl = document.getElementById('onchain-out');
+    const seatInput = document.getElementById('onchain-seat');
+    const amtInput = document.getElementById('onchain-amt');
+    const btnRead = document.getElementById('onchain-read');
+    const btnSeat = document.getElementById('onchain-seat-btn');
+    const btnDep = document.getElementById('onchain-deposit');
+    const btnWdr = document.getElementById('onchain-withdraw');
+    const btnUns = document.getElementById('onchain-unseat');
+
+    // load addr from URL/localStorage
+    try {
+      const url = new URL(window.location.href);
+      const q = url.searchParams.get('poker');
+      const ls = localStorage.getItem('contract.pokerTable') || '';
+      const d = q || ls || '';
+      if (d) tableAddrInput.value = d;
+    } catch {}
+
+    async function connectSigner(){
+      if (!window.ethereum || !window.ethers) { if (onMsgEl) onMsgEl.textContent = 'No wallet provider'; return null; }
+      await window.ethereum.request({ method:'eth_requestAccounts' });
+      chainProvider = new window.ethers.providers.Web3Provider(window.ethereum, 'any');
+      chainSigner = chainProvider.getSigner();
+      return chainSigner;
+    }
+
+    function bindContract(){
+      try {
+        const addr = String(tableAddrInput.value||'').trim();
+        if (!/^0x[0-9a-fA-F]{40}$/.test(addr)) { if (onMsgEl) onMsgEl.textContent='Enter a valid contract address'; return null; }
+        tableContract = new window.ethers.Contract(addr, window.PokerTablePoolABI, chainSigner || chainProvider);
+        try { localStorage.setItem('contract.pokerTable', addr); } catch {}
+        if (onMsgEl) onMsgEl.textContent = 'Contract set.';
+        return tableContract;
+      } catch (e) { if (onMsgEl) onMsgEl.textContent = 'Bind failed'; return null; }
+    }
+
+    setBtn?.addEventListener('click', () => { bindContract(); });
+
+    btnRead?.addEventListener('click', async () => {
+      try { await connectSigner(); if (!bindContract()) return; const seatId = Number(seatInput.value||0); const s = await tableContract.seats(seatId); if (onOutEl) onOutEl.textContent = `Seat ${seatId} -> player=${s.player}, balance=${eth(s.balance)} ETH`; } catch (e) { if (onOutEl) onOutEl.textContent = `Read failed`; }
+    });
+    btnSeat?.addEventListener('click', async () => {
+      try { await connectSigner(); if (!bindContract()) return; const seatId = Number(seatInput.value||0); const val = toWei(amtInput.value||'0'); const tx = await tableContract.seat(seatId, { value: val }); if (onOutEl) onOutEl.textContent = `Seating... ${tx.hash}`; await tx.wait(); if (onOutEl) onOutEl.textContent = 'Seat tx confirmed.'; } catch (e) { if (onOutEl) onOutEl.textContent = `Seat failed`; }
+    });
+    btnDep?.addEventListener('click', async () => {
+      try { await connectSigner(); if (!bindContract()) return; const seatId = Number(seatInput.value||0); const val = toWei(amtInput.value||'0'); const tx = await tableContract.deposit(seatId, { value: val }); if (onOutEl) onOutEl.textContent = `Deposit... ${tx.hash}`; await tx.wait(); if (onOutEl) onOutEl.textContent = 'Deposit confirmed.'; } catch (e) { if (onOutEl) onOutEl.textContent = `Deposit failed`; }
+    });
+    btnWdr?.addEventListener('click', async () => {
+      try { await connectSigner(); if (!bindContract()) return; const seatId = Number(seatInput.value||0); const val = toWei(amtInput.value||'0'); const tx = await tableContract.withdraw(seatId, val); if (onOutEl) onOutEl.textContent = `Withdraw... ${tx.hash}`; await tx.wait(); if (onOutEl) onOutEl.textContent = 'Withdraw confirmed.'; } catch (e) { if (onOutEl) onOutEl.textContent = `Withdraw failed (check inHand==false and pool authorization)`; }
+    });
+    btnUns?.addEventListener('click', async () => {
+      try { await connectSigner(); if (!bindContract()) return; const seatId = Number(seatInput.value||0); const tx = await tableContract.unseat(seatId); if (onOutEl) onOutEl.textContent = `Unseat... ${tx.hash}`; await tx.wait(); if (onOutEl) onOutEl.textContent = 'Unseat confirmed.'; } catch (e) { if (onOutEl) onOutEl.textContent = `Unseat failed`; }
+    });
+  } catch {}
+}
+
 function short(a){ try { return a && a.length>10 ? (a.slice(0,6)+'...'+a.slice(-4)) : (a||''); } catch { return a||''; } }
 function setStatus(t){ try { statusEl.textContent = t; } catch {} }
 
@@ -147,6 +213,7 @@ async function connect(){
 }
 
 connect();
+initOnchain();
 
 connectBtn?.addEventListener('click', async () => {
   try {
