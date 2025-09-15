@@ -153,14 +153,14 @@ io.on('connection', (socket) => {
         actor.acted = true;
       } else if (action === 'call') {
         const pay = Math.min(need, actor.stack);
-        actor.stack -= pay; actor.contrib = Number(actor.contrib||0) + pay; actor.acted = true;
+        actor.stack -= pay; actor.contrib = Number(actor.contrib||0) + pay; actor.invested = Number(actor.invested||0) + pay; actor.acted = true;
         if (actor.stack === 0) actor.allIn = true;
       } else if (action === 'bet') {
         if (state.toCall > 0) return; // bet only when no bet
         let betAmt = Math.max(amount, state.bb||2);
         betAmt = Math.min(betAmt, actor.stack);
         if (betAmt <= 0) return;
-        actor.stack -= betAmt; actor.contrib = Number(actor.contrib||0) + betAmt; actor.acted = true;
+        actor.stack -= betAmt; actor.contrib = Number(actor.contrib||0) + betAmt; actor.invested = Number(actor.invested||0) + betAmt; actor.acted = true;
         state.toCall = actor.contrib;
         state.lastAgg = betAmt;
         state.minRaise = betAmt; // next raise must be at least this size
@@ -178,7 +178,7 @@ io.on('connection', (socket) => {
           totalPay = actor.stack; target = Number(actor.contrib||0) + totalPay; raiseBy = Math.max(0, target - Number(state.toCall||0));
         }
         if (totalPay <= needCall) return; // must raise beyond call
-        actor.stack -= totalPay; actor.contrib = Number(actor.contrib||0) + totalPay; actor.acted = true;
+        actor.stack -= totalPay; actor.contrib = Number(actor.contrib||0) + totalPay; actor.invested = Number(actor.invested||0) + totalPay; actor.acted = true;
         if (actor.stack === 0) actor.allIn = true;
         state.toCall = target;
         state.lastAgg = raiseBy;
@@ -268,7 +268,7 @@ function startPokerHand(tableId, t) {
     else { dealerSeatId = seated[0].seatId; }
     const startIdx = seated.findIndex(x => x.seatId === dealerSeatId);
     const ordered = seated.slice(startIdx).concat(seated.slice(0, startIdx));
-    const actors = ordered.map(p => ({ addr:p.addr, seatId:p.seatId, folded:false, acted:false, contrib:0, stack:0, allIn:false }));
+    const actors = ordered.map(p => ({ addr:p.addr, seatId:p.seatId, folded:false, acted:false, contrib:0, stack:0, allIn:false, invested:0 }));
     const deck = makeDeck();
     const community = [];
     const SB = 1, BB = 2;
@@ -277,8 +277,8 @@ function startPokerHand(tableId, t) {
     const bbIndex = (dealerIndex + 2) % actors.length;
     // Initialize stacks from seats and post blinds from stacks
     actors.forEach(a => { const seat=t.seats[a.seatId]; a.stack = Math.max(0, Number(seat?.chips||0)); a.contrib=0; a.acted=false; a.folded=false; a.allIn=false; });
-    const postSB = Math.min(SB, actors[sbIndex].stack); actors[sbIndex].stack -= postSB; actors[sbIndex].contrib = postSB; if (actors[sbIndex].stack===0) actors[sbIndex].allIn = true;
-    const postBB = Math.min(BB, actors[bbIndex].stack); actors[bbIndex].stack -= postBB; actors[bbIndex].contrib = postBB; if (actors[bbIndex].stack===0) actors[bbIndex].allIn = true;
+    const postSB = Math.min(SB, actors[sbIndex].stack); actors[sbIndex].stack -= postSB; actors[sbIndex].contrib = postSB; actors[sbIndex].invested += postSB; if (actors[sbIndex].stack===0) actors[sbIndex].allIn = true;
+    const postBB = Math.min(BB, actors[bbIndex].stack); actors[bbIndex].stack -= postBB; actors[bbIndex].contrib = postBB; actors[bbIndex].invested += postBB; if (actors[bbIndex].stack===0) actors[bbIndex].allIn = true;
     let toCall = Math.max(actors[sbIndex].contrib, actors[bbIndex].contrib);
     let pot = postSB + postBB;
     actors.forEach(a => { a.cards = [deck.pop(), deck.pop()]; });
@@ -301,12 +301,9 @@ function advancePokerStage(tableId, t) {
     else if (state.stage === 'flop') { state.community.push(state.deck.pop()); state.stage = 'turn'; }
     else if (state.stage === 'turn') { state.community.push(state.deck.pop()); state.stage = 'river'; }
     else if (state.stage === 'river') {
-      // Final add of contribs then showdown
+      // Final add of contribs then showdown with side pots
       try { const add2 = actors.reduce((s,a)=> s + Number(a.contrib||0), 0); state.pot = Number(state.pot||0) + add2; } catch {}
-      const alive = state.actors.map((a,i)=>({ ...a, index:i })).filter(a=>!a.folded);
-      const winnerIdxs = determineWinners(alive.map(a=>a.cards), alive.map(a=>a.index), state.community);
-      const winnerAddrs = winnerIdxs.map(i => state.actors[i].addr);
-      endPokerByShowdown(tableId, t, winnerAddrs);
+      endPokerWithSidePots(tableId, t);
       return;
     }
     let idx = (state.dealerIndex + 1) % actors.length; // left of dealer
@@ -320,7 +317,6 @@ function advancePokerStage(tableId, t) {
 function endPokerByShowdown(tableId, t, winnerAddrs) {
   try {
     const state = t.poker; if (!state) return;
-    // split pot among winners and sync stacks back to seats
     const winners = Array.isArray(winnerAddrs)&&winnerAddrs.length ? winnerAddrs : [];
     const each = winners.length ? Math.floor(Number(state.pot||0)/winners.length) : 0;
     winners.forEach(addr => {
@@ -330,6 +326,42 @@ function endPokerByShowdown(tableId, t, winnerAddrs) {
     // write back stacks to seats
     state.actors.forEach(a => { const seat = t.seats[a.seatId]; if (seat) seat.chips = Number(a.stack||0); });
     io.to(tableId).emit('poker:hand', { winners: winners.map(addr=>({addr})), community: Array.from(state.community||[]), pot: state.pot||0, table: tablePublic(t) });
+    t.poker = null;
+    try { t.seats.filter(Boolean).forEach(s => { s.ready = false; }); } catch {}
+    emitUpdate(t);
+  } catch {}
+}
+
+function endPokerWithSidePots(tableId, t) {
+  try {
+    const state = t.poker; if (!state) return;
+    const actors = state.actors;
+    // Build levels from total invested (including folded) > 0
+    const levels = Array.from(new Set(actors.map(a => Number(a.invested||0)).filter(v=>v>0))).sort((a,b)=>a-b);
+    const board = Array.from(state.community||[]);
+    const payouts = new Array(actors.length).fill(0);
+    let prev = 0;
+    for (const L of levels) {
+      const seg = L - prev; if (seg <= 0) { prev = L; continue; }
+      // Amount in this segment from each player is min(max(invested-prev,0), seg)
+      const contributors = actors.map((a,i)=>({i, amt: Math.max(0, Math.min(seg, Number(a.invested||0) - prev)) })).filter(x=>x.amt>0);
+      if (!contributors.length) { prev = L; continue; }
+      const potAmt = contributors.reduce((s,x)=> s + x.amt, 0);
+      // Eligible winners: not folded and invested > prev
+      const elig = actors.map((a,i)=>({i, a})).filter(x => !x.a.folded && Number(x.a.invested||0) > prev);
+      if (!elig.length) { prev = L; continue; }
+      const holeArr = elig.map(x => x.a.cards);
+      const idxArr = elig.map(x => x.i);
+      const winIdxs = determineWinners(holeArr, idxArr, board);
+      const share = winIdxs.length ? Math.floor(potAmt / winIdxs.length) : 0;
+      for (const wi of winIdxs) payouts[wi] += share;
+      prev = L;
+    }
+    // Credit payouts into stacks and write back to seats
+    for (let i=0;i<actors.length;i++) { actors[i].stack = Number(actors[i].stack||0) + Number(payouts[i]||0); }
+    state.actors.forEach(a => { const seat = t.seats[a.seatId]; if (seat) seat.chips = Number(a.stack||0); });
+    const winnerList = payouts.map((amt,i)=> ({ i, amt })).filter(x=>x.amt>0).map(x=> ({ addr: actors[x.i].addr, amount: x.amt }));
+    io.to(tableId).emit('poker:hand', { winners: winnerList, community: board, pot: state.pot||0, table: tablePublic(t) });
     t.poker = null;
     try { t.seats.filter(Boolean).forEach(s => { s.ready = false; }); } catch {}
     emitUpdate(t);

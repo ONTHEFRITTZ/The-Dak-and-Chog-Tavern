@@ -85,6 +85,17 @@ async function connect(){
         const cards = Array.isArray(st.community)? st.community : [];
         communityEl.textContent = cards.length ? `Board: ${cards.join(' ')}` : '';
       }
+      // Dealer/SB/BB markers
+      try {
+        const seats = Array.isArray(st.actors) ? st.actors.map(a=>a.seatId) : [];
+        seatEls.forEach(el => { const tag = el.querySelector('.role'); if (tag) tag.remove(); });
+        if (Array.isArray(st.actors) && typeof st.dealerIndex==='number'){
+          const dSeat = st.actors[st.dealerIndex]?.seatId; if (typeof dSeat==='number'){ const el=seatEls.find(e=>Number(e.dataset.index)===Number(dSeat)); if (el){ const r=document.createElement('div'); r.className='role'; r.style.cssText='position:absolute; top:2px; right:2px; background:#7800cd; color:#fff; font-size:10px; padding:2px 4px; border-radius:6px;'; r.textContent='D'; el.appendChild(r); } }
+          const sbSeat = st.actors[st.sbIndex||-1]?.seatId; if (typeof sbSeat==='number'){ const el=seatEls.find(e=>Number(e.dataset.index)===Number(sbSeat)); if (el){ const r=document.createElement('div'); r.className='role'; r.style.cssText='position:absolute; top:2px; left:2px; background:#2a9d8f; color:#fff; font-size:10px; padding:2px 4px; border-radius:6px;'; r.textContent='SB'; el.appendChild(r); } }
+          const bbSeat = st.actors[st.bbIndex||-1]?.seatId; if (typeof bbSeat==='number'){ const el=seatEls.find(e=>Number(e.dataset.index)===Number(bbSeat)); if (el){ const r=document.createElement('div'); r.className='role'; r.style.cssText='position:absolute; bottom:2px; right:2px; background:#e76f51; color:#fff; font-size:10px; padding:2px 4px; border-radius:6px;'; r.textContent='BB'; el.appendChild(r); } }
+        }
+      } catch {}
+
       // If it's your turn, show actions; else hide
       const mine = myAddr && st.turnAddr && String(st.turnAddr).toLowerCase()===String(myAddr).toLowerCase();
       const btnWrap = actionBar?.querySelector('.action-btns');
