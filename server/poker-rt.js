@@ -86,7 +86,17 @@ io.on('connection', (socket) => {
       if (currentTableId) socket.leave(currentTableId);
       currentTableId = tableId;
       socket.join(tableId);
-      const t = getTable(tableId);\n      try { if (!t.devBotEnabled) { for (let i=0;i<t.seats.length;i++){ const s=t.seats[i]; if (s && typeof s.addr === 'string' && s.addr.startsWith('bot:')) t.seats[i]=null; } } } catch {}
+      const t = getTable(tableId);
+      try {
+        if (!t.devBotEnabled) {
+          for (let i = 0; i < t.seats.length; i++) {
+            const s = t.seats[i];
+            if (s && typeof s.addr === 'string' && s.addr.startsWith('bot:')) {
+              t.seats[i] = null;
+            }
+          }
+        }
+      } catch {}
       t.lastActive = now();
       emitUpdate(t);
       io.to(tableId).emit('system', `joined ${tableId}`);
