@@ -116,10 +116,17 @@ async function connect(){
   socket.on('connect_error', function(){ setStatus('Lobby unavailable. Retrying...'); });
   socket.on('reconnect_error', function(){ setStatus('Reconnecting...'); });
   socket.on('disconnect', function(){ setStatus('Disconnected'); });
-  socket.on('table:update', function(t){ try { if (typeof t?.simulated === 'boolean' && devBotBtn) { devBotOn = !!t.simulated; devBotBtn.classList.toggle('active', devBotOn); devBotBtn.textContent = devBotOn ? 'Dev Bot: ON' : 'Dev Bot'; } } catch(e){} renderTable(t); });
+  socket.on('table:update', function(t){ try {
+    if (devBotBtn) {
+      const enabled = (typeof t?.devBotEnabled === 'boolean') ? !!t.devBotEnabled : !!t?.simulated;
+      devBotOn = enabled;
+      devBotBtn.classList.toggle('active', devBotOn);
+      devBotBtn.textContent = devBotOn ? 'Dev Bot: ON' : 'Dev Bot';
+    }
+  } catch(e){} renderTable(t); });
   socket.on('system', function(){ /* no banner */ });
   socket.on('poker:cards', function(m){ try { const tid = String((m && m.tableId) || ''); if (tid && tid !== currentTableId) return; const hole = Array.isArray(m && m.hole) ? m.hole : []; if (hole.length === 2) { myHole = hole; if (lastTable) renderTable(lastTable); } } catch(e){} });
-  socket.on('poker:mode', function(m){ try { const sim = !!(m && m.simulated); if (devBotBtn) { devBotOn = sim; devBotBtn.classList.toggle('active', devBotOn); devBotBtn.textContent = devBotOn ? 'Dev Bot: ON' : 'Dev Bot'; } if (sim) { alert('Simulated mode enabled: on-chain betting is disabled while the dev bot is active.'); } } catch(e){} });
+  socket.on('poker:mode', function(m){ try { const sim = !!(m && m.simulated); if (devBotBtn) { devBotOn = sim; devBotBtn.classList.toggle('active', devBotOn); devBotBtn.textContent = devBotOn ? 'Dev Bot: ON' : 'Dev Bot'; } } catch(e){} });
   socket.on('poker:state', function(st){ try {
     lastState = st; try { if (String((st && st.stage) || '') === 'preflop') { exposures = {}; winnersNow = {}; } } catch(e){}
     ensureActionBar();
@@ -197,7 +204,16 @@ async function connect(){
     if (burnStrip) burnStrip.innerHTML = '';
   } catch(e){} });
 
-  if (devBotBtn) devBotBtn.addEventListener('click', function(){ try { devBotOn = !devBotOn; devBotBtn.classList.toggle('active', devBotOn); devBotBtn.textContent = devBotOn ? 'Dev Bot: ON' : 'Dev Bot'; socket.emit('poker:devbot', { enabled: devBotOn }); } catch(e){} });
+  if (devBotBtn) devBotBtn.addEventListener('click', function(){
+    try {
+      const next = !devBotOn;
+      if (next) { alert('Simulated mode enabled: on-chain betting is disabled while the dev bot is active.'); }
+      devBotOn = next;
+      devBotBtn.classList.toggle('active', devBotOn);
+      devBotBtn.textContent = devBotOn ? 'Dev Bot: ON' : 'Dev Bot';
+      socket.emit('poker:devbot', { enabled: devBotOn });
+    } catch(e){}
+  });
 }
 
 connect();
