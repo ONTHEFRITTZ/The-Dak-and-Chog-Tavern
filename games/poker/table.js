@@ -167,7 +167,14 @@ async function connect(){
   });
 
   socket.on('poker:hand', function(m){ try {
-    if (communityStrip) { communityStrip.innerHTML=''; (Array.isArray(m && m.community)? m.community:[]).forEach(function(code){ communityStrip.appendChild(makeCardImg(code, { flip:true })); }); }
+    // If folded to bot, clear the board (no community shown)
+    var winners = Array.isArray(m && m.winners) ? m.winners : [];
+    var botWon = false; try { botWon = winners.some(function(w){ var a = String((w && w.addr) || ''); return a.startsWith('bot:'); }); } catch(_){ botWon = false; }
+    if (communityStrip) {
+      communityStrip.innerHTML='';
+      var comm = botWon ? [] : (Array.isArray(m && m.community)? m.community:[]);
+      comm.forEach(function(code){ communityStrip.appendChild(makeCardImg(code, { flip:true })); });
+    }
     try { const arr = Array.isArray(m && m.exposures) ? m.exposures : []; exposures = {}; arr.forEach(function(e){ const a = String((e && e.addr) || '').toLowerCase(); const cards = Array.isArray(e && e.cards) ? e.cards : []; if (a && cards.length===2) exposures[a] = cards; }); } catch(e){}
     try { winnersNow = {}; (Array.isArray(m && m.winners)? m.winners:[]).forEach(function(w){ const a=String((w && w.addr) || '').toLowerCase(); const amt = Number((w && w.amount) || 0); if (a) winnersNow[a] = amt; }); } catch(e){}
     if (lastTable) renderTable(lastTable);
