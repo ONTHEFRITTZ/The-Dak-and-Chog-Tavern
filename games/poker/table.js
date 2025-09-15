@@ -31,122 +31,132 @@ function ensureActionBar(){
 
 function short(a){ return (a && a.length>10) ? (a.slice(0,6)+'...'+a.slice(-4)) : (a||''); }
 function setStatus(t){ if (statusEl) statusEl.textContent = t; }
-function cardSrc(code){ try { const r=String(code||'').charAt(0).toUpperCase(); const s=String(code||'').charAt(1).toLowerCase(); const rm={A:'ace',K:'king',Q:'queen',J:'jack'}; const sm={s:'spades',h:'hearts',d:'diamonds',c:'clubs'}; const rank=rm[r]||null; const suit=sm[s]||null; if (rank&&suit) return ../../assets/images/chog_cards/chog--of-.png; } catch {} return ../../assets/images/chog_cards/chog-ace-of-spades.png; }
-function cardBackSrc(){ return ../../assets/images/chog_cards/dak-and-chog-cardback.png; }
-function makeCardImg(code, { hole=false, flip=true, win=false } = {}){ const img=document.createElement('img'); img.alt=String(code||''); img.src = code==='BACK'? cardBackSrc() : cardSrc(code); img.className='card' + (hole?' card--hole':'') + (flip?' card--flip':'') + (win?' card--win':''); if (flip) requestAnimationFrame(()=> img.classList.add('card--show')); return img; }
+function cardSrc(code){
+  try {
+    const r = String(code||'').charAt(0).toUpperCase();
+    const s = String(code||'').charAt(1).toLowerCase();
+    const rm = { 'A':'ace','K':'king','Q':'queen','J':'jack' };
+    const sm = { 's':'spades','h':'hearts','d':'diamonds','c':'clubs' };
+    const rank = rm[r] || null; const suit = sm[s] || null;
+    if (rank && suit) { return '../../assets/images/chog_cards/chog-' + rank + '-of-' + suit + '.png'; }
+  } catch(e){}
+  return '../../assets/images/chog_cards/chog-ace-of-spades.png';
+}
+function cardBackSrc(){ return '../../assets/images/chog_cards/dak-and-chog-cardback.png'; }
+function makeCardImg(code, opts){ opts = opts||{}; const hole=!!opts.hole, flip = opts.flip!==false, win = !!opts.win; const img=document.createElement('img'); img.alt=String(code||''); img.src = (code==='BACK')? cardBackSrc() : cardSrc(code); img.className='card' + (hole?' card--hole':'') + (flip?' card--flip':'') + (win?' card--win':''); if (flip) requestAnimationFrame(function(){ img.classList.add('card--show'); }); return img; }
 
 function renderTable(t){
   if (!t || t.id !== currentTableId) return;
   lastTable = t;
-  seatEls.forEach(el => {
+  seatEls.forEach(function(el){
     const idx = Number(el.dataset.index);
     const s = Array.isArray(t.seats) ? t.seats[idx] : null;
     el.innerHTML = '';
-    const label = document.createElement('div'); label.className='addr'; label.textContent = Seat ; el.appendChild(label);
+    const label = document.createElement('div'); label.className='addr'; label.textContent = 'Seat ' + idx; el.appendChild(label);
     const info = document.createElement('div'); info.className='addr';
     if (s) {
-      info.textContent = ${short(s.addr||s.id)}; el.appendChild(info);
+      info.textContent = short(s.addr||s.id) + (typeof s.chips==='number' ? ' • ' + s.chips + 'c' : ''); el.appendChild(info);
       const addrLower = String(s.addr||'').toLowerCase();
       if (myAddr && addrLower===String(myAddr).toLowerCase()){
         const btns = document.createElement('div'); btns.className='btns';
-        const leave = document.createElement('button'); leave.textContent='Leave'; leave.onclick=()=> socket.emit('seat',{ index:-1 });
-        const ready = document.createElement('button'); ready.textContent = s.ready? 'Unready':'Ready'; ready.onclick=()=> socket.emit('ready',{ ready: !s.ready });
+        const leave = document.createElement('button'); leave.textContent='Leave'; leave.onclick=function(){ socket.emit('seat',{ index:-1 }); };
+        const ready = document.createElement('button'); ready.textContent = s.ready? 'Unready':'Ready'; ready.onclick=function(){ socket.emit('ready',{ ready: !s.ready }); };
         btns.appendChild(leave); btns.appendChild(ready); el.appendChild(btns);
-        if (Array.isArray(myHole) && myHole.length===2) { const row=document.createElement('div'); row.style.cssText='display:flex; gap:6px; margin-top:4px;'; myHole.forEach(code => row.appendChild(makeCardImg(code,{hole:true,flip:true}))); el.appendChild(row); }
+        if (Array.isArray(myHole) && myHole.length===2) { const row=document.createElement('div'); row.style.cssText='display:flex; gap:6px; margin-top:4px;'; myHole.forEach(function(code){ row.appendChild(makeCardImg(code,{hole:true,flip:true})); }); el.appendChild(row); }
       } else {
-        try { const actor = (Array.isArray(lastState?.actors)? lastState.actors : []).find(a => a && a.addr && String(a.addr).toLowerCase()===addrLower); if (actor) { const row=document.createElement('div'); row.style.cssText='display:flex; gap:6px; margin-top:4px;'; const exp = exposures[addrLower]; if (Array.isArray(exp) && exp.length===2) { const isWin = winnersNow && winnersNow[addrLower] != null; exp.forEach(code => row.appendChild(makeCardImg(code,{hole:true,flip:true,win:isWin}))); el.appendChild(row); if (isWin) { const badge=document.createElement('div'); badge.className='win-badge'; const amt=winnersNow[addrLower]; badge.textContent = 'Winner ' + (amt>0?'+':'') + String(amt); el.appendChild(badge); } } else if (!actor.folded) { for (let k=0;k<2;k++){ row.appendChild(makeCardImg('BACK',{hole:true,flip:true})); } el.appendChild(row); } } } catch {}
+        try {
+          const actors = Array.isArray(lastState && lastState.actors) ? lastState.actors : [];
+          const actor = actors.find(function(a){ return a && a.addr && String(a.addr).toLowerCase()===addrLower; });
+          if (actor) {
+            const row=document.createElement('div'); row.style.cssText='display:flex; gap:6px; margin-top:4px;';
+            const exp = exposures[addrLower];
+            if (Array.isArray(exp) && exp.length===2) { const isWin = winnersNow && winnersNow[addrLower] != null; exp.forEach(function(code){ row.appendChild(makeCardImg(code,{hole:true,flip:true,win:isWin})); }); el.appendChild(row); if (isWin) { const badge=document.createElement('div'); badge.className='win-badge'; const amt=winnersNow[addrLower]; badge.textContent = 'Winner ' + (amt>0?'+':'') + String(amt); el.appendChild(badge); } }
+            else if (!actor.folded) { for (var k=0;k<2;k++){ row.appendChild(makeCardImg('BACK',{hole:true,flip:true})); } el.appendChild(row); }
+          }
+        } catch(e){}
       }
     } else {
       info.textContent = 'Empty'; el.appendChild(info);
       const btns = document.createElement('div'); btns.className='btns';
       const sit = document.createElement('button'); sit.textContent='Sit'; if (!myAddr) { sit.disabled=true; sit.title='Connect wallet to sit'; }
-      sit.onclick = () => { if (!myAddr) return; socket.emit('seat',{ index: idx }); };
+      sit.onclick = function(){ if (!myAddr) return; socket.emit('seat',{ index: idx }); };
       btns.appendChild(sit); el.appendChild(btns);
     }
   });
 }
 
-function parseTableId(){ try { const u=new URL(window.location.href); return u.searchParams.get('table') || 'poker-1'; } catch { return 'poker-1'; } }
+function parseTableId(){ try { const u=new URL(window.location.href); return u.searchParams.get('table') || 'poker-1'; } catch(e) { return 'poker-1'; } }
 
 async function connect(){
   currentTableId = parseTableId();
   try { socket = io(window.location.origin, { path: '/poker.io/', transports:['polling','websocket'], upgrade:true, reconnection:true, reconnectionAttempts:10, reconnectionDelay:800, forceNew:true }); }
   catch (e) { setStatus('Socket.IO not available'); return; }
 
-  socket.on('connect', () => {
-    setStatus('Connected');
-    if (myAddr) { try { socket.emit('identify', { addr: myAddr }); } catch {} }
-    try { socket.emit('join_table', { table: currentTableId }); } catch {}
-  });
-  socket.on('connect_error', () => setStatus('Lobby unavailable. Retrying...'));
-  socket.on('reconnect_error', () => setStatus('Reconnecting...'));
-  socket.on('disconnect', () => setStatus('Disconnected'));
-  socket.on('table:update', (t) => { renderTable(t); });
-  socket.on('system', () => {});
-  socket.on('poker:cards', (m) => {
-    try { const tid = String(m?.tableId||''); if (tid && tid !== currentTableId) return; const hole = Array.isArray(m?.hole)? m.hole : []; if (hole.length === 2) { myHole = hole; if (lastTable) renderTable(lastTable); } } catch {}
-  });
-  socket.on('poker:mode', (m) => { try { const sim = !!m?.simulated; if (sim) { alert('Simulated mode enabled: on-chain betting is disabled while the dev bot is active.'); } } catch {} });
-  // Poker state updates
-  socket.on('poker:state', (st) => {
+  socket.on('connect', function(){ setStatus('Connected'); if (myAddr) { try { socket.emit('identify', { addr: myAddr }); } catch(e){} } try { socket.emit('join_table', { table: currentTableId }); } catch(e){} });
+  socket.on('connect_error', function(){ setStatus('Lobby unavailable. Retrying...'); });
+  socket.on('reconnect_error', function(){ setStatus('Reconnecting...'); });
+  socket.on('disconnect', function(){ setStatus('Disconnected'); });
+  socket.on('table:update', function(t){ renderTable(t); });
+  socket.on('system', function(){ /* no banner */ });
+  socket.on('poker:cards', function(m){ try { const tid = String((m && m.tableId) || ''); if (tid && tid !== currentTableId) return; const hole = Array.isArray(m && m.hole) ? m.hole : []; if (hole.length === 2) { myHole = hole; if (lastTable) renderTable(lastTable); } } catch(e){} });
+  socket.on('poker:mode', function(m){ try { const sim = !!(m && m.simulated); if (sim) { alert('Simulated mode enabled: on-chain betting is disabled while the dev bot is active.'); } } catch(e){} });
+  socket.on('poker:state', function(st){ try {
+    lastState = st; try { if (String((st && st.stage) || '') === 'preflop') { exposures = {}; winnersNow = {}; } } catch(e){}
+    ensureActionBar();
+    const cards = Array.isArray(st && st.community) ? st.community : [];
+    if (communityEl) communityEl.textContent = cards.length ? 'Board' : '';
+    if (communityStrip) { communityStrip.innerHTML = ''; cards.forEach(function(code){ communityStrip.appendChild(makeCardImg(code, { flip:true })); }); }
     try {
-      lastState = st; try { if (String(st?.stage||'') === 'preflop') { exposures = {}; winnersNow = {}; } } catch {}
-      ensureActionBar();
-      const cards = Array.isArray(st.community) ? st.community : [];
-      if (communityEl) communityEl.textContent = cards.length ? 'Board' : '';
-      if (communityStrip) { communityStrip.innerHTML = ''; cards.forEach(code => { communityStrip.appendChild(makeCardImg(code, { flip:true })); }); }
-      // Dealer/SB/BB markers
-      try {
-        seatEls.forEach(el => { const tag = el.querySelector('.role'); if (tag) tag.remove(); });
-        if (Array.isArray(st.actors) && typeof st.dealerIndex === 'number'){
-          const dSeat = st.actors[st.dealerIndex]?.seatId; if (typeof dSeat === 'number'){ const el=seatEls.find(e => Number(e.dataset.index) === Number(dSeat)); if (el){ const r=document.createElement('div'); r.className='role'; r.style.cssText='position:absolute; top:2px; right:2px; background:#7800cd; color:#fff; font-size:10px; padding:2px 4px; border-radius:6px;'; r.textContent='D'; el.appendChild(r); } }
-          const sbSeat = st.actors[st.sbIndex||-1]?.seatId; if (typeof sbSeat === 'number'){ const el=seatEls.find(e => Number(e.dataset.index) === Number(sbSeat)); if (el){ const r=document.createElement('div'); r.className='role'; r.style.cssText='position:absolute; top:2px; left:2px; background:#2a9d8f; color:#fff; font-size:10px; padding:2px 4px; border-radius:6px;'; r.textContent='SB'; el.appendChild(r); } }
-          const bbSeat = st.actors[st.bbIndex||-1]?.seatId; if (typeof bbSeat === 'number'){ const el=seatEls.find(e => Number(e.dataset.index) === Number(bbSeat)); if (el){ const r=document.createElement('div'); r.className='role'; r.style.cssText='position:absolute; bottom:2px; right:2px; background:#e76f51; color:#fff; font-size:10px; padding:2px 4px; border-radius:6px;'; r.textContent='BB'; el.appendChild(r); } }
+      seatEls.forEach(function(el){ const tag = el.querySelector('.role'); if (tag) tag.remove(); });
+      if (Array.isArray(st && st.actors) && typeof st.dealerIndex === 'number'){
+        const dSeat = st.actors[st.dealerIndex] && st.actors[st.dealerIndex].seatId;
+        if (typeof dSeat === 'number'){
+          const el = seatEls.find(function(e){ return Number(e.dataset.index) === Number(dSeat); });
+          if (el){ const r=document.createElement('div'); r.className='role'; r.style.cssText='position:absolute; top:2px; right:2px; background:#7800cd; color:#fff; font-size:10px; padding:2px 4px; border-radius:6px;'; r.textContent='D'; el.appendChild(r); }
         }
-      } catch {}
-      // Action buttons
-      const mine = myAddr && st.turnAddr && String(st.turnAddr).toLowerCase() === String(myAddr).toLowerCase();
-      const btnWrap = actionBar?.querySelector('.action-btns');
-      if (btnWrap) {
-        btnWrap.innerHTML = '';
-        if (mine) {
-          const me = (Array.isArray(st.actors)? st.actors : []).find(a => a && a.addr && String(a.addr).toLowerCase()===String(myAddr).toLowerCase());
-          const need = Math.max(0, Number(st.toCall||0) - Number(me?.contrib||0));
-          const minRaise = Number(st.minRaise||0);
-          const mk = (label, handler) => { const b=document.createElement('button'); b.textContent=label; b.onclick=handler; return b; };
-          btnWrap.appendChild(mk('Fold', () => socket.emit('poker:act', { action:'fold' })));
-          if (need <= 0) {
-            btnWrap.appendChild(mk('Check', () => socket.emit('poker:act', { action:'check' })));
-            btnWrap.appendChild(mk('Bet', () => { const v = Math.max(1, Number(amountInput?.value||0)|0); socket.emit('poker:act', { action:'bet', amount: v }); }));
-          } else {
-            btnWrap.appendChild(mk(Call , () => socket.emit('poker:act', { action:'call' })));
-            btnWrap.appendChild(mk(Raise ++, () => { const v = Math.max(minRaise, Number(amountInput?.value||0)|0); socket.emit('poker:act', { action:'raise', amount: v }); }));
-          }
-          if (infoText) infoText.textContent = To call:  • MinRaise:  • Stack: ;
-        }
+        const sbSeat = (st.actors[st.sbIndex||-1] || {}).seatId;
+        if (typeof sbSeat === 'number'){ const el = seatEls.find(function(e){ return Number(e.dataset.index) === Number(sbSeat); }); if (el){ const r=document.createElement('div'); r.className='role'; r.style.cssText='position:absolute; top:2px; left:2px; background:#2a9d8f; color:#fff; font-size:10px; padding:2px 4px; border-radius:6px;'; r.textContent='SB'; el.appendChild(r); } }
+        const bbSeat = (st.actors[st.bbIndex||-1] || {}).seatId;
+        if (typeof bbSeat === 'number'){ const el = seatEls.find(function(e){ return Number(e.dataset.index) === Number(bbSeat); }); if (el){ const r=document.createElement('div'); r.className='role'; r.style.cssText='position:absolute; bottom:2px; right:2px; background:#e76f51; color:#fff; font-size:10px; padding:2px 4px; border-radius:6px;'; r.textContent='BB'; el.appendChild(r); } }
       }
-    } catch {}
+    } catch(e){}
+    const mine = myAddr && st.turnAddr && String(st.turnAddr).toLowerCase() === String(myAddr).toLowerCase();
+    const btnWrap = actionBar && actionBar.querySelector('.action-btns');
+    if (btnWrap) {
+      btnWrap.innerHTML = '';
+      if (mine) {
+        const me = (Array.isArray(st.actors)? st.actors : []).find(function(a){ return a && a.addr && String(a.addr).toLowerCase()===String(myAddr).toLowerCase(); });
+        const need = Math.max(0, Number(st.toCall||0) - Number(me && me.contrib || 0));
+        const minRaise = Number(st.minRaise||0);
+        const mk = function(label, handler){ const b=document.createElement('button'); b.textContent=label; b.onclick=handler; return b; };
+        btnWrap.appendChild(mk('Fold', function(){ socket.emit('poker:act', { action:'fold' }); }));
+        if (need <= 0) {
+          btnWrap.appendChild(mk('Check', function(){ socket.emit('poker:act', { action:'check' }); }));
+          btnWrap.appendChild(mk('Bet', function(){ const v = Math.max(1, Number(amountInput && amountInput.value || 0) | 0); socket.emit('poker:act', { action:'bet', amount: v }); }));
+        } else {
+          btnWrap.appendChild(mk('Call '+need, function(){ socket.emit('poker:act', { action:'call' }); }));
+          btnWrap.appendChild(mk('Raise +'+minRaise+'+', function(){ const v = Math.max(minRaise, Number(amountInput && amountInput.value || 0) | 0); socket.emit('poker:act', { action:'raise', amount: v }); }));
+        }
+        if (infoText) infoText.textContent = 'To call: ' + need + ' • MinRaise: ' + minRaise + ' • Stack: ' + Number(me && me.stack || 0);
+      }
+    }
+  } catch(e){}
   });
 
-  // Hand complete
-  socket.on('poker:hand', (m) => {
-    try {
-      if (communityStrip) { communityStrip.innerHTML=''; (Array.isArray(m?.community)? m.community:[]).forEach(code => { communityStrip.appendChild(makeCardImg(code, { flip:true })); }); }
-      try { const arr = Array.isArray(m?.exposures) ? m.exposures : []; exposures = {}; arr.forEach(e => { const a = String(e?.addr||'').toLowerCase(); const cards = Array.isArray(e?.cards) ? e.cards : []; if (a && cards.length===2) exposures[a] = cards; }); } catch {}
-      try { winnersNow = {}; (Array.isArray(m?.winners)? m.winners:[]).forEach(w => { const a=String(w?.addr||'').toLowerCase(); const amt = Number(w?.amount||0); if (a) winnersNow[a] = amt; }); } catch {}
-      if (lastTable) renderTable(lastTable);
-      myHole = [];
-    } catch {}
-  });
+  socket.on('poker:hand', function(m){ try {
+    if (communityStrip) { communityStrip.innerHTML=''; (Array.isArray(m && m.community)? m.community:[]).forEach(function(code){ communityStrip.appendChild(makeCardImg(code, { flip:true })); }); }
+    try { const arr = Array.isArray(m && m.exposures) ? m.exposures : []; exposures = {}; arr.forEach(function(e){ const a = String((e && e.addr) || '').toLowerCase(); const cards = Array.isArray(e && e.cards) ? e.cards : []; if (a && cards.length===2) exposures[a] = cards; }); } catch(e){}
+    try { winnersNow = {}; (Array.isArray(m && m.winners)? m.winners:[]).forEach(function(w){ const a=String((w && w.addr) || '').toLowerCase(); const amt = Number((w && w.amount) || 0); if (a) winnersNow[a] = amt; }); } catch(e){}
+    if (lastTable) renderTable(lastTable);
+    myHole = [];
+  } catch(e){} });
 
-  devBotBtn?.addEventListener('click', () => {
-    try { devBotOn = !devBotOn; devBotBtn.classList.toggle('active', devBotOn); devBotBtn.textContent = devBotOn ? 'Dev Bot: ON' : 'Dev Bot'; socket.emit('poker:devbot', { enabled: devBotOn }); } catch {}
-  });
+  if (devBotBtn) devBotBtn.addEventListener('click', function(){ try { devBotOn = !devBotOn; devBotBtn.classList.toggle('active', devBotOn); devBotBtn.textContent = devBotOn ? 'Dev Bot: ON' : 'Dev Bot'; socket.emit('poker:devbot', { enabled: devBotOn }); } catch(e){} });
 }
 
 connect();
 
-connectBtn?.addEventListener('click', async () => {
+if (connectBtn) connectBtn.addEventListener('click', async function(){
   try {
     if (!window.ethereum || !window.ethers) { setStatus('No wallet provider'); return; }
     await window.ethereum.request({ method:'eth_requestAccounts' });
@@ -154,7 +164,7 @@ connectBtn?.addEventListener('click', async () => {
     const signer = provider.getSigner();
     const addr = await signer.getAddress();
     myAddr = String(addr||'').toLowerCase();
-    setStatus(Wallet: );
-    try { if (socket && socket.connected) { socket.emit('identify', { addr: myAddr }); socket.emit('join_table', { table: currentTableId }); } } catch {}
+    setStatus('Wallet: ' + short(myAddr));
+    try { if (socket && socket.connected) { socket.emit('identify', { addr: myAddr }); socket.emit('join_table', { table: currentTableId }); } } catch(e){}
   } catch (e) { setStatus('Wallet connect failed'); }
 });
