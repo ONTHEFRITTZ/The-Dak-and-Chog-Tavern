@@ -53,6 +53,21 @@ function makeCardImg(code, opts){ opts = opts||{}; const hole=!!opts.hole, flip 
 function renderTable(t){
   if (!t || t.id !== currentTableId) return;
   lastTable = t;
+  // Ensure even seat spacing around table edge
+  try {
+    const n = seatEls.length || 8;
+    const rx = 48; // horizontal radius in % (from center)
+    const ry = 42; // vertical radius in % (from center)
+    const startDeg = -90; // start at top center
+    seatEls.forEach(function(el, i){
+      const ang = (startDeg + (360 / n) * i) * Math.PI / 180;
+      const left = 50 + rx * Math.cos(ang);
+      const top = 50 + ry * Math.sin(ang);
+      el.style.left = left.toFixed(2) + '%';
+      el.style.top = top.toFixed(2) + '%';
+      el.style.transform = 'translate(-50%,-50%)';
+    });
+  } catch(e){}
   seatEls.forEach(function(el){
     const idx = Number(el.dataset.index);
     const s = Array.isArray(t.seats) ? t.seats[idx] : null;

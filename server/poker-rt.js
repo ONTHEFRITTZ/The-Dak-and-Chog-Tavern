@@ -45,7 +45,8 @@ const tables = new Map();
 function now() { return Date.now(); }
 function getTable(id) {
   if (!tables.has(id)) {
-    tables.set(id, { id, seats: Array.from({length:8}, () => null), lastActive: now(), started: false, poker: null, devBotEnabled: false });
+    // Default: no bot seated, dev bot disabled
+    tables.set(id, { id, seats: Array.from({length:8}, () => null), lastActive: now(), started: false, poker: null, devBotEnabled: false, simMode: false });
   }
   return tables.get(id);
 }
