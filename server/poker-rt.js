@@ -149,6 +149,19 @@ io.on('connection', (socket) => {
       const t = getTable(currentTableId);
       const s = t.seats.find(x => x && x.addr === addrLower);
       if (s) { s.ready = !!m?.ready; s.lastActive = now(); }
+      // If dev bot is enabled, ensure a bot is present and marked ready so solo play can start
+      try {
+        if (t.devBotEnabled) {
+          let botIdx = t.seats.findIndex(u => u && typeof u.addr === 'string' && u.addr.startsWith('bot:'));
+          if (botIdx === -1) {
+            const slot = t.seats.findIndex(u => !u);
+            if (slot >= 0) { t.seats[slot] = { id: slot, addr: 'bot:dev', ready: true, balance: 0, lastActive: now(), socketId: 'bot', chips: 100 }; botIdx = slot; }
+          } else {
+            try { t.seats[botIdx].ready = true; } catch {}
+          }
+          if (botIdx >= 0) { t.simMode = true; io.to(currentTableId).emit('poker:mode', { simulated: true }); }
+        }
+      } catch {}
       t.lastActive = now();
       emitUpdate(t);
       // If all seated are ready, and at least 2 players, start a hand
