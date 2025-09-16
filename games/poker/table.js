@@ -297,18 +297,16 @@ async function connect(){
 
   socket.on('poker:hand', function(m){ try {
     holdShowdown = true; // keep visuals until I click Ready
-    // If folded to bot, clear the board (no community shown)
+    // Determine winning board indices for highlighting
     var winners = Array.isArray(m && m.winners) ? m.winners : [];
-    var botWon = false; try { botWon = winners.some(function(w){ var a = String((w && w.addr) || ''); return a.startsWith('bot:'); }); } catch(_){ botWon = false; }
-    // Capture used community indices to highlight winning board cards
     usedBoard = [];
     try { winners.forEach(function(w){ var uc = Array.isArray(w && w.usedCommunity) ? w.usedCommunity : []; uc.forEach(function(i){ if (usedBoard.indexOf(i)===-1) usedBoard.push(i); }); }); } catch(_){ usedBoard = []; }
     if (communityStrip) {
       communityStrip.innerHTML='';
-      var comm = botWon ? [] : (Array.isArray(m && m.community)? m.community:[]);
-      comm.forEach(function(code, idx){ var img = makeCardImg(code, { flip:true }); if (!botWon && usedBoard.indexOf(idx)>=0) img.classList.add('card--win'); communityStrip.appendChild(img); });
+      var comm = Array.isArray(m && m.community)? m.community:[];
+      comm.forEach(function(code, idx){ var img = makeCardImg(code, { flip:true }); if (usedBoard.indexOf(idx)>=0) img.classList.add('card--win'); communityStrip.appendChild(img); });
       // Nudge community up at showdown to spotlight board while keeping all visible
-      if (!botWon && comm.length) {
+      if (comm.length) {
         communityStrip.classList.add('showdown');
         try { Array.from(communityStrip.querySelectorAll('img.card')).forEach(function(img){ img.style.transform = 'translateY(-6px)'; }); } catch(_){ }
       }
