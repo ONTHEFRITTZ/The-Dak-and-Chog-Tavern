@@ -152,6 +152,7 @@ function tablePublic(t) {
     started: !!t.started,
     ownerId: t.ownerId,
     devBotEnabled: !!t.devBotEnabled,
+    simulated: !!t.simulated,
   };
 }
 
@@ -394,6 +395,17 @@ io.on('connection', (socket) => {
           t.seats[idx] = { id: idx, addr: addrLower, ready: false, balance: 0, lastActive: nowMs(), socketId: socket.id };
         }
       }
+      // If two or more humans are seated, ensure dev-bot is disabled and removed, and turn off simulated mode
+      try {
+        const humans = t.seats.filter(s => s && typeof s.addr === 'string' && !s.addr.startsWith('bot:'));
+        if (humans.length >= 2 && t.devBotEnabled) {
+          t.devBotEnabled = false;
+          t.simulated = false;
+          const botIdx = t.seats.findIndex(s => s && typeof s.addr === 'string' && s.addr.startsWith('bot:'));
+          if (botIdx >= 0) t.seats[botIdx] = null;
+          try { if (t.poker?.botTimer) { clearTimeout(t.poker.botTimer); t.poker.botTimer = null; } } catch {}
+        }
+      } catch {}
       // Auto-start shoe when first player sits
       const after = seatCount(t);
       if (!t.started && before === 0 && after > 0 && !paused) {
@@ -554,6 +566,7 @@ io.on('connection', (socket) => {
       const t = getTable(currentTableId);
       const enabled = !!m?.enabled;
       t.devBotEnabled = enabled;
+      t.simulated = enabled; // dev-bot implies off-chain simulated betting
       const botIdx = t.seats.findIndex(s => s && typeof s.addr === 'string' && s.addr.startsWith('bot:'));
       if (enabled) {
         if (botIdx === -1) {
@@ -573,6 +586,20 @@ io.on('connection', (socket) => {
       ensureLobbyPolicy();
       emitLobby();
       if (enabled) maybeTriggerBot(currentTableId, t);
+    } catch {}
+  });
+
+  // Toggle simulated (off-chain) mode without seating a bot
+  socket.on('poker:mode', (m) => {
+    try {
+      if (!currentTableId) return;
+      const t = getTable(currentTableId);
+      t.simulated = !!(m && m.simulated);
+      t.lastActive = nowMs();
+      emitUpdate(t);
+      io.to(currentTableId).emit('poker:mode', { simulated: !!t.simulated, table: tablePublic(t) });
+      ensureLobbyPolicy();
+      emitLobby();
     } catch {}
   });
 

@@ -7,7 +7,7 @@ let socket; let myAddr = null; let currentTableId = null; let lastTable = null; 
 let lastState = null; let exposures = {}; let winnersNow = {};
 
 // Disable Dev Bot toggle until wallet connects
-try { if (devBotBtn) { devBotBtn.disabled = true; devBotBtn.title = 'Connect wallet to use Dev Bot'; } } catch(e){}
+try { if (devBotBtn) { devBotBtn.disabled = true; devBotBtn.title = 'Connect wallet to use Dev Bot'; devBotBtn.textContent = 'Dev Bot'; } } catch(e){}
 
 let actionBar = null; let communityEl = null; let amountInput = null; let infoText = null; let communityStrip = null; let burnStrip = null;
 
@@ -146,7 +146,7 @@ async function connect(){
   socket.on('disconnect', function(){ setStatus('Disconnected'); });
   socket.on('table:update', function(t){ try {
     if (devBotBtn) {
-      const enabled = (typeof t?.devBotEnabled === 'boolean') ? !!t.devBotEnabled : !!t?.simulated;
+      const enabled = !!(t && t.simulated);
       devBotOn = enabled;
       devBotBtn.classList.toggle('active', devBotOn);
       devBotBtn.textContent = devBotOn ? 'Dev Bot: ON' : 'Dev Bot';
