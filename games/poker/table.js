@@ -174,6 +174,12 @@ async function connect(){
       devBotOn = enabled;
       devBotBtn.classList.toggle('active', devBotOn);
       devBotBtn.textContent = devBotOn ? 'Dev Bot: ON' : 'Dev Bot';
+      // Only show Dev Bot toggle when exactly one human is seated
+      try {
+        const humans = Array.isArray(t && t.seats) ? t.seats.filter(function(s){ return s && s.addr && !String(s.addr).startsWith('bot:'); }).length : 0;
+        devBotBtn.style.display = (humans === 1) ? '' : 'none';
+        devBotBtn.disabled = !myAddr || (humans !== 1);
+      } catch (e) {}
     }
   } catch(e){} renderTable(t); });
   socket.on('system', function(){ /* no banner */ });
@@ -298,6 +304,12 @@ if (burnStrip) burnStrip.innerHTML = '';
 
   if (devBotBtn) devBotBtn.addEventListener('click', function(){
     try {
+      // Guard: only allow toggling when alone at the table
+      try {
+        const t = lastTable;
+        const humans = Array.isArray(t && t.seats) ? t.seats.filter(function(s){ return s && s.addr && !String(s.addr).startsWith('bot:'); }).length : 0;
+        if (humans !== 1) { return; }
+      } catch (e) {}
       const next = !devBotOn;
       if (next) { alert('Simulated mode enabled: on-chain betting is disabled while the dev bot is active.'); }
       devBotOn = next;

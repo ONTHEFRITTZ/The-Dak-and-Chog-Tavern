@@ -255,6 +255,16 @@ io.on('connection', (socket) => {
       if (!currentTableId) return;
       const t = getTable(currentTableId);
       const enabled = !!m?.enabled;
+      // Allow enabling only when exactly one human is seated at this table
+      const humans = t.seats.filter(s => s && typeof s.addr === 'string' && !s.addr.startsWith('bot:')).length;
+      if (enabled && humans !== 1) {
+        // Reject enabling when not solo
+        t.devBotEnabled = false;
+        io.to(currentTableId).emit('poker:mode', { simulated: false });
+        io.to(currentTableId).emit('system', 'Dev Bot can only be enabled when you are alone at the table.');
+        emitUpdate(t); emitLobby();
+        return;
+      }
       t.devBotEnabled = enabled;
       const botIdx = t.seats.findIndex(s => s && typeof s.addr === 'string' && s.addr.startsWith('bot:'));
       if (enabled) {
