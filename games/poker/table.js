@@ -7,7 +7,7 @@ let socket; let myAddr = null; let currentTableId = null; let lastTable = null; 
 let lastState = null; let exposures = {}; let winnersNow = {};
 let holdShowdown = false; // keep board + exposures visible until I click Ready
 // Stats
-let statsEl = null, sbWalletEl = null, sbChipsEl = null, sbPnlEl = null;
+let statsEl = null, sbWalletEl = null, sbChipsEl = null, sbPnlEl = null, sbHandsEl = null;
 let sessionStartChips = null; let lastChips = 0; let handsWon = 0;
 let walletProvider = null; let walletBalanceStr = null;
 
@@ -42,6 +42,7 @@ function initStatsBox(){
     sbWalletEl = document.getElementById('sb-wallet');
     sbChipsEl = document.getElementById('sb-chips');
     sbPnlEl = document.getElementById('sb-pnl');
+    sbHandsEl = document.getElementById('sb-hands');
   } catch {}
 }
 function fmtPnL(n){ try { return (n>0?'+':'') + String(n); } catch { return String(n||0); } }
@@ -50,6 +51,7 @@ function refreshStats(){
     if (sbWalletEl && walletBalanceStr!=null) sbWalletEl.textContent = walletBalanceStr + ' ETH';
     if (sbChipsEl) sbChipsEl.textContent = String(lastChips||0);
     if (sbPnlEl) sbPnlEl.textContent = fmtPnL((lastChips||0) - (sessionStartChips||0));
+    if (sbHandsEl) sbHandsEl.textContent = String(handsWon||0);
   } catch {}
 }
 function pickMySeatIdx(t){
