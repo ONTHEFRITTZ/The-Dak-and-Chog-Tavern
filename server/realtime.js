@@ -359,6 +359,19 @@ io.on('connection', (socket) => {
       currentTableId = tableId;
       socket.join(tableId);
       const t = getTable(tableId);
+      // Poker: on page load/join, never leave a bot seated if no hand is active
+      try {
+        if (String(tableId).startsWith('poker-') && !t.poker) {
+          let changed = false;
+          for (let i = 0; i < t.seats.length; i++) {
+            const s = t.seats[i];
+            if (s && typeof s.addr === 'string' && s.addr.startsWith('bot:')) { t.seats[i] = null; changed = true; }
+          }
+          if (t.devBotEnabled) { t.devBotEnabled = false; changed = true; }
+          if (t.simulated) { t.simulated = false; changed = true; }
+          if (changed) emitUpdate(t);
+        }
+      } catch {}
       t.lastActive = nowMs();
       emitUpdate(t);
       io.to(tableId).emit('system', `${short(socket.id)} joined ${tableId}`);
@@ -456,6 +469,13 @@ io.on('connection', (socket) => {
       if (paused) return;
       const isFaro = String(currentTableId).startsWith('faro-');
       const isPoker = String(currentTableId).startsWith('poker-');
+      // Poker: if Dev Bot is enabled and present, mark it ready only when a human readies up
+      if (isPoker && t.devBotEnabled) {
+        try {
+          const botIdx = t.seats.findIndex(s => s && typeof s.addr === 'string' && s.addr.startsWith('bot:'));
+          if (botIdx >= 0) t.seats[botIdx].ready = true;
+        } catch {}
+      }
       if (isFaro) {
         if (allReady && t.bets.size > 0) {
           const bankRank = rand13();
@@ -566,16 +586,18 @@ io.on('connection', (socket) => {
       const t = getTable(currentTableId);
       const enabled = !!m?.enabled;
       t.devBotEnabled = enabled;
-      t.simulated = enabled; // dev-bot implies off-chain simulated betting
+      // Simulated flag is UI-only; do not auto-start
+      t.simulated = !!enabled;
       const botIdx = t.seats.findIndex(s => s && typeof s.addr === 'string' && s.addr.startsWith('bot:'));
       if (enabled) {
+        // Seat bot with ready:false; game should not start until human sits and readies up
         if (botIdx === -1) {
           const slot = t.seats.findIndex(s => !s);
           if (slot >= 0) {
-            t.seats[slot] = { id: slot, addr: 'bot:dev', ready: true, balance: 0, lastActive: nowMs(), socketId: 'bot' };
+            t.seats[slot] = { id: slot, addr: 'bot:dev', ready: false, balance: 0, lastActive: nowMs(), socketId: 'bot' };
           }
         } else {
-          try { t.seats[botIdx].ready = true; } catch {}
+          try { t.seats[botIdx].ready = false; } catch {}
         }
       } else {
         if (botIdx >= 0) t.seats[botIdx] = null;
@@ -585,7 +607,7 @@ io.on('connection', (socket) => {
       emitUpdate(t);
       ensureLobbyPolicy();
       emitLobby();
-      if (enabled) maybeTriggerBot(currentTableId, t);
+      // Do not trigger bot actions until a hand starts (both ready)
     } catch {}
   });
 
