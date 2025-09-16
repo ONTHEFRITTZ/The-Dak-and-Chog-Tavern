@@ -30,6 +30,7 @@ const rulesAck = document.getElementById('rules-ack');
 const openRulesBtn = document.getElementById('open-rules');
 let hazardAck = false;
 const RULES_VERSION = 'v2';
+const RULES_ACK_KEY = `hazard.rulesAck.${RULES_VERSION}`;
 
 // Persist and restore basic UI state (bet + main)
 try {
@@ -150,10 +151,29 @@ mainButtons.forEach(btn => {
 // Initialize provider/signers and attach handlers
 const onReady = (fn) => { if (document.readyState === 'loading') { window.addEventListener('DOMContentLoaded', fn, { once: true }); } else { fn(); } };
 onReady(async () => {
-  // Require rules acknowledgement every load
+  // Rules acknowledgement UX: persist for 24h per RULES_VERSION
   hazardAck = false;
-  try { rulesOverlay.style.display = 'flex'; setHazardInteractivity(false); } catch {}
-  rulesAck?.addEventListener('click', () => { hazardAck = true; try { rulesOverlay.style.display = 'none'; } catch {}; setHazardInteractivity(true); });
+  try {
+    const tsRaw = localStorage.getItem(RULES_ACK_KEY);
+    const ts = tsRaw ? parseInt(tsRaw, 10) : 0;
+    const dayMs = 24 * 60 * 60 * 1000;
+    if (ts && (Date.now() - ts) < dayMs) {
+      hazardAck = true;
+      rulesOverlay.style.display = 'none';
+      setHazardInteractivity(true);
+    } else {
+      rulesOverlay.style.display = 'flex';
+      setHazardInteractivity(false);
+    }
+  } catch {
+    try { rulesOverlay.style.display = 'flex'; setHazardInteractivity(false); } catch {}
+  }
+  rulesAck?.addEventListener('click', () => {
+    hazardAck = true;
+    try { localStorage.setItem(RULES_ACK_KEY, String(Date.now())); } catch {}
+    try { rulesOverlay.style.display = 'none'; } catch {}
+    setHazardInteractivity(true);
+  });
   openRulesBtn?.addEventListener('click', () => { try { rulesOverlay.style.display = 'flex'; } catch {} });
 
   // Accept either storage flag, but still try provider init even if missing
