@@ -86,8 +86,6 @@ function makeCardImg(code, opts){
   img.alt=String(code||'');
   img.src = (code==='BACK')? cardBackSrc() : cardSrc(code);
   img.className='card' + (hole?' card--hole':'') + (flip?' card--flip':'') + (win?' card--win':'');
-  // Fallback to placeholder if suit/rank image not yet available
-  img.onerror = function(){ try { this.onerror = null; this.src='../../assets/images/under-construction.png'; } catch(_){} };
   if (flip) requestAnimationFrame(function(){ img.classList.add('card--show'); });
   return img;
 }
