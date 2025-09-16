@@ -113,10 +113,11 @@ function parseTableId(){ try { const u=new URL(window.location.href); return u.s
 
 async function connect(){
   currentTableId = parseTableId();
-  try { socket = io(window.location.origin, { path: '/poker.io/', transports:['polling','websocket'], upgrade:true, reconnection:true, reconnectionAttempts:10, reconnectionDelay:800, forceNew:true }); }
+  try { socket = io(window.location.origin, { path: '/poker.io/', transports:['polling','websocket'], upgrade:true, reconnection:true, reconnectionAttempts:10, reconnectionDelay:800, forceNew:true }); try { window.socket = socket; } catch(e){} }
   catch (e) { setStatus('Socket.IO not available'); return; }
 
   socket.on('connect', function(){
+    try { window.socket = socket; } catch(e){}
     try {
       if (myAddr) {
         setStatus('' + short(myAddr));
@@ -127,6 +128,19 @@ async function connect(){
       }
     } catch(e){}
   });
+
+  // Optional debug: attach listeners when URL includes ?pdebug=1
+  try {
+    const u = new URL(window.location.href);
+    if (u.searchParams.get('pdebug') === '1') {
+      window.__poker = window.__poker || { states: [], tables: [], cards: [] };
+      socket.off('poker:state'); socket.off('table:update'); socket.off('poker:cards');
+      socket.on('poker:state', function(st){ try { window.__poker.states.push(st); } catch(e){} console.log('[poker:state]', st); });
+      socket.on('table:update', function(t){ try { window.__poker.tables.push(t); } catch(e){} console.log('[table:update]', t); });
+      socket.on('poker:cards', function(m){ try { window.__poker.cards.push(m); } catch(e){} console.log('[poker:cards]', m); });
+      console.log('[pdebug] listeners attached');
+    }
+  } catch(e){}
   socket.on('connect_error', function(){ setStatus('Lobby unavailable. Retrying...'); });
   socket.on('reconnect_error', function(){ setStatus('Reconnecting...'); });
   socket.on('disconnect', function(){ setStatus('Disconnected'); });
