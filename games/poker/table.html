@@ -6,7 +6,7 @@
   <title>Poker Table</title>
   <link rel="stylesheet" href="../../css/style.css">
   <!-- Preload table surface to ensure it paints immediately -->
-  <link rel="preload" as="image" href="../../assets/images/table.webp" type="image/webp">
+  <link rel="preload" as="image" href="../../assets/images/table.png" type="image/png">
   <link rel="preload" as="image" href="../../assets/images/tavern-bg.webp" type="image/webp">
   <style>
     /* Match Faro table page layout */
@@ -19,7 +19,7 @@
     /* Make the table itself pop without filling the container: remove color fill and add a soft backglow */
     .table-surface {
       position:absolute; inset:0; border-radius:24px; z-index:1;
-      background: url('../../assets/images/table.webp') no-repeat center / contain;
+      background: url('../../assets/images/table.png') no-repeat center / contain;
       box-shadow: none;
     }
     /* Dedicated glow layer sits behind the table image */
@@ -80,7 +80,7 @@
   <!-- Socket.IO (CDN) -->
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
   <!-- Prewarm table background in cache before JS/paint -->
-  <script>try{(new Image()).src='../../assets/images/table.webp';}catch(e){}</script>
+  <script>try{(new Image()).src='../../assets/images/table.png';}catch(e){}</script>
   <script>
     (function(){
       function load(src){ try { var s=document.createElement('script'); s.src=src; s.defer=true; document.body.appendChild(s); } catch(e) { console.error('inject failed', e); } }

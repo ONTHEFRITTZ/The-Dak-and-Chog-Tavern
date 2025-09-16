@@ -10,29 +10,7 @@ function renderLobby(list){
   try {
     const items = Array.isArray(list)? list : [];
     lobbyEl.innerHTML = '';
-    // Resume last table CTA (if available)
-    try {
-      const last = localStorage.getItem('poker.lastTable');
-      if (last) {
-        const wrap = document.createElement('div');
-        wrap.style.cssText = 'display:flex; align-items:center; justify-content:space-between; gap:12px; padding:8px; margin-bottom:10px; border:2px dashed #7800cd; border-radius:10px; background:rgba(255,244,233,0.8);';
-        const label = document.createElement('div'); label.textContent = 'Resume last table: ' + last; label.style.fontWeight = '700'; label.style.color = '#2b1e12';
-        const open = document.createElement('button'); open.textContent = 'Open'; open.onclick = () => {
-          try {
-            const u = new URL(window.location.href);
-            u.pathname = '/games/poker/table.html';
-            u.searchParams.set('table', last);
-            window.location.href = u.toString();
-          } catch {
-            window.location.href = '/games/poker/table.html?table=' + encodeURIComponent(last);
-          }
-        };
-        const clear = document.createElement('button'); clear.textContent = 'Clear'; clear.onclick = () => { try { localStorage.removeItem('poker.lastTable'); localStorage.removeItem('poker.lastVisitAt'); wrap.remove(); } catch(_){} };
-        const btns = document.createElement('div'); btns.style.display='flex'; btns.style.gap='8px'; btns.appendChild(open); btns.appendChild(clear);
-        wrap.appendChild(label); wrap.appendChild(btns);
-        lobbyEl.appendChild(wrap);
-      }
-    } catch(_) {}
+    // No table persistence; lobby renders only current list
     items.forEach(row => {
       const card = document.createElement('div'); card.className='lobby-item';
       const left = document.createElement('div'); left.textContent = `${row.id} - Players ${row.seated}/${row.capacity}`;
