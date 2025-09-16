@@ -99,6 +99,18 @@ io.on('connection', (socket) => {
       currentTableId = tableId;
       socket.join(tableId);
       const t = getTable(tableId);
+      // Universal clean state on page load: if no hand is active, never keep a bot seated
+      try {
+        if (!t.poker) {
+          let changed = false;
+          for (let i=0;i<t.seats.length;i++){
+            const s=t.seats[i]; if (s && typeof s.addr==='string' && s.addr.startsWith('bot:')) { t.seats[i]=null; changed=true; }
+          }
+          if (t.devBotEnabled) { t.devBotEnabled = false; changed = true; }
+          if (t.simMode) { t.simMode = false; changed = true; }
+          if (changed) { io.to(tableId).emit('poker:mode', { simulated: false }); }
+        }
+      } catch {}
       try {
         if (!t.devBotEnabled) {
           for (let i = 0; i < t.seats.length; i++) {
@@ -125,6 +137,8 @@ io.on('connection', (socket) => {
         const cur = t.seats.findIndex(s => s && s.addr === addrLower);
         if (cur >= 0) t.seats[cur] = null;
       } else if (idx >= 0 && idx < t.seats.length) {
+        // Enforce single seat per address
+        try { const cur = t.seats.findIndex(s => s && s.addr === addrLower); if (cur >= 0) t.seats[cur] = null; } catch {}
         if (!t.seats[idx]) t.seats[idx] = { id: idx, addr: addrLower, ready: false, lastActive: now(), socketId: socket.id, chips: 100 };
         if (!t.started) {
           t.started = true;
