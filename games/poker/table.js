@@ -126,7 +126,7 @@ function renderTable(t){
           try {
             const winInfo = winnersNow && winnersNow[String(myAddr).toLowerCase()];
             const usedHole = (winInfo && Array.isArray(winInfo.usedHole)) ? winInfo.usedHole : null;
-            myHole.forEach(function(code, i){ const isWin = !!(winInfo && (!usedHole || usedHole.indexOf(i)>=0)); row.appendChild(makeCardImg(code,{hole:true,flip:true,win:isWin})); });
+            myHole.forEach(function(code, i){ const isWin = !!(winInfo && usedHole && usedHole.indexOf(i)>=0); row.appendChild(makeCardImg(code,{hole:true,flip:true,win:isWin})); });
           } catch(_) {
             myHole.forEach(function(code){ row.appendChild(makeCardImg(code,{hole:true,flip:true})); });
           }
@@ -143,7 +143,7 @@ function renderTable(t){
               const winInfo = winnersNow && winnersNow[addrLower];
               const isWin = !!winInfo;
               const usedHole = (winInfo && Array.isArray(winInfo.usedHole)) ? winInfo.usedHole : null;
-              exp.forEach(function(code, i){ const img = makeCardImg(code,{hole:true,flip:true,win: isWin && (!usedHole || usedHole.indexOf(i)>=0)}); row.appendChild(img); });
+              exp.forEach(function(code, i){ const img = makeCardImg(code,{hole:true,flip:true,win: isWin && !!(usedHole && usedHole.indexOf(i)>=0)}); row.appendChild(img); });
               el.appendChild(row);
               if (isWin) { const badge=document.createElement('div'); badge.className='win-badge'; const amt=Number((winInfo && winInfo.amount) || 0); badge.textContent = 'Winner ' + (amt>0?'+':'') + String(amt); el.appendChild(badge); }
             }
