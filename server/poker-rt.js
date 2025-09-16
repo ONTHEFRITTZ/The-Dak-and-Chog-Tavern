@@ -393,10 +393,8 @@ function startPokerHand(tableId, t) {
       });
     } catch {}
     maybeTriggerBot(tableId, t);
-    // Attempt auto-progress when a bot is present and there is exactly one human
-    try { scheduleSimProgress(tableId, t); } catch {}
-    // Fallback: if still stuck on preflop after a short delay in solo vs bot, force progress
-    try { ensureSoloProgressFallback(tableId, t); } catch {}
+    // If this is a solo vs bot hand, immediately begin advancing community cards
+    try { if (isSoloVsBot(t)) simFastForward(tableId, t); } catch {}
   } catch {}
 }
 
@@ -422,8 +420,8 @@ function advancePokerStage(tableId, t) {
     state.turnIndex = idx;
     emitPokerState(tableId, t);
     maybeTriggerBot(tableId, t);
-    // Attempt auto-progress after each stage if solo vs bot
-    try { scheduleSimProgress(tableId, t); } catch {}
+    // Continue auto-progress if solo vs bot
+    try { if (isSoloVsBot(t)) simFastForward(tableId, t); } catch {}
   } catch {}
 }
 
@@ -436,6 +434,41 @@ function ensureSoloProgressFallback(tableId, t) {
     const botPresent = seats.some(s => s && typeof s.addr === 'string' && String(s.addr).startsWith('bot:'));
     if (!(botPresent && humans === 1)) return;
     setTimeout(() => { try { const st = t.poker; if (st && st.stage === 'preflop') advancePokerStage(tableId, t); } catch {} }, 1600);
+  } catch {}
+}
+
+// Utility: detect 1 human + at least 1 bot
+function isSoloVsBot(t) {
+  try {
+    const seats = t.seats || [];
+    const humans = seats.filter(s => s && typeof s.addr === 'string' && !String(s.addr).startsWith('bot:')).length;
+    const botPresent = seats.some(s => s && typeof s.addr === 'string' && String(s.addr).startsWith('bot:'));
+    return botPresent && humans === 1;
+  } catch { return false; }
+}
+
+// Deterministic fast-forward for solo vs bot: chain stage advances with short delays
+function simFastForward(tableId, t) {
+  try {
+    const state = t.poker; if (!state) return;
+    // Avoid stacking multiple chains
+    if (!state.__ffRunning) {
+      state.__ffRunning = true;
+      const step = () => {
+        try {
+          const st = t.poker; if (!st) { state.__ffRunning = false; return; }
+          if (!isSoloVsBot(t)) { state.__ffRunning = false; return; }
+          if (st.stage === 'preflop' || st.stage === 'flop' || st.stage === 'turn') {
+            advancePokerStage(tableId, t);
+            setTimeout(step, 700);
+          } else {
+            state.__ffRunning = false;
+          }
+        } catch { state.__ffRunning = false; }
+      };
+      // Give clients a brief moment to render hole cards
+      setTimeout(step, 700);
+    }
   } catch {}
 }
 
