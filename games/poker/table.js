@@ -197,7 +197,23 @@ async function connect(){
         if (typeof bbSeat === 'number'){ const el = seatEls.find(function(e){ return Number(e.dataset.index) === Number(bbSeat); }); if (el){ const r=document.createElement('div'); r.className='role'; r.style.cssText='position:absolute; bottom:2px; right:2px; background:#e76f51; color:#fff; font-size:10px; padding:2px 4px; border-radius:6px;'; r.textContent='BB'; el.appendChild(r); } }
       }
     } catch(e){}
-    const mine = ((st && st.turnSocketId && socket && socket.id && st.turnSocketId===socket.id) || (myAddr && st && st.turnAddr && String(st.turnAddr).toLowerCase()===String(myAddr).toLowerCase()));
+    // Robust: it is my turn if any of the following are true:
+    // 1) Server provided turnSocketId and it matches this socket.id
+    // 2) Server provided turnAddr and it matches my wallet address
+    // 3) Fallback: the current actor's seatId matches the seat whose addr/socketId matches me
+    let mine = false;
+    try {
+      if (st && st.turnSocketId && socket && socket.id && st.turnSocketId === socket.id) mine = true;
+      else if (myAddr && st && st.turnAddr && String(st.turnAddr).toLowerCase() === String(myAddr).toLowerCase()) mine = true;
+      else {
+        const actor = Array.isArray(st && st.actors) ? st.actors[Number(st.turnIndex)||0] : null;
+        const mySeatIdx = lastTable && Array.isArray(lastTable.seats) ? lastTable.seats.findIndex(function(s){
+          const a = s && s.addr && String(s.addr).toLowerCase();
+          return (myAddr && a === String(myAddr).toLowerCase()) || (socket && s && s.socketId === socket.id);
+        }) : -1;
+        if (actor && typeof actor.seatId === 'number' && mySeatIdx >= 0) mine = (Number(actor.seatId) === Number(mySeatIdx));
+      }
+    } catch(e){}
     const btnWrap = actionBar && actionBar.querySelector('.action-btns');
     if (btnWrap) {
       btnWrap.innerHTML = '';
