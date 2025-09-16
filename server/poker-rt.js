@@ -395,6 +395,8 @@ function startPokerHand(tableId, t) {
     maybeTriggerBot(tableId, t);
     // If this is a solo vs bot hand, drive betting by auto-acting check/call to progress naturally
     try { if (isSoloVsBot(t)) simResolveBetting(tableId, t); } catch {}
+    // Hard fallback: ensure round completes even if timers/races interfere
+    try { if (isSoloVsBot(t)) forceCompleteRound(tableId, t, 1000); } catch {}
   } catch {}
 }
 
@@ -422,6 +424,8 @@ function advancePokerStage(tableId, t) {
     maybeTriggerBot(tableId, t);
     // Continue driving betting if solo vs bot
     try { if (isSoloVsBot(t)) simResolveBetting(tableId, t); } catch {}
+    // Hard fallback after stage change
+    try { if (isSoloVsBot(t)) forceCompleteRound(tableId, t, 900); } catch {}
   } catch {}
 }
 
@@ -473,6 +477,32 @@ function simResolveBetting(tableId, t) {
     };
     // Small delay for UX, a touch longer for bot to look natural
     setTimeout(act, isBot ? 420 : 320);
+  } catch {}
+}
+
+// Force-complete the current betting round in solo vs bot by simulating calls/checks for all actors
+function forceCompleteRound(tableId, t, delayMs) {
+  try {
+    const state = t.poker; if (!state) return;
+    setTimeout(() => {
+      try {
+        const st = t.poker; if (!st) return;
+        if (!isSoloVsBot(t)) return;
+        if (bettingRoundComplete(st)) return;
+        const target = Number(st.toCall||0);
+        st.actors.forEach((a) => {
+          if (a.folded || a.allIn) return;
+          const need = Math.max(0, target - Number(a.contrib||0));
+          if (need > 0) {
+            const pay = Math.min(need, a.stack);
+            a.stack -= pay; a.contrib = Number(a.contrib||0) + pay; a.invested = Number(a.invested||0) + pay; if (a.stack===0) a.allIn = true;
+          }
+          a.acted = true;
+        });
+        emitPokerState(tableId, t);
+        if (bettingRoundComplete(st)) advancePokerStage(tableId, t);
+      } catch {}
+    }, Math.max(0, Number(delayMs)||0));
   } catch {}
 }
 
