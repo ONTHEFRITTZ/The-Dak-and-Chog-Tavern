@@ -739,7 +739,31 @@ const RVAL = Object.fromEntries(RANKS.map((r,i)=>[r, i+2]));
 function parseCard(c){ const r=c[0], s=c[1]; return { r, s, v:RVAL[r]||0 }; }
 function byvDesc(a,b){ return b.v-a.v; }
 function uniqueByRankDesc(cards){ const seen=new Set(); const out=[]; for(const c of cards.sort(byvDesc)){ if(!seen.has(c.v)){ out.push(c); seen.add(c.v);} } return out; }
-function straightHigh(cards){ const u = uniqueByRankDesc(cards); const vs = u.map(c=>c.v); if (vs.includes(14)) vs.push(1); let best=0, run=1; for (let i=1;i<vs.length;i++){ if (vs[i]===vs[i-1]-1) { run++; best = Math.max(best, vs[i-1]); } else if (vs[i]!==vs[i-1]) run=1; if (run>=5) best = Math.max(best, vs[i-1]); } if (best===0 && vs.includes(5) && vs.includes(1)) return 5; return best; }
+function straightHigh(cards){
+  try {
+    const u = uniqueByRankDesc(cards);
+    const base = u.map(c=>c.v);
+    const seq = base.slice();
+    // Ace-low wheel support: treat Ace as 1 in an additional slot
+    if (seq.includes(14)) seq.push(1);
+    let run = 1;
+    let high = 0; // high card of best straight found
+    for (let i = 1; i < seq.length; i++) {
+      if (seq[i] === seq[i-1] - 1) {
+        run++;
+        if (run >= 5) {
+          // Straight of length >=5 ending at index i; high card is at i-4
+          const candHigh = seq[i-4];
+          if (candHigh > high) high = candHigh;
+        }
+      } else if (seq[i] !== seq[i-1]) {
+        run = 1;
+      }
+      // if equal, duplicates were already removed by uniqueByRankDesc
+    }
+    return high;
+  } catch { return 0; }
+}
 function evaluate7(cards){ const cs = cards.map(parseCard).sort(byvDesc); const bySuit = cs.reduce((m,c)=>{ (m[c.s]=m[c.s]||[]).push(c); return m; },{}); const counts = cs.reduce((m,c)=>{ m[c.v]=(m[c.v]||0)+1; return m; },{}); const groups = Object.entries(counts).map(([v,c])=>({v:Number(v), c})).sort((a,b)=> b.c-a.c || b.v-a.v); let flushSuit=null; for (const s of Object.keys(bySuit)){ if (bySuit[s].length>=5) { flushSuit=s; break; } } if (flushSuit){ const fcs = bySuit[flushSuit].slice(); const hi = straightHigh(fcs); if (hi>0){ return { cls:8, tiebreak:[hi] }; } } if (groups[0]?.c===4){ const kicker = cs.find(c=>c.v!==groups[0].v)?.v||0; return { cls:7, tiebreak:[groups[0].v, kicker] }; } if (groups[0]?.c===3){ const second = groups.find(g=>g.c>=2 && g.v!==groups[0].v); if (second){ return { cls:6, tiebreak:[groups[0].v, second.v] }; } } if (flushSuit){ const top5 = bySuit[flushSuit].slice(0,5).map(c=>c.v); return { cls:5, tiebreak: top5 } } const sh = straightHigh(cs); if (sh>0){ return { cls:4, tiebreak:[sh] }; } if (groups[0]?.c===3){ const kickers = cs.filter(c=>c.v!==groups[0].v).slice(0,2).map(c=>c.v); return { cls:3, tiebreak:[groups[0].v, ...kickers] }; } if (groups[0]?.c===2 && groups[1]?.c===2){ const kicker = cs.find(c=>c.v!==groups[0].v && c.v!==groups[1].v)?.v||0; const hi=Math.max(groups[0].v,groups[1].v), lo=Math.min(groups[0].v,groups[1].v); return { cls:2, tiebreak:[hi, lo, kicker] }; } if (groups[0]?.c===2){ const kickers = cs.filter(c=>c.v!==groups[0].v).slice(0,3).map(c=>c.v); return { cls:1, tiebreak:[groups[0].v, ...kickers] }; } return { cls:0, tiebreak: cs.slice(0,5).map(c=>c.v) }; }
 function cmpRank(a,b){ if (a.cls!==b.cls) return a.cls-b.cls; const n=Math.max(a.tiebreak.length,b.tiebreak.length); for(let i=0;i<n;i++){ const av=a.tiebreak[i]||0, bv=b.tiebreak[i]||0; if (av!==bv) return av-bv; } return 0; }
 // Compute best 5-card hand from 7 and return rank + used indices
