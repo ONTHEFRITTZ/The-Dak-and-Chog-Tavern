@@ -80,6 +80,14 @@ io.on('connection', (socket) => {
   });
 
   socket.on('lobby:get', () => { try { emitLobby(); } catch {} });
+  // Allow client to request current poker state snapshot
+  socket.on('poker:get', () => {
+    try {
+      if (!currentTableId) return;
+      const t = getTable(currentTableId);
+      if (t && t.poker) emitPokerState(currentTableId, t);
+    } catch {}
+  });
 
   // Allow client to request a fresh snapshot of a table immediately
   socket.on('table:get', (m) => {

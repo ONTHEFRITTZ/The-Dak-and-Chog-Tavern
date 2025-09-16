@@ -154,6 +154,8 @@ async function connect(){
   } catch(e){} renderTable(t); });
   socket.on('system', function(){ /* no banner */ });
   socket.on('rt:state', function(){ try { if (currentTableId) { socket.emit('join_table', { table: currentTableId }); try { socket.emit('table:get', { table: currentTableId }); } catch(e){} socket.emit('table:get', { table: currentTableId }); } } catch(e){} });
+  // After joining, request current poker state as well
+  try { socket.emit('poker:get'); } catch(e){}
   socket.on('poker:cards', function(m){ try { const tid = String((m && m.tableId) || ''); if (tid && tid !== currentTableId) return; const hole = Array.isArray(m && m.hole) ? m.hole : []; if (hole.length === 2) { myHole = hole; if (lastTable) renderTable(lastTable); } } catch(e){} });
   socket.on('poker:mode', function(m){ try { const sim = !!(m && m.simulated); if (devBotBtn) { devBotOn = sim; devBotBtn.classList.toggle('active', devBotOn); devBotBtn.textContent = devBotOn ? 'Dev Bot: ON' : 'Dev Bot'; } } catch(e){} });
   socket.on('poker:state', function(st){ try {
@@ -317,10 +319,11 @@ try {
         try { if (connectBtn) connectBtn.style.display = 'none'; } catch {}
         if (devBotBtn) { devBotBtn.disabled = false; devBotBtn.title = 'Add/remove a test bot to play solo'; }
         if (socket && socket.connected) {
-          try { socket.emit('identify', { addr: myAddr }); } catch(e){}
-          try { socket.emit('join_table', { table: currentTableId }); } catch(e){}
-          try { socket.emit('table:get', { table: currentTableId }); } catch(e){}
-          try { socket.emit('lobby:get'); } catch(e){}
+        try { socket.emit('identify', { addr: myAddr }); } catch(e){}
+        try { socket.emit('join_table', { table: currentTableId }); } catch(e){}
+        try { socket.emit('table:get', { table: currentTableId }); } catch(e){}
+        try { socket.emit('poker:get'); } catch(e){}
+        try { socket.emit('lobby:get'); } catch(e){}
         }
       }
     } catch {}
