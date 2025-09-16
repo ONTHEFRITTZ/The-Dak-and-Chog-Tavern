@@ -77,6 +77,15 @@ function cardSrc(code){
 function cardBackSrc(){ const v = assetTag(); const q = v ? ('?v=' + encodeURIComponent(v)) : ''; return '../../assets/images/chog_cards/dak-and-chog-cardback.png' + q; }
 function makeCardImg(code, opts){ opts = opts||{}; const hole=!!opts.hole, flip = opts.flip!==false, win = !!opts.win; const img=document.createElement('img'); img.alt=String(code||''); img.src = (code==='BACK')? cardBackSrc() : cardSrc(code); img.className='card' + (hole?' card--hole':'') + (flip?' card--flip':'') + (win?' card--win':''); if (flip) requestAnimationFrame(function(){ img.classList.add('card--show'); }); return img; }
 
+// Hand rank name fallback mapping (if server omits textual name)
+function handRankName(rank){
+  try {
+    const r = Number(rank);
+    const names = { 9:'Royal Flush', 8:'Straight Flush', 7:'Four of a Kind', 6:'Full House', 5:'Flush', 4:'Straight', 3:'Three of a Kind', 2:'Two Pair', 1:'One Pair', 0:'High Card' };
+    return (r in names) ? names[r] : '';
+  } catch { return ''; }
+}
+
 function renderTable(t){
   if (!t || t.id !== currentTableId) return;
   lastTable = t;
@@ -104,6 +113,8 @@ function renderTable(t){
     if (s) {
       info.textContent = short(s.addr||s.id) + (typeof s.chips==='number' ? ' � ' + s.chips + 'c' : ''); el.appendChild(info);
       const addrLower = String(s.addr||'').toLowerCase();
+      // If this is a bot seat, present label as BOT and suppress address line
+      try { if ((s.addr||'').startsWith('bot:')) { label.textContent = 'BOT'; try { info.textContent = ''; } catch(_){} } } catch(_){ }
       if (myAddr && addrLower===String(myAddr).toLowerCase()){
         const btns = document.createElement('div'); btns.className='btns';
         const leave = document.createElement('button'); leave.textContent='Leave'; leave.onclick=function(){ socket.emit('seat',{ index:-1 }); };
@@ -145,7 +156,13 @@ function renderTable(t){
               const usedHole = (winInfo && Array.isArray(winInfo.usedHole)) ? winInfo.usedHole : null;
               exp.forEach(function(code, i){ const img = makeCardImg(code,{hole:true,flip:true,win: isWin && !!(usedHole && usedHole.indexOf(i)>=0)}); row.appendChild(img); });
               el.appendChild(row);
-              if (isWin) { const badge=document.createElement('div'); badge.className='win-badge'; const amt=Number((winInfo && winInfo.amount) || 0); badge.textContent = 'Winner ' + (amt>0?'+':'') + String(amt); el.appendChild(badge); }
+              if (isWin) {
+                const badge=document.createElement('div'); badge.className='win-badge';
+                const amt=Number((winInfo && winInfo.amount) || 0);
+                const hName=(winInfo && (winInfo.handName||winInfo.rankName)) || handRankName(winInfo && winInfo.rank);
+                badge.textContent = (hName||'Winner') + (amt?(' +' + String(amt)):'');
+                el.appendChild(badge);
+              }
             }
             else if (!actor.folded) { for (var k=0;k<2;k++){ row.appendChild(makeCardImg('BACK',{hole:true,flip:true})); } el.appendChild(row); }
           }
