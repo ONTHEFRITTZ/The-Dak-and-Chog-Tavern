@@ -393,8 +393,8 @@ function startPokerHand(tableId, t) {
       });
     } catch {}
     maybeTriggerBot(tableId, t);
-    // If this is a solo vs bot hand, immediately begin advancing community cards
-    try { if (isSoloVsBot(t)) simFastForward(tableId, t); } catch {}
+    // If this is a solo vs bot hand, drive betting by auto-acting check/call to progress naturally
+    try { if (isSoloVsBot(t)) simResolveBetting(tableId, t); } catch {}
   } catch {}
 }
 
@@ -420,8 +420,8 @@ function advancePokerStage(tableId, t) {
     state.turnIndex = idx;
     emitPokerState(tableId, t);
     maybeTriggerBot(tableId, t);
-    // Continue auto-progress if solo vs bot
-    try { if (isSoloVsBot(t)) simFastForward(tableId, t); } catch {}
+    // Continue driving betting if solo vs bot
+    try { if (isSoloVsBot(t)) simResolveBetting(tableId, t); } catch {}
   } catch {}
 }
 
@@ -447,28 +447,32 @@ function isSoloVsBot(t) {
   } catch { return false; }
 }
 
-// Deterministic fast-forward for solo vs bot: chain stage advances with short delays
-function simFastForward(tableId, t) {
+// Simulate check/call flow for solo vs bot so betting rounds complete naturally
+function simResolveBetting(tableId, t) {
   try {
     const state = t.poker; if (!state) return;
-    // Avoid stacking multiple chains
-    if (!state.__ffRunning) {
-      state.__ffRunning = true;
-      const step = () => {
-        try {
-          const st = t.poker; if (!st) { state.__ffRunning = false; return; }
-          if (!isSoloVsBot(t)) { state.__ffRunning = false; return; }
-          if (st.stage === 'preflop' || st.stage === 'flop' || st.stage === 'turn') {
-            advancePokerStage(tableId, t);
-            setTimeout(step, 700);
-          } else {
-            state.__ffRunning = false;
-          }
-        } catch { state.__ffRunning = false; }
-      };
-      // Give clients a brief moment to render hole cards
-      setTimeout(step, 700);
-    }
+    if (!isSoloVsBot(t)) return;
+    if (bettingRoundComplete(state)) { advancePokerStage(tableId, t); return; }
+    const turn = state.turnIndex;
+    const actor = state.actors?.[turn]; if (!actor) return;
+    const need = Math.max(0, Number(state.toCall||0) - Number(actor.contrib||0));
+    const isBot = typeof actor.addr === 'string' && actor.addr.startsWith('bot:');
+    // Default behavior: if facing no bet, check; otherwise call up to need (or all-in)
+    const act = () => {
+      if (need === 0) {
+        actor.acted = true;
+      } else {
+        const pay = Math.min(need, actor.stack);
+        actor.stack -= pay; actor.contrib = Number(actor.contrib||0) + pay; actor.invested = Number(actor.invested||0) + pay; actor.acted = true;
+        if (actor.stack === 0) actor.allIn = true;
+      }
+      state.turnIndex = nextActiveIndex(state.actors, state.turnIndex);
+      emitPokerState(tableId, t);
+      if (bettingRoundComplete(state)) { advancePokerStage(tableId, t); return; }
+      setTimeout(() => { try { simResolveBetting(tableId, t); } catch {} }, 350);
+    };
+    // Small delay for UX, a touch longer for bot to look natural
+    setTimeout(act, isBot ? 420 : 320);
   } catch {}
 }
 
