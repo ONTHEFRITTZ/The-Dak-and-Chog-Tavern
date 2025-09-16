@@ -330,6 +330,12 @@ function emitPokerState(tableId, t) {
   try {
     const state = t.poker; if (!state) return;
     const pubActors = state.actors.map((a, i) => ({ addr: a.addr, seatId: a.seatId, folded: !!a.folded, acted: !!a.acted, contrib: Number(a.contrib||0), stack: Number(a.stack||0), allIn: !!a.allIn, isDealer: (i===state.dealerIndex), isSB: (i===state.sbIndex), isBB: (i===state.bbIndex) }));
+    let turnSocketId = null;
+    try {
+      const cur = state.actors?.[state.turnIndex];
+      const seat = cur ? t.seats[cur.seatId] : null;
+      turnSocketId = seat ? seat.socketId || null : null;
+    } catch {}
     io.to(tableId).emit('poker:state', {
       stage: state.stage,
       pot: Number(state.pot||0),
@@ -338,6 +344,7 @@ function emitPokerState(tableId, t) {
       community: Array.from(state.community||[]),
       turnIndex: state.turnIndex,
       turnAddr: state.actors?.[state.turnIndex]?.addr || null,
+      turnSocketId,
       dealerIndex: state.dealerIndex,
       actors: pubActors,
       table: tablePublic(t),

@@ -183,7 +183,7 @@ async function connect(){
         if (typeof bbSeat === 'number'){ const el = seatEls.find(function(e){ return Number(e.dataset.index) === Number(bbSeat); }); if (el){ const r=document.createElement('div'); r.className='role'; r.style.cssText='position:absolute; bottom:2px; right:2px; background:#e76f51; color:#fff; font-size:10px; padding:2px 4px; border-radius:6px;'; r.textContent='BB'; el.appendChild(r); } }
       }
     } catch(e){}
-    const mine = myAddr && st.turnAddr && String(st.turnAddr).toLowerCase() === String(myAddr).toLowerCase();
+    const mine = ((st && st.turnSocketId && socket && socket.id && st.turnSocketId===socket.id) || (myAddr && st && st.turnAddr && String(st.turnAddr).toLowerCase()===String(myAddr).toLowerCase()));
     const btnWrap = actionBar && actionBar.querySelector('.action-btns');
     if (btnWrap) {
       btnWrap.innerHTML = '';
