@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Poker Table</title>
   <link rel="stylesheet" href="../../css/style.css">
+  <!-- Preload table surface to ensure it paints immediately -->
+  <link rel="preload" as="image" href="../../assets/images/table.webp" type="image/webp">
+  <link rel="preload" as="image" href="../../assets/images/tavern-bg.webp" type="image/webp">
   <style>
     /* Match Faro table page layout */
     body.game { display:flex; flex-direction:column; align-items:center; justify-content:flex-start; }
@@ -76,6 +79,8 @@
   <script type="module" src="../../js/tavern.js"></script>
   <!-- Socket.IO (CDN) -->
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <!-- Prewarm table background in cache before JS/paint -->
+  <script>try{(new Image()).src='../../assets/images/table.webp';}catch(e){}</script>
   <script>
     (function(){
       function load(src){ try { var s=document.createElement('script'); s.src=src; s.defer=true; document.body.appendChild(s); } catch(e) { console.error('inject failed', e); } }
