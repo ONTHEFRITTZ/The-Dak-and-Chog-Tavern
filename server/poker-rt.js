@@ -179,6 +179,15 @@ io.on('connection', (socket) => {
       // If all seated are ready, and at least 2 players, start a hand
       const active = t.seats.filter(Boolean);
       const allReady = active.length && active.every(x => !!x.ready);
+      // Robust: if solo vs bot, start immediately once human clicked Ready and bot is present
+      try {
+        const humans = t.seats.filter(u => u && typeof u.addr === 'string' && !u.addr.startsWith('bot:')).length;
+        const botPresent = t.seats.some(u => u && typeof u.addr === 'string' && u.addr.startsWith('bot:'));
+        if (!t.poker && botPresent && humans === 1) {
+          startPokerHand(currentTableId, t);
+          return;
+        }
+      } catch {}
       if (allReady && active.length >= 2 && !t.poker) {
         startPokerHand(currentTableId, t);
       }
