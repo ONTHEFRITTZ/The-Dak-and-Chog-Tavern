@@ -153,7 +153,16 @@ async function connect(){
     }
   } catch(e){} renderTable(t); });
   socket.on('system', function(){ /* no banner */ });
-  socket.on('rt:state', function(){ try { if (currentTableId) { socket.emit('join_table', { table: currentTableId }); try { socket.emit('table:get', { table: currentTableId }); } catch(e){} socket.emit('table:get', { table: currentTableId }); } } catch(e){} });
+  socket.on('rt:state', function(){
+    try {
+      // Only join after we know our wallet (prevents stale socketId on seats)
+      if (currentTableId && myAddr) {
+        socket.emit('join_table', { table: currentTableId });
+        try { socket.emit('table:get', { table: currentTableId }); } catch(e){}
+        try { socket.emit('poker:get'); } catch(e){}
+      }
+    } catch(e){}
+  });
   // After joining, request current poker state as well
   try { socket.emit('poker:get'); } catch(e){}
   socket.on('poker:cards', function(m){ try { const tid = String((m && m.tableId) || ''); if (tid && tid !== currentTableId) return; const hole = Array.isArray(m && m.hole) ? m.hole : []; if (hole.length === 2) { myHole = hole; if (lastTable) renderTable(lastTable); } } catch(e){} });
