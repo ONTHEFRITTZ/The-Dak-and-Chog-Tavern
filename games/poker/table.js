@@ -6,6 +6,10 @@ let devBotOn = false;
 let socket; let myAddr = null; let currentTableId = null; let lastTable = null; let myHole = [];
 let lastState = null; let exposures = {}; let winnersNow = {};
 let holdShowdown = false; // keep board + exposures visible until I click Ready
+// Stats
+let statsEl = null, sbWalletEl = null, sbChipsEl = null, sbPnlEl = null;
+let sessionStartChips = null; let lastChips = 0; let handsWon = 0;
+let walletProvider = null; let walletBalanceStr = null;
 
 // Disable Dev Bot toggle until wallet connects
 try { if (devBotBtn) { devBotBtn.disabled = true; devBotBtn.title = 'Connect wallet to use Dev Bot'; devBotBtn.textContent = 'Dev Bot'; } } catch(e){}
@@ -30,6 +34,31 @@ function positionSeatsRing(){
   } catch {}
 }
 positionSeatsRing();
+
+// Stats helpers
+function initStatsBox(){
+  try {
+    statsEl = document.getElementById('stats-box');
+    sbWalletEl = document.getElementById('sb-wallet');
+    sbChipsEl = document.getElementById('sb-chips');
+    sbPnlEl = document.getElementById('sb-pnl');
+  } catch {}
+}
+function fmtPnL(n){ try { return (n>0?'+':'') + String(n); } catch { return String(n||0); } }
+function refreshStats(){
+  try {
+    if (sbWalletEl && walletBalanceStr!=null) sbWalletEl.textContent = walletBalanceStr + ' ETH';
+    if (sbChipsEl) sbChipsEl.textContent = String(lastChips||0);
+    if (sbPnlEl) sbPnlEl.textContent = fmtPnL((lastChips||0) - (sessionStartChips||0));
+  } catch {}
+}
+function pickMySeatIdx(t){
+  try {
+    const me = String(myAddr||'').toLowerCase();
+    if (!me) return -1;
+    return Array.isArray(t && t.seats) ? t.seats.findIndex(s => s && s.addr && String(s.addr).toLowerCase()===me) : -1;
+  } catch { return -1; }
+}
 
 // Build shared UI elements (action bar, community/burn strips) once
 function ensureActionBar(){
@@ -239,6 +268,14 @@ async function connect(){
         devBotBtn.disabled = !myAddr || (humans !== 1);
       } catch (e) {}
     }
+    try {
+      initStatsBox();
+      const idx = pickMySeatIdx(t);
+      const chips = (idx>=0 && t.seats[idx] && typeof t.seats[idx].chips==='number') ? Number(t.seats[idx].chips) : 0;
+      if (sessionStartChips===null) sessionStartChips = chips;
+      lastChips = chips;
+      refreshStats();
+    } catch(_){ }
   } catch(e){} renderTable(t); });
   socket.on('system', function(){ /* no banner */ });
   socket.on('rt:state', function(){
@@ -370,9 +407,11 @@ async function connect(){
       } catch(_){ if (handLabelEl) { handLabelEl.style.display='none'; handLabelEl.textContent=''; } }
     }
     try { const arr = Array.isArray(m && m.exposures) ? m.exposures : []; exposures = {}; arr.forEach(function(e){ const a = String((e && e.addr) || '').toLowerCase(); const cards = Array.isArray(e && e.cards) ? e.cards : []; if (a && cards.length===2) exposures[a] = cards; }); } catch(e){}
-    try { winnersNow = {}; (Array.isArray(m && m.winners)? m.winners:[]).forEach(function(w){ const a=String((w && w.addr) || '').toLowerCase(); const amt = Number((w && w.amount) || 0); const usedHole = Array.isArray(w && w.usedHole) ? w.usedHole : null; if (a) winnersNow[a] = { amount: amt, usedHole: usedHole }; }); } catch(e){}
+    try { winnersNow = {}; (Array.isArray(m && m.winners)? m.winners:[]).forEach(function(w){ const a=String((w && w.addr) || '').toLowerCase(); const amt = Number((w && w.amount) || 0); const usedHole = Array.isArray(w && w.usedHole) ? w.usedHole : null; if (a) winnersNow[a] = { amount: amt, usedHole: usedHole }; if (a && myAddr && a===String(myAddr).toLowerCase() && amt>0) handsWon++; }); } catch(e){}
     if (lastTable) renderTable(lastTable);
-if (burnStrip) burnStrip.innerHTML = '';
+    if (burnStrip) burnStrip.innerHTML = '';
+    // Chips will be updated on next table:update; refresh PnL after a brief delay
+    setTimeout(function(){ try { refreshStats(); } catch(_){} }, 200);
   } catch(e){} });
 
   if (devBotBtn) devBotBtn.addEventListener('click', function(){
@@ -407,12 +446,15 @@ async function ensureWallet(promptIfNeeded) {
     }
     if (addr) {
       const provider = new window.ethers.providers.Web3Provider(window.ethereum,'any');
+      walletProvider = provider;
       const signer = provider.getSigner();
       const got = await signer.getAddress();
       myAddr = String(got||addr||'').toLowerCase();
       setStatus('' + short(myAddr));
       try { if (connectBtn) connectBtn.style.display = 'none'; } catch(e){}
       if (devBotBtn) { devBotBtn.disabled = false; devBotBtn.title = 'Add/remove a test bot to play solo'; }
+      // Fetch wallet balance (ETH/native)
+      try { const bal = await provider.getBalance(myAddr); walletBalanceStr = window.ethers.utils.formatEther(bal); refreshStats(); } catch(_){ }
       if (socket && socket.connected) {
         try { socket.emit('identify', { addr: myAddr }); } catch(e){}
         try { socket.emit('join_table', { table: currentTableId }); try { socket.emit('table:get', { table: currentTableId }); } catch(e){} try { socket.emit('lobby:get'); } catch(e){} setTimeout(function(){ try { socket.emit('join_table', { table: currentTableId }); try { socket.emit('table:get', { table: currentTableId }); } catch(e){} } catch(e){} }, 80); } catch(e){}

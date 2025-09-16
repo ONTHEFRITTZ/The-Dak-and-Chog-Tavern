@@ -50,6 +50,16 @@
     .card--flip.card--show { transform:rotateY(0deg); }
     .card--win { box-shadow:0 0 0 2px #ffd166, 0 4px 14px rgba(0,0,0,0.25); transform: translateY(-6px); }
     .win-badge { margin-top:4px; display:inline-block; background:#ffd166; color:#2b1e12; font-weight:700; font-size:11px; padding:2px 6px; border-radius:8px; }
+
+    /* Compact stats box (opposite corner from logo) */
+    .stats-box {
+      position:absolute; right:8px; top:8px; z-index:6;
+      background:rgba(255,244,233,0.95); border:3px solid #7800cd; border-radius:10px;
+      padding:6px 8px; color:#2b1e12; font-size:12px; text-align:left;
+      box-shadow:0 4px 12px rgba(0,0,0,0.18);
+      min-width: 160px;
+    }
+    .stats-box .label { font-weight:700; margin-right:4px; }
   </style>
  </head>
  <body class="game">
@@ -71,6 +81,11 @@
   <div class="table-canvas" style="margin:24px auto 28px;">
     <div class="table-glow"></div>
     <div class="table-surface"></div>
+    <div id="stats-box" class="stats-box">
+      <div><span class="label">Wallet:</span><span id="sb-wallet">—</span></div>
+      <div><span class="label">Chips:</span><span id="sb-chips">0</span></div>
+      <div><span class="label">PNL:</span><span id="sb-pnl">0</span></div>
+    </div>
     <!-- 8 seats; positions applied dynamically for even spacing -->
     <div class="seat" data-index="0"></div>
     <div class="seat" data-index="1"></div>
