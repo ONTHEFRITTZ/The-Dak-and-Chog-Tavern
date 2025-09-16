@@ -133,10 +133,20 @@ function renderTable(t){
   });
 }
 
-function parseTableId(){ try { const u=new URL(window.location.href); return u.searchParams.get('table') || 'poker-1'; } catch(e) { return 'poker-1'; } }
+function parseTableId(){
+  try {
+    // Prefer explicit URL ?table=, else fall back to last seen table in storage
+    const u = new URL(window.location.href);
+    const q = u.searchParams.get('table');
+    if (q) return q;
+    try { const last = localStorage.getItem('poker.lastTable'); if (last) return last; } catch(_){ }
+    return 'poker-1';
+  } catch(e) { return 'poker-1'; }
+}
 
 async function connect(){
   currentTableId = parseTableId();
+  try { if (currentTableId) { localStorage.setItem('poker.lastTable', String(currentTableId)); localStorage.setItem('poker.lastVisitAt', String(Date.now())); } } catch(_){ }
   try { socket = io(window.location.origin, { path: '/poker.io/', transports:['polling','websocket'], upgrade:true, reconnection:true, reconnectionAttempts:10, reconnectionDelay:800, forceNew:true }); try { window.socket = socket; } catch(e){} }
   catch (e) { setStatus('Socket.IO not available'); return; }
 
@@ -146,7 +156,14 @@ async function connect(){
       if (myAddr) {
         setStatus('' + short(myAddr));
         try { socket.emit('identify', { addr: myAddr }); } catch(e){}
-        try { socket.emit('join_table', { table: currentTableId }); try { socket.emit('table:get', { table: currentTableId }); } catch(e){} try { socket.emit('lobby:get'); } catch(e){} setTimeout(function(){ try { socket.emit('join_table', { table: currentTableId }); try { socket.emit('table:get', { table: currentTableId }); } catch(e){} } catch(e){} }, 80); } catch(e){}
+        try {
+          // Persist table choice whenever we successfully connect and attempt a join
+          try { localStorage.setItem('poker.lastTable', String(currentTableId)); localStorage.setItem('poker.lastVisitAt', String(Date.now())); } catch(_){ }
+          socket.emit('join_table', { table: currentTableId });
+          try { socket.emit('table:get', { table: currentTableId }); } catch(e){}
+          try { socket.emit('lobby:get'); } catch(e){}
+          setTimeout(function(){ try { socket.emit('join_table', { table: currentTableId }); try { socket.emit('table:get', { table: currentTableId }); } catch(e){} } catch(e){} }, 80);
+        } catch(e){}
       } else {
         setStatus('Connect wallet to join table');
       }
@@ -342,7 +359,13 @@ async function ensureWallet(promptIfNeeded) {
       if (devBotBtn) { devBotBtn.disabled = false; devBotBtn.title = 'Add/remove a test bot to play solo'; }
       if (socket && socket.connected) {
         try { socket.emit('identify', { addr: myAddr }); } catch(e){}
-        try { socket.emit('join_table', { table: currentTableId }); try { socket.emit('table:get', { table: currentTableId }); } catch(e){} try { socket.emit('lobby:get'); } catch(e){} setTimeout(function(){ try { socket.emit('join_table', { table: currentTableId }); try { socket.emit('table:get', { table: currentTableId }); } catch(e){} } catch(e){} }, 80); } catch(e){}
+        try {
+          try { localStorage.setItem('poker.lastTable', String(currentTableId)); localStorage.setItem('poker.lastVisitAt', String(Date.now())); } catch(_){ }
+          socket.emit('join_table', { table: currentTableId });
+          try { socket.emit('table:get', { table: currentTableId }); } catch(e){}
+          try { socket.emit('lobby:get'); } catch(e){}
+          setTimeout(function(){ try { socket.emit('join_table', { table: currentTableId }); try { socket.emit('table:get', { table: currentTableId }); } catch(e){} } catch(e){} }, 80);
+        } catch(e){}
       }
     } else {
       setStatus('Connect wallet to join table');
@@ -365,6 +388,7 @@ try {
         if (devBotBtn) { devBotBtn.disabled = false; devBotBtn.title = 'Add/remove a test bot to play solo'; }
         if (socket && socket.connected) {
         try { socket.emit('identify', { addr: myAddr }); } catch(e){}
+        try { localStorage.setItem('poker.lastTable', String(currentTableId)); localStorage.setItem('poker.lastVisitAt', String(Date.now())); } catch(_){ }
         try { socket.emit('join_table', { table: currentTableId }); } catch(e){}
         try { socket.emit('table:get', { table: currentTableId }); } catch(e){}
         try { socket.emit('poker:get'); } catch(e){}
