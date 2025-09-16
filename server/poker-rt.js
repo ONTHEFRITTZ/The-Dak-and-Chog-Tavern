@@ -386,6 +386,8 @@ function startPokerHand(tableId, t) {
     maybeTriggerBot(tableId, t);
     // Attempt auto-progress when a bot is present and there is exactly one human
     try { scheduleSimProgress(tableId, t); } catch {}
+    // Fallback: if still stuck on preflop after a short delay in solo vs bot, force progress
+    try { ensureSoloProgressFallback(tableId, t); } catch {}
   } catch {}
 }
 
@@ -413,6 +415,18 @@ function advancePokerStage(tableId, t) {
     maybeTriggerBot(tableId, t);
     // Attempt auto-progress after each stage if solo vs bot
     try { scheduleSimProgress(tableId, t); } catch {}
+  } catch {}
+}
+
+// Fallback guard: if solo vs bot and stage did not advance from preflop within 1.6s, force progress
+function ensureSoloProgressFallback(tableId, t) {
+  try {
+    const state = t.poker; if (!state) return;
+    const seats = t.seats || [];
+    const humans = seats.filter(s => s && typeof s.addr === 'string' && !String(s.addr).startsWith('bot:')).length;
+    const botPresent = seats.some(s => s && typeof s.addr === 'string' && String(s.addr).startsWith('bot:'));
+    if (!(botPresent && humans === 1)) return;
+    setTimeout(() => { try { const st = t.poker; if (st && st.stage === 'preflop') advancePokerStage(tableId, t); } catch {} }, 1600);
   } catch {}
 }
 
