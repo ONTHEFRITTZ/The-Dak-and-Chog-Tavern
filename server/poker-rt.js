@@ -76,6 +76,15 @@ io.on('connection', (socket) => {
   socket.on('identify', (m) => {
     try { addrLower = String(m?.addr||'').toLowerCase(); } catch {}
     try { if (addrLower) socket.join(ADDR_ROOM_PREFIX + addrLower); } catch {}
+    // If this socket belongs to an already seated player, refresh their seat.socketId
+    try {
+      if (addrLower) {
+        for (const [tid, t] of tables) {
+          const i = t.seats.findIndex(s => s && s.addr === addrLower);
+          if (i >= 0) { t.seats[i].socketId = socket.id; t.lastActive = now(); emitUpdate(t); }
+        }
+      }
+    } catch {}
     socket.emit('rt:state', { ok: true, game: 'POKER' });
   });
 
@@ -95,6 +104,8 @@ io.on('connection', (socket) => {
       const req = String(m?.table||m?.tableId||'poker-1');
       const tableId = tables.has(req) ? req : 'poker-1';
       const t = getTable(tableId);
+      // Refresh seat.socketId for this table if already seated under this address
+      try { if (addrLower) { const i = t.seats.findIndex(s => s && s.addr === addrLower); if (i >= 0) t.seats[i].socketId = socket.id; } } catch {}
       socket.emit('table:update', tablePublic(t));
     } catch {}
   });
