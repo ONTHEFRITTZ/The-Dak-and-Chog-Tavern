@@ -181,6 +181,26 @@ io.on('connection', (socket) => {
           }
         }
       } catch {}
+      // If no humans remain, fully reset table state and ensure no bot remains
+      try {
+        const humansNow = t.seats.filter(s => s && typeof s.addr === 'string' && !s.addr.startsWith('bot:')).length;
+        if (humansNow === 0) {
+          // Clear any active hand and notify clients to clear board
+          if (t.poker) {
+            try {
+              const board = Array.from(t.poker.community||[]);
+              io.to(currentTableId).emit('poker:hand', { winners: [], community: board, exposures: [], pot: t.poker.pot||0, table: tablePublic(t) });
+            } catch {}
+            t.poker = null;
+          }
+          // Remove any bot and disable sim/dev flags
+          for (let i = 0; i < t.seats.length; i++) {
+            const s = t.seats[i]; if (s && typeof s.addr === 'string' && s.addr.startsWith('bot:')) { t.seats[i] = null; }
+          }
+          t.devBotEnabled = false; t.simMode = false;
+          io.to(currentTableId).emit('poker:mode', { simulated: false });
+        }
+      } catch {}
       t.lastActive = now();
       emitUpdate(t);
       emitLobby();
@@ -345,7 +365,28 @@ io.on('connection', (socket) => {
             t.seats[i] = null; changed = true;
           }
         }
-        if (changed) { t.lastActive = now(); emitUpdate(t); emitLobby(); }
+        // If table lost a player, enforce bot policy and clear any dangling hand when no humans remain
+        if (changed) {
+          try {
+            const humans = t.seats.filter(s => s && typeof s.addr === 'string' && !s.addr.startsWith('bot:')).length;
+            // Remove bot when 0 humans, and reset simulated flags
+            if (humans === 0) {
+              if (t.poker) {
+                try { io.to(id).emit('poker:hand', { winners: [], community: Array.from(t.poker.community||[]), exposures: [], pot: t.poker.pot||0, table: tablePublic(t) }); } catch {}
+                t.poker = null;
+              }
+              for (let j=0;j<t.seats.length;j++) { const u=t.seats[j]; if (u && typeof u.addr==='string' && u.addr.startsWith('bot:')) t.seats[j]=null; }
+              t.devBotEnabled = false; t.simMode = false; io.to(id).emit('poker:mode', { simulated:false });
+            }
+            // If 2+ humans remain, also ensure bot is removed
+            if (humans >= 2) {
+              for (let j=0;j<t.seats.length;j++) { const u=t.seats[j]; if (u && typeof u.addr==='string' && u.addr.startsWith('bot:')) t.seats[j]=null; }
+              t.devBotEnabled = false; t.simMode = false; io.to(id).emit('poker:mode', { simulated:false });
+            }
+          } catch {}
+          t.lastActive = now();
+          emitUpdate(t); emitLobby();
+        }
       }
     } catch {}
   });
