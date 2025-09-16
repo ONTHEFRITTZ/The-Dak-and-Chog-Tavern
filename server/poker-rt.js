@@ -382,8 +382,8 @@ function startPokerHand(tableId, t) {
       });
     } catch {}
     maybeTriggerBot(tableId, t);
-    // In simulated solo mode (one human + dev bot), auto-progress community
-    try { if (t.simMode && t.devBotEnabled) scheduleSimProgress(tableId, t); } catch {}
+    // Attempt auto-progress when a bot is present and there is exactly one human
+    try { scheduleSimProgress(tableId, t); } catch {}
   } catch {}
 }
 
@@ -409,8 +409,8 @@ function advancePokerStage(tableId, t) {
     state.turnIndex = idx;
     emitPokerState(tableId, t);
     maybeTriggerBot(tableId, t);
-    // Continue simulated auto-progress if enabled
-    try { if (t.simMode && t.devBotEnabled) scheduleSimProgress(tableId, t); } catch {}
+    // Attempt auto-progress after each stage if solo vs bot
+    try { scheduleSimProgress(tableId, t); } catch {}
   } catch {}
 }
 
@@ -492,12 +492,14 @@ function endPokerWithSidePots(tableId, t) {
 function scheduleSimProgress(tableId, t) {
   try {
     const state = t.poker; if (!state) return;
-    const humans = t.seats.filter(s => s && typeof s.addr === 'string' && !String(s.addr).startsWith('bot:')).length;
-    if (humans !== 1) return;
+    const seats = t.seats || [];
+    const humans = seats.filter(s => s && typeof s.addr === 'string' && !String(s.addr).startsWith('bot:')).length;
+    const botPresent = seats.some(s => s && typeof s.addr === 'string' && String(s.addr).startsWith('bot:'));
+    if (!(botPresent && humans === 1)) return;
     // Avoid stacking timers
     if (!state.simTimers) state.simTimers = [];
     // If betting round could block, just force next stage after a short delay
-    const delay = 700;
+    const delay = 900;
     // Only schedule if not already at river (final)
     if (['preflop','flop','turn'].includes(state.stage)) {
       const id = setTimeout(() => { try { advancePokerStage(tableId, t); } catch {} }, delay);
