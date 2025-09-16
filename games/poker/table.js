@@ -10,7 +10,7 @@ let holdShowdown = false; // keep board + exposures visible until I click Ready
 // Disable Dev Bot toggle until wallet connects
 try { if (devBotBtn) { devBotBtn.disabled = true; devBotBtn.title = 'Connect wallet to use Dev Bot'; devBotBtn.textContent = 'Dev Bot'; } } catch(e){}
 
-let actionBar = null; let communityEl = null; let amountInput = null; let infoText = null; let communityStrip = null; let burnStrip = null;
+let actionBar = null; let communityEl = null; let amountInput = null; let infoText = null; let communityStrip = null; let burnStrip = null; let handLabelEl = null;
 
 
 
@@ -47,6 +47,11 @@ function ensureActionBar(){
     communityStrip = document.createElement('div');
     communityStrip.style.cssText = 'position:absolute; left:50%; top:50%; transform:translate(-50%,-105%); display:flex; gap:8px; z-index:4;';
     canvas.appendChild(communityStrip);
+
+    // Label for the winning hand (shown after showdown)
+    handLabelEl = document.createElement('div');
+    handLabelEl.style.cssText = 'position:absolute; left:50%; top:50%; transform:translate(-50%, -40%); z-index:5; font-weight:700; font-size:14px; color:#2b1e12; background:rgba(255,244,233,0.95); border:3px solid #7800cd; border-radius:10px; padding:4px 8px; display:none;';
+    canvas.appendChild(handLabelEl);
 
     burnStrip = document.createElement('div');
     burnStrip.style.cssText = 'position:absolute; left:50%; top:50%; transform:translate(calc(-50% - 240px), -58%); display:flex; gap:0; pointer-events:none; z-index:2; align-items:center;';
@@ -110,12 +115,23 @@ function renderTable(t){
             if (lastState && String(lastState.stage||'') === 'preflop') {
               try { exposures = {}; winnersNow = {}; usedBoard = []; } catch(_){ }
               try { if (communityStrip) { communityStrip.innerHTML=''; communityStrip.classList.remove('showdown'); } } catch(_){ }
+              try { if (handLabelEl) { handLabelEl.style.display='none'; handLabelEl.textContent=''; } } catch(_){ }
               try { if (lastTable) renderTable(lastTable); } catch(_){ }
             }
           } catch(e){}
         };
         btns.appendChild(leave); btns.appendChild(ready); el.appendChild(btns);
-        if (Array.isArray(myHole) && myHole.length===2) { const row=document.createElement('div'); row.style.cssText='display:flex; gap:6px; margin-top:4px;'; myHole.forEach(function(code){ row.appendChild(makeCardImg(code,{hole:true,flip:true})); }); el.appendChild(row); }
+        if (Array.isArray(myHole) && myHole.length===2) {
+          const row=document.createElement('div'); row.style.cssText='display:flex; gap:6px; margin-top:4px;';
+          try {
+            const winInfo = winnersNow && winnersNow[String(myAddr).toLowerCase()];
+            const usedHole = (winInfo && Array.isArray(winInfo.usedHole)) ? winInfo.usedHole : null;
+            myHole.forEach(function(code, i){ const isWin = !!(winInfo && (!usedHole || usedHole.indexOf(i)>=0)); row.appendChild(makeCardImg(code,{hole:true,flip:true,win:isWin})); });
+          } catch(_) {
+            myHole.forEach(function(code){ row.appendChild(makeCardImg(code,{hole:true,flip:true})); });
+          }
+          el.appendChild(row);
+        }
       } else {
         try {
           const actors = Array.isArray(lastState && lastState.actors) ? lastState.actors : [];
@@ -221,6 +237,7 @@ async function connect(){
         communityStrip.innerHTML = '';
         communityStrip.classList.remove('showdown');
         cards.forEach(function(code){ communityStrip.appendChild(makeCardImg(code, { flip:true })); });
+        try { if (handLabelEl) { handLabelEl.style.display='none'; handLabelEl.textContent=''; } } catch(_){ }
       }
     }
     // Burn cards: show back-faced pile (no overlap) to indicate burns that occurred
@@ -274,7 +291,7 @@ async function connect(){
     const btnWrap = actionBar && actionBar.querySelector('.action-btns');
     if (btnWrap) {
       btnWrap.innerHTML = '';
-      if (actionBar) actionBar.style.display = mine ? 'flex' : 'none';
+      if (actionBar) actionBar.style.display = (mine && !holdShowdown) ? 'flex' : 'none';
       if (!mine && infoText) infoText.textContent = '';
       if (mine) {
         const me = (Array.isArray(st.actors)? st.actors : []).find(function(a){ return a && a.addr && String(a.addr).toLowerCase()===String(myAddr).toLowerCase(); });
@@ -297,6 +314,7 @@ async function connect(){
 
   socket.on('poker:hand', function(m){ try {
     holdShowdown = true; // keep visuals until I click Ready
+    try { if (actionBar) actionBar.style.display = 'none'; } catch(_){ }
     // Determine winning board indices for highlighting
     var winners = Array.isArray(m && m.winners) ? m.winners : [];
     usedBoard = [];
@@ -310,6 +328,16 @@ async function connect(){
         communityStrip.classList.add('showdown');
         try { Array.from(communityStrip.querySelectorAll('img.card')).forEach(function(img){ img.style.transform = 'translateY(-6px)'; }); } catch(_){ }
       }
+      // Show winning hand label below the board (best effort from payload)
+      try {
+        const first = winners && winners[0] || null;
+        let label = '';
+        if (first) {
+          label = first.handName || first.rankName || first.name || (typeof first.rank !== 'undefined' ? ('Rank ' + first.rank) : 'Winner');
+          if (Array.isArray(winners) && winners.length > 1) label += ' (split)';
+        }
+        if (handLabelEl) { if (label) { handLabelEl.textContent = label; handLabelEl.style.display = ''; } else { handLabelEl.style.display='none'; handLabelEl.textContent=''; } }
+      } catch(_){ if (handLabelEl) { handLabelEl.style.display='none'; handLabelEl.textContent=''; } }
     }
     try { const arr = Array.isArray(m && m.exposures) ? m.exposures : []; exposures = {}; arr.forEach(function(e){ const a = String((e && e.addr) || '').toLowerCase(); const cards = Array.isArray(e && e.cards) ? e.cards : []; if (a && cards.length===2) exposures[a] = cards; }); } catch(e){}
     try { winnersNow = {}; (Array.isArray(m && m.winners)? m.winners:[]).forEach(function(w){ const a=String((w && w.addr) || '').toLowerCase(); const amt = Number((w && w.amount) || 0); const usedHole = Array.isArray(w && w.usedHole) ? w.usedHole : null; if (a) winnersNow[a] = { amount: amt, usedHole: usedHole }; }); } catch(e){}
