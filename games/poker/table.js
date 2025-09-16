@@ -79,7 +79,18 @@ function cardSrc(code){
   const v = assetTag(); const q = v ? ('?v=' + encodeURIComponent(v)) : ''; return '../../assets/images/chog_cards/chog-ace-of-spades.png' + q;
 }
 function cardBackSrc(){ const v = assetTag(); const q = v ? ('?v=' + encodeURIComponent(v)) : ''; return '../../assets/images/chog_cards/dak-and-chog-cardback.png' + q; }
-function makeCardImg(code, opts){ opts = opts||{}; const hole=!!opts.hole, flip = opts.flip!==false, win = !!opts.win; const img=document.createElement('img'); img.alt=String(code||''); img.src = (code==='BACK')? cardBackSrc() : cardSrc(code); img.className='card' + (hole?' card--hole':'') + (flip?' card--flip':'') + (win?' card--win':''); if (flip) requestAnimationFrame(function(){ img.classList.add('card--show'); }); return img; }
+function makeCardImg(code, opts){
+  opts = opts||{};
+  const hole=!!opts.hole, flip = opts.flip!==false, win = !!opts.win;
+  const img=document.createElement('img');
+  img.alt=String(code||'');
+  img.src = (code==='BACK')? cardBackSrc() : cardSrc(code);
+  img.className='card' + (hole?' card--hole':'') + (flip?' card--flip':'') + (win?' card--win':'');
+  // Fallback to placeholder if suit/rank image not yet available
+  img.onerror = function(){ try { this.onerror = null; this.src='../../assets/images/under-construction.png'; } catch(_){} };
+  if (flip) requestAnimationFrame(function(){ img.classList.add('card--show'); });
+  return img;
+}
 
 // Hand rank name fallback mapping (if server omits textual name)
 function handRankName(rank){
