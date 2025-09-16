@@ -134,12 +134,12 @@ io.on('connection', (socket) => {
       const t = getTable(currentTableId);
       const idx = Number(m?.index);
       if (idx === -1) {
-        const cur = t.seats.findIndex(s => s && s.addr === addrLower);
+        const cur = t.seats.findIndex(s => s && (s.addr === addrLower || s.socketId === socket.id));
         if (cur >= 0) t.seats[cur] = null;
       } else if (idx >= 0 && idx < t.seats.length) {
-        // Enforce single seat per address
-        try { const cur = t.seats.findIndex(s => s && s.addr === addrLower); if (cur >= 0) t.seats[cur] = null; } catch {}
-        if (!t.seats[idx]) t.seats[idx] = { id: idx, addr: addrLower, ready: false, lastActive: now(), socketId: socket.id, chips: 100 };
+        // Enforce single seat per address/socket
+        try { const cur = t.seats.findIndex(s => s && (s.addr === addrLower || s.socketId === socket.id)); if (cur >= 0) t.seats[cur] = null; } catch {}
+        if (!t.seats[idx]) t.seats[idx] = { id: idx, addr: addrLower || null, ready: false, lastActive: now(), socketId: socket.id, chips: 100 };
         if (!t.started) {
           t.started = true;
         }
@@ -172,8 +172,8 @@ io.on('connection', (socket) => {
     try {
       if (!currentTableId) return;
       const t = getTable(currentTableId);
-      const s = t.seats.find(x => x && x.addr === addrLower);
-      if (s) { s.ready = !!m?.ready; s.lastActive = now(); }
+      const si = t.seats.findIndex(x => x && (x.addr === addrLower || x.socketId === socket.id));
+      if (si >= 0) { t.seats[si].ready = !!m?.ready; t.seats[si].lastActive = now(); }
       // If dev bot is enabled, ensure bot present and marked ready to allow solo starts
       try {
         if (t.devBotEnabled) {
@@ -251,7 +251,13 @@ io.on('connection', (socket) => {
       const state = t.poker; if (!state) return;
       const turn = state.turnIndex;
       const actor = state.actors?.[turn];
-      if (!actor || actor.addr !== addrLower) return; // not your turn
+      if (!actor) return;
+      // Permission: either address matches, or the seat's socketId matches this socket
+      try {
+        const seat = t.seats[actor.seatId];
+        const allowed = (actor.addr === addrLower) || (seat && seat.socketId === socket.id);
+        if (!allowed) return;
+      } catch { return; }
       const action = String(m?.action||'').toLowerCase();
       const amount = Math.max(0, Number(m?.amount||0)|0);
       const need = Math.max(0, Number(state.toCall||0) - Number(actor.contrib||0));
