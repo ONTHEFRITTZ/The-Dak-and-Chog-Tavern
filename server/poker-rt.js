@@ -393,10 +393,7 @@ function startPokerHand(tableId, t) {
       });
     } catch {}
     maybeTriggerBot(tableId, t);
-    // If this is a solo vs bot hand, drive betting by auto-acting check/call to progress naturally
-    try { if (isSoloVsBot(t)) simResolveBetting(tableId, t); } catch {}
-    // Hard fallback: ensure round completes even if timers/races interfere
-    try { if (isSoloVsBot(t)) forceCompleteRound(tableId, t, 1000); } catch {}
+    // Solo play should progress via normal betting (no auto-simulation)
   } catch {}
 }
 
@@ -422,10 +419,7 @@ function advancePokerStage(tableId, t) {
     state.turnIndex = idx;
     emitPokerState(tableId, t);
     maybeTriggerBot(tableId, t);
-    // Continue driving betting if solo vs bot
-    try { if (isSoloVsBot(t)) simResolveBetting(tableId, t); } catch {}
-    // Hard fallback after stage change
-    try { if (isSoloVsBot(t)) forceCompleteRound(tableId, t, 900); } catch {}
+    // Solo play should progress via normal betting (no auto-simulation)
   } catch {}
 }
 
