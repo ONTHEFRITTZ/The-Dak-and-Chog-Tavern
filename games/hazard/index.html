@@ -4,30 +4,21 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Hazard - Dak & Chog Tavern</title>
-  <script>
-    (async()=>{
-      try{
-        const b = await fetch('/assets/build.json', { cache:'no-store' }).then(r=>r.ok?r.json():null).catch(()=>null);
-        const tag = (b && b.commit) ? String(b.commit).slice(0,12) : Date.now();
-        window.__BUILD_TAG = tag;
-        const css = document.createElement('link'); css.rel='stylesheet'; css.href = `../../css/style.css?v=${tag}`; document.head.appendChild(css);
-        const abi = document.createElement('script'); abi.src = `../../js/TavernABI.js?v=${tag}`; document.head.appendChild(abi);
-        const poolAbi = document.createElement('script'); poolAbi.src = `../../js/PoolABI.js?v=${tag}`; document.head.appendChild(poolAbi);
-      }catch(e){ console.error('head loader failed', e); }
-    })();
-  </script>
+  <!-- Ensure CSS comes before JS to avoid FOUC -->
+  <link rel="stylesheet" href="../../css/style.css">
+  <script src="../../js/TavernABI.js"></script>
+  <script src="../../js/PoolABI.js"></script>
 
   <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
-  <script type="module">
-    (async()=>{
-      try{
-        const b = await fetch('/assets/build.json', { cache:'no-store' }).then(r=>r.ok?r.json():null).catch(()=>null);
-        const tag = (b && b.commit) ? String(b.commit).slice(0,12) : Date.now();
-        const s1 = document.createElement('script'); s1.type='module'; s1.src = `../../js/tavern.js?v=${tag}`; document.head.appendChild(s1);
-        const s2 = document.createElement('script'); s2.type='module'; s2.src = `../../js/state.js?v=${tag}`; document.head.appendChild(s2);
-      }catch(e){ console.error('module loader failed', e); }
-    })();
-  </script>
+  <!-- Preload dice faces so first roll is instant -->
+  <link rel="preload" as="image" href="../../assets/images/dice/standard/dice1.png" type="image/png">
+  <link rel="preload" as="image" href="../../assets/images/dice/standard/dice2.png" type="image/png">
+  <link rel="preload" as="image" href="../../assets/images/dice/standard/dice3.png" type="image/png">
+  <link rel="preload" as="image" href="../../assets/images/dice/standard/dice4.png" type="image/png">
+  <link rel="preload" as="image" href="../../assets/images/dice/standard/dice5.png" type="image/png">
+  <link rel="preload" as="image" href="../../assets/images/dice/standard/dice6.png" type="image/png">
+  <script type="module" src="../../js/tavern.js"></script>
+  <script type="module" src="../../js/state.js"></script>
 
   <style>
     /* Stack logo above container; avoid side-by-side with body flex */

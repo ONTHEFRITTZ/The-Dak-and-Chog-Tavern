@@ -61,7 +61,7 @@ function displayDice(d1, d2) {
   if (dice1El) {
     if (imgPathsExist) {
       dice1El.style.backgroundImage = `url(${diceImages[d1 - 1]})`;
-      dice1El.style.backgroundSize = '80% 80%';
+      dice1El.style.backgroundSize = 'cover';
       dice1El.style.backgroundPosition = 'center';
       dice1El.style.backgroundRepeat = 'no-repeat';
       dice1El.textContent = '';
@@ -73,7 +73,7 @@ function displayDice(d1, d2) {
   if (dice2El) {
     if (imgPathsExist) {
       dice2El.style.backgroundImage = `url(${diceImages[d2 - 1]})`;
-      dice2El.style.backgroundSize = '80% 80%';
+      dice2El.style.backgroundSize = 'cover';
       dice2El.style.backgroundPosition = 'center';
       dice2El.style.backgroundRepeat = 'no-repeat';
       dice2El.textContent = '';
