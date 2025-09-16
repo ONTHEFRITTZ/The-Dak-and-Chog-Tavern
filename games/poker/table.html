@@ -12,15 +12,10 @@
     /* Match Faro table page layout */
     body.game { display:flex; flex-direction:column; align-items:center; justify-content:flex-start; }
     body { background: url('../../assets/images/tavern-bg.webp') no-repeat center center fixed; background-size: cover; }
-    /* Logo sizing and glow consistent with Faro; place left so it never overlaps seats */
-    .game-logo {
-      display:block; width:auto; height:auto; max-width: clamp(180px, 28vw, 420px);
-      /* Keep similar top spacing vs. banner, but left align in the column layout */
-      margin: 32px 0 16px 12px;
-      align-self: flex-start;
-      filter: drop-shadow(0 0 18px rgba(255,244,233,0.45)) drop-shadow(0 4px 12px rgba(0,0,0,0.25));
-      pointer-events:none; user-select:none;
-    }
+    /* Header row: logo (left) + stats (right) */
+    .table-header { width:95%; max-width:1280px; margin: 0 auto; display:flex; align-items:center; justify-content:space-between; }
+    /* Logo sizing and glow consistent with Faro; left aligned inside header */
+    .game-logo { display:block; width:auto; height:auto; max-width: clamp(180px, 28vw, 420px); margin: 32px 0 16px 12px; filter: drop-shadow(0 0 18px rgba(255,244,233,0.45)) drop-shadow(0 4px 12px rgba(0,0,0,0.25)); pointer-events:none; user-select:none; }
     .tavern { padding-top: 16px; }
     .table-canvas { position:relative; width:min(92vw, 900px); height:min(92vw, 600px); margin: 0 auto; }
     /* Make the table itself pop without filling the container: remove color fill and add a soft backglow */
@@ -52,13 +47,7 @@
     .win-badge { margin-top:4px; display:inline-block; background:#ffd166; color:#2b1e12; font-weight:700; font-size:11px; padding:2px 6px; border-radius:8px; }
 
     /* Compact stats box (opposite corner from logo) */
-    .stats-box {
-      position:absolute; right:8px; top:8px; z-index:6;
-      background:rgba(255,244,233,0.95); border:3px solid #7800cd; border-radius:10px;
-      padding:6px 8px; color:#2b1e12; font-size:12px; text-align:left;
-      box-shadow:0 4px 12px rgba(0,0,0,0.18);
-      min-width: 160px;
-    }
+    .stats-box { background:rgba(255,244,233,0.95); border:3px solid #7800cd; border-radius:10px; padding:6px 8px; color:#2b1e12; font-size:12px; text-align:left; box-shadow:0 4px 12px rgba(0,0,0,0.18); min-width: 180px; margin: 32px 12px 16px 8px; }
     .stats-box .label { font-weight:700; margin-right:4px; }
   </style>
  </head>
@@ -76,17 +65,19 @@
     </div>
   </div>
 
-  <!-- Logo above the table container (left-aligned) -->
-  <img class="game-logo" src="../../assets/images/texas-holdem-logo.png" alt="Poker">
-  <div class="table-canvas" style="margin:24px auto 28px;">
-    <div class="table-glow"></div>
-    <div class="table-surface"></div>
+  <!-- Header row: logo (left) + stats (right) -->
+  <div class="table-header">
+    <img class="game-logo" src="../../assets/images/texas-holdem-logo.png" alt="Poker">
     <div id="stats-box" class="stats-box">
       <div><span class="label">Wallet:</span><span id="sb-wallet">—</span></div>
       <div><span class="label">Chips:</span><span id="sb-chips">0</span></div>
       <div><span class="label">PNL:</span><span id="sb-pnl">0</span></div>
       <div><span class="label">Hands Won:</span><span id="sb-hands">0</span></div>
     </div>
+  </div>
+  <div class="table-canvas" style="margin:12px auto 28px;">
+    <div class="table-glow"></div>
+    <div class="table-surface"></div>
     <!-- 8 seats; positions applied dynamically for even spacing -->
     <div class="seat" data-index="0"></div>
     <div class="seat" data-index="1"></div>
