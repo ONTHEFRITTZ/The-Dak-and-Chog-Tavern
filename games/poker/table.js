@@ -5,6 +5,7 @@ const devBotBtn = document.getElementById('toggle-dev-bot');
 let devBotOn = false;
 let socket; let myAddr = null; let currentTableId = null; let lastTable = null; let myHole = [];
 let lastState = null; let exposures = {}; let winnersNow = {};
+let holdShowdown = false; // keep board + exposures visible until I click Ready
 
 // Disable Dev Bot toggle until wallet connects
 try { if (devBotBtn) { devBotBtn.disabled = true; devBotBtn.title = 'Connect wallet to use Dev Bot'; devBotBtn.textContent = 'Dev Bot'; } } catch(e){}
@@ -101,7 +102,18 @@ function renderTable(t){
       if (myAddr && addrLower===String(myAddr).toLowerCase()){
         const btns = document.createElement('div'); btns.className='btns';
         const leave = document.createElement('button'); leave.textContent='Leave'; leave.onclick=function(){ socket.emit('seat',{ index:-1 }); };
-        const ready = document.createElement('button'); ready.textContent = s.ready? 'Unready':'Ready'; ready.onclick=function(){ socket.emit('ready',{ ready: !s.ready }); };
+        const ready = document.createElement('button'); ready.textContent = s.ready? 'Unready':'Ready'; ready.onclick=function(){
+          try { socket.emit('ready',{ ready: !s.ready }); } catch(e){}
+          try {
+            // When I click Ready after a showdown, allow next hand to clear visuals
+            holdShowdown = false;
+            if (lastState && String(lastState.stage||'') === 'preflop') {
+              try { exposures = {}; winnersNow = {}; usedBoard = []; } catch(_){ }
+              try { if (communityStrip) { communityStrip.innerHTML=''; communityStrip.classList.remove('showdown'); } } catch(_){ }
+              try { if (lastTable) renderTable(lastTable); } catch(_){ }
+            }
+          } catch(e){}
+        };
         btns.appendChild(leave); btns.appendChild(ready); el.appendChild(btns);
         if (Array.isArray(myHole) && myHole.length===2) { const row=document.createElement('div'); row.style.cssText='display:flex; gap:6px; margin-top:4px;'; myHole.forEach(function(code){ row.appendChild(makeCardImg(code,{hole:true,flip:true})); }); el.appendChild(row); }
       } else {
@@ -198,14 +210,18 @@ async function connect(){
   socket.on('poker:cards', function(m){ try { const tid = String((m && m.tableId) || ''); if (tid && tid !== currentTableId) return; const hole = Array.isArray(m && m.hole) ? m.hole : []; if (hole.length === 2) { myHole = hole; if (lastTable) renderTable(lastTable); } } catch(e){} });
   socket.on('poker:mode', function(m){ try { const sim = !!(m && m.simulated); if (devBotBtn) { devBotOn = sim; devBotBtn.classList.toggle('active', devBotOn); devBotBtn.textContent = devBotOn ? 'Dev Bot: ON' : 'Dev Bot'; } } catch(e){} });
   socket.on('poker:state', function(st){ try {
-    lastState = st; try { if (String((st && st.stage) || '') === 'preflop') { exposures = {}; winnersNow = {}; } } catch(e){}
+    lastState = st;
+    const stage = String((st && st.stage) || '');
+    try { if (stage === 'preflop' && !holdShowdown) { exposures = {}; winnersNow = {}; } } catch(e){}
     ensureActionBar();
     const cards = Array.isArray(st && st.community) ? st.community : [];
     if (communityEl) communityEl && (communityEl.style.display='none');
     if (communityStrip) {
-      communityStrip.innerHTML = '';
-      communityStrip.classList.remove('showdown');
-      cards.forEach(function(code){ communityStrip.appendChild(makeCardImg(code, { flip:true })); });
+      if (!(holdShowdown && stage === 'preflop')) {
+        communityStrip.innerHTML = '';
+        communityStrip.classList.remove('showdown');
+        cards.forEach(function(code){ communityStrip.appendChild(makeCardImg(code, { flip:true })); });
+      }
     }
     // Burn cards: show back-faced pile (no overlap) to indicate burns that occurred
     try {
@@ -280,6 +296,7 @@ async function connect(){
   });
 
   socket.on('poker:hand', function(m){ try {
+    holdShowdown = true; // keep visuals until I click Ready
     // If folded to bot, clear the board (no community shown)
     var winners = Array.isArray(m && m.winners) ? m.winners : [];
     var botWon = false; try { botWon = winners.some(function(w){ var a = String((w && w.addr) || ''); return a.startsWith('bot:'); }); } catch(_){ botWon = false; }
