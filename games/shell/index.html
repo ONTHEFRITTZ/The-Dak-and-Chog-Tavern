@@ -4,6 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Shell Game - The Dak and Chog Tavern</title>
+  <!-- Preload Tavern background so returning paints fast -->
+  <link rel="preload" as="image" href="../../assets/images/tavern-bg.webp" type="image/webp">
   <script>
     (async()=>{
       try{
@@ -134,6 +136,10 @@
     <img src="../../assets/images/cup2.png" alt="" aria-hidden="true" class="decor-cup decor-top-right">
   </div>
 
+  <!-- Prewarm Tavern background in cache before user returns -->
+  <script>
+    try { (new Image()).src = '../../assets/images/tavern-bg.webp'; } catch (e) {}
+  </script>
   <script type="module">
     (async()=>{
       try{

@@ -6,6 +6,9 @@
   <title>The Dak and Chog Tavern</title>
   <!-- Wallet is optional on site load; connection is required in-game (e.g., when sitting) -->
 <link rel="icon" type="image/png" href="/assets/images/dakandchog-logo.png">
+  <!-- Preload key backgrounds to avoid cold-paint stalls -->
+  <link rel="preload" as="image" href="assets/images/tavern-bg.webp" type="image/webp">
+  <link rel="preload" as="image" href="assets/images/shell-bg.webp" type="image/webp">
 <script>
   (async()=>{
     try{
