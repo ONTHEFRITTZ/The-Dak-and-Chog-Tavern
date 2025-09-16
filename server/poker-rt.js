@@ -170,6 +170,8 @@ io.on('connection', (socket) => {
           } else {
             try { t.seats[botIdx].ready = true; } catch {}
           }
+          // Enable simulated mode flag and notify clients
+          t.simMode = true; io.to(currentTableId).emit('poker:mode', { simulated: true });
         }
       } catch {}
       t.lastActive = now();
