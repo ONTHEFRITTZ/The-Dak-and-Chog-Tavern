@@ -1,0 +1,294 @@
+const statusEl = document.getElementById('status');
+const seatEls = Array.from(document.querySelectorAll('.seat'));
+const connectBtn = document.getElementById('connect-wallet');
+const devBotBtn = document.getElementById('toggle-dev-bot');
+let devBotOn = false;
+let socket; let myAddr = null; let currentTableId = null; let lastTable = null; let
+let lastState = null; let exposures = {}; let winnersNow = {};
+
+// Disable Dev Bot toggle until wallet connects
+try { if (devBotBtn) { devBotBtn.disabled = true; devBotBtn.title = 'Connect wallet to use Dev Bot'; } } catch(e){}
+
+let actionBar = null; let communityEl = null; let amountInput = null; let infoText = null; let communityStrip = null; let burnStrip = null;
+
+
+
+// Position seats in a ring immediately so layout looks correct before data arrives
+function positionSeatsRing(){
+  try {
+    const n = seatEls.length || 8;
+    const rx = 52, ry = 48, startDeg = -90;
+    seatEls.forEach(function(el, i){
+      const ang = (startDeg + (360 / n) * i) * Math.PI / 180;
+      const left = 50 + rx * Math.cos(ang);
+      const top = 50 + ry * Math.sin(ang);
+      el.style.left = left.toFixed(2) + '%';
+      el.style.top = top.toFixed(2) + '%';
+      el.style.transform = 'translate(-50%,-50%)';
+    });
+  } catch {}
+}
+positionSeatsRing();
+
+function short(a){ return (a && a.length>10) ? (a.slice(0,6)+'...'+a.slice(-4)) : (a||''); }
+function setStatus(t){ if (statusEl) statusEl.textContent = t; }
+function assetTag(){ try { return String(window.__ASSET_TAG||''); } catch(e){ return ''; } }
+function cardSrc(code){
+  try {
+    const r = String(code||'').charAt(0).toUpperCase();
+    const s = String(code||'').charAt(1).toLowerCase();
+    const rm = { 'A':'ace','K':'king','Q':'queen','J':'jack' };
+    const sm = { 's':'spades','h':'hearts','d':'diamonds','c':'clubs' };
+    const rank = rm[r] || null; const suit = sm[s] || null;
+    if (rank && suit) { const v = assetTag(); const q = v ? ('?v=' + encodeURIComponent(v)) : ''; return '../../assets/images/chog_cards/chog-' + rank + '-of-' + suit + '.png' + q; }
+  } catch(e){}
+  const v = assetTag(); const q = v ? ('?v=' + encodeURIComponent(v)) : ''; return '../../assets/images/chog_cards/chog-ace-of-spades.png' + q;
+}
+function cardBackSrc(){ const v = assetTag(); const q = v ? ('?v=' + encodeURIComponent(v)) : ''; return '../../assets/images/chog_cards/dak-and-chog-cardback.png' + q; }
+function makeCardImg(code, opts){ opts = opts||{}; const hole=!!opts.hole, flip = opts.flip!==false, win = !!opts.win; const img=document.createElement('img'); img.alt=String(code||''); img.src = (code==='BACK')? cardBackSrc() : cardSrc(code); img.className='card' + (hole?' card--hole':'') + (flip?' card--flip':'') + (win?' card--win':''); if (flip) requestAnimationFrame(function(){ img.classList.add('card--show'); }); return img; }
+
+function renderTable(t){
+  if (!t || t.id !== currentTableId) return;
+  lastTable = t;
+  // Ensure even seat spacing around table edge
+  try {
+    const n = seatEls.length || 8;
+    const rx = 52; // expanded horizontal radius in % (from center)
+    const ry = 48; // expanded vertical radius in % (from center)
+    const startDeg = -90; // start at top center
+    seatEls.forEach(function(el, i){
+      const ang = (startDeg + (360 / n) * i) * Math.PI / 180;
+      const left = 50 + rx * Math.cos(ang);
+      const top = 50 + ry * Math.sin(ang);
+      el.style.left = left.toFixed(2) + '%';
+      el.style.top = top.toFixed(2) + '%';
+      el.style.transform = 'translate(-50%,-50%)';
+    });
+  } catch(e){}
+  seatEls.forEach(function(el){
+    const idx = Number(el.dataset.index);
+    const s = Array.isArray(t.seats) ? t.seats[idx] : null;
+    el.innerHTML = '';
+    const label = document.createElement('div'); label.className='addr'; label.textContent = 'Seat ' + idx; el.appendChild(label);
+    const info = document.createElement('div'); info.className='addr';
+    if (s) {
+      info.textContent = short(s.addr||s.id) + (typeof s.chips==='number' ? ' • ' + s.chips + 'c' : ''); el.appendChild(info);
+      const addrLower = String(s.addr||'').toLowerCase();
+      if (myAddr && addrLower===String(myAddr).toLowerCase()){
+        const btns = document.createElement('div'); btns.className='btns';
+        const leave = document.createElement('button'); leave.textContent='Leave'; leave.onclick=function(){ socket.emit('seat',{ index:-1 }); };
+        const ready = document.createElement('button'); ready.textContent = s.ready? 'Unready':'Ready'; ready.onclick=function(){ socket.emit('ready',{ ready: !s.ready }); };
+        btns.appendChild(leave); btns.appendChild(ready); el.appendChild(btns);
+        if (Array.isArray(myHole) && myHole.length===2) { const row=document.createElement('div'); row.style.cssText='display:flex; gap:6px; margin-top:4px;'; myHole.forEach(function(code){ row.appendChild(makeCardImg(code,{hole:true,flip:true})); }); el.appendChild(row); }
+      } else {
+        try {
+          const actors = Array.isArray(lastState && lastState.actors) ? lastState.actors : [];
+          const actor = actors.find(function(a){ return a && a.addr && String(a.addr).toLowerCase()===addrLower; });
+          if (actor) {
+            const row=document.createElement('div'); row.style.cssText='display:flex; gap:6px; margin-top:4px;';
+            const exp = exposures[addrLower];
+            if (Array.isArray(exp) && exp.length===2) {
+              const winInfo = winnersNow && winnersNow[addrLower];
+              const isWin = !!winInfo;
+              const usedHole = (winInfo && Array.isArray(winInfo.usedHole)) ? winInfo.usedHole : null;
+              exp.forEach(function(code, i){ const img = makeCardImg(code,{hole:true,flip:true,win: isWin && (!usedHole || usedHole.indexOf(i)>=0)}); row.appendChild(img); });
+              el.appendChild(row);
+              if (isWin) { const badge=document.createElement('div'); badge.className='win-badge'; const amt=Number((winInfo && winInfo.amount) || 0); badge.textContent = 'Winner ' + (amt>0?'+':'') + String(amt); el.appendChild(badge); }
+            }
+            else if (!actor.folded) { for (var k=0;k<2;k++){ row.appendChild(makeCardImg('BACK',{hole:true,flip:true})); } el.appendChild(row); }
+          }
+        } catch(e){}
+      }
+    } else {
+      info.textContent = 'Empty'; el.appendChild(info);
+      const btns = document.createElement('div'); btns.className='btns';
+      const sit = document.createElement('button'); sit.textContent='Sit'; if (!myAddr) { sit.disabled=true; sit.title='Connect wallet to sit'; }
+      sit.onclick = function(){ if (!myAddr) return; socket.emit('seat',{ index: idx }); };
+      btns.appendChild(sit); el.appendChild(btns);
+    }
+  });
+}
+
+function parseTableId(){ try { const u=new URL(window.location.href); return u.searchParams.get('table') || 'poker-1'; } catch(e) { return 'poker-1'; } }
+
+async function connect(){
+  currentTableId = parseTableId();
+  try { socket = io(window.location.origin, { path: '/poker.io/', transports:['polling','websocket'], upgrade:true, reconnection:true, reconnectionAttempts:10, reconnectionDelay:800, forceNew:true }); }
+  catch (e) { setStatus('Socket.IO not available'); return; }
+
+  socket.on('connect', function(){
+    try {
+      if (myAddr) {
+        setStatus('' + short(myAddr));
+        try { socket.emit('identify', { addr: myAddr }); } catch(e){}
+        try { socket.emit('join_table', { table: currentTableId }); try { socket.emit('table:get', { table: currentTableId }); } catch(e){} try { socket.emit('lobby:get'); } catch(e){} setTimeout(function(){ try { socket.emit('join_table', { table: currentTableId }); try { socket.emit('table:get', { table: currentTableId }); } catch(e){} } catch(e){} }, 80); } catch(e){}
+      } else {
+        setStatus('Connect wallet to join table');
+      }
+    } catch(e){}
+  });
+  socket.on('connect_error', function(){ setStatus('Lobby unavailable. Retrying...'); });
+  socket.on('reconnect_error', function(){ setStatus('Reconnecting...'); });
+  socket.on('disconnect', function(){ setStatus('Disconnected'); });
+  socket.on('table:update', function(t){ try {
+    if (devBotBtn) {
+      const enabled = (typeof t?.devBotEnabled === 'boolean') ? !!t.devBotEnabled : !!t?.simulated;
+      devBotOn = enabled;
+      devBotBtn.classList.toggle('active', devBotOn);
+      devBotBtn.textContent = devBotOn ? 'Dev Bot: ON' : 'Dev Bot';
+    }
+  } catch(e){} renderTable(t); });
+  socket.on('system', function(){ /* no banner */ });
+  socket.on('rt:state', function(){ try { if (currentTableId) { socket.emit('join_table', { table: currentTableId }); try { socket.emit('table:get', { table: currentTableId }); } catch(e){} socket.emit('table:get', { table: currentTableId }); } } catch(e){} });
+  socket.on('poker:cards', function(m){ try { const tid = String((m && m.tableId) || ''); if (tid && tid !== currentTableId) return; const hole = Array.isArray(m && m.hole) ? m.hole : []; if (hole.length === 2) { myHole = hole; if (lastTable) renderTable(lastTable); } } catch(e){} });
+  socket.on('poker:mode', function(m){ try { const sim = !!(m && m.simulated); if (devBotBtn) { devBotOn = sim; devBotBtn.classList.toggle('active', devBotOn); devBotBtn.textContent = devBotOn ? 'Dev Bot: ON' : 'Dev Bot'; } } catch(e){} });
+  socket.on('poker:state', function(st){ try {
+    lastState = st; try { if (String((st && st.stage) || '') === 'preflop') { exposures = {}; winnersNow = {}; } } catch(e){}
+    ensureActionBar();
+    const cards = Array.isArray(st && st.community) ? st.community : [];
+    if (communityEl) communityEl && (communityEl.style.display='none');
+    if (communityStrip) {
+      communityStrip.innerHTML = '';
+      communityStrip.classList.remove('showdown');
+      cards.forEach(function(code){ communityStrip.appendChild(makeCardImg(code, { flip:true })); });
+    }
+    // Burn cards: show back-faced pile (no overlap) to indicate burns that occurred
+    try {
+      const stage = String(st && st.stage || '');
+      const burnCount = stage === 'flop' ? 1 : stage === 'turn' ? 2 : stage === 'river' ? 3 : 0;
+      if (burnStrip) {
+        burnStrip.innerHTML = '';
+        for (let i = 0; i < burnCount; i++) {
+          const img = makeCardImg('BACK', { flip:false });
+          img.style.width = '50px';
+          img.style.filter = 'brightness(0.95)';
+          // Overlap: each subsequent burn shifts further down-left
+          if (i > 0) img.style.marginLeft = '-36px';
+          img.style.transform = 'translate(' + (-4*i) + 'px, ' + (6*i) + 'px) rotate(' + (-8 + 5*i) + 'deg)';
+          burnStrip.appendChild(img);
+        }
+      }
+    } catch(e){}
+    try {
+      seatEls.forEach(function(el){ const tag = el.querySelector('.role'); if (tag) tag.remove(); });
+      if (Array.isArray(st && st.actors) && typeof st.dealerIndex === 'number'){
+        const dSeat = st.actors[st.dealerIndex] && st.actors[st.dealerIndex].seatId;
+        if (typeof dSeat === 'number'){
+          const el = seatEls.find(function(e){ return Number(e.dataset.index) === Number(dSeat); });
+          if (el){ const r=document.createElement('div'); r.className='role'; r.style.cssText='position:absolute; top:2px; right:2px; background:#7800cd; color:#fff; font-size:10px; padding:2px 4px; border-radius:6px;'; r.textContent='D'; el.appendChild(r); }
+        }
+        const sbSeat = (st.actors[st.sbIndex||-1] || {}).seatId;
+        if (typeof sbSeat === 'number'){ const el = seatEls.find(function(e){ return Number(e.dataset.index) === Number(sbSeat); }); if (el){ const r=document.createElement('div'); r.className='role'; r.style.cssText='position:absolute; top:2px; left:2px; background:#2a9d8f; color:#fff; font-size:10px; padding:2px 4px; border-radius:6px;'; r.textContent='SB'; el.appendChild(r); } }
+        const bbSeat = (st.actors[st.bbIndex||-1] || {}).seatId;
+        if (typeof bbSeat === 'number'){ const el = seatEls.find(function(e){ return Number(e.dataset.index) === Number(bbSeat); }); if (el){ const r=document.createElement('div'); r.className='role'; r.style.cssText='position:absolute; bottom:2px; right:2px; background:#e76f51; color:#fff; font-size:10px; padding:2px 4px; border-radius:6px;'; r.textContent='BB'; el.appendChild(r); } }
+      }
+    } catch(e){}
+    const mine = myAddr && st.turnAddr && String(st.turnAddr).toLowerCase() === String(myAddr).toLowerCase();
+    const btnWrap = actionBar && actionBar.querySelector('.action-btns');
+    if (btnWrap) {
+      btnWrap.innerHTML = '';
+      if (actionBar) actionBar.style.display = mine ? 'flex' : 'none';
+      if (!mine && infoText) infoText.textContent = '';
+      if (mine) {
+        const me = (Array.isArray(st.actors)? st.actors : []).find(function(a){ return a && a.addr && String(a.addr).toLowerCase()===String(myAddr).toLowerCase(); });
+        const need = Math.max(0, Number(st.toCall||0) - Number(me && me.contrib || 0));
+        const minRaise = Number(st.minRaise||0);
+        const mk = function(label, handler){ const b=document.createElement('button'); b.textContent=label; b.onclick=handler; return b; };
+        btnWrap.appendChild(mk('Fold', function(){ socket.emit('poker:act', { action:'fold' }); }));
+        if (need <= 0) {
+          btnWrap.appendChild(mk('Check', function(){ socket.emit('poker:act', { action:'check' }); }));
+          btnWrap.appendChild(mk('Bet', function(){ const v = Math.max(1, Number(amountInput && amountInput.value || 0) | 0); socket.emit('poker:act', { action:'bet', amount: v }); }));
+        } else {
+          btnWrap.appendChild(mk('Call '+need, function(){ socket.emit('poker:act', { action:'call' }); }));
+          btnWrap.appendChild(mk('Raise +'+minRaise+'+', function(){ const v = Math.max(minRaise, Number(amountInput && amountInput.value || 0) | 0); socket.emit('poker:act', { action:'raise', amount: v }); }));
+        }
+        if (infoText) infoText.textContent = 'To call: ' + need + ' • MinRaise: ' + minRaise + ' • Stack: ' + Number(me && me.stack || 0);
+      }
+    }
+  } catch(e){}
+  });
+
+  socket.on('poker:hand', function(m){ try {
+    // If folded to bot, clear the board (no community shown)
+    var winners = Array.isArray(m && m.winners) ? m.winners : [];
+    var botWon = false; try { botWon = winners.some(function(w){ var a = String((w && w.addr) || ''); return a.startsWith('bot:'); }); } catch(_){ botWon = false; }
+    // Capture used community indices to highlight winning board cards
+    usedBoard = [];
+    try { winners.forEach(function(w){ var uc = Array.isArray(w && w.usedCommunity) ? w.usedCommunity : []; uc.forEach(function(i){ if (usedBoard.indexOf(i)===-1) usedBoard.push(i); }); }); } catch(_){ usedBoard = []; }
+    if (communityStrip) {
+      communityStrip.innerHTML='';
+      var comm = botWon ? [] : (Array.isArray(m && m.community)? m.community:[]);
+      comm.forEach(function(code, idx){ var img = makeCardImg(code, { flip:true }); if (!botWon && usedBoard.indexOf(idx)>=0) img.classList.add('card--win'); communityStrip.appendChild(img); });
+      // Nudge community up at showdown to spotlight board while keeping all visible
+      if (!botWon && comm.length) {
+        communityStrip.classList.add('showdown');
+        try { Array.from(communityStrip.querySelectorAll('img.card')).forEach(function(img){ img.style.transform = 'translateY(-6px)'; }); } catch(_){ }
+      }
+    }
+    try { const arr = Array.isArray(m && m.exposures) ? m.exposures : []; exposures = {}; arr.forEach(function(e){ const a = String((e && e.addr) || '').toLowerCase(); const cards = Array.isArray(e && e.cards) ? e.cards : []; if (a && cards.length===2) exposures[a] = cards; }); } catch(e){}
+    try { winnersNow = {}; (Array.isArray(m && m.winners)? m.winners:[]).forEach(function(w){ const a=String((w && w.addr) || '').toLowerCase(); const amt = Number((w && w.amount) || 0); const usedHole = Array.isArray(w && w.usedHole) ? w.usedHole : null; if (a) winnersNow[a] = { amount: amt, usedHole: usedHole }; }); } catch(e){}
+    if (lastTable) renderTable(lastTable);
+if (burnStrip) burnStrip.innerHTML = '';
+  } catch(e){} });
+
+  if (devBotBtn) devBotBtn.addEventListener('click', function(){
+    try {
+      const next = !devBotOn;
+      if (next) { alert('Simulated mode enabled: on-chain betting is disabled while the dev bot is active.'); }
+      devBotOn = next;
+      devBotBtn.classList.toggle('active', devBotOn);
+      devBotBtn.textContent = devBotOn ? 'Dev Bot: ON' : 'Dev Bot';
+      socket.emit('poker:devbot', { enabled: devBotOn });
+    } catch(e){}
+  });
+}
+
+// Attempt to connect wallet automatically; prompt only if none authorized
+async function ensureWallet(promptIfNeeded) {
+  try {
+    if (!window.ethereum || !window.ethers) { setStatus('No wallet provider'); return; }
+    const accounts = await window.ethereum.request({ method:'eth_accounts' });
+    let addr = (Array.isArray(accounts) && accounts[0]) ? accounts[0] : null;
+    if (!addr && promptIfNeeded) {
+      try {
+        const req = await window.ethereum.request({ method:'eth_requestAccounts' });
+        addr = (Array.isArray(req) && req[0]) ? req[0] : null;
+      } catch(_) {}
+    }
+    if (addr) {
+      const provider = new window.ethers.providers.Web3Provider(window.ethereum,'any');
+      const signer = provider.getSigner();
+      const got = await signer.getAddress();
+      myAddr = String(got||addr||'').toLowerCase();
+      setStatus('' + short(myAddr));
+      try { if (connectBtn) connectBtn.style.display = 'none'; } catch(e){}
+      if (devBotBtn) { devBotBtn.disabled = false; devBotBtn.title = 'Add/remove a test bot to play solo'; }
+      if (socket && socket.connected) {
+        try { socket.emit('identify', { addr: myAddr }); } catch(e){}
+        try { socket.emit('join_table', { table: currentTableId }); try { socket.emit('table:get', { table: currentTableId }); } catch(e){} try { socket.emit('lobby:get'); } catch(e){} setTimeout(function(){ try { socket.emit('join_table', { table: currentTableId }); try { socket.emit('table:get', { table: currentTableId }); } catch(e){} } catch(e){} }, 80); } catch(e){}
+      }
+    } else {
+      setStatus('Connect wallet to join table');
+    }
+  } catch(e) { setStatus('Wallet connect failed'); }
+}
+
+connect();
+// If Tavern already connected, pick it up without re-prompting\ntry { if (window.userAddress && String(window.userAddress)) { myAddr = String(window.userAddress).toLowerCase(); } } catch {}\nensureWallet(false);\n// React when Tavern announces wallet connection\ntry {\n  window.addEventListener('wallet:connected', function(ev){\n    try {\n      const addr = String((ev && ev.detail && ev.detail.address) || '').toLowerCase();\n      if (addr) {\n        myAddr = addr; setStatus('');\n        try { if (connectBtn) connectBtn.style.display = 'none'; } catch {}\n        if (devBotBtn) { devBotBtn.disabled = false; devBotBtn.title = 'Add/remove a test bot to play solo'; }\n        if (socket && socket.connected) {\n          try { socket.emit('identify', { addr: myAddr }); } catch(e){}\n          try { socket.emit('join_table', { table: currentTableId }); } catch(e){}\n          try { socket.emit('table:get', { table: currentTableId }); } catch(e){}\n          try { socket.emit('lobby:get'); } catch(e){}\n        }\n      }\n    } catch {}\n  });\n} catch {}
+
+if (connectBtn) connectBtn.addEventListener('click', function(){ ensureWallet(true); });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

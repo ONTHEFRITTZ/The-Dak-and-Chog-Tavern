@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The Dak and Chog Tavern</title>
+  <!-- Wallet is optional on site load; connection is required in-game (e.g., when sitting) -->
+<link rel="icon" type="image/png" href="/assets/images/dakandchog-logo.png">
+<script>
+  (async()=>{
+    try{
+      const b = await fetch('/assets/build.json', { cache:'no-store' }).then(r=>r.ok?r.json():null).catch(()=>null);
+      const tag = (b && b.commit) ? String(b.commit).slice(0,12) : Date.now();
+      const addHead = (el)=> document.head.appendChild(el);
+      window.__BUILD_TAG = tag;
+      const css = document.createElement('link'); css.rel='stylesheet'; css.href = `css/style.css?v=${tag}`; addHead(css);
+      const abi = document.createElement('script'); abi.src = `js/TavernABI.js?v=${tag}`; addHead(abi);
+      const s1 = document.createElement('script'); s1.type='module'; s1.src = `js/tavern.js?v=${tag}`; addHead(s1);
+      const s2 = document.createElement('script'); s2.type='module'; s2.src = `js/state.js?v=${tag}`; addHead(s2);
+    }catch(e){ console.error('versioned loader failed', e); }
+  })();
+  </script>
+</head>
+<body class="home">
+  <div class="top-banner" role="region" aria-label="Wallet and status">
+    <div id="status" class="banner-status"></div>
+    <div class="controls">
+      <button id="profile-open">Profile</button>
+      <button id="connect-wallet">Connect Wallet</button>
+    </div>
+  </div>
+  <h1 class="visually-hidden">The Dak & Chog Tavern</h1>
+  <div class="hero">
+    <img class="tavern-sign" src="assets/images/sign.png" alt="The Dak and Chog Tavern">
+    <div class="tavern">
+      <h2>Choose Your Game!</h2>
+      <div class="game-logos">
+        <a class="game-logo-link" href="/games/shell/index.html" title="Shell Game">
+          <img src="assets/images/shell-game-logo.png" alt="Shell Game">
+        </a>
+        <a class="game-logo-link" href="/games/hazard/index.html" title="Hazard">
+          <img src="assets/images/hazard-logo.png" alt="Hazard">
+        </a>
+        <!-- Faro multiplayer link (hard cutover to /games/faro) -->
+        <a class="game-logo-link" href="/games/faro/lobby.html" title="Faro (Multiplayer)">
+          <img src="assets/images/faro-logo.png" alt="Faro (Multiplayer)">
+        </a>
+        <!-- Poker (Texas Hold'em) -->
+        <a class="game-logo-link" href="/games/poker/index.html" title="Poker (Texas Hold'em)">
+          <img src="assets/images/texas-holdem-logo.png" alt="Poker (Texas Hold'em)">
+        </a>
+        <a class="game-logo-link" href="/games/dakchog/index.html" title="Dak &amp; Chog">
+          <img src="assets/images/dakandchog-logo.png" alt="Dak &amp; Chog">
+        </a>
+        
+      </div>
+    </div>
+  </div>
+  <!-- First-visit profile prompt -->
+  <div id="first-visit-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); align-items:center; justify-content:center; z-index:10000;">
+    <div style="background:rgba(255,244,233,0.96); border:4px solid #7800cd; border-radius:12px; padding:16px; width:min(92vw, 780px); text-align:left; color:#2b1e12;">
+      <h3 style="margin:0 0 8px 0;">Welcome to the Tavern</h3>
+      <p style="margin:0 0 8px 0;">Enhance your experience by setting up your Profile and linking your X handle to share wins.</p>
+      <div style="display:flex; gap:8px;">
+        <button id="fv-open-profile">Set up Profile</button>
+        <button id="fv-later">Maybe Later</button>
+      </div>
+    </div>
+  </div>
+  <!-- Profile Modal -->
+  <div id="profile-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:999; align-items:center; justify-content:center;">
+    <div style="background:rgba(255,244,233,0.95); border:3px solid #7800cd; border-radius:12px; padding:16px; width:min(92vw, 680px);">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px;">
+        <h3 style="margin:0;">Your Profile</h3>
+        <button id="profile-close">Close</button>
+      </div>
+      <div style="display:flex; gap:16px; flex-wrap:wrap;">
+        <div style="flex:1 1 280px;">
+          <h4 style="margin:6px 0;">Social</h4>
+          <label>X Handle:</label>
+          <input id="prof-x" placeholder="@handle" style="width:100%;" />
+          <div style="margin-top:8px;">
+            <button id="prof-save">Save Encrypted</button>
+            <button id="prof-load">Load</button>
+          </div>
+          <p id="prof-msg" style="font-size:12px; color:#2b1e12;"></p>
+        </div>
+        <div style="flex:1 1 280px;">
+          <h4 style="margin:6px 0;">Lifetime Stats</h4>
+          <div id="prof-stats" style="font-size:14px; white-space:pre-line;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script type="module" src="js/profile.js"></script>
+  <script type="module">
+    import { profileSave, profileLoad, readStats } from './js/profile.js';
+    function applyProfile(p) {
+      try { if (!p) return; const x = (p.x||'').trim(); if (x) { const xInput = document.getElementById('prof-x'); if (xInput) xInput.value = x; } } catch {}
+      // Future: apply theme or UI prefs here
+    }
+    const openBtn = document.getElementById('profile-open');
+    const modal = document.getElementById('profile-modal');
+    const closeBtn = document.getElementById('profile-close');
+    const saveBtn = document.getElementById('prof-save');
+    const loadBtn = document.getElementById('prof-load');
+    const xInput = document.getElementById('prof-x');
+    const msgEl = document.getElementById('prof-msg');
+    const statsEl = document.getElementById('prof-stats');
+    function show(b){ modal.style.display = b ? 'flex' : 'none'; }
+    openBtn?.addEventListener('click', async ()=>{ show(true); msgEl.textContent=''; try { const s = await readStats(); if (s) statsEl.textContent = `Rounds: ${s.rounds}\nWagered: ${s.wagered}\nWon: ${s.won}\nLost: ${s.lost}`; } catch {}; try { const p = await profileLoad(); applyProfile(p); } catch {} });
+    closeBtn?.addEventListener('click', ()=> show(false));
+    saveBtn?.addEventListener('click', async ()=>{ try { await profileSave({ x: (xInput.value||'').trim() }); msgEl.textContent='Saved (encrypted).'; } catch(e){ msgEl.textContent='Save failed.'; } });
+    loadBtn?.addEventListener('click', async ()=>{ try { const p = await profileLoad(); xInput.value = p?.x || ''; msgEl.textContent='Loaded.'; } catch(e){ msgEl.textContent='Load failed.'; } });
+
+    // Auto-open profile modal if requested via query (?openProfile=1)
+    try {
+      const url = new URL(window.location.href);
+      if (url.searchParams.get('openProfile') === '1') {
+        openBtn?.click();
+      }
+    } catch {}
+
+    // First-visit profile prompt (once)
+    try {
+      const seen = localStorage.getItem('firstVisit.profilePrompt') === 'true';
+      if (!seen) {
+        const ov = document.getElementById('first-visit-overlay');
+        const open = document.getElementById('fv-open-profile');
+        const later = document.getElementById('fv-later');
+        ov.style.display = 'flex';
+        open?.addEventListener('click', () => { ov.style.display='none'; openBtn?.click(); localStorage.setItem('firstVisit.profilePrompt','true'); });
+        later?.addEventListener('click', () => { ov.style.display='none'; localStorage.setItem('firstVisit.profilePrompt','true'); });
+      }
+    } catch {}
+
+    // Avoid auto-signature prompts: only load profile on explicit user action
+  </script>
+  <!-- Realtime: auto-connect to Socket.IO and join faro-lobby -->
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    (function(){
+      try {
+        const socket = io({ path: '/socket.io' });
+        socket.on('connect', function(){
+          try { socket.emit('join_table', 'faro-lobby'); } catch(e) {}
+          try { console.log('connected', socket.id); } catch(e) {}
+        });
+        socket.on('system', function(m){ try { console.log('[system]', m); } catch(e) {} });
+        window.tavernSocket = socket;
+      } catch (e) {
+        // ignore if socket client not available
+      }
+    })();
+  </script>
+  <!-- Build footer: shows Version + Commit + Built time -->
+  <div style="position:fixed; left:12px; bottom:12px; z-index:10000;">
+    <div id="footer-meta" style="font-size:12px; color:#2b1e12; opacity:.95; background:rgba(255,244,233,0.96); border:2px solid #7800cd; border-radius:10px; padding:6px 8px; display:inline-block;">
+      Loading build info...
+    </div>
+  </div>
+  <script>
+    (function(){
+      async function text(u){ try{ const r=await fetch(u,{cache:'no-store'}); if(!r.ok) return null; return await r.text(); }catch{return null} }
+      async function json(u){ try{ const r=await fetch(u,{cache:'no-store'}); if(!r.ok) return null; return await r.json(); }catch{return null} }
+      (async()=>{
+        const el=document.getElementById('footer-meta'); if(!el) return;
+        try{
+          const ver=(await text('/assets/version.txt')||'').trim();
+          const b=await json('/assets/build.json');
+          const c=b?.commit?String(b.commit).slice(0,12):'unknown';
+          const at=b?.builtAt||new Date().toISOString();
+          el.textContent=`Version: ${ver||'n/a'} | Commit: ${c} | Built: ${at}`;
+        }catch{ el.textContent='Version info unavailable'; }
+      })();
+    })();
+  </script>
+<script>
+(function(){
+  try {
+    var ok = (localStorage.getItem('walletConnected')==='true') || (sessionStorage.getItem('walletConnected')==='true');
+    var links = document.querySelectorAll('a[href^="/games/"]');
+    for (var i=0;i<links.length;i++){
+      links[i].addEventListener('click', function(e){ if(!((localStorage.getItem('walletConnected')==='true') || (sessionStorage.getItem('walletConnected')==='true'))){ e.preventDefault(); alert('Connect wallet in Tavern first'); } });
+    }
+  } catch (e) {}
+})();
+</script></body>
+</html>
+
+
