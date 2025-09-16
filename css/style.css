@@ -13,6 +13,12 @@
   font-display: swap;
 }
 
+/* Ensure every page with a top banner is offset below it */
+:root { --banner-h: 80px; }
+body:has(.top-banner) {
+  padding-top: var(--banner-h) !important;
+}
+
 body {
   margin:0;
   font-family: 'Morris', 'Morris Alt', serif;
@@ -29,7 +35,7 @@ body.home {
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
-  padding-top: var(--banner-h); /* space for thin top banner */
+  /* padding handled by body:has(.top-banner) */
 }
 
 /* Game pages layout: center container */
@@ -39,7 +45,7 @@ body.game {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding-top: var(--banner-h);
+  /* padding handled by body:has(.top-banner) */
 }
 body.game .tavern {
   margin: 0 auto; /* remove vertical margins so centering is exact */
@@ -166,8 +172,8 @@ body.home .tavern {
   transform: translateY(-1px);
 }
 @media (max-width: 600px) {
-  body.home { --banner-h: 64px; padding-top: var(--banner-h); }
-  body.game { --banner-h: 64px; padding-top: var(--banner-h); }
+  body.home { --banner-h: 64px; }
+  body.game { --banner-h: 64px; }
   .top-banner { height: 64px; padding: 0 8px; gap: 8px; }
   .top-banner .banner-status { font-size: 12px; }
   .top-banner .controls button,
