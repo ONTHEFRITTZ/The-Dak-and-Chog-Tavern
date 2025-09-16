@@ -67,7 +67,11 @@ function cardSrc(code){
   try {
     const r = String(code||'').charAt(0).toUpperCase();
     const s = String(code||'').charAt(1).toLowerCase();
-    const rm = { 'A':'ace','K':'king','Q':'queen','J':'jack' };
+    // Support face ranks and numeric ranks (T=Ten)
+    const rm = {
+      'A':'ace','K':'king','Q':'queen','J':'jack','T':'ten',
+      '9':'nine','8':'eight','7':'seven','6':'six','5':'five','4':'four','3':'three','2':'two'
+    };
     const sm = { 's':'spades','h':'hearts','d':'diamonds','c':'clubs' };
     const rank = rm[r] || null; const suit = sm[s] || null;
     if (rank && suit) { const v = assetTag(); const q = v ? ('?v=' + encodeURIComponent(v)) : ''; return '../../assets/images/chog_cards/chog-' + rank + '-of-' + suit + '.png' + q; }
