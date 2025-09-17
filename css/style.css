@@ -403,3 +403,18 @@ body.age-landing {
   font-weight: 700;
 }
 
+
+body.age-landing .age-card {
+  background: rgba(18,10,5,0.9) !important;
+  border: 1px solid rgba(255,255,255,0.12) !important;
+  color: #f4e6d3 !important;
+  box-shadow: 0 24px 60px rgba(0,0,0,0.55) !important;
+}
+
+body.home .tavern {
+  background: rgba(18,10,5,0.88) !important;
+  border: 1px solid rgba(255,255,255,0.12) !important;
+  color: #f4e6d3 !important;
+  box-shadow: 0 24px 60px rgba(0,0,0,0.55) !important;
+}
+
