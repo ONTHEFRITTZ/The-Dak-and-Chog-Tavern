@@ -418,3 +418,6 @@ body.home .tavern {
   box-shadow: 0 24px 60px rgba(0,0,0,0.55) !important;
 }
 
+
+body.age-landing .age-warning { color:#ffffff !important; }
+
