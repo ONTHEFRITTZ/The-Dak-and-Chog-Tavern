@@ -35,7 +35,7 @@
 
     .hazard-layout { display:flex; flex-direction:column; gap:16px; align-items:center; justify-content:center; }
     .hazard-left { display:none; }
-    .hazard-right { width:100%; max-width:820px; margin:0 auto; background: transparent; border:1px solid rgba(255,255,255,0.16); border-radius:18px; padding:20px 24px; box-shadow:0 0 32px rgba(255,244,233,0.25); color:#f4e6d3; }
+    .hazard-right { width:100%; max-width:820px; margin:0 auto; background: transparent; border:1px solid rgba(255,255,255,0.16); border-radius:18px; padding:20px 24px; color:#f4e6d3; }
     @media (max-width: 900px) {
       .hazard-layout { flex-direction:column; }
     }
@@ -54,12 +54,12 @@
     #roll-dice:hover { background:#7800cd; box-shadow:0 0 28px rgba(120,0,205,0.5); transform: translateY(-1px); }
     #roll-dice:disabled { opacity:.65; cursor:not-allowed; transform:none; box-shadow:none; }
 
-    .dice-row { display:flex; justify-content:center; gap:16px; margin:18px 0; padding:12px; background: transparent; border-radius:14px; border:1px solid rgba(255,255,255,0.14); box-shadow:0 0 32px rgba(255,244,233,0.25); }
+    .dice-row { display:flex; justify-content:center; gap:16px; margin:18px 0; padding:12px; background: transparent; border-radius:14px; border:1px solid rgba(255,255,255,0.14); }
     .dice { width:clamp(84px, 12vw, 140px); height:clamp(84px, 12vw, 140px); display:flex; align-items:center; justify-content:center; font-size:clamp(36px, 6vw, 56px); border-radius:16px; background: rgba(26,14,8,0.8); border:1px solid rgba(255,255,255,0.18); box-shadow: 0 0 22px rgba(255,180,60,0.28); color:#f4e6d3; }
     .dice.shake { animation: shake 0.6s ease; }
     @keyframes shake { 0% { transform: rotate(0deg); } 25% { transform: rotate(-18deg); } 50% { transform: rotate(18deg); } 75% { transform: rotate(-8deg); } 100% { transform: rotate(0deg); } }
 
-    .scoreboard { margin-top:18px; background: transparent; border:1px solid rgba(255,255,255,0.14); border-radius:12px; padding:12px; box-shadow:0 0 32px rgba(255,244,233,0.25); color:#f4e6d3; }
+    .scoreboard { margin-top:18px; background: transparent; border:1px solid rgba(255,255,255,0.14); border-radius:12px; padding:12px; color:#f4e6d3; }
     .scoreboard h3 { margin-top:0; }
     .scoreboard ul { list-style:none; padding-left:0; margin:0; }
   </style>
@@ -179,6 +179,7 @@
   </script>
 </body>
 </html>
+
 
 
 
