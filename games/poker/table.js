@@ -69,8 +69,8 @@ function ensureActionBar(){
     const canvas = document.querySelector('.table-canvas');
     if (!canvas) return null;
     actionBar = document.createElement('div');
-    actionBar.style.cssText = 'position:absolute; left:50%; bottom:12%; transform:translateX(-50%); display:none; gap:8px; background:rgba(255,244,233,0.95); border:3px solid #7800cd; border-radius:12px; padding:8px 10px; box-shadow:0 4px 12px rgba(0,0,0,0.2); align-items:center; z-index:6;';
-    infoText = document.createElement('div'); infoText.style.color='#2b1e12'; infoText.style.fontSize='12px'; actionBar.appendChild(infoText);
+    actionBar.style.cssText = 'position:absolute; left:50%; bottom:12%; transform:translateX(-50%); display:none; gap:8px; background:rgba(18,10,5,0.92); border:1px solid rgba(255,255,255,0.12); border-radius:14px; padding:10px 14px; box-shadow:0 20px 48px rgba(0,0,0,0.45); align-items:center; z-index:6;';
+    infoText = document.createElement('div'); infoText.style.color='#f4e6d3'; infoText.style.fontSize='12px'; actionBar.appendChild(infoText);
     const btns = document.createElement('div'); btns.style.display='flex'; btns.style.gap='8px'; btns.className='action-btns'; actionBar.appendChild(btns);
     amountInput = document.createElement('input'); amountInput.type='number'; amountInput.min='1'; amountInput.step='1'; amountInput.value='2'; amountInput.style.width='70px'; amountInput.placeholder='amt'; amountInput.title='Bet/Raise amount'; actionBar.appendChild(amountInput);
     canvas.appendChild(actionBar);
@@ -81,7 +81,7 @@ function ensureActionBar(){
 
     // Label for the winning hand (shown after showdown)
     handLabelEl = document.createElement('div');
-    handLabelEl.style.cssText = 'position:absolute; left:50%; top:50%; transform:translate(-50%, -40%); z-index:5; font-weight:700; font-size:14px; color:#2b1e12; background:rgba(255,244,233,0.95); border:3px solid #7800cd; border-radius:10px; padding:4px 8px; display:none;';
+    handLabelEl.style.cssText = 'position:absolute; left:50%; top:50%; transform:translate(-50%, -40%); z-index:5; font-weight:700; font-size:14px; color:#f4e6d3; background:rgba(18,10,5,0.92); border:1px solid rgba(255,255,255,0.12); border-radius:12px; padding:6px 10px; display:none;';
     canvas.appendChild(handLabelEl);
 
     burnStrip = document.createElement('div');
@@ -233,7 +233,7 @@ async function connect(){
     try { window.socket = socket; } catch(e){}
     try {
       if (myAddr) {
-        setStatus('' + short(myAddr));
+        setStatus('Connected');
         try { socket.emit('identify', { addr: myAddr }); } catch(e){}
         try { socket.emit('join_table', { table: currentTableId }); try { socket.emit('table:get', { table: currentTableId }); } catch(e){} try { socket.emit('lobby:get'); } catch(e){} setTimeout(function(){ try { socket.emit('join_table', { table: currentTableId }); try { socket.emit('table:get', { table: currentTableId }); } catch(e){} } catch(e){} }, 80); } catch(e){}
       } else {
@@ -452,7 +452,7 @@ async function ensureWallet(promptIfNeeded) {
       const signer = provider.getSigner();
       const got = await signer.getAddress();
       myAddr = String(got||addr||'').toLowerCase();
-      setStatus('' + short(myAddr));
+      setStatus('Connected');
       try { if (connectBtn) connectBtn.style.display = 'none'; } catch(e){}
       if (devBotBtn) { devBotBtn.disabled = false; devBotBtn.title = 'Add/remove a test bot to play solo'; }
       // Fetch wallet balance (ETH/native)
@@ -493,18 +493,4 @@ try {
 } catch {}
 
 if (connectBtn) connectBtn.addEventListener('click', function(){ ensureWallet(true); });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 

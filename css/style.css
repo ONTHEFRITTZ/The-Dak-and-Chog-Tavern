@@ -85,15 +85,16 @@ body.game .tavern {
 }
 
 .tavern {
-  background: rgba(255, 244, 233, 0.7);
+  background: rgba(18,10,5,0.88);
   padding:24px;
-  border:5px solid #7800cd;
+  border:1px solid rgba(255,255,255,0.12);
   border-radius:15px;
   max-width:1000px;
   width:95%;
+  color:#f4e6d3;
   /* Reduce spacing under the sign */
   margin:4px auto 8px;
-  box-shadow:0 0 20px #bcbbb864;
+  box-shadow:0 24px 60px rgba(0,0,0,0.55);
 }
 
 /* Home page: have the container overlap the sign mid-way */
@@ -122,7 +123,7 @@ body.home .tavern {
   padding: 0 12px;
   background: transparent; /* remove banner background color */
   border-bottom: none; /* remove purple border */
-  box-shadow: 0 2px 10px rgba(0,0,0,0.12);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
   z-index: 10001; /* ensure banner stays above rule overlays */
 }
 .top-banner .banner-left,
@@ -137,7 +138,7 @@ body.home .tavern {
 .top-banner .banner-status { max-width: 28vw; overflow:hidden; text-overflow:ellipsis; }
 .top-banner #wallet-banner { display:flex; align-items:center; gap:8px; }
 .top-banner .banner-status {
-  color: #2b1e12;
+  color: #f4e6d3;
   font-size: 14px;
   text-align: left;
   white-space: nowrap;
@@ -348,17 +349,18 @@ body.age-landing {
   filter: drop-shadow(0 8px 18px rgba(0,0,0,0.28));
 }
 .age-card {
-  background: rgba(255, 244, 233, 0.82);
-  border: 5px solid #7800cd;
+  background: rgba(18,10,5,0.9);
+  border: 1px solid rgba(255,255,255,0.12);
   border-radius: 16px;
-  box-shadow: 0 0 24px rgba(0,0,0,0.18);
+  box-shadow: 0 24px 60px rgba(0,0,0,0.55);
   padding: 20px 22px;
   width: min(92%, 820px);
+  color:#f4e6d3;
 }
 .age-warning {
   margin: 0 0 12px 0;
   font-size: clamp(16px, 2.2vw, 22px);
-  color: #2b1e12;
+  color: #f4e6d3;
 }
 .age-cta button {
   padding: 12px 22px;
@@ -400,3 +402,4 @@ body.age-landing {
   border-radius: 999px;
   font-weight: 700;
 }
+
