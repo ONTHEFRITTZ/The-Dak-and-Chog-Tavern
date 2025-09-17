@@ -18,58 +18,21 @@
       }catch(e){ console.error('head loader failed', e); }
     })();
   </script>
-    <style>
+      <style>
     body.game { display:flex; flex-direction:column; align-items:center; justify-content:flex-start; }
     body { background: url('../../assets/images/tavern-bg.png') no-repeat center center fixed; background-size: cover; }
     .top-banner .banner-left { gap: 12px; }
     .game-header { width:95%; max-width:1280px; margin:0 auto; display:flex; align-items:center; justify-content:flex-start; }
     .game-logo { display:block; width:auto; height:auto; max-width: clamp(180px, 26vw, 320px); margin:32px 0 16px 12px; filter: drop-shadow(0 0 18px rgba(255,244,233,0.45)) drop-shadow(0 4px 12px rgba(0,0,0,0.25)); pointer-events:none; user-select:none; }
-    .tavern {
-      padding: 24px;
-      background: none !important;
-      border: none !important;
-      box-shadow: none !important;
-    }
+    .tavern { padding: 24px; background: none !important; border: none !important; box-shadow: none !important; }
 
-    .coin-wrap {
-      display:flex;
-      flex-direction:column;
-      align-items:center;
-      gap:12px;
-      background: rgba(26,14,8,0.78);
-      border:1px solid rgba(255,255,255,0.12);
-      border-radius:18px;
-      padding:18px 24px;
-      box-shadow:0 0 30px rgba(255,180,60,0.28);
-      color:#f4e6d3;
-      backdrop-filter: blur(2px);
-    }
-    .coin {
-      width: clamp(160px, 28vw, 280px);
-      height: clamp(160px, 28vw, 280px);
-      background-image:url('../../assets/images/coin-dak.png');
-      background-position:center;
-      background-repeat:no-repeat;
-      background-size: contain;
-      filter: drop-shadow(0 10px 24px rgba(0,0,0,0.35));
-    }
+    .coin-wrap { display:flex; flex-direction:column; align-items:center; gap:12px; background: transparent; border:1px solid rgba(255,255,255,0.14); border-radius:18px; padding:18px 24px; box-shadow:0 0 32px rgba(255,244,233,0.25); color:#f4e6d3; backdrop-filter: blur(2px); }
+    .coin { width: clamp(160px, 28vw, 280px); height: clamp(160px, 28vw, 280px); background-image:url('../../assets/images/coin-dak.png'); background-position:center; background-repeat:no-repeat; background-size: contain; filter: drop-shadow(0 10px 24px rgba(0,0,0,0.35)); }
     .coin.flip { animation: flip 0.8s ease; }
     @keyframes flip { 0% { transform: rotateY(0deg); } 50% { transform: rotateY(180deg); } 100% { transform: rotateY(360deg); } }
 
     .choice { display:flex; align-items:center; justify-content:center; gap:8px; }
-    .choice button {
-      background: url('../../assets/images/nav-gem.png') no-repeat center / 100% 100%;
-      border:none;
-      color:#fff;
-      font-weight:700;
-      font-family:'Morris','Morris Alt',serif;
-      text-shadow:0 1px 2px rgba(0,0,0,0.45);
-      height:2.6em;
-      padding:0 16px;
-      cursor:pointer;
-      box-shadow:0 0 18px rgba(146,0,250,0.35);
-      transition: transform .12s ease, box-shadow .12s ease;
-    }
+    .choice button { background: url('../../assets/images/nav-gem.png') no-repeat center / 100% 100%; border:none; color:#fff; font-weight:700; font-family:'Morris','Morris Alt',serif; text-shadow:0 1px 2px rgba(0,0,0,0.45); height:2.6em; padding:0 16px; cursor:pointer; box-shadow:0 0 18px rgba(146,0,250,0.35); transition: transform .12s ease, box-shadow .12s ease; }
     .choice button:hover { transform: translateY(-1px); box-shadow:0 0 22px rgba(146,0,250,0.45); }
     .choice button.active { box-shadow:0 0 0 2px rgba(255,255,255,0.4), 0 0 26px rgba(120,0,205,0.45); transform: translateY(-1px) scale(1.03); }
 
@@ -163,6 +126,8 @@
   </script>
 </body>
 </html>
+
+
 
 
 

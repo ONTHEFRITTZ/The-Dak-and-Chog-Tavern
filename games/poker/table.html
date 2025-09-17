@@ -35,8 +35,24 @@
       background: radial-gradient(ellipse at center, rgba(255,244,233,0.62) 0%, rgba(255,244,233,0.34) 52%, rgba(255,244,233,0.12) 72%, rgba(0,0,0,0) 92%);
       filter: blur(16px);
     }
-    .seat { position:absolute; z-index:2; width:110px; height:110px; border-radius:12px; background: rgba(255,255,255,0.5); border:2px solid #7800cd; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; padding:6px; }
-    .seat .addr { font-size:12px; color:#2b1e12; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; width: 100%; text-align:center; }
+    .seat {
+      position:absolute;
+      z-index:2;
+      width:110px;
+      height:110px;
+      border-radius:16px;
+      background: rgba(18,10,5,0.82);
+      border:1px solid rgba(255,255,255,0.18);
+      box-shadow:0 0 26px rgba(255,180,60,0.28);
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:center;
+      gap:6px;
+      padding:8px;
+      backdrop-filter: blur(2px);
+    }
+    .seat .addr { font-size:12px; color:#f4e6d3; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; width: 100%; text-align:center; }
     .seat .btns button { padding:4px 8px; font-size:12px; border-radius:6px; }
     .center-banner { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); background:rgba(255,244,233,0.92); border:3px solid #7800cd; border-radius:12px; padding:10px 12px; color:#2b1e12; min-width:240px; text-align:center; pointer-events:none; font-weight:600; }
     /* Card visuals */
@@ -48,7 +64,19 @@
     .win-badge { margin-top:4px; display:inline-block; background:#ffd166; color:#2b1e12; font-weight:700; font-size:11px; padding:2px 6px; border-radius:8px; }
 
     /* Compact stats box (opposite corner from logo) */
-    .stats-box { background:rgba(255,244,233,0.95); border:3px solid #7800cd; border-radius:10px; padding:6px 8px; color:#2b1e12; font-size:12px; text-align:left; box-shadow:0 4px 12px rgba(0,0,0,0.18); min-width: 180px; margin: 32px 12px 16px 8px; }
+    .stats-box {
+      background: transparent;
+      border:1px solid rgba(255,255,255,0.14);
+      border-radius:10px;
+      padding:6px 8px;
+      color:#f4e6d3;
+      font-size:12px;
+      text-align:left;
+      box-shadow:0 0 32px rgba(255,244,233,0.25);
+      min-width: 180px;
+      margin: 32px 12px 16px 8px;
+      backdrop-filter: blur(2px);
+    }
     .stats-box .label { font-weight:700; margin-right:4px; }
   </style>
  </head>
@@ -114,6 +142,11 @@
   </script>
 </body>
 </html>
+
+
+
+
+
 
 
 
