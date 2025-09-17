@@ -28,52 +28,70 @@
       }catch(e){ console.error('module loader failed', e); }
     })();
   </script>
-  <style>
-    /* Stack logo above container; avoid side-by-side with body flex */
+      <style>
     body.game { display:flex; flex-direction:column; align-items:center; justify-content:flex-start; }
-    /* Override page background for Shell */
     body {
-      /* Centered, then nudged down slightly from center */
       background: url('../../assets/images/shell-bg.webp') no-repeat 50% calc(50% + 5vh) fixed !important;
       background-size: cover !important;
     }
-    /* Place logo above container with a soft backglow */
-    .game-logo { display:block; height:auto; max-width: clamp(180px, 28vw, 420px); margin: 8px auto 12px; filter: drop-shadow(0 0 18px rgba(255,244,233,0.45)) drop-shadow(0 4px 12px rgba(0,0,0,0.25)); pointer-events:none; user-select:none; }
-    /* Normal container padding since logo no longer overlaps */
-    .tavern { padding-top: 16px; }
-    /* Decorative hovering cup (base: bottom-left) */
-    .decor-cup {
-      position:absolute; left:0; bottom:0;
-      /* place the image center roughly over the corner */
-      --tx:-42%; --ty:42%; --rot:-8deg; --par:0px;
-      /* subtle oscillation + bob controls */
-      --rotAmp: 1.2deg;   /* tiny wiggle */
-      --bobOffset: -6%;   /* gentle vertical drift amplitude */
-      --bobDur: 3.85s;    /* timing tuned to feel natural */
-      --bobDelay: .06s;   /* slight phase offset */
-      transform: translate(var(--tx), calc(var(--ty) + var(--par))) rotate(var(--rot));
-      width:clamp(80px, 12vw, 160px);
-      height:auto;
-      pointer-events:none; user-select:none;
-      filter: drop-shadow(0 6px 16px rgba(0,0,0,0.25));
-      z-index: 0; /* keep decor behind content */
-      animation-name: decor-bob;
-      animation-timing-function: ease-in-out;
-      animation-iteration-count: infinite;
-      animation-duration: var(--bobDur);
-      animation-delay: var(--bobDelay);
+    .top-banner .banner-left { gap: 12px; }
+    .game-header { width:95%; max-width:1280px; margin:0 auto; display:flex; align-items:center; justify-content:flex-start; }
+    .game-logo { display:block; width:auto; height:auto; max-width: clamp(180px, 26vw, 320px); margin:32px 0 16px 12px; filter: drop-shadow(0 0 18px rgba(255,244,233,0.45)) drop-shadow(0 4px 12px rgba(0,0,0,0.25)); pointer-events:none; user-select:none; }
+    .tavern {
+      padding: 24px;
+      background: none !important;
+      border: none !important;
+      box-shadow: none !important;
     }
-    /* Corner variants with small positional/animation offsets */
-    .decor-top-left { top:0; bottom:auto; left:0; right:auto; --tx:-44%; --ty:-40%; --rot:8deg;   --rotAmp:1.6deg; --bobOffset: 6%;  --bobDur:3.7s; --bobDelay:.08s; }
-    .decor-top-right { top:0; bottom:auto; right:0; left:auto; --tx: 40%; --ty:-44%; --rot:-10deg; --rotAmp:1.8deg; --bobOffset: 5.5%; --bobDur:3.95s; --bobDelay:.12s; }
-    .decor-bottom-right { bottom:0; top:auto; right:0; left:auto; --tx: 44%; --ty: 40%; --rot:10deg;  --rotAmp:1.4deg; --bobOffset:-5%;  --bobDur:4.05s; --bobDelay:.05s; }
-    @keyframes decor-bob {
-      0%   { transform: translate(var(--tx), calc(var(--ty) + var(--par))) rotate(var(--rot)); }
-      25%  { transform: translate(var(--tx), calc(var(--ty) + var(--par))) rotate(calc(var(--rot) + var(--rotAmp))); }
-      50%  { transform: translate(var(--tx), calc(var(--ty) + var(--par) + var(--bobOffset))) rotate(var(--rot)); }
-      75%  { transform: translate(var(--tx), calc(var(--ty) + var(--par))) rotate(calc(var(--rot) - var(--rotAmp))); }
-      100% { transform: translate(var(--tx), calc(var(--ty) + var(--par))) rotate(var(--rot)); }
+
+    p { color:#f4e6d3; text-shadow:0 1px 2px rgba(0,0,0,0.45); }
+    label { color:#f4e6d3; text-shadow:0 1px 2px rgba(0,0,0,0.45); }
+    input#bet {
+      border-radius:8px;
+      border:1px solid rgba(255,255,255,0.2);
+      background:rgba(26,14,8,0.7);
+      color:#f4e6d3;
+      padding:6px 10px;
+      box-shadow: inset 0 1px 1px rgba(255,255,255,0.12);
+      text-align:center;
     }
+
+    .shells {
+      display:flex;
+      justify-content:center;
+      gap:26px;
+      margin:24px auto;
+      padding:16px;
+      background: rgba(26,14,8,0.78);
+      border-radius:18px;
+      border:1px solid rgba(255,255,255,0.12);
+      box-shadow:0 0 30px rgba(255,180,60,0.28);
+      max-width:720px;
+    }
+    .shell {
+      width: clamp(120px, 22vw, 180px);
+      height: clamp(120px, 22vw, 180px);
+      background: url('../../assets/images/cup.png') no-repeat center center;
+      background-size: contain;
+      filter: drop-shadow(0 6px 16px rgba(0,0,0,0.35));
+      transition: transform 0.25s ease;
+    }
+    .shell:hover { transform: translateY(-8px) scale(1.05); }
+    .shell.shaking { animation: shake 0.7s ease; }
+
+    .scoreboard {
+      background: rgba(26,14,8,0.72);
+      border:1px solid rgba(255,255,255,0.12);
+      border-radius:12px;
+      padding:12px;
+      box-shadow:0 0 26px rgba(255,180,60,0.2);
+      color:#f4e6d3;
+      max-width:420px;
+      margin:18px auto 0;
+      text-align:left;
+    }
+    .scoreboard h3 { margin-top:0; }
+    .scoreboard ul { list-style:none; padding-left:0; margin:0; }
   </style>
 </head>
 
@@ -100,8 +118,10 @@
       <div class="controls">
       </div>
     </div>
+    </div>
+  <div class="game-header">
+    <img class="game-logo" src="../../assets/images/shell-game-logo.png" alt="Shell Game">
   </div>
-  <img class="game-logo" src="../../assets/images/shell-game-logo.png" alt="Shell Game">
   <div class="tavern" style="position:relative; width:95%; max-width:1280px; margin:12px auto 28px;">
     <h1 class="visually-hidden">Shell Game</h1>
     <div style="text-align:center; margin-top:6px;">
@@ -124,16 +144,12 @@
       </label>
     </div>
 
-    <div id="shell-result" style="min-height:24px; text-align:center; font-weight:700; color:#2b1e12;"></div>
+    <div id="shell-result" style="min-height:24px; text-align:center; font-weight:700; color:#f4e6d3; text-shadow:0 1px 2px rgba(0,0,0,0.45);"></div>
 
     <div class="scoreboard">
       <h3>Recent Plays</h3>
       <ul id="plays"></ul>
     </div>
-    <img src="../../assets/images/cup2.png" alt="" aria-hidden="true" class="decor-cup">
-    <img src="../../assets/images/cup.png" alt="" aria-hidden="true" class="decor-cup decor-bottom-right">
-    <img src="../../assets/images/cup.png" alt="" aria-hidden="true" class="decor-cup decor-top-left">
-    <img src="../../assets/images/cup2.png" alt="" aria-hidden="true" class="decor-cup decor-top-right">
   </div>
 
   <!-- Prewarm Tavern background in cache before user returns -->
@@ -171,20 +187,10 @@
       })();
     })();
   </script>
-  <script>
-    // Parallax drift for all decorative cups
-    (function(){
-      const els = document.querySelectorAll('.decor-cup');
-      if (!els.length) return;
-      const onScroll = () => {
-        const y = Math.max(0, window.scrollY) * 0.06; // gentle drift
-        els.forEach(el => el.style.setProperty('--par', y + 'px'));
-      };
-      window.addEventListener('scroll', onScroll, { passive: true });
-      onScroll();
-    })();
-  </script>
 </body>
 </html>
+
+
+
 
 
