@@ -780,7 +780,7 @@ function straightHigh(cards){
   } catch { return 0; }
 }
 function evaluate7(cards){ const cs = cards.map(parseCard).sort(byvDesc); const bySuit = cs.reduce((m,c)=>{ (m[c.s]=m[c.s]||[]).push(c); return m; },{}); const counts = cs.reduce((m,c)=>{ m[c.v]=(m[c.v]||0)+1; return m; },{}); const groups = Object.entries(counts).map(([v,c])=>({v:Number(v), c})).sort((a,b)=> b.c-a.c || b.v-a.v); let flushSuit=null; for (const s of Object.keys(bySuit)){ if (bySuit[s].length>=5) { flushSuit=s; break; } } if (flushSuit){ const fcs = bySuit[flushSuit].slice(); const hi = straightHigh(fcs); if (hi>0){ return { cls:8, tiebreak:[hi] }; } } if (groups[0]?.c===4){ const kicker = cs.find(c=>c.v!==groups[0].v)?.v||0; return { cls:7, tiebreak:[groups[0].v, kicker] }; } if (groups[0]?.c===3){ const second = groups.find(g=>g.c>=2 && g.v!==groups[0].v); if (second){ return { cls:6, tiebreak:[groups[0].v, second.v] }; } } if (flushSuit){ const top5 = bySuit[flushSuit].slice(0,5).map(c=>c.v); return { cls:5, tiebreak: top5 } } const sh = straightHigh(cs); if (sh>0){ return { cls:4, tiebreak:[sh] }; } if (groups[0]?.c===3){ const kickers = cs.filter(c=>c.v!==groups[0].v).slice(0,2).map(c=>c.v); return { cls:3, tiebreak:[groups[0].v, ...kickers] }; } if (groups[0]?.c===2 && groups[1]?.c===2){ const kicker = cs.find(c=>c.v!==groups[0].v && c.v!==groups[1].v)?.v||0; const hi=Math.max(groups[0].v,groups[1].v), lo=Math.min(groups[0].v,groups[1].v); return { cls:2, tiebreak:[hi, lo, kicker] }; } if (groups[0]?.c===2){ const kickers = cs.filter(c=>c.v!==groups[0].v).slice(0,3).map(c=>c.v); return { cls:1, tiebreak:[groups[0].v, ...kickers] }; } return { cls:0, tiebreak: cs.slice(0,5).map(c=>c.v) }; }
-function cmpRank(a,b){ if (a.cls!==b.cls) return a.cls-b.cls; const n=Math.max(a.tiebreak.length,b.tiebreak.length); for(let i=0;i<n;i++){ const av=a.tiebreak[i]||0, bv=b.tiebreak[i]||0; if (av!==bv) return av-bv; } return 0; }
+function cmpRank(a,b){ if (!a || !b) return (!a && !b) ? 0 : (a ? 1 : -1); if (a.cls!==b.cls) return a.cls-b.cls; const na=Array.isArray(a.tiebreak)?a.tiebreak.length:0; const nb=Array.isArray(b.tiebreak)?b.tiebreak.length:0; const n=Math.max(na, nb); for (let i=0; i<n; i++){ const av = Number((a.tiebreak||[])[i]) || 0; const bv = Number((b.tiebreak||[])[i]) || 0; if (av !== bv) return av - bv; } return 0; }\r\nfunction rankScore(rank){ try { const cls = Number(rank?.cls) || 0; const tb = Array.isArray(rank?.tiebreak) ? rank.tiebreak : []; const ordered = [cls, Number(tb[0])||0, Number(tb[1])||0, Number(tb[2])||0, Number(tb[3])||0, Number(tb[4])||0]; return ordered.reduce((acc,val)=> acc*100 + val, 0); } catch { return 0; } }
 // Compute best 5-card hand from 7 and return rank + used indices
 function bestFiveRank(hole, board){
   try {
@@ -818,16 +818,7 @@ function handNameFromRank(rank){
   } catch { return 'Winner'; }
 }
 
-function determineWinners(holeCardsArr, actorIdxs, board){
-  const winners=[]; let best=null;
-  for (let i=0;i<holeCardsArr.length;i++){
-    const hole=holeCardsArr[i];
-    const evald = bestFiveRank(hole, board).rank;
-    if (!best || cmpRank(evald,best)>0){ best=evald; winners.length=0; winners.push(actorIdxs[i]); }
-    else if (cmpRank(evald,best)===0){ winners.push(actorIdxs[i]); }
-  }
-  return winners;
-}
+function determineWinners(holeCardsArr, actorIdxs, board){\n  const winners = [];\n  let bestRank = null;\n  let bestScore = null;\n  for (let i = 0; i < holeCardsArr.length; i++){\n    const hole = holeCardsArr[i];\n    const evald = bestFiveRank(hole, board).rank;\n    const score = rankScore(evald);\n    if (bestScore === null || score > bestScore){\n      bestScore = score;\n      bestRank = evald;\n      winners.length = 0;\n      winners.push(actorIdxs[i]);\n    } else if (score === bestScore){\n      const cmp = cmpRank(evald, bestRank);\n      if (cmp > 0){\n        bestScore = score;\n        bestRank = evald;\n        winners.length = 0;\n        winners.push(actorIdxs[i]);\n      } else if (cmp === 0){\n        winners.push(actorIdxs[i]);\n      }\n    }\n  }\n  return winners;\n}
 
 // Determine the best 5-card selection (indices) for a Hold'em hand
 function bestFiveUsed(hole, board){
@@ -849,4 +840,9 @@ function bestFiveUsed(hole, board){
     return { usedHole, usedCommunity };
   } catch { return { usedHole: [], usedCommunity: [] }; }
 }
+
+
+
+
+
 
