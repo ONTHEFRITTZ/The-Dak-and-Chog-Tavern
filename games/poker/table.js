@@ -233,7 +233,7 @@ async function connect(){
     try { window.socket = socket; } catch(e){}
     try {
       if (myAddr) {
-        setStatus('Connected ' + short(myAddr));
+        setStatus('Connected');
         try { socket.emit('identify', { addr: myAddr }); } catch(e){}
         try { socket.emit('join_table', { table: currentTableId }); try { socket.emit('table:get', { table: currentTableId }); } catch(e){} try { socket.emit('lobby:get'); } catch(e){} setTimeout(function(){ try { socket.emit('join_table', { table: currentTableId }); try { socket.emit('table:get', { table: currentTableId }); } catch(e){} } catch(e){} }, 80); } catch(e){}
       } else {
@@ -452,7 +452,7 @@ async function ensureWallet(promptIfNeeded) {
       const signer = provider.getSigner();
       const got = await signer.getAddress();
       myAddr = String(got||addr||'').toLowerCase();
-      setStatus('Connected ' + short(myAddr));
+      setStatus('Connected');
       try { if (connectBtn) connectBtn.style.display = 'none'; } catch(e){}
       if (devBotBtn) { devBotBtn.disabled = false; devBotBtn.title = 'Add/remove a test bot to play solo'; }
       // Fetch wallet balance (ETH/native)
@@ -493,5 +493,4 @@ try {
 } catch {}
 
 if (connectBtn) connectBtn.addEventListener('click', function(){ ensureWallet(true); });
-
 
