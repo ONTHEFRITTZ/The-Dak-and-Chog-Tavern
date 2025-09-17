@@ -69,7 +69,7 @@ function ensureActionBar(){
     const canvas = document.querySelector('.table-canvas');
     if (!canvas) return null;
     actionBar = document.createElement('div');
-    actionBar.style.cssText = 'position:absolute; left:50%; bottom:12%; transform:translateX(-50%); display:none; gap:8px; background: var(--panel-bg-strong); border:1px solid rgba(255,255,255,0.12); border-radius:14px; padding:10px 14px; box-shadow:0 20px 48px rgba(0,0,0,0.45); align-items:center; z-index:6;';
+    actionBar.style.cssText = 'position:absolute; left:50%; bottom:12%; transform:translateX(-50%); display:none; gap:8px; background: var(--panel-bg); border:1px solid rgba(255,255,255,0.12); border-radius:14px; padding:10px 14px; box-shadow:0 20px 48px rgba(0,0,0,0.45); align-items:center; z-index:6;';
     infoText = document.createElement('div'); infoText.style.color='#f4e6d3'; infoText.style.fontSize='12px'; actionBar.appendChild(infoText);
     const btns = document.createElement('div'); btns.style.display='flex'; btns.style.gap='8px'; btns.className='action-btns'; actionBar.appendChild(btns);
     amountInput = document.createElement('input'); amountInput.type='number'; amountInput.min='1'; amountInput.step='1'; amountInput.value='2'; amountInput.style.width='70px'; amountInput.placeholder='amt'; amountInput.title='Bet/Raise amount'; actionBar.appendChild(amountInput);
@@ -81,7 +81,7 @@ function ensureActionBar(){
 
     // Label for the winning hand (shown after showdown)
     handLabelEl = document.createElement('div');
-    handLabelEl.style.cssText = 'position:absolute; left:50%; top:50%; transform:translate(-50%, -40%); z-index:5; font-weight:700; font-size:14px; color:#f4e6d3; background: var(--panel-bg-strong); border:1px solid rgba(255,255,255,0.12); border-radius:12px; padding:6px 10px; display:none;';
+    handLabelEl.style.cssText = 'position:absolute; left:50%; top:50%; transform:translate(-50%, -40%); z-index:5; font-weight:700; font-size:14px; color:#f4e6d3; background: var(--panel-bg); border:1px solid rgba(255,255,255,0.12); border-radius:12px; padding:6px 10px; display:none;';
     canvas.appendChild(handLabelEl);
 
     burnStrip = document.createElement('div');
@@ -493,5 +493,4 @@ try {
 } catch {}
 
 if (connectBtn) connectBtn.addEventListener('click', function(){ ensureWallet(true); });
-
 
