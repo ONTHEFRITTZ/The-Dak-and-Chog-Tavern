@@ -736,7 +736,22 @@ function maybeTriggerBot(tableId, t) {
 // ---- 7-card evaluator
 const RANKS = ['2','3','4','5','6','7','8','9','T','J','Q','K','A'];
 const RVAL = Object.fromEntries(RANKS.map((r,i)=>[r, i+2]));
-function parseCard(c){ const r=c[0], s=c[1]; return { r, s, v:RVAL[r]||0 }; }
+const RANK_ALIAS = { '10': 'T' };
+const SUIT_MAP = { c:'c', C:'c', '\\u2663':'c', d:'d', D:'d', '\\u2666':'d', h:'h', H:'h', '\\u2665':'h', s:'s', S:'s', '\\u2660':'s' };
+function parseCard(code){
+  try {
+    const raw = String(code || '').trim();
+    if (!raw) return { r:'', s:'', v:0 };
+    const rawSuit = raw.slice(-1);
+    const rawRank = raw.slice(0, -1) || raw;
+    const suit = SUIT_MAP[rawSuit] || rawSuit.toLowerCase();
+    const normalizedRank = (RANK_ALIAS[rawRank.toUpperCase()] || rawRank.toUpperCase());
+    const value = RVAL[normalizedRank] || 0;
+    return { r: normalizedRank, s: suit, v: value };
+  } catch {
+    return { r:'', s:'', v:0 };
+  }
+}
 function byvDesc(a,b){ return b.v-a.v; }
 function uniqueByRankDesc(cards){ const seen=new Set(); const out=[]; for(const c of cards.sort(byvDesc)){ if(!seen.has(c.v)){ out.push(c); seen.add(c.v);} } return out; }
 function straightHigh(cards){
@@ -834,6 +849,4 @@ function bestFiveUsed(hole, board){
     return { usedHole, usedCommunity };
   } catch { return { usedHole: [], usedCommunity: [] }; }
 }
-
-
 
