@@ -45,8 +45,8 @@
     label { color:#f4e6d3; text-shadow:0 1px 2px rgba(0,0,0,0.45); }
     input#bet { border-radius:8px; border:1px solid rgba(255,255,255,0.2); background:rgba(26,14,8,0.7); color:#f4e6d3; padding:6px 10px; box-shadow: inset 0 1px 1px rgba(255,255,255,0.12); text-align:center; }
 
-    .shells { display:flex; justify-content:center; gap:26px; margin:24px auto; padding:16px; background: transparent; border-radius:18px; border:1px solid rgba(255,255,255,0.14); max-width:720px; }
-    .shell { width: clamp(150px, 28vw, 220px); height: clamp(150px, 28vw, 220px); background: url('../../assets/images/cup.png') no-repeat center center; background-size: contain; filter: drop-shadow(0 6px 16px rgba(0,0,0,0.35)); transition: transform 0.25s ease; }
+    .shells { display:flex; justify-content:center; gap:26px; margin:24px auto; padding:16px; background: transparent; border-radius:18px; max-width:720px; }
+    .shell { width: clamp(170px, 28vw, 240px); height: clamp(170px, 28vw, 240px); box-shadow:0 0 34px rgba(255,244,233,0.3); background: url('../../assets/images/cup.png') no-repeat center center; background-size: contain; filter: drop-shadow(0 6px 16px rgba(0,0,0,0.35)); transition: transform 0.25s ease; }
     .shell:hover { transform: translateY(-8px) scale(1.05); }
     .shell.shaking { animation: shake 0.7s ease; }
 
@@ -59,7 +59,7 @@
       100% { transform: translateX(0); }
     }
 
-    .scoreboard { background: transparent; border:1px solid rgba(255,255,255,0.14); border-radius:12px; padding:12px; color:#f4e6d3; max-width:420px; margin:18px auto 0; text-align:left; }
+    .scoreboard { background: transparent; border-radius:12px; padding:12px; color:#f4e6d3; max-width:420px; margin:18px auto 0; text-align:left; }
     .scoreboard h3 { margin-top:0; }
     .scoreboard ul { list-style:none; padding-left:0; margin:0; }
   </style>
@@ -157,6 +157,8 @@
   </script>
 </body>
 </html>
+
+
 
 
 
