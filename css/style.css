@@ -20,8 +20,9 @@
   --panel-bg: rgba(42,26,16,0.72);
   --panel-bg-strong: rgba(24,14,8,0.88);
 }
+/* Remove global wallet banner offset now that banner is retired */
 body:has(.top-banner) {
-  padding-top: var(--banner-h) !important;
+  padding-top: 0 !important;
 }
 
 body {
@@ -224,20 +225,8 @@ body.home .tavern {
 }
 
 /* Thin top banner for status + buttons */
-.top-banner {
-  position: fixed;
-  top: 0; left: 0; right: 0;
-  height: 80px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 0 12px;
-  background: transparent; /* remove banner background color */
-  border-bottom: none; /* remove purple border */
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
-  z-index: 8000; /* keep below sidebar */
-}
+/* Retire the wallet top banner entirely across site */
+.top-banner { display: none !important; }
 /* When sidebar is present, push banner to the right by sidebar width */
 body:has(#sidebar) .top-banner { left: var(--sidebar-left, 240px); }
 .top-banner .banner-left,
