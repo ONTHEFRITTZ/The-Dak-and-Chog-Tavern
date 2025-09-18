@@ -1,7 +1,6 @@
-const statusEl = document.getElementById('poker-status') || document.getElementById('status');
+const statusEl = document.getElementById('status');
 const lobbyEl = document.getElementById('lobby');
 const connectBtn = document.getElementById('connect-wallet');
-const tableEl = document.getElementById('table');
 let socket; let myAddr = null;
 
 function setStatus(t){ try { statusEl.textContent = t; } catch {} }
@@ -10,7 +9,6 @@ function renderLobby(list){
   try {
     const items = Array.isArray(list)? list : [];
     lobbyEl.innerHTML = '';
-    // No table persistence; lobby renders only current list
     items.forEach(row => {
       const card = document.createElement('div'); card.className='lobby-item';
       const left = document.createElement('div'); left.textContent = `${row.id} - Players ${row.seated}/${row.capacity}`;
@@ -64,11 +62,12 @@ function renderTable(t){
   } catch {}
 }
 
-function connectPoker() {
+async function connect(){
   try {
     socket = io(window.location.origin, {
       path: '/poker.io/',
-      transports: ['websocket','polling'],
+      transports: ['polling','websocket'],
+      upgrade: true,
       reconnection: true,
       reconnectionAttempts: 10,
       reconnectionDelay: 800,
@@ -78,20 +77,16 @@ function connectPoker() {
     setStatus('Socket.IO not available');
     return;
   }
-  socket.on('connect', () => {
-    setStatus('Connected');
-    if (myAddr) { try { socket.emit('identify', { addr: myAddr }); } catch {} }
-    try { socket.emit('lobby:get'); } catch {}
-  });
+  socket.on('connect', () => { setStatus('Connected'); if (myAddr) { try { socket.emit('identify', { addr: myAddr }); } catch {} } try { socket.emit('lobby:get'); } catch {} });
   socket.on('connect_error', (err) => { setStatus('Lobby unavailable. Retrying...'); try { console.error('connect_error', err && err.message); } catch {} });
   socket.on('reconnect_error', () => { setStatus('Reconnecting...'); });
   socket.on('disconnect', () => setStatus('Disconnected'));
   socket.on('lobby:list', (list) => renderLobby(list));
-  socket.on('system', () => {});
+  // No in-lobby seat rendering; seating happens on table.html
+  socket.on('system', (m) => { /* noop */ });
 }
 
-// Always use dedicated Poker path (proxied to 3101)
-connectPoker();
+connect();
 
 // Wallet connect (isolated): gate seating until wallet connected
 connectBtn?.addEventListener('click', async () => {

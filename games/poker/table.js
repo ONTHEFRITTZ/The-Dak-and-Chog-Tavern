@@ -1,20 +1,15 @@
-let statusEl = document.getElementById('status');
+const statusEl = document.getElementById('status');
 const seatEls = Array.from(document.querySelectorAll('.seat'));
 const connectBtn = document.getElementById('connect-wallet');
 const devBotBtn = document.getElementById('toggle-dev-bot');
 let devBotOn = false;
 let socket; let myAddr = null; let currentTableId = null; let lastTable = null; let myHole = [];
 let lastState = null; let exposures = {}; let winnersNow = {};
-let holdShowdown = false; // keep board + exposures visible until I click Ready
-// Stats
-let statsEl = null, sbWalletEl = null, sbChipsEl = null, sbPnlEl = null, sbHandsEl = null;
-let sessionStartChips = null; let lastChips = 0; let handsWon = 0;
-let walletProvider = null; let walletBalanceStr = null;
 
 // Disable Dev Bot toggle until wallet connects
 try { if (devBotBtn) { devBotBtn.disabled = true; devBotBtn.title = 'Connect wallet to use Dev Bot'; devBotBtn.textContent = 'Dev Bot'; } } catch(e){}
 
-let actionBar = null; let communityEl = null; let amountInput = null; let infoText = null; let communityStrip = null; let burnStrip = null; let handLabelEl = null;
+let actionBar = null; let communityEl = null; let amountInput = null; let infoText = null; let communityStrip = null; let burnStrip = null;
 
 
 
@@ -35,33 +30,6 @@ function positionSeatsRing(){
 }
 positionSeatsRing();
 
-// Stats helpers
-function initStatsBox(){
-  try {
-    statsEl = document.getElementById('stats-box');
-    sbWalletEl = document.getElementById('sb-wallet');
-    sbChipsEl = document.getElementById('sb-chips');
-    sbPnlEl = document.getElementById('sb-pnl');
-    sbHandsEl = document.getElementById('sb-hands');
-  } catch {}
-}
-function fmtPnL(n){ try { return (n>0?'+':'') + String(n); } catch { return String(n||0); } }
-function refreshStats(){
-  try {
-    if (sbWalletEl && walletBalanceStr!=null) sbWalletEl.textContent = walletBalanceStr + ' ETH';
-    if (sbChipsEl) sbChipsEl.textContent = String(lastChips||0);
-    if (sbPnlEl) sbPnlEl.textContent = fmtPnL((lastChips||0) - (sessionStartChips||0));
-    if (sbHandsEl) sbHandsEl.textContent = String(handsWon||0);
-  } catch {}
-}
-function pickMySeatIdx(t){
-  try {
-    const me = String(myAddr||'').toLowerCase();
-    if (!me) return -1;
-    return Array.isArray(t && t.seats) ? t.seats.findIndex(s => s && s.addr && String(s.addr).toLowerCase()===me) : -1;
-  } catch { return -1; }
-}
-
 // Build shared UI elements (action bar, community/burn strips) once
 function ensureActionBar(){
   try {
@@ -69,8 +37,8 @@ function ensureActionBar(){
     const canvas = document.querySelector('.table-canvas');
     if (!canvas) return null;
     actionBar = document.createElement('div');
-    actionBar.style.cssText = 'position:absolute; left:50%; bottom:12%; transform:translateX(-50%); display:none; gap:8px; background: var(--panel-bg-soft); border:1px solid rgba(255,255,255,0.12); border-radius:14px; padding:10px 14px; box-shadow:0 20px 48px rgba(0,0,0,0.45); align-items:center; z-index:6;';
-    infoText = document.createElement('div'); infoText.style.color='#f4e6d3'; infoText.style.fontSize='12px'; actionBar.appendChild(infoText);
+    actionBar.style.cssText = 'position:absolute; left:50%; bottom:12%; transform:translateX(-50%); display:none; gap:8px; background:rgba(255,244,233,0.95); border:3px solid #7800cd; border-radius:12px; padding:8px 10px; box-shadow:0 4px 12px rgba(0,0,0,0.2); align-items:center; z-index:6;';
+    infoText = document.createElement('div'); infoText.style.color='#2b1e12'; infoText.style.fontSize='12px'; actionBar.appendChild(infoText);
     const btns = document.createElement('div'); btns.style.display='flex'; btns.style.gap='8px'; btns.className='action-btns'; actionBar.appendChild(btns);
     amountInput = document.createElement('input'); amountInput.type='number'; amountInput.min='1'; amountInput.step='1'; amountInput.value='2'; amountInput.style.width='70px'; amountInput.placeholder='amt'; amountInput.title='Bet/Raise amount'; actionBar.appendChild(amountInput);
     canvas.appendChild(actionBar);
@@ -78,11 +46,6 @@ function ensureActionBar(){
     communityStrip = document.createElement('div');
     communityStrip.style.cssText = 'position:absolute; left:50%; top:50%; transform:translate(-50%,-105%); display:flex; gap:8px; z-index:4;';
     canvas.appendChild(communityStrip);
-
-    // Label for the winning hand (shown after showdown)
-    handLabelEl = document.createElement('div');
-    handLabelEl.style.cssText = 'position:absolute; left:50%; top:50%; transform:translate(-50%, -40%); z-index:5; font-weight:700; font-size:14px; color:#f4e6d3; background: var(--panel-bg-soft); border:1px solid rgba(255,255,255,0.12); border-radius:12px; padding:6px 10px; display:none;';
-    canvas.appendChild(handLabelEl);
 
     burnStrip = document.createElement('div');
     burnStrip.style.cssText = 'position:absolute; left:50%; top:50%; transform:translate(calc(-50% - 240px), -58%); display:flex; gap:0; pointer-events:none; z-index:2; align-items:center;';
@@ -92,37 +55,13 @@ function ensureActionBar(){
 }
 
 function short(a){ return (a && a.length>10) ? (a.slice(0,6)+'...'+a.slice(-4)) : (a||''); }
-function ensureCenterStatus(){
-  try {
-    const canvas = document.querySelector('.table-canvas');
-    if (!canvas) return null;
-    let el = document.getElementById('center-status');
-    if (!el) {
-      el = document.createElement('div');
-      el.id = 'center-status';
-      el.style.cssText = 'position:absolute; left:50%; top:8%; transform:translateX(-50%); background: var(--panel-bg-soft); border:1px solid rgba(255,255,255,0.12); border-radius:12px; padding:6px 10px; color:#f4e6d3; z-index:10; font-weight:600;';
-      canvas.appendChild(el);
-    }
-    return el;
-  } catch { return null; }
-}
-function setStatus(t){
-  try {
-    if (!statusEl) statusEl = document.getElementById('status');
-    if (statusEl) { statusEl.textContent = t; return; }
-    const el = ensureCenterStatus(); if (el) el.textContent = t;
-  } catch {}
-}
+function setStatus(t){ if (statusEl) statusEl.textContent = t; }
 function assetTag(){ try { return String(window.__ASSET_TAG||''); } catch(e){ return ''; } }
 function cardSrc(code){
   try {
     const r = String(code||'').charAt(0).toUpperCase();
     const s = String(code||'').charAt(1).toLowerCase();
-    // Support face ranks and numeric ranks (T=Ten)
-    const rm = {
-      'A':'ace','K':'king','Q':'queen','J':'jack','T':'ten',
-      '9':'nine','8':'eight','7':'seven','6':'six','5':'five','4':'four','3':'three','2':'two'
-    };
+    const rm = { 'A':'ace','K':'king','Q':'queen','J':'jack' };
     const sm = { 's':'spades','h':'hearts','d':'diamonds','c':'clubs' };
     const rank = rm[r] || null; const suit = sm[s] || null;
     if (rank && suit) { const v = assetTag(); const q = v ? ('?v=' + encodeURIComponent(v)) : ''; return '../../assets/images/chog_cards/chog-' + rank + '-of-' + suit + '.png' + q; }
@@ -130,25 +69,7 @@ function cardSrc(code){
   const v = assetTag(); const q = v ? ('?v=' + encodeURIComponent(v)) : ''; return '../../assets/images/chog_cards/chog-ace-of-spades.png' + q;
 }
 function cardBackSrc(){ const v = assetTag(); const q = v ? ('?v=' + encodeURIComponent(v)) : ''; return '../../assets/images/chog_cards/dak-and-chog-cardback.png' + q; }
-function makeCardImg(code, opts){
-  opts = opts||{};
-  const hole=!!opts.hole, flip = opts.flip!==false, win = !!opts.win;
-  const img=document.createElement('img');
-  img.alt=String(code||'');
-  img.src = (code==='BACK')? cardBackSrc() : cardSrc(code);
-  img.className='card' + (hole?' card--hole':'') + (flip?' card--flip':'') + (win?' card--win':'');
-  if (flip) requestAnimationFrame(function(){ img.classList.add('card--show'); });
-  return img;
-}
-
-// Hand rank name fallback mapping (if server omits textual name)
-function handRankName(rank){
-  try {
-    const r = Number(rank);
-    const names = { 9:'Royal Flush', 8:'Straight Flush', 7:'Four of a Kind', 6:'Full House', 5:'Flush', 4:'Straight', 3:'Three of a Kind', 2:'Two Pair', 1:'One Pair', 0:'High Card' };
-    return (r in names) ? names[r] : '';
-  } catch { return ''; }
-}
+function makeCardImg(code, opts){ opts = opts||{}; const hole=!!opts.hole, flip = opts.flip!==false, win = !!opts.win; const img=document.createElement('img'); img.alt=String(code||''); img.src = (code==='BACK')? cardBackSrc() : cardSrc(code); img.className='card' + (hole?' card--hole':'') + (flip?' card--flip':'') + (win?' card--win':''); if (flip) requestAnimationFrame(function(){ img.classList.add('card--show'); }); return img; }
 
 function renderTable(t){
   if (!t || t.id !== currentTableId) return;
@@ -177,56 +98,26 @@ function renderTable(t){
     if (s) {
       info.textContent = short(s.addr||s.id) + (typeof s.chips==='number' ? ' � ' + s.chips + 'c' : ''); el.appendChild(info);
       const addrLower = String(s.addr||'').toLowerCase();
-      // If this is a bot seat, present label as BOT and suppress address line
-      try { if ((s.addr||'').startsWith('bot:')) { label.textContent = 'BOT'; try { info.textContent = ''; } catch(_){} } } catch(_){ }
       if (myAddr && addrLower===String(myAddr).toLowerCase()){
         const btns = document.createElement('div'); btns.className='btns';
         const leave = document.createElement('button'); leave.textContent='Leave'; leave.onclick=function(){ socket.emit('seat',{ index:-1 }); };
-        const ready = document.createElement('button'); ready.textContent = s.ready? 'Unready':'Ready'; ready.onclick=function(){
-          try { socket.emit('ready',{ ready: !s.ready }); } catch(e){}
-          try {
-            // When I click Ready after a showdown, allow next hand to clear visuals
-            holdShowdown = false;
-            if (lastState && String(lastState.stage||'') === 'preflop') {
-              try { exposures = {}; winnersNow = {}; usedBoard = []; } catch(_){ }
-              try { if (communityStrip) { communityStrip.innerHTML=''; communityStrip.classList.remove('showdown'); } } catch(_){ }
-              try { if (handLabelEl) { handLabelEl.style.display='none'; handLabelEl.textContent=''; } } catch(_){ }
-              try { if (lastTable) renderTable(lastTable); } catch(_){ }
-            }
-          } catch(e){}
-        };
+        const ready = document.createElement('button'); ready.textContent = s.ready? 'Unready':'Ready'; ready.onclick=function(){ socket.emit('ready',{ ready: !s.ready }); };
         btns.appendChild(leave); btns.appendChild(ready); el.appendChild(btns);
-        if (Array.isArray(myHole) && myHole.length===2) {
-          const row=document.createElement('div'); row.style.cssText='display:flex; gap:6px; margin-top:auto;';
-          try {
-            const winInfo = winnersNow && winnersNow[String(myAddr).toLowerCase()];
-            const usedHole = (winInfo && Array.isArray(winInfo.usedHole)) ? winInfo.usedHole : null;
-            myHole.forEach(function(code, i){ const isWin = !!(winInfo && usedHole && usedHole.indexOf(i)>=0); row.appendChild(makeCardImg(code,{hole:true,flip:true,win:isWin})); });
-          } catch(_) {
-            myHole.forEach(function(code){ row.appendChild(makeCardImg(code,{hole:true,flip:true})); });
-          }
-          el.appendChild(row);
-        }
+        if (Array.isArray(myHole) && myHole.length===2) { const row=document.createElement('div'); row.style.cssText='display:flex; gap:6px; margin-top:4px;'; myHole.forEach(function(code){ row.appendChild(makeCardImg(code,{hole:true,flip:true})); }); el.appendChild(row); }
       } else {
         try {
           const actors = Array.isArray(lastState && lastState.actors) ? lastState.actors : [];
           const actor = actors.find(function(a){ return a && a.addr && String(a.addr).toLowerCase()===addrLower; });
           if (actor) {
-            const row=document.createElement('div'); row.style.cssText='display:flex; gap:6px; margin-top:auto;';
+            const row=document.createElement('div'); row.style.cssText='display:flex; gap:6px; margin-top:4px;';
             const exp = exposures[addrLower];
             if (Array.isArray(exp) && exp.length===2) {
               const winInfo = winnersNow && winnersNow[addrLower];
               const isWin = !!winInfo;
               const usedHole = (winInfo && Array.isArray(winInfo.usedHole)) ? winInfo.usedHole : null;
-              exp.forEach(function(code, i){ const img = makeCardImg(code,{hole:true,flip:true,win: isWin && !!(usedHole && usedHole.indexOf(i)>=0)}); row.appendChild(img); });
+              exp.forEach(function(code, i){ const img = makeCardImg(code,{hole:true,flip:true,win: isWin && (!usedHole || usedHole.indexOf(i)>=0)}); row.appendChild(img); });
               el.appendChild(row);
-              if (isWin) {
-                const badge=document.createElement('div'); badge.className='win-badge';
-                const amt=Number((winInfo && winInfo.amount) || 0);
-                const hName=(winInfo && (winInfo.handName||winInfo.rankName)) || handRankName(winInfo && winInfo.rank);
-                badge.textContent = (hName||'Winner') + (amt?(' +' + String(amt)):'');
-                el.appendChild(badge);
-              }
+              if (isWin) { const badge=document.createElement('div'); badge.className='win-badge'; const amt=Number((winInfo && winInfo.amount) || 0); badge.textContent = 'Winner ' + (amt>0?'+':'') + String(amt); el.appendChild(badge); }
             }
             else if (!actor.folded) { for (var k=0;k<2;k++){ row.appendChild(makeCardImg('BACK',{hole:true,flip:true})); } el.appendChild(row); }
           }
@@ -253,7 +144,7 @@ async function connect(){
     try { window.socket = socket; } catch(e){}
     try {
       if (myAddr) {
-        setStatus('Connected');
+        setStatus('' + short(myAddr));
         try { socket.emit('identify', { addr: myAddr }); } catch(e){}
         try { socket.emit('join_table', { table: currentTableId }); try { socket.emit('table:get', { table: currentTableId }); } catch(e){} try { socket.emit('lobby:get'); } catch(e){} setTimeout(function(){ try { socket.emit('join_table', { table: currentTableId }); try { socket.emit('table:get', { table: currentTableId }); } catch(e){} } catch(e){} }, 80); } catch(e){}
       } else {
@@ -283,21 +174,7 @@ async function connect(){
       devBotOn = enabled;
       devBotBtn.classList.toggle('active', devBotOn);
       devBotBtn.textContent = devBotOn ? 'Dev Bot: ON' : 'Dev Bot';
-      // Only show Dev Bot toggle when exactly one human is seated
-      try {
-        const humans = Array.isArray(t && t.seats) ? t.seats.filter(function(s){ return s && s.addr && !String(s.addr).startsWith('bot:'); }).length : 0;
-        devBotBtn.style.display = (humans === 1) ? '' : 'none';
-        devBotBtn.disabled = !myAddr || (humans !== 1);
-      } catch (e) {}
     }
-    try {
-      initStatsBox();
-      const idx = pickMySeatIdx(t);
-      const chips = (idx>=0 && t.seats[idx] && typeof t.seats[idx].chips==='number') ? Number(t.seats[idx].chips) : 0;
-      if (sessionStartChips===null) sessionStartChips = chips;
-      lastChips = chips;
-      refreshStats();
-    } catch(_){ }
   } catch(e){} renderTable(t); });
   socket.on('system', function(){ /* no banner */ });
   socket.on('rt:state', function(){
@@ -315,58 +192,14 @@ async function connect(){
   socket.on('poker:cards', function(m){ try { const tid = String((m && m.tableId) || ''); if (tid && tid !== currentTableId) return; const hole = Array.isArray(m && m.hole) ? m.hole : []; if (hole.length === 2) { myHole = hole; if (lastTable) renderTable(lastTable); } } catch(e){} });
   socket.on('poker:mode', function(m){ try { const sim = !!(m && m.simulated); if (devBotBtn) { devBotOn = sim; devBotBtn.classList.toggle('active', devBotOn); devBotBtn.textContent = devBotOn ? 'Dev Bot: ON' : 'Dev Bot'; } } catch(e){} });
   socket.on('poker:state', function(st){ try {
-    lastState = st;
-    const stage = String((st && st.stage) || '');
-    try { if (stage === 'preflop' && !holdShowdown) { exposures = {}; winnersNow = {}; } } catch(e){}
-ensureActionBar();
-
-// --- Socket.IO connection (Poker on 3101 via NGINX /poker.io) ---
-function getQueryParam(name){
-  try { const u=new URL(window.location.href); return u.searchParams.get(name); } catch { return null; }
-}
-function resolveTableId(){
-  try { return getQueryParam('table') || 'poker-1'; } catch { return 'poker-1'; }
-}
-function connectPokerRT(){
-  try {
-    socket = io(window.location.origin, {
-      path: '/poker.io/',
-      transports: ['websocket','polling'],
-      reconnection: true,
-      reconnectionAttempts: 10,
-      reconnectionDelay: 800,
-      forceNew: true
-    });
-  } catch (e) {
-    setStatus('Socket.IO not available');
-    return;
-  }
-  currentTableId = resolveTableId();
-  socket.on('connect', () => {
-    setStatus('Connected');
-    try { socket.emit('join_table', { table: currentTableId }); } catch {}
-    try { socket.emit('table:get', { table: currentTableId }); } catch {}
-    try { socket.emit('poker:get', { table: currentTableId }); } catch {}
-  });
-  socket.on('connect_error', (err) => { setStatus('Table unavailable. Retrying...'); try { console.error('connect_error', err && err.message); } catch {} });
-  socket.on('reconnect_error', () => { setStatus('Reconnecting...'); });
-  socket.on('disconnect', () => setStatus('Disconnected'));
-  socket.on('system', () => {});
-  socket.on('table:update', (t) => { try { renderTable(t); } catch {} });
-  socket.on('poker:state', (m) => {
-    try { lastState = m || null; if (m && m.table) renderTable(m.table); } catch {}
-  });
-  socket.on('poker:hand', (m) => { try { if (m && m.table) renderTable(m.table); } catch {} });
-}
+    lastState = st; try { if (String((st && st.stage) || '') === 'preflop') { exposures = {}; winnersNow = {}; } } catch(e){}
+    ensureActionBar();
     const cards = Array.isArray(st && st.community) ? st.community : [];
     if (communityEl) communityEl && (communityEl.style.display='none');
     if (communityStrip) {
-      if (!(holdShowdown && stage === 'preflop')) {
-        communityStrip.innerHTML = '';
-        communityStrip.classList.remove('showdown');
-        cards.forEach(function(code){ communityStrip.appendChild(makeCardImg(code, { flip:true })); });
-        try { if (handLabelEl) { handLabelEl.style.display='none'; handLabelEl.textContent=''; } } catch(_){ }
-      }
+      communityStrip.innerHTML = '';
+      communityStrip.classList.remove('showdown');
+      cards.forEach(function(code){ communityStrip.appendChild(makeCardImg(code, { flip:true })); });
     }
     // Burn cards: show back-faced pile (no overlap) to indicate burns that occurred
     try {
@@ -419,7 +252,7 @@ function connectPokerRT(){
     const btnWrap = actionBar && actionBar.querySelector('.action-btns');
     if (btnWrap) {
       btnWrap.innerHTML = '';
-      if (actionBar) actionBar.style.display = (mine && !holdShowdown) ? 'flex' : 'none';
+      if (actionBar) actionBar.style.display = mine ? 'flex' : 'none';
       if (!mine && infoText) infoText.textContent = '';
       if (mine) {
         const me = (Array.isArray(st.actors)? st.actors : []).find(function(a){ return a && a.addr && String(a.addr).toLowerCase()===String(myAddr).toLowerCase(); });
@@ -441,48 +274,30 @@ function connectPokerRT(){
   });
 
   socket.on('poker:hand', function(m){ try {
-    holdShowdown = true; // keep visuals until I click Ready
-    try { if (actionBar) actionBar.style.display = 'none'; } catch(_){ }
-    // Determine winning board indices for highlighting
+    // If folded to bot, clear the board (no community shown)
     var winners = Array.isArray(m && m.winners) ? m.winners : [];
+    var botWon = false; try { botWon = winners.some(function(w){ var a = String((w && w.addr) || ''); return a.startsWith('bot:'); }); } catch(_){ botWon = false; }
+    // Capture used community indices to highlight winning board cards
     usedBoard = [];
     try { winners.forEach(function(w){ var uc = Array.isArray(w && w.usedCommunity) ? w.usedCommunity : []; uc.forEach(function(i){ if (usedBoard.indexOf(i)===-1) usedBoard.push(i); }); }); } catch(_){ usedBoard = []; }
     if (communityStrip) {
       communityStrip.innerHTML='';
-      var comm = Array.isArray(m && m.community)? m.community:[];
-      comm.forEach(function(code, idx){ var img = makeCardImg(code, { flip:true }); if (usedBoard.indexOf(idx)>=0) img.classList.add('card--win'); communityStrip.appendChild(img); });
+      var comm = botWon ? [] : (Array.isArray(m && m.community)? m.community:[]);
+      comm.forEach(function(code, idx){ var img = makeCardImg(code, { flip:true }); if (!botWon && usedBoard.indexOf(idx)>=0) img.classList.add('card--win'); communityStrip.appendChild(img); });
       // Nudge community up at showdown to spotlight board while keeping all visible
-      if (comm.length) {
+      if (!botWon && comm.length) {
         communityStrip.classList.add('showdown');
         try { Array.from(communityStrip.querySelectorAll('img.card')).forEach(function(img){ img.style.transform = 'translateY(-6px)'; }); } catch(_){ }
       }
-      // Show winning hand label below the board (best effort from payload)
-      try {
-        const first = winners && winners[0] || null;
-        let label = '';
-        if (first) {
-          label = first.handName || first.rankName || first.name || (typeof first.rank !== 'undefined' ? ('Rank ' + first.rank) : 'Winner');
-          if (Array.isArray(winners) && winners.length > 1) label += ' (split)';
-        }
-        if (handLabelEl) { if (label) { handLabelEl.textContent = label; handLabelEl.style.display = ''; } else { handLabelEl.style.display='none'; handLabelEl.textContent=''; } }
-      } catch(_){ if (handLabelEl) { handLabelEl.style.display='none'; handLabelEl.textContent=''; } }
     }
     try { const arr = Array.isArray(m && m.exposures) ? m.exposures : []; exposures = {}; arr.forEach(function(e){ const a = String((e && e.addr) || '').toLowerCase(); const cards = Array.isArray(e && e.cards) ? e.cards : []; if (a && cards.length===2) exposures[a] = cards; }); } catch(e){}
-    try { winnersNow = {}; (Array.isArray(m && m.winners)? m.winners:[]).forEach(function(w){ const a=String((w && w.addr) || '').toLowerCase(); const amt = Number((w && w.amount) || 0); const usedHole = Array.isArray(w && w.usedHole) ? w.usedHole : null; if (a) winnersNow[a] = { amount: amt, usedHole: usedHole }; if (a && myAddr && a===String(myAddr).toLowerCase() && amt>0) handsWon++; }); } catch(e){}
+    try { winnersNow = {}; (Array.isArray(m && m.winners)? m.winners:[]).forEach(function(w){ const a=String((w && w.addr) || '').toLowerCase(); const amt = Number((w && w.amount) || 0); const usedHole = Array.isArray(w && w.usedHole) ? w.usedHole : null; if (a) winnersNow[a] = { amount: amt, usedHole: usedHole }; }); } catch(e){}
     if (lastTable) renderTable(lastTable);
-    if (burnStrip) burnStrip.innerHTML = '';
-    // Chips will be updated on next table:update; refresh PnL after a brief delay
-    setTimeout(function(){ try { refreshStats(); } catch(_){} }, 200);
+if (burnStrip) burnStrip.innerHTML = '';
   } catch(e){} });
 
   if (devBotBtn) devBotBtn.addEventListener('click', function(){
     try {
-      // Guard: only allow toggling when alone at the table
-      try {
-        const t = lastTable;
-        const humans = Array.isArray(t && t.seats) ? t.seats.filter(function(s){ return s && s.addr && !String(s.addr).startsWith('bot:'); }).length : 0;
-        if (humans !== 1) { return; }
-      } catch (e) {}
       const next = !devBotOn;
       if (next) { alert('Simulated mode enabled: on-chain betting is disabled while the dev bot is active.'); }
       devBotOn = next;
@@ -507,15 +322,12 @@ async function ensureWallet(promptIfNeeded) {
     }
     if (addr) {
       const provider = new window.ethers.providers.Web3Provider(window.ethereum,'any');
-      walletProvider = provider;
       const signer = provider.getSigner();
       const got = await signer.getAddress();
       myAddr = String(got||addr||'').toLowerCase();
-      setStatus('Connected');
+      setStatus('' + short(myAddr));
       try { if (connectBtn) connectBtn.style.display = 'none'; } catch(e){}
       if (devBotBtn) { devBotBtn.disabled = false; devBotBtn.title = 'Add/remove a test bot to play solo'; }
-      // Fetch wallet balance (ETH/native)
-      try { const bal = await provider.getBalance(myAddr); walletBalanceStr = window.ethers.utils.formatEther(bal); refreshStats(); } catch(_){ }
       if (socket && socket.connected) {
         try { socket.emit('identify', { addr: myAddr }); } catch(e){}
         try { socket.emit('join_table', { table: currentTableId }); try { socket.emit('table:get', { table: currentTableId }); } catch(e){} try { socket.emit('lobby:get'); } catch(e){} setTimeout(function(){ try { socket.emit('join_table', { table: currentTableId }); try { socket.emit('table:get', { table: currentTableId }); } catch(e){} } catch(e){} }, 80); } catch(e){}
@@ -526,8 +338,7 @@ async function ensureWallet(promptIfNeeded) {
   } catch(e) { setStatus('Wallet connect failed'); }
 }
 
-// Always use dedicated poker path
-connectPokerRT();
+connect();
 // If Tavern already connected, pick it up without re-prompting
 try { if (window.userAddress && String(window.userAddress)) { myAddr = String(window.userAddress).toLowerCase(); } } catch {}
 ensureWallet(false);
@@ -553,6 +364,16 @@ try {
 } catch {}
 
 if (connectBtn) connectBtn.addEventListener('click', function(){ ensureWallet(true); });
+
+
+
+
+
+
+
+
+
+
 
 
 
