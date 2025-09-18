@@ -30,13 +30,14 @@
       filter: drop-shadow(0 0 18px rgba(255,244,233,0.45)) drop-shadow(0 4px 12px rgba(0,0,0,0.25));
       pointer-events:none; user-select:none;
     }
-    .lobby-wrap { width:95%; max-width:1000px; margin: clamp(24px, 10vh, 120px) auto 32px; position:relative; display:block; clear:both; }
+    .tavern.lobby-wrap { width:95%; max-width:1000px; margin: clamp(24px, 10vh, 120px) auto 32px !important; position:relative; display:block; clear:both; }
     .lobby-card { background: var(--panel-bg-soft); border:1px solid rgba(255,255,255,0.12); border-radius:14px; padding:20px; color:#f4e6d3; box-shadow:0 24px 60px rgba(0,0,0,0.55); }
     .lobby-list { display:flex; flex-wrap:wrap; gap:10px; }
     .lobby-item { background:rgba(30,16,10,0.85); border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:10px; min-width:220px; display:flex; align-items:center; justify-content:space-between; gap:10px; }
     .lobby-item .name.full { opacity:.55; }
   </style>
 </head>
+<body class="game">
 
   <script>(function(){try{var ok=localStorage.getItem('walletConnected')==='true'||sessionStorage.getItem('walletConnected')==='true';if(!ok) location.replace('/landing.html');}catch(e){location.replace('/landing.html');}})();</script>
   <div class="top-banner" role="region" aria-label="Wallet and status">
