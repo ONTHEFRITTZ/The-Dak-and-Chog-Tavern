@@ -57,7 +57,12 @@
         if (kind) logo.classList.add('sidebar-logo--' + kind);
       } catch {}
     })();
-    header.appendChild(logo);
+    // Append logo on non-home pages only
+    try {
+      const pp = String((location && location.pathname) || '').toLowerCase();
+      const isHome = (pp === '/' || pp.endsWith('/index.html'));
+      if (!isHome) header.appendChild(logo);
+    } catch { try { header.appendChild(logo); } catch {} }
 
     const btn = document.createElement('button');
     btn.className = 'sidebar-toggle';
