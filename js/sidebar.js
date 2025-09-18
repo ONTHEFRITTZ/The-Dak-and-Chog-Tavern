@@ -34,6 +34,8 @@
     nav.id = 'sidebar';
     nav.className = 'sidebar';
     nav.setAttribute('aria-label', 'Site');
+    // Ensure full-height overlay even if stale CSS is cached
+    try { nav.style.position = 'fixed'; nav.style.top = '0'; nav.style.bottom = '0'; nav.style.left = '0'; } catch {}
 
     const header = document.createElement('div');
     header.className = 'sidebar-header';
@@ -117,6 +119,10 @@
           px = collapsed ? '64px' : '240px';
         }
         document.documentElement.style.setProperty('--sidebar-left', px);
+        const tb = document.querySelector('.top-banner');
+        if (tb) { tb.style.left = px; }
+        // Hide/show footer inline to avoid reliance on cached CSS
+        try { footer.style.display = collapsed ? 'none' : ''; } catch {}
       } catch {}
     }
     updateSidebarOffset();
