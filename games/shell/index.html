@@ -147,7 +147,13 @@
       <div class="controls">
       </div>
     </div>
-    </div>
+  </div>
+  <!-- Inline wallet panel (top-right) -->
+  <div id="wallet-inline" style="position:fixed; top:12px; right:12px; z-index:12000; display:flex; align-items:center; gap:8px; background: var(--panel-bg-soft); border:1px solid rgba(255,255,255,0.12); border-radius:12px; padding:6px 10px; color:#f4e6d3;">
+    <span id="wi-label" style="font-weight:700;">Wallet:</span>
+    <span id="wi-address">-</span>
+    <button id="wi-disconnect" style="display:none;">Disconnect</button>
+  </div>
   <div class="game-header">
     <button id="open-rules" class="rules-btn">Rules</button>
   </div>
@@ -183,6 +189,24 @@
         const tag = (b && b.commit) ? String(b.commit).slice(0,12) : Date.now();
         await import(`./shell.js?v=${tag}`);
       }catch(e){ console.error('shell import failed', e); }
+    })();
+  </script>
+  <!-- Inline wallet sync for Shell Game page -->
+  <script>
+    (function(){
+      function short(a){ try { return (a && a.length>10) ? (a.slice(0,6)+'...'+a.slice(-4)) : (a||''); } catch { return a||''; } }
+      try {
+        var disconnectBtn = document.getElementById('wi-disconnect');
+        var walletAddrSpan = document.getElementById('wi-address');
+        function show(addr){ try { if (walletAddrSpan) walletAddrSpan.textContent = short(String(addr||'')); } catch{} try { if (disconnectBtn) { disconnectBtn.style.display=''; disconnectBtn.onclick = function(){ try{ localStorage.removeItem('walletConnected'); sessionStorage.removeItem('walletConnected'); }catch(_){} try{ location.reload(); }catch(_){} }; } } catch{} }
+        if (window.userAddress && String(window.userAddress)) { show(window.userAddress); }
+        window.addEventListener('wallet:connected', function(ev){ try { var a = String((ev && ev.detail && ev.detail.address) || ''); if (a) show(a); } catch{} });
+        try {
+          if (window.ethereum && window.ethers && !(window.userAddress && String(window.userAddress))) {
+            window.ethereum.request({ method:'eth_accounts' }).then(function(acc){ var a = (acc && acc[0])? String(acc[0]) : ''; if (a) show(a); }).catch(function(){});
+          }
+        } catch{}
+      } catch{}
     })();
   </script>
   <!-- Left Sidebar (collapsible) -->
