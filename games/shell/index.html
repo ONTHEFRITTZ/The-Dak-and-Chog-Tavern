@@ -83,7 +83,8 @@
       height: clamp(160px, 22vw, 260px) !important;
       background: url('../../assets/images/cup.png') no-repeat center center;
       background-size: 100% 100%;
-      filter: drop-shadow(0 32px 68px rgba(0,0,0,0.6));
+      /* Add warm underglow + keep existing depth shadow */
+      filter: drop-shadow(0 0 18px rgba(255,220,160,0.38)) drop-shadow(0 32px 68px rgba(0,0,0,0.6));
       transition: transform 0.25s ease, filter 0.25s ease;
       isolation:isolate;
     }
@@ -91,16 +92,37 @@
       content:'';
       position:absolute;
       left:50%;
-      bottom:4%;
-      width:86%;
-      height:28%;
+      bottom:6%;
+      width:88%;
+      height:26%;
       transform: translateX(-50%);
-      background: radial-gradient(ellipse at center, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.28) 60%, transparent 100%);
-      filter: blur(22px);
-      opacity:0.92;
+      background: radial-gradient(ellipse at center, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.24) 60%, transparent 100%);
+      filter: blur(18px);
+      opacity:0.85;
       z-index:-1;
       pointer-events:none;
       transition: opacity 0.25s ease, transform 0.25s ease;
+    }
+    /* Halo underglow to lift cups off the background */
+    .shell::after {
+      content: '';
+      position: absolute;
+      left: 50%;
+      top: 52%;
+      transform: translate(-50%, -50%);
+      width: 120%;
+      height: 120%;
+      border-radius: 50%;
+      background: radial-gradient(ellipse at center,
+        rgba(255, 230, 180, 0.42) 0%,
+        rgba(255, 230, 180, 0.22) 38%,
+        rgba(255, 230, 180, 0.08) 62%,
+        rgba(0,0,0,0) 85%
+      );
+      filter: blur(14px);
+      mix-blend-mode: screen;
+      z-index: -2;
+      pointer-events: none;
     }
     .shell:hover {
       transform: translateY(-12px) scale(1.06);
