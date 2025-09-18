@@ -33,11 +33,12 @@
       flex-direction:column;
       align-items:center;
       gap:12px;
-      background: transparent;
-      border:none;
+      background: var(--panel-bg-soft);
+      border:1px solid rgba(255,255,255,0.12);
       border-radius:18px;
       padding:18px 24px;
       color:#f4e6d3;
+      box-shadow:0 24px 60px rgba(0,0,0,0.55);
     }
     .coin {
       width: clamp(160px, 28vw, 280px);
@@ -46,7 +47,7 @@
       background-position:center;
       background-repeat:no-repeat;
       background-size: contain;
-      box-shadow:0 0 34px rgba(255,244,233,0.28);
+      box-shadow:none;
     }
     .coin.flip { animation: flip 0.8s ease; }
     @keyframes flip { 0% { transform: rotateY(0deg); } 50% { transform: rotateY(180deg); } 100% { transform: rotateY(360deg); } }
@@ -161,5 +162,3 @@
   </script>
 </body>
 </html>
-
-
