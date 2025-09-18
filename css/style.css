@@ -80,6 +80,7 @@ body.game .tavern {
 .sidebar-header {
   display:flex; align-items:center; justify-content:space-between; gap:8px; flex-direction:column; align-items:flex-start;
 }
+.sidebar:not(.collapsed) .sidebar-header { align-items: stretch; }
 .sidebar-logo {
   display:block;
   max-width: 100%;
@@ -99,6 +100,7 @@ body.game .tavern {
   max-height: none;
   margin-left: -10px;
   margin-right: -10px;
+  align-self: stretch;
 }
 .sidebar.collapsed .sidebar-logo { display: none; }
 /* Per-page fine-tuning */
@@ -106,6 +108,7 @@ body.game .tavern {
 .sidebar .sidebar-logo--poker {
   display:block;
 }
+.sidebar:not(.collapsed) .sidebar-logo--poker { max-height: 140px; }
 .sidebar.collapsed .sidebar-logo--hazard { max-height: 56px; }
 .sidebar.collapsed .sidebar-logo--shell { max-height: 56px; }
 .sidebar.collapsed .sidebar-logo--faro { max-height: 56px; }
