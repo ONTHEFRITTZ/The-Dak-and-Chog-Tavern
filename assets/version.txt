@@ -1,1 +1,1 @@
-stable-2025-09-16
+v1.3 - UI update
