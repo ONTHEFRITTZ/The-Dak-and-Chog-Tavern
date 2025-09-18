@@ -36,7 +36,7 @@
           const provider = new ethers.providers.Web3Provider(window.ethereum,'any');
           const signer = provider.getSigner();
           const wallet = await signer.getAddress();
-          try { localStorage.setItem('walletConnected','true'); sessionStorage.setItem('walletConnected','true'); } catch {}
+          try { sessionStorage.setItem('walletConnected','true'); } catch {}
           // Optional whitelist (disabled for now)
           try {
             const WL_ENABLED = false; // toggle back to true to re-enable gate
@@ -57,12 +57,13 @@
       if (btn) btn.addEventListener('click', proceed);
       window.addEventListener('keydown', (e) => { if (e.key === 'Enter') { try { btn?.click(); } catch {} } });
       // Best-effort auto state if already authorized
-      (async () => { try { const provider = window.ethereum? new ethers.providers.Web3Provider(window.ethereum,'any'):null; if (provider){ const acc=await provider.listAccounts(); if (acc && acc.length){ localStorage.setItem('walletConnected','true'); } } } catch {} })();
+      (async () => { try { const provider = window.ethereum? new ethers.providers.Web3Provider(window.ethereum,'any'):null; if (provider){ const acc=await provider.listAccounts(); if (acc && acc.length){ } } } catch {} })();
       // Force wallet connection prompt on page load
       try { document.addEventListener('DOMContentLoaded', () => { proceed().catch(()=>{}); }, { once:true }); } catch { try { proceed(); } catch {} }
     })();
   </script>
 </body>
 </html>
+
 
 

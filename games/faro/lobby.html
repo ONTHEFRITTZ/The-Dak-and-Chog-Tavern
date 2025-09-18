@@ -41,7 +41,7 @@
 </head>
 <body class="game">
 
-  <script>(function(){try{var ok=localStorage.getItem('walletConnected')==='true'||sessionStorage.getItem('walletConnected')==='true';if(!ok) location.replace('/landing.html');}catch(e){location.replace('/landing.html');}})();</script>
+  <script>(function(){try{var ok=sessionStorage.getItem('walletConnected')==='true';if(!ok) location.replace('/landing.html');}catch(e){location.replace('/landing.html');}})();</script>
   
 
   <div id="faro-lobby" class="lobby-wrap">
@@ -75,6 +75,7 @@
   </script>
 </body>
 </html>
+
 
 
 

@@ -294,3 +294,4 @@ export { ethers };
 // Also expose on window for non-module consumers
 try { window.ethers = ethers; } catch {}
 
+

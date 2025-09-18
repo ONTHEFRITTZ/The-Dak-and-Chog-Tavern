@@ -202,7 +202,7 @@
     <button id="wi-disconnect" style="display:none;">Disconnect</button>
   </div>
 
-  <script>(function(){try{var ok=localStorage.getItem('walletConnected')==='true'||sessionStorage.getItem('walletConnected')==='true';if(!ok) location.replace('/landing.html');}catch(e){location.replace('/landing.html');}})();</script>
+  <script>(function(){try{var ok=sessionStorage.getItem('walletConnected')==='true';if(!ok) location.replace('/landing.html');}catch(e){location.replace('/landing.html');}})();</script>
   <div class="top-banner" role="region" aria-label="Wallet and status">
     <div class="banner-left">
       <div id="status" class="banner-status"></div>
@@ -345,3 +345,4 @@
   </script>
 </body>
 </html>
+
