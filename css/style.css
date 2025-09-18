@@ -100,7 +100,7 @@ body.game .tavern {
 .sidebar-footer { margin-top: auto; font-size: 12px; color: #f4e6d3; opacity: .95; }
 .sidebar-footer .pill { background: rgba(0,0,0,0.6); color:#fff; padding: 4px 8px; border-radius: 999px; font-weight: 700; display:inline-block; margin: 3px 4px 0 0; }
 .sidebar-footer button { padding:2px 6px; border-radius:6px; cursor:pointer; font-size:12px; }
-.sidebar.collapsed .sidebar-footer { display:none; }
+.sidebar.collapsed .sidebar-footer { display:none !important; visibility:hidden !important; }
 /* Tavern homepage: use a slightly smaller logo in sidebar */
 body.home .sidebar .sidebar-logo { max-height: 64px; }
 .sidebar-header .title {
