@@ -21,7 +21,11 @@
       padding-top: var(--panel-top);
       overflow: hidden;           /* avoid accidental page scroll */
     }
-    body { background: url('../../assets/images/games-room.png') no-repeat center center fixed; background-size: cover; }
+    body {
+      /* Fit background fully without cropping off-screen */
+      background: #120c08 url('../../assets/images/games-room.png') no-repeat center center fixed;
+      background-size: contain;
+    }
     /* Header row: logo (left) + stats (right) */
     .table-header { display:none; }
     /* Logo sizing and glow consistent with Faro; left aligned inside header */
