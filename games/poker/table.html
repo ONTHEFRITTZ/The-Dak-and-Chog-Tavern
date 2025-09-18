@@ -9,16 +9,29 @@
   <link rel="preload" as="image" href="../../assets/images/table.png" type="image/png">
   <link rel="preload" as="image" href="../../assets/images/tavern-bg.webp" type="image/webp">
   <style>
-    /* Center table content vertically under the banner */
-    body.game { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:100vh; }
+    /* Place table content directly under banner with no page scroll */
+    body.game {
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:flex-start;
+      /* global CSS adds padding-top: var(--banner-h); reduce content height accordingly */
+      min-height: calc(100vh - var(--banner-h));
+    }
     body { background: url('../../assets/images/tavern-bg.webp') no-repeat center center fixed; background-size: cover; }
     /* Header row: logo (left) + stats (right) */
     .table-header { display:none; }
     /* Logo sizing and glow consistent with Faro; left aligned inside header */
     .game-logo { display:block; width:auto; height:auto; max-width: clamp(180px, 26vw, 320px); margin: 32px 0 16px 12px; filter: drop-shadow(0 0 18px rgba(255,244,233,0.45)) drop-shadow(0 4px 12px rgba(0,0,0,0.25)); pointer-events:none; user-select:none; }
-    .tavern { padding-top: 16px; }
+    .tavern { padding-top: 0; }
     /* Slightly smaller canvas so table + seats fit fully in viewport */
-    .table-canvas { position:relative; width:min(88vw, 860px); height:min(88vw, 560px); margin: 0 auto; }
+    .table-canvas {
+      position:relative;
+      width:min(88vw, 860px);
+      height:min(88vw, 560px);
+      margin: 6px auto 0;
+      max-height: calc(100vh - var(--banner-h) - 24px);
+    }
     /* Make the table itself pop without filling the container: remove color fill and add a soft backglow */
     .table-surface {
       position:absolute; inset:0; border-radius:24px; z-index:1;
@@ -84,16 +97,12 @@
  </head>
  <body class="game">
   <script>(function(){try{var ok=(localStorage.getItem('walletConnected')==='true')||(sessionStorage.getItem('walletConnected')==='true'); if(!ok) location.replace('/landing.html');}catch(e){location.replace('/landing.html');}})();</script>
-  <div class="top-banner" role="region" aria-label="Wallet and status">
-    <div class="banner-left">
-      <div id="status" class="banner-status"></div>
-    </div>
-    <div class="banner-right">
-      <div class="controls">
-        <button id="toggle-dev-bot" title="Add/remove a test bot to play solo" style="display:none;">Dev Bot</button>
-        <button id="disconnect-wallet" style="display:none;">Disconnect</button>
-      </div>
-    </div>
+  <!-- Inline wallet panel (no banner) -->
+  <div id="wallet-inline" style="position:fixed; top:12px; right:12px; z-index:12000; display:flex; align-items:center; gap:8px; background: var(--panel-bg-soft); border:1px solid rgba(255,255,255,0.12); border-radius:12px; padding:6px 10px; color:#f4e6d3;">
+    <span id="wi-label" style="font-weight:700;">Wallet:</span>
+    <span id="wi-address">-</span>
+    <button id="wi-disconnect" style="display:none;">Disconnect</button>
+    <button id="toggle-dev-bot" title="Add/remove a test bot to play solo" style="display:none;">Dev Bot</button>
   </div>
 
   <!-- Header row: logo (left) + stats (right) -->

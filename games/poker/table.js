@@ -150,7 +150,7 @@ async function connect(){
     try { window.socket = socket; } catch(e){}
     try {
       if (myAddr) {
-        setStatus('' + short(myAddr));
+        setStatus('' + short(myAddr)); try { if (walletAddrSpan) walletAddrSpan.textContent = short(myAddr); } catch{}
         try { socket.emit('identify', { addr: myAddr }); } catch(e){}
         try { socket.emit('join_table', { table: currentTableId }); try { socket.emit('table:get', { table: currentTableId }); } catch(e){} try { socket.emit('lobby:get'); } catch(e){} setTimeout(function(){ try { socket.emit('join_table', { table: currentTableId }); try { socket.emit('table:get', { table: currentTableId }); } catch(e){} } catch(e){} }, 80); } catch(e){}
       } else {
@@ -331,7 +331,7 @@ async function ensureWallet(promptIfNeeded) {
       const signer = provider.getSigner();
       const got = await signer.getAddress();
       myAddr = String(got||addr||'').toLowerCase();
-      setStatus('' + short(myAddr));
+      setStatus('' + short(myAddr)); try { if (walletAddrSpan) walletAddrSpan.textContent = short(myAddr); } catch{}
       try { if (connectBtn) connectBtn.style.display = 'none'; } catch(e){} try { if (disconnectBtn) { disconnectBtn.style.display=''; disconnectBtn.onclick = () => { try{ localStorage.removeItem('walletConnected'); sessionStorage.removeItem('walletConnected'); }catch(_){} try{ location.reload(); }catch(_){} }; } } catch(_){}
       if (devBotBtn) { devBotBtn.disabled = false; devBotBtn.title = 'Add/remove a test bot to play solo'; }
       if (socket && socket.connected) {
@@ -370,6 +370,7 @@ try {
 } catch {}
 
 if (connectBtn) connectBtn.addEventListener('click', function(){ ensureWallet(true); });
+
 
 
 
