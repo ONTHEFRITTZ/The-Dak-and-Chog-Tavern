@@ -62,6 +62,9 @@
       /* Fit fully below wallet panel; keep a little breathing room */
       height: min(88vw, 560px, calc(100vh - var(--panel-top, 72px) - 24px));
       margin: 0 auto;
+      /* Seat ring radii (percent of container) */
+      --ring-rx: 46; /* horizontal radius */
+      --ring-ry: 42; /* vertical radius */
     }
     @media (max-height: 720px) {
       .table-canvas { height: min(88vw, 520px, calc(100vh - var(--panel-top, 72px) - 24px)); }

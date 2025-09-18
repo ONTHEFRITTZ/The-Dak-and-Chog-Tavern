@@ -57,6 +57,35 @@ function openBetModal(initialRank){
   }catch(e){}
 }
 
+// --- Center table seats in an even ring around the surface (like Poker) ---
+function getRingRadii() {
+  try {
+    const canvas = document.querySelector('.table-canvas');
+    const cs = getComputedStyle(canvas || document.documentElement);
+    const rx = parseFloat(cs.getPropertyValue('--ring-rx')) || 46;
+    const ry = parseFloat(cs.getPropertyValue('--ring-ry')) || 42;
+    return { rx, ry };
+  } catch { return { rx: 46, ry: 42 }; }
+}
+function positionSeatsRing(){
+  try {
+    const n = seatsEls.length || 6;
+    const rr = getRingRadii();
+    const rx = rr.rx, ry = rr.ry, startDeg = -90;
+    seatsEls.forEach(function(el, i){
+      const ang = (startDeg + (360 / n) * i) * Math.PI / 180;
+      const left = 50 + rx * Math.cos(ang);
+      const top = 50 + ry * Math.sin(ang);
+      el.style.left = left.toFixed(2) + '%';
+      el.style.top = top.toFixed(2) + '%';
+      el.style.right = '';
+      el.style.bottom = '';
+      el.style.transform = 'translate(-50%,-50%)';
+    });
+  } catch {}
+}
+try { positionSeatsRing(); window.addEventListener('resize', positionSeatsRing); } catch {}
+
 // --- Inline wallet panel sync (no prompts) ---
 try {
   // Adopt Tavern-connected wallet if present
