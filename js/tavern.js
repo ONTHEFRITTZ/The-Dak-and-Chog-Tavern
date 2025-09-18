@@ -39,6 +39,12 @@ function hideInlineConnectIfBannerPresent() {
 
 function ensureAdminLink(show) {
   try {
+    // Only show Admin link on Tavern homepage
+    try {
+      const p = String((location && location.pathname) || '').toLowerCase();
+      const isTavern = (p === '/' || p === '/index.html');
+      if (!isTavern) show = false;
+    } catch {}
     let link = document.getElementById('admin-link');
     if (!link) {
       link = document.createElement('a');
