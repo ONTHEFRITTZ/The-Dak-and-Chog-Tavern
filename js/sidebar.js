@@ -4,6 +4,14 @@
 
 (function(){
   try {
+    // Exclusions: do not render on landing or admin pages
+    try {
+      const p = String((location && location.pathname) || '').toLowerCase();
+      const isLanding = p.endsWith('/landing.html') || document.body.classList.contains('age-landing');
+      const isAdmin = p.includes('/admin/');
+      if (isLanding || isAdmin) return;
+    } catch {}
+
     if (window.__SIDEBAR_LOADED__) return; // guard against double-inject
     window.__SIDEBAR_LOADED__ = true;
 
@@ -16,7 +24,7 @@
     const links = [
       { href: '/index.html', label: 'Home' },
       { href: '/games/faro/lobby.html', label: 'Faro Lobby' },
-      { href: '/games/poker/index.html', label: "Poker" },
+      { href: '/games/poker/index.html', label: 'Poker' },
       { href: '/games/hazard/index.html', label: 'Hazard' },
       { href: '/games/shell/index.html', label: 'Shell Game' },
       { href: '/games/dakchog/index.html', label: 'Dak & Chog' },
@@ -29,7 +37,6 @@
 
     const header = document.createElement('div');
     header.className = 'sidebar-header';
-    header.innerHTML = '<span class="title">Tavern</span>';
 
     const btn = document.createElement('button');
     btn.className = 'sidebar-toggle';
@@ -81,3 +88,4 @@
     console.error('sidebar inject failed', e);
   }
 })();
+
