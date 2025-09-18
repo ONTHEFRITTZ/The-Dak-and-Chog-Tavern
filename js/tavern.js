@@ -107,7 +107,7 @@ function setConnectButtonAsDisconnect() {
     connectButton.onclick = () => {
       try { localStorage.removeItem('walletConnected'); } catch {}
       try { sessionStorage.removeItem('walletConnected'); } catch {}
-      try { location.reload(); } catch {}
+      try { location.replace('/landing.html'); } catch { location.href='/landing.html'; }
     };
   } catch {}
 }

@@ -92,7 +92,7 @@ try {
   if (window.userAddress && String(window.userAddress)) {
     const a = String(window.userAddress).toLowerCase();
     try { if (walletAddrSpan) walletAddrSpan.textContent = short(a); } catch{}
-    try { if (disconnectBtn) { disconnectBtn.style.display=''; disconnectBtn.onclick = () => { try{ localStorage.removeItem('walletConnected'); sessionStorage.removeItem('walletConnected'); }catch(_){} try{ location.reload(); }catch(_){} }; } } catch{}
+    try { if (disconnectBtn) { disconnectBtn.style.display=''; disconnectBtn.onclick = () => { try{ localStorage.removeItem('walletConnected'); sessionStorage.removeItem('walletConnected'); }catch(_){} try{ location.replace('/landing.html'); }catch(_){} }; } } catch{}
   }
 } catch {}
 try {
@@ -101,7 +101,7 @@ try {
       const addr = String((ev && ev.detail && ev.detail.address) || '').toLowerCase();
       if (!addr) return;
       try { if (walletAddrSpan) walletAddrSpan.textContent = short(addr); } catch{}
-      try { if (disconnectBtn) { disconnectBtn.style.display=''; disconnectBtn.onclick = () => { try{ localStorage.removeItem('walletConnected'); sessionStorage.removeItem('walletConnected'); }catch(_){} try{ location.reload(); }catch(_){} }; } } catch{}
+      try { if (disconnectBtn) { disconnectBtn.style.display=''; disconnectBtn.onclick = () => { try{ localStorage.removeItem('walletConnected'); sessionStorage.removeItem('walletConnected'); }catch(_){} try{ location.replace('/landing.html'); }catch(_){} }; } } catch{}
     } catch {}
   });
 } catch {}

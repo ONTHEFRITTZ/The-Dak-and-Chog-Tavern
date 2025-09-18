@@ -180,7 +180,7 @@
       try {
         var disconnectBtn = document.getElementById('wi-disconnect');
         var walletAddrSpan = document.getElementById('wi-address');
-        function show(addr){ try { if (walletAddrSpan) walletAddrSpan.textContent = short(String(addr||'')); } catch{} try { if (disconnectBtn) { disconnectBtn.style.display=''; disconnectBtn.onclick = function(){ try{ localStorage.removeItem('walletConnected'); sessionStorage.removeItem('walletConnected'); }catch(_){} try{ location.reload(); }catch(_){} }; } } catch{} }
+        function show(addr){ try { if (walletAddrSpan) walletAddrSpan.textContent = short(String(addr||'')); } catch{} try { if (disconnectBtn) { disconnectBtn.style.display=''; disconnectBtn.onclick = function(){ try{ localStorage.removeItem('walletConnected'); sessionStorage.removeItem('walletConnected'); }catch(_){} try{ location.replace('/landing.html'); }catch(_){} }; } } catch{} }
         if (window.userAddress && String(window.userAddress)) { show(window.userAddress); }
         window.addEventListener('wallet:connected', function(ev){ try { var a = String((ev && ev.detail && ev.detail.address) || ''); if (a) show(a); } catch{} });
         try {

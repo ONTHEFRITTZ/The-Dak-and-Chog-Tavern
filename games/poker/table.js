@@ -359,7 +359,7 @@ async function ensureWallet(promptIfNeeded) {
       myAddr = String(got||addr||'').toLowerCase();
       setStatus('' + short(myAddr)); try { if (walletAddrSpan) walletAddrSpan.textContent = short(myAddr); } catch{}
       try { if (connectBtn) connectBtn.style.display = 'none'; } catch(e){}
-      try { if (disconnectBtn) { disconnectBtn.style.display=''; disconnectBtn.onclick = () => { try{ localStorage.removeItem('walletConnected'); sessionStorage.removeItem('walletConnected'); }catch(_){} try{ location.reload(); }catch(_){} }; } } catch(_){}
+      try { if (disconnectBtn) { disconnectBtn.style.display=''; disconnectBtn.onclick = () => { try{ localStorage.removeItem('walletConnected'); sessionStorage.removeItem('walletConnected'); }catch(_){} try{ location.replace('/landing.html'); }catch(_){} }; } } catch(_){}
       if (devBotBtn) { devBotBtn.disabled = false; devBotBtn.title = 'Add/remove a test bot to play solo'; }
       if (socket && socket.connected) {
         try { socket.emit('identify', { addr: myAddr }); } catch(e){}
@@ -377,7 +377,7 @@ try {
   if (window.userAddress && String(window.userAddress)) {
     myAddr = String(window.userAddress).toLowerCase();
     try { if (walletAddrSpan) walletAddrSpan.textContent = short(myAddr); } catch{}
-    try { if (disconnectBtn) { disconnectBtn.style.display=''; disconnectBtn.onclick = () => { try{ localStorage.removeItem('walletConnected'); sessionStorage.removeItem('walletConnected'); }catch(_){} try{ location.reload(); }catch(_){} }; } } catch(_){}
+    try { if (disconnectBtn) { disconnectBtn.style.display=''; disconnectBtn.onclick = () => { try{ localStorage.removeItem('walletConnected'); sessionStorage.removeItem('walletConnected'); }catch(_){} try{ location.replace('/landing.html'); }catch(_){} }; } } catch(_){}
   }
 } catch {}
 ensureWallet(false);
@@ -390,7 +390,7 @@ try {
         myAddr = addr; setStatus('');
         try { if (walletAddrSpan) walletAddrSpan.textContent = short(myAddr); } catch{}
         try { if (connectBtn) connectBtn.style.display = 'none'; } catch {}
-        try { if (disconnectBtn) { disconnectBtn.style.display=''; disconnectBtn.onclick = () => { try{ localStorage.removeItem('walletConnected'); sessionStorage.removeItem('walletConnected'); }catch(_){} try{ location.reload(); }catch(_){} }; } } catch(_){}
+        try { if (disconnectBtn) { disconnectBtn.style.display=''; disconnectBtn.onclick = () => { try{ localStorage.removeItem('walletConnected'); sessionStorage.removeItem('walletConnected'); }catch(_){} try{ location.replace('/landing.html'); }catch(_){} }; } } catch(_){}
         if (devBotBtn) { devBotBtn.disabled = false; devBotBtn.title = 'Add/remove a test bot to play solo'; }
         if (socket && socket.connected) {
         try { socket.emit('identify', { addr: myAddr }); } catch(e){}
@@ -415,7 +415,7 @@ try {
       if (window.userAddress && String(window.userAddress)) {
         myAddr = String(window.userAddress).toLowerCase();
         try { if (walletAddrSpan) walletAddrSpan.textContent = short(myAddr); } catch{}
-        try { if (disconnectBtn) { disconnectBtn.style.display=''; disconnectBtn.onclick = () => { try{ localStorage.removeItem('walletConnected'); sessionStorage.removeItem('walletConnected'); }catch(_){} try{ location.reload(); }catch(_){} }; } } catch(_){}
+        try { if (disconnectBtn) { disconnectBtn.style.display=''; disconnectBtn.onclick = () => { try{ localStorage.removeItem('walletConnected'); sessionStorage.removeItem('walletConnected'); }catch(_){} try{ location.replace('/landing.html'); }catch(_){} }; } } catch(_){}
         clearInterval(t); return;
       }
       // One more passive check via eth_accounts without prompting
@@ -425,7 +425,7 @@ try {
         if (a) {
           myAddr = String(a).toLowerCase();
           try { if (walletAddrSpan) walletAddrSpan.textContent = short(myAddr); } catch{}
-          try { if (disconnectBtn) { disconnectBtn.style.display=''; disconnectBtn.onclick = () => { try{ localStorage.removeItem('walletConnected'); sessionStorage.removeItem('walletConnected'); }catch(_){} try{ location.reload(); }catch(_){} }; } } catch(_){}
+          try { if (disconnectBtn) { disconnectBtn.style.display=''; disconnectBtn.onclick = () => { try{ localStorage.removeItem('walletConnected'); sessionStorage.removeItem('walletConnected'); }catch(_){} try{ location.replace('/landing.html'); }catch(_){} }; } } catch(_){}
           clearInterval(t); return;
         }
       }
