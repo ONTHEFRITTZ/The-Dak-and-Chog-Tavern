@@ -1,8 +1,6 @@
 import { detectChainId, getAddressFor, renderTavernBanner } from '../js/config.js';
 
 const statusEl = document.getElementById('status');
-const connectBtn = document.getElementById('connect-wallet');
-const returnBtn = document.getElementById('return');
 
 // Tavern elements
 const tavAddrEl = document.getElementById('tavern-address');
@@ -69,6 +67,8 @@ const ppSetAddrBtn = document.getElementById('pokerpooled-set-addr');
 const ppMsgEl = document.getElementById('pokerpooled-msg');
 
 let provider, signer, wallet;
+let walletEventsRegistered = false;
+let topButtonsBound = false;
 let tavernAddr = null, faroAddr = null, poolAddr = null;
 let whitelistAddr = null;
 let tavern, faro, pool;
@@ -86,6 +86,14 @@ function isTavOwnerNow() {
 function isFaroOwnerNow() {
   try { return !!(wallet && faroOwner && wallet.toLowerCase() === faroOwner.toLowerCase()); } catch { return false; }
 }
+function updateWalletButtons() {
+  const connected = !!wallet;
+  const connectEl = document.getElementById('connect-wallet');
+  const disconnectEl = document.getElementById('disconnect-wallet');
+  if (connectEl) connectEl.style.display = connected ? 'none' : '';
+  if (disconnectEl) disconnectEl.style.display = connected ? '' : 'none';
+}
+
 
 async function refresh() {
   try {
@@ -183,21 +191,121 @@ async function refresh() {
 async function connect() {
   if (!window.ethereum) { statusEl.textContent = 'MetaMask not detected'; return; }
   try {
-    await window.ethereum.request({ method: 'eth_requestAccounts' });
-    provider = new window.ethers.providers.Web3Provider(window.ethereum, 'any');
-    signer = provider.getSigner();
-    wallet = await signer.getAddress();
-    statusEl.textContent = 'Connected: ' + wallet;
-    try { if (poolToInput && !poolToInput.value) poolToInput.value = wallet; } catch {}
-    await refresh();
+    statusEl.textContent = 'Connecting...';
+    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+    await applyWalletFromAccounts(accounts);
   } catch (e) {
+    console.error(e);
     statusEl.textContent = 'Connect failed';
+    wallet = null;
+    signer = null;
+    provider = undefined;
+    updateWalletButtons();
   }
 }
 
-async function disconnectWallet() {\r\n  try {\r\n    wallet = null;\r\n    signer = null;\r\n    statusEl.textContent = 'Disconnected';\r\n    updateWalletButtons();\r\n    await refresh();\r\n  } catch {\r\n    updateWalletButtons();\r\n  }\r\n}\r\n\r\ndisconnectBtn?.addEventListener('click', disconnectWallet);\r\nconnectBtn?.addEventListener('click', connect);
-returnBtn?.addEventListener('click', () => { window.location.href = '/index.html'; });
+async function disconnectWallet({ silent } = {}) {
+  try {
+    wallet = null;
+    signer = null;
+    provider = undefined;
+    if (!silent) statusEl.textContent = 'Disconnected';
+    updateWalletButtons();
+    await refresh();
+  } catch (e) {
+    if (!silent) console.error(e);
+    updateWalletButtons();
+  }
+}
 
+async function applyWalletFromAccounts(accounts, { refreshAfter = true } = {}) {
+  if (!Array.isArray(accounts) || accounts.length === 0) {
+    await disconnectWallet({ silent: true });
+    statusEl.textContent = 'Disconnected';
+    return;
+  }
+  try {
+    provider = new window.ethers.providers.Web3Provider(window.ethereum, 'any');
+    signer = provider.getSigner();
+    wallet = accounts[0];
+    statusEl.textContent = 'Connected: ' + wallet;
+    try { if (poolToInput && !poolToInput.value) poolToInput.value = wallet; } catch {}
+    updateWalletButtons();
+    if (refreshAfter) await refresh();
+  } catch (err) {
+    console.error(err);
+    wallet = null;
+    signer = null;
+    provider = undefined;
+    updateWalletButtons();
+    throw err;
+  }
+}
+
+async function restoreWalletIfAvailable() {
+  if (!window.ethereum?.request) { updateWalletButtons(); return; }
+  try {
+    const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+    if (Array.isArray(accounts) && accounts.length) {
+      await applyWalletFromAccounts(accounts);
+    } else {
+      wallet = null;
+      signer = null;
+      provider = undefined;
+      statusEl.textContent = 'Disconnected';
+      updateWalletButtons();
+    }
+  } catch (err) {
+    console.warn('Restore wallet failed', err);
+    updateWalletButtons();
+  }
+}
+
+async function handleAccountsChanged(accounts) {
+  if (!Array.isArray(accounts) || accounts.length === 0) {
+    await disconnectWallet({ silent: true });
+    statusEl.textContent = 'Disconnected';
+    return;
+  }
+  await applyWalletFromAccounts(accounts);
+}
+
+async function handleEthereumDisconnect() {
+  await disconnectWallet({ silent: true });
+  statusEl.textContent = 'Disconnected';
+}
+
+function bindTopButtons() {
+  if (topButtonsBound) return;
+  const connectEl = document.getElementById('connect-wallet');
+  const disconnectEl = document.getElementById('disconnect-wallet');
+  const returnEl = document.getElementById('return');
+
+  connectEl?.addEventListener('click', async (evt) => { evt.preventDefault(); await connect(); });
+  disconnectEl?.addEventListener('click', async (evt) => { evt.preventDefault(); await disconnectWallet(); });
+  returnEl?.addEventListener('click', (evt) => { evt.preventDefault(); window.location.href = '/index.html'; });
+  topButtonsBound = true;
+}
+
+function registerWalletEvents() {
+  if (!window.ethereum?.on || walletEventsRegistered) return;
+  window.ethereum.on('accountsChanged', handleAccountsChanged);
+  window.ethereum.on('disconnect', handleEthereumDisconnect);
+  walletEventsRegistered = true;
+}
+
+function initWalletUi() {
+  bindTopButtons();
+  registerWalletEvents();
+  updateWalletButtons();
+  restoreWalletIfAvailable();
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initWalletUi, { once: true });
+} else {
+  initWalletUi();
+}
 // Whitelist handlers (owner only)
 wlSetAddrBtn?.addEventListener('click', async () => {
   try {
@@ -214,7 +322,6 @@ function parseBulk(addrs){
     .split(/[,\n\r\t ]+/)
     .map(s=>s.trim()).filter(s=>/^0x[0-9a-fA-F]{40}$/.test(s));
 }
-\r\nfunction updateWalletButtons() {\r\n  const connected = !!wallet;\r\n  if (connectBtn) connectBtn.style.display = connected ? 'none' : '';\r\n  if (disconnectBtn) disconnectBtn.style.display = connected ? '' : 'none';\r\n}\r\n
 async function wlContract(){
   if (!whitelistAddr || !window.WhitelistABI || !signer) throw new Error('Whitelist address/ABI missing or wallet not connected');
   return new window.ethers.Contract(whitelistAddr, window.WhitelistABI, signer);
