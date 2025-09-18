@@ -44,7 +44,7 @@ async function init() {
 
 shellElements.forEach((shell) => {
   shell.addEventListener('click', async () => {
-    if (!shellAck) { try { rulesOverlay.style.display = 'flex'; } catch {}; return; }
+    if (!shellAck) { return; }
     try {
       await init();
 
@@ -126,7 +126,7 @@ try {
   shells.forEach((el, idx) => {
     el.setAttribute('tabindex', el.getAttribute('tabindex') || '0');
     el.addEventListener('keydown', (e) => {
-      if (!shellAck) { try { rulesOverlay.style.display = 'flex'; } catch {}; return; }
+      if (!shellAck) { return; }
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); el.click(); }
       if (e.key === 'ArrowLeft') { e.preventDefault(); const t = shells[(idx + shells.length - 1) % shells.length]; t && t.focus(); }
       if (e.key === 'ArrowRight') { e.preventDefault(); const t = shells[(idx + 1) % shells.length]; t && t.focus(); }
@@ -140,5 +140,20 @@ onReady(() => {
   shellAck = false;
   try { rulesOverlay.style.display = 'flex'; setShellInteractivity(false); } catch {}
   rulesAck?.addEventListener('click', () => { shellAck = true; try { rulesOverlay.style.display = 'none'; } catch {}; setShellInteractivity(true); });
+  // Allow user to reopen rules explicitly via button
   openRulesBtn?.addEventListener('click', () => { try { rulesOverlay.style.display = 'flex'; } catch {} });
+  // Dismiss when clicking outside the modal (on scrim only)
+  try {
+    rulesOverlay.addEventListener('click', (e) => {
+      if (e.target === rulesOverlay) {
+        shellAck = true; rulesOverlay.style.display = 'none'; setShellInteractivity(true);
+      }
+    });
+    // Dismiss with Escape key
+    window.addEventListener('keydown', (e) => {
+      if (rulesOverlay && rulesOverlay.style.display !== 'none' && e.key === 'Escape') {
+        shellAck = true; rulesOverlay.style.display = 'none'; setShellInteractivity(true);
+      }
+    });
+  } catch {}
 });
