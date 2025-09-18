@@ -38,13 +38,24 @@
       background: #120c08 url('../../assets/images/games-room.png') no-repeat center center fixed;
       background-size: 100% auto;
     }
+    /* Hide legacy top banner and page header to reclaim vertical space */
+    .top-banner { display: none !important; }
     .top-banner .banner-left { gap: 12px; }
-    .game-header { width:95%; max-width:1280px; margin:0 auto 8px; display:flex; align-items:center; justify-content:space-between; gap:12px; }
+    .game-header { display:none; }
     .game-logo { display:block; width:auto; height:auto; max-width: clamp(180px, 26vw, 320px); margin:16px 0 6px 12px; filter: drop-shadow(0 0 18px rgba(255,244,233,0.45)) drop-shadow(0 4px 12px rgba(0,0,0,0.25)); pointer-events:none; user-select:none; }
     .game-header .rules-btn { background: url('../../assets/images/nav-gem.png') no-repeat center / 100% 100%; border:none; color:#fff; font-weight:700; font-family:'Morris','Morris Alt',serif; text-shadow:0 1px 2px rgba(0,0,0,0.45); height:2.4em; padding:0 18px; cursor:pointer; box-shadow:0 0 24px rgba(255,244,233,0.3); transition: transform .12s ease, box-shadow .12s ease; }
     .game-header .rules-btn:hover { transform: translateY(-1px); box-shadow:0 0 30px rgba(255,244,233,0.34); }
-    .tavern { padding: 24px; background: none !important; border: none !important; box-shadow: none !important; }
-    .table-wrap { display:flex; flex-direction:column; align-items:center; gap:20px; margin:-16px auto 32px; }
+    /* Use the tavern container as a centering wrapper like Poker */
+    .tavern { padding: 0; background: none !important; border: none !important; box-shadow: none !important; width:95%; max-width:1280px; margin: 0 auto; }
+    .table-wrap {
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:center; /* vertical center within viewport area */
+      gap:16px;
+      margin: 0 auto;
+      min-height: calc(100vh - var(--panel-top, 72px) - 24px);
+    }
     .table-canvas {
       position:relative;
       width: min(92vw, 860px);
