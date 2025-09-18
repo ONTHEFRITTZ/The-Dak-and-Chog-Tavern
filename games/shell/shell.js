@@ -3,7 +3,7 @@
 import { getAddressFor, detectChainId, renderTavernBanner, showToast } from '../../js/config.js';
 import { attachProvider } from '../../js/contract-utils.js';
 
-const shellElements = document.querySelectorAll('.shell');
+function getShells() { try { return Array.from(document.querySelectorAll('.shell')); } catch { return []; } }
 const statusEl = document.getElementById('shell-result') || document.getElementById('status');
 const playsEl = document.getElementById('plays');
 const returnBtn = document.getElementById('return');
@@ -51,73 +51,69 @@ async function init() {
   return true;
 }
 
-shellElements.forEach((shell) => {
-  shell.addEventListener('click', async () => {
-    if (!shellAck) { return; }
-    try {
-      const ok = await init();
-      if (!ok) { statusEl.innerText = 'Connect wallet to play.'; return; }
+function bindShellClicks() {
+  const shells = getShells();
+  shells.forEach((shell) => {
+    // Avoid double-binding
+    if (shell.__boundClick) return; shell.__boundClick = true;
+    shell.addEventListener('click', async () => {
+      if (!shellAck) { return; }
+      try {
+        const ok = await init();
+        if (!ok) { statusEl.innerText = 'Connect wallet to play.'; return; }
 
-      const guessDisplay = parseInt(shell.dataset.guess); // 1,2,3 for UI
-      const guess = Math.max(0, (guessDisplay|0) - 1);    // 0,1,2 for contract
-      let betAmount = parseFloat(betInput.value);
-      if (isNaN(betAmount) || betAmount < 0.001) betAmount = 0.001;
+        const guessDisplay = parseInt(shell.dataset.guess); // 1,2,3 for UI
+        const guess = Math.max(0, (guessDisplay|0) - 1);    // 0,1,2 for contract
+        let betAmount = parseFloat(betInput.value);
+        if (isNaN(betAmount) || betAmount < 0.001) betAmount = 0.001;
 
-      const contract = new ethers.Contract(tavernAddress, window.TavernABI, signer);
+        const contract = new ethers.Contract(tavernAddress, window.TavernABI, signer);
 
-      statusEl.innerText = 'Playing...';
-      try { showToast('Playing…', 'info'); } catch {}
+        statusEl.innerText = 'Playing...';
+        try { showToast('Playing…', 'info'); } catch {}
 
-      const tx = await contract.playShell(guess, {
-        value: ethers.utils.parseEther(betAmount.toString()),
-        gasLimit: 200000, // manual gas limit
-      });
+        const tx = await contract.playShell(guess, {
+          value: ethers.utils.parseEther(betAmount.toString()),
+          gasLimit: 200000, // manual gas limit
+        });
 
-      const receipt = await tx.wait();
+        const receipt = await tx.wait();
 
-      // Parse the Played event from the receipt
-      const iface = new ethers.utils.Interface(window.TavernABI);
-      let playedEvent;
-      for (const log of receipt.logs) {
-        try {
-          const parsed = iface.parseLog(log);
-          if (parsed.name === 'ShellPlayed') {
-            playedEvent = parsed.args;
-            break;
-          }
-        } catch (e) {
-          // Ignore logs that don't match
+        // Parse the Played event from the receipt
+        const iface = new ethers.utils.Interface(window.TavernABI);
+        let playedEvent;
+        for (const log of receipt.logs) {
+          try {
+            const parsed = iface.parseLog(log);
+            if (parsed.name === 'ShellPlayed') { playedEvent = parsed.args; break; }
+          } catch (e) { /* ignore */ }
         }
+
+        if (!playedEvent) {
+          statusEl.innerText = 'Transaction mined but Played event not found.';
+          try { showToast('Played event not found', 'error'); } catch {}
+          return;
+        }
+
+        const { guess: guessEvent, won, winningCup } = playedEvent;
+        const displayGuess = Number(guessEvent) + 1;
+        const displayWin = Number(winningCup) + 1;
+        const resultText = won
+          ? `You won! Your guess: ${displayGuess}, Winning cup: ${displayWin}`
+          : `You lost. Your guess: ${displayGuess}, Winning cup: ${displayWin}`;
+        try { showToast(won ? 'You won!' : 'You lost', won ? 'success' : 'info'); } catch {}
+
+        statusEl.innerText = resultText;
+        const li = document.createElement('li');
+        li.innerText = resultText; playsEl.prepend(li);
+      } catch (err) {
+        console.error(err);
+        statusEl.innerText = `Error: ${err.message}`;
+        try { showToast(err.message, 'error'); } catch {}
       }
-
-      if (!playedEvent) {
-        statusEl.innerText = 'Transaction mined but Played event not found.';
-        try { showToast('Played event not found', 'error'); } catch {}
-        return;
-      }
-
-      const { guess: guessEvent, won, winningCup } = playedEvent;
-
-      const displayGuess = Number(guessEvent) + 1;
-      const displayWin = Number(winningCup) + 1;
-      const resultText = won
-        ? `You won! Your guess: ${displayGuess}, Winning cup: ${displayWin}`
-        : `You lost. Your guess: ${displayGuess}, Winning cup: ${displayWin}`;
-      try { showToast(won ? 'You won!' : 'You lost', won ? 'success' : 'info'); } catch {}
-
-      statusEl.innerText = resultText;
-
-      const li = document.createElement('li');
-      li.innerText = resultText;
-      playsEl.prepend(li);
-
-    } catch (err) {
-      console.error(err);
-      statusEl.innerText = `Error: ${err.message}`;
-      try { showToast(err.message, 'error'); } catch {}
-    }
+    });
   });
-});
+}
 
 returnBtn.addEventListener('click', () => { window.location.href = '/index.html'; });
 
@@ -132,7 +128,7 @@ betInput.addEventListener('input', () => {
 
 // Keyboard navigation and accessibility for shells
 try {
-  const shells = Array.from(document.querySelectorAll('.shell'));
+  const shells = getShells();
   shells.forEach((el, idx) => {
     el.setAttribute('tabindex', el.getAttribute('tabindex') || '0');
     el.addEventListener('keydown', (e) => {
@@ -147,6 +143,7 @@ try {
 // Show rules modal at load and block interactions until ack (per load)
 const onReady = (fn) => { if (document.readyState === 'loading') { window.addEventListener('DOMContentLoaded', fn, { once: true }); } else { fn(); } };
 onReady(() => {
+  bindShellClicks();
   // Determine if rules need to be shown based on 24h window
   let mustShow = true;
   try {
