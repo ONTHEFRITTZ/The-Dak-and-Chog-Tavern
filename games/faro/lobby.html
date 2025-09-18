@@ -14,8 +14,10 @@
       }catch(e){ console.error('head loader failed', e); }
     })();
   </script>
+  <!-- Preload games-table background to avoid cold paint -->
+  <link rel="preload" as="image" href="../../assets/images/games-table.png" type="image/png">
   <style>
-    body { background: url('../../assets/images/tavern-bg.webp') no-repeat center center fixed; background-size: cover; }
+    body { background: #120c08 url('../../assets/images/games-table.png') no-repeat center center fixed; background-size: 100% auto; }
     /* Stack and center: logo on top, lobby centered on page */
     body.game {
       display:flex; flex-direction:column; align-items:center; justify-content:center;

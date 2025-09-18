@@ -4,9 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Faro</title>
-  <!-- Preload table surface and room background so the table paints promptly -->
+  <!-- Preload table surface and games-table background so the table paints promptly -->
   <link rel="preload" as="image" href="../../assets/images/table.png" type="image/png">
-  <link rel="preload" as="image" href="../../assets/images/games-room.png" type="image/png">
+  <link rel="preload" as="image" href="../../assets/images/games-table.png" type="image/png">
   <script>
     (async()=>{
       try{
@@ -35,7 +35,7 @@
     }
     body {
       /* Match poker: force image to span full viewport width; crop vertically if needed */
-      background: #120c08 url('../../assets/images/games-room.png') no-repeat center center fixed;
+      background: #120c08 url('../../assets/images/games-table.png') no-repeat center center fixed;
       background-size: 100% auto;
     }
     /* Hide legacy top banner and page header to reclaim vertical space */
