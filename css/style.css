@@ -73,8 +73,10 @@ body.game .tavern {
   flex-direction: column;
   gap: 8px;
   transition: width .18s ease, transform .18s ease;
+  overflow-x: hidden;
 }
 .sidebar.collapsed { width: 64px; }
+.sidebar.collapsed { overflow: hidden; }
 .sidebar-header {
   display:flex; align-items:center; justify-content:space-between; gap:8px; flex-direction:column; align-items:flex-start;
 }
@@ -209,7 +211,7 @@ body.home .tavern {
 /* Thin top banner for status + buttons */
 .top-banner {
   position: fixed;
-  top: 0; left: var(--sidebar-left, 0); right: 0;
+  top: 0; left: 0; right: 0;
   height: 80px;
   display: flex;
   align-items: center;
@@ -221,6 +223,8 @@ body.home .tavern {
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
   z-index: 8000; /* keep below sidebar */
 }
+/* When sidebar is present, push banner to the right by sidebar width */
+body:has(#sidebar) .top-banner { left: var(--sidebar-left, 240px); }
 .top-banner .banner-left,
 .top-banner .banner-right {
   display:flex; align-items:center; gap:10px; min-width:0;
