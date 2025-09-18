@@ -45,12 +45,16 @@
         const p = String((location && location.pathname) || '').toLowerCase();
         let src = '/assets/images/sign.png';
         let alt = 'The Dak and Chog Tavern';
-        if (p.includes('/games/faro/')) { src = '/assets/images/faro-logo.png'; alt = 'Faro'; }
-        else if (p.includes('/games/poker/')) { src = '/assets/images/texas-holdem-logo.png'; alt = 'Poker'; }
+        let kind = 'tavern';
+        if (p.includes('/games/faro/')) { src = '/assets/images/faro-logo.png'; alt = 'Faro'; kind = 'faro'; }
+        else if (p.includes('/games/poker/')) { src = '/assets/images/texas-holdem-logo.png'; alt = 'Poker'; kind = 'poker'; }
         else if (p.includes('/games/hazard/')) { src = '/assets/images/hazard-logo.png'; alt = 'Hazard'; }
         else if (p.includes('/games/shell/')) { src = '/assets/images/shell-game-logo.png'; alt = 'Shell Game'; }
         else if (p.includes('/games/dakchog/')) { src = '/assets/images/dakandchog-logo.png'; alt = 'Dak & Chog'; }
+        // Home page explicit check
+        if (p === '/' || p.endsWith('/index.html')) { kind = 'tavern'; }
         logo.src = src; logo.alt = alt;
+        if (kind) logo.classList.add('sidebar-logo--' + kind);
       } catch {}
     })();
     header.appendChild(logo);
