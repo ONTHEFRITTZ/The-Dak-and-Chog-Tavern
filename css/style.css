@@ -425,3 +425,18 @@ body.home .tavern {
 
 
 body.age-landing .age-warning { color:#ffffff !important; }
+/* Profile modal readability */
+#profile-modal { color:#f4e6d3; }
+#profile-modal label,
+#profile-modal h3,
+#profile-modal h4,
+#profile-modal p,
+#profile-modal #prof-stats { color:#f4e6d3; }
+#profile-modal input[type="text"],
+#profile-modal input[type="number"],
+#profile-modal textarea {
+  color:#f4e6d3;
+  background: rgba(0,0,0,0.35);
+  border:1px solid rgba(255,255,255,0.16);
+}
+#profile-modal button { color:#f4e6d3; }

@@ -15,6 +15,8 @@ const diceImages = [
 
 let provider, signer, contract;
 let selectedMain = 7;
+let currentWallet = null;
+let hazardEnableTimer = null;
 
 // DOM
 const statusEl = document.getElementById('hazard-result') || document.getElementById('status');
@@ -180,7 +182,7 @@ onReady(async () => {
   let walletFlag = undefined;
   try { walletFlag = localStorage.getItem('walletConnected') || sessionStorage.getItem('walletConnected'); } catch {}
   if (!window.ethereum) {
-    statusEl.innerText = 'MetaMask not detected.';
+    statusEl.textContent = 'MetaMask not detected.';
     rollBtn.disabled = true;
     return;
   }
@@ -191,6 +193,7 @@ onReady(async () => {
     try { attachProvider(provider); } catch {}
     let walletAddress = null;
     try { walletAddress = await signer.getAddress(); } catch {}
+    if (walletAddress) { currentWallet = walletAddress.toLowerCase(); }
     try { if (walletAddress && walletFlag !== 'true') localStorage.setItem('walletConnected','true'); } catch {}
     tavernAddress = await getAddressFor('tavern', provider);
     contract = new ethers.Contract(tavernAddress, window.TavernABI, signer);
@@ -201,153 +204,195 @@ onReady(async () => {
     } catch {}
     // If no authorized account and flag not set, keep UI disabled until user connects
     if (!walletAddress && walletFlag !== 'true') {
-      statusEl.innerText = 'Connect wallet on the Tavern first.';
+      statusEl.textContent = 'Connect wallet on the Tavern first.';
       rollBtn.disabled = true;
       // do not return; allow the rest of setup (events, handlers)
     }
   } catch (err) {
     console.error('Init error:', err);
-    statusEl.innerText = 'Error initializing contract: ' + err.message;
+    statusEl.textContent = 'Error initializing contract: ' + err.message;
     rollBtn.disabled = true;
     return;
   }
 
   // Event listener (HazardPlayed)
   const onHazardPlayed = async (player, wager, win, main, finalSum, chance, iterations) => {
-    try {
-      const user = (await signer.getAddress()).toLowerCase();
-      if (player.toLowerCase() !== user) return;
+  try {
+    if (!currentWallet || player.toLowerCase() !== currentWallet) return;
 
-      const [d1, d2] = splitSumToDice(Number(finalSum));
-      displayDice(d1, d2);
+    const [d1, d2] = splitSumToDice(Number(finalSum));
+    displayDice(d1, d2);
 
-      const payout = win ? ethers.utils.formatEther(wager.mul(2)) : '0';
-      const explanation = explainOutcome(Number(main), Number(finalSum), Number(chance), win);
+    const wagerEth = ethers.utils.formatEther(wager);
+    const payoutEth = win ? ethers.utils.formatEther(wager.mul(2)) : '0';
+    const explanation = explainOutcome(Number(main), Number(finalSum), Number(chance), win);
 
-      statusEl.innerText = win ? `You won ${payout} MON! ${explanation}` : `You lost. ${explanation}`;
-      try { showToast(win ? `You won ${payout} MON` : 'You lost', win ? 'success' : 'info'); } catch {}
+    statusEl.textContent = win ? 'You won ' + payoutEth + ' MON! ' + explanation : 'You lost. ' + explanation;
+    try { showToast(win ? 'You won ' + payoutEth + ' MON' : 'You lost', win ? 'success' : 'info'); } catch {}
 
+    if (rollsList) {
       const li = document.createElement('li');
-      li.innerText = `${new Date().toLocaleTimeString()} - Bet: ${ethers.utils.formatEther(wager)} MON - ${win ? 'Won' : 'Lost'} (Main:${main}, FinalSum:${finalSum}, Iter:${iterations})`;
+      li.textContent = new Date().toLocaleTimeString() + ' - Bet: ' + wagerEth + ' MON - ' + (win ? 'Won' : 'Lost') + ' (Main:' + main + ', Final:' + finalSum + ', Iter:' + iterations + ')';
       rollsList.prepend(li);
-
-      rollBtn.disabled = false;
-    } catch (err) {
-      console.error('Event handler error:', err);
+      while (rollsList.children.length > 10) { rollsList.removeChild(rollsList.lastElementChild); }
     }
-  };
-  contract.on('HazardPlayed', onHazardPlayed);
-  window.addEventListener('beforeunload', () => { try { contract.off('HazardPlayed', onHazardPlayed); } catch {} });
+
+    if (hazardEnableTimer) { clearTimeout(hazardEnableTimer); hazardEnableTimer = null; }
+    rollBtn.disabled = false;
+  } catch (err) {
+    console.error('Event handler error:', err);
+    try { rollBtn.disabled = false; } catch {}
+  }
+};
+contract.on('HazardPlayed', onHazardPlayed);
+window.addEventListener('beforeunload', () => { try { contract.off('HazardPlayed', onHazardPlayed); } catch {} });
 
   // If the user connects their wallet after load, enable play without reloading
   try {
     if (window.ethereum?.on) {
       window.ethereum.on('accountsChanged', async (accs) => {
-        try {
-          if (accs && accs.length) {
-            const w = await signer.getAddress();
-            statusEl.innerText = '';
-            rollBtn.disabled = false;
-            try {
-              const chainId = await detectChainId(provider);
-              renderTavernBanner({ contractKey: 'tavern', address: tavernAddress, chainId, wallet: w });
-            } catch {}
-          } else {
-            rollBtn.disabled = true;
-            statusEl.innerText = 'Connect wallet on the Tavern first.';
-          }
-        } catch {}
-      });
+  try {
+    if (accs && accs.length) {
+      signer = provider.getSigner();
+      currentWallet = (accs[0] || '').toLowerCase();
+      statusEl.textContent = '';
+      rollBtn.disabled = false;
+      try {
+        const chainId = await detectChainId(provider);
+        renderTavernBanner({ contractKey: 'tavern', address: tavernAddress, chainId, wallet: accs[0] });
+      } catch {}
+    } else {
+      currentWallet = null;
+      rollBtn.disabled = true;
+      statusEl.textContent = 'Connect wallet on the Tavern first.';
+    }
+  } catch (err) {
+    console.error('accountsChanged handler failed', err);
+  }
+});
     }
     // Also react to storage flag being set by tavern.js connect flow
     window.addEventListener('storage', async (e) => {
       try {
         if (e.key === 'walletConnected' && e.newValue === 'true') {
-          const w = await signer.getAddress().catch(()=>null);
-          if (w) { rollBtn.disabled = false; statusEl.innerText = ''; }
+        const w = await signer.getAddress().catch(() => null);
+        if (w) {
+          currentWallet = w.toLowerCase();
+          rollBtn.disabled = false;
+          statusEl.textContent = '';
         }
+      }
       } catch {}
     });
   } catch {}
 
   // Roll button handler
   rollBtn.addEventListener('click', async () => {
-    if (!hazardAck) { try { rulesOverlay.style.display = 'flex'; } catch {}; return; }
-    if (!signer || !contract) {
-      alert('Connect wallet on the Tavern first.');
-      return;
-    }
+  if (!hazardAck) { try { rulesOverlay.style.display = 'flex'; } catch {}; return; }
+  if (!signer || !contract) {
+    alert('Connect wallet on the Tavern first.');
+    return;
+  }
 
-    const bet = betInput.value;
-    if (!bet || Number(bet) <= 0) {
-      statusEl.innerText = 'Enter a valid bet amount.';
-      return;
-    }
-    if (!Number.isInteger(selectedMain) || selectedMain < 5 || selectedMain > 9) {
-      statusEl.innerText = 'Choose a main between 5 and 9.';
-      return;
-    }
-
+  if (!currentWallet) {
     try {
-      const wager = ethers.utils.parseEther(bet);
-      let poolAddr = undefined; let ok = false;
-      try { poolAddr = await contract.pool(); } catch {}
-      if (poolAddr && poolAddr !== ethers.constants.AddressZero) {
-        try {
-          const pool = new ethers.Contract(poolAddr, window.PoolABI, provider);
-          const bal = await pool.balance();
-          if (bal.gte(wager.mul(2))) ok = true;
-        } catch {}
-      } else {
-        const bank = await provider.getBalance(tavernAddress);
-        if (bank.gte(wager.mul(2))) ok = true;
+      const addr = await signer.getAddress();
+      currentWallet = addr ? addr.toLowerCase() : null;
+    } catch {
+      statusEl.textContent = 'Connect wallet on the Tavern first.';
+      return;
+    }
+  }
+
+  const bet = betInput.value;
+  if (!bet || Number(bet) <= 0) {
+    statusEl.textContent = 'Enter a valid bet amount.';
+    return;
+  }
+  if (!Number.isInteger(selectedMain) || selectedMain < 5 || selectedMain > 9) {
+    statusEl.textContent = 'Choose a main between 5 and 9.';
+    return;
+  }
+
+  let wager;
+  try {
+    wager = ethers.utils.parseEther(bet);
+  } catch {
+    statusEl.textContent = 'Enter a valid bet amount.';
+    return;
+  }
+
+  let hasPool = false;
+  try {
+    const poolAddr = await contract.pool();
+    hasPool = !!(poolAddr && poolAddr !== ethers.constants.AddressZero);
+    let ok = false;
+    if (hasPool) {
+      try {
+        const pool = new ethers.Contract(poolAddr, window.PoolABI, provider);
+        const bal = await pool.balance();
+        if (bal.gte(wager.mul(2))) ok = true;
+      } catch (poolErr) {
+        console.error('Pool balance check failed', poolErr);
       }
-      if (!ok) { statusEl.innerText = 'Bankroll too low for this bet (needs 2x cover). Try a smaller amount.'; return; }
-    } catch (err) {
-      console.error('Bankroll check error:', err);
+    } else {
+      const bank = await provider.getBalance(tavernAddress);
+      if (bank.gte(wager.mul(2))) ok = true;
     }
+    if (!ok) {
+      statusEl.textContent = 'Bankroll too low for this bet (needs 2x cover). Try a smaller amount.';
+      return;
+    }
+  } catch (err) {
+    console.error('Bankroll check error:', err);
+  }
 
-    statusEl.innerText = 'Rolling dice... sending transaction...';
-    try { showToast('Rolling dice…', 'info'); } catch {}
-    rollBtn.disabled = true;
+  statusEl.textContent = 'Rolling dice... sending transaction...';
+  try { showToast('Rolling dice...', 'info'); } catch {}
+  rollBtn.disabled = true;
 
-    try { if (typeof animationsEnabled === 'undefined') { animationsEnabled = true; } } catch { var animationsEnabled = true; }
-    if (animationsEnabled) animateDice();
+  try { if (typeof animationsEnabled === 'undefined') { animationsEnabled = true; } } catch { var animationsEnabled = true; }
+  if (animationsEnabled) animateDice();
 
-    try {
-      const wager = ethers.utils.parseEther(bet);
-      // Preflight: surface revert reason
-      try { await contract.callStatic.playHazard(selectedMain, { value: wager }); }
-      catch (pre) {
+  try {
+    if (!hasPool) {
+      try {
+        await contract.callStatic.playHazard(selectedMain, { value: wager });
+      } catch (pre) {
         const msg = pre?.error?.message || pre?.data?.message || pre?.reason || pre?.message || 'Reverted';
-        statusEl.innerText = 'Rejected: ' + msg;
+        statusEl.textContent = 'Rejected: ' + msg;
         rollBtn.disabled = false;
         return;
       }
-      // Estimate gas and add a safety buffer; fallback to a conservative limit
-      let gasLimit;
-      try {
-        const est = await contract.estimateGas.playHazard(selectedMain, { value: wager });
-        gasLimit = est.mul(120).div(100); // +20% headroom
-      } catch {
-        // Fallback if estimation fails (RPCs sometimes balk on value transfers)
-        gasLimit = ethers.utils.hexlify(300000);
-      }
-      const tx = await contract.playHazard(selectedMain, { value: wager, gasLimit });
-      await tx.wait();
-      // event listener will handle UI update
-    } catch (err) {
-      console.error('Play error:', err);
-      let reason = '';
-      if (err?.error?.message) reason = err.error.message;
-      else if (err?.data?.message) reason = err.data.message;
-      else if (err?.reason) reason = err.reason;
-      else reason = err.message || JSON.stringify(err);
-
-      statusEl.innerText = 'Reverted: ' + reason;
-      rollBtn.disabled = false;
     }
-  });
+
+    let gasLimit;
+    try {
+      const est = await contract.estimateGas.playHazard(selectedMain, { value: wager });
+      gasLimit = est.mul(120).div(100);
+    } catch {
+      gasLimit = ethers.utils.hexlify(300000);
+    }
+
+    const tx = await contract.playHazard(selectedMain, { value: wager, gasLimit });
+    statusEl.textContent = 'Dice rolling on-chain...';
+    await tx.wait();
+    statusEl.textContent = 'Waiting for result...';
+    if (hazardEnableTimer) { clearTimeout(hazardEnableTimer); }
+    hazardEnableTimer = setTimeout(() => { try { rollBtn.disabled = false; } catch {} }, 12000);
+  } catch (err) {
+    console.error('Play error:', err);
+    let reason = '';
+    if (err?.error?.message) reason = err.error.message;
+    else if (err?.data?.message) reason = err.data.message;
+    else if (err?.reason) reason = err.reason;
+    else reason = err.message || JSON.stringify(err);
+
+    statusEl.textContent = 'Reverted: ' + reason;
+    rollBtn.disabled = false;
+    if (hazardEnableTimer) { clearTimeout(hazardEnableTimer); hazardEnableTimer = null; }
+  }
+});
 
   returnBtn.addEventListener('click', () => { window.location.href = '/index.html'; });
 });
