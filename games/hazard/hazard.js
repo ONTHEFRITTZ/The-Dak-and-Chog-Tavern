@@ -300,9 +300,9 @@ onReady(async () => {
         } catch {}
       } else {
         const bank = await provider.getBalance(tavernAddress);
-        if (bank.gte(wager)) ok = true;
+        if (bank.gte(wager.mul(2))) ok = true;
       }
-      if (!ok) { statusEl.innerText = 'Bankroll too low for this bet. Try a smaller amount.'; return; }
+      if (!ok) { statusEl.innerText = 'Bankroll too low for this bet (needs 2x cover). Try a smaller amount.'; return; }
     } catch (err) {
       console.error('Bankroll check error:', err);
     }
