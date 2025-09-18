@@ -53,8 +53,8 @@
         else if (p.includes('/games/hazard/')) { src = '/assets/images/hazard-logo.png'; alt = 'Hazard'; }
         else if (p.includes('/games/shell/')) { src = '/assets/images/shell-game-logo.png'; alt = 'Shell Game'; }
         else if (p.includes('/games/dakchog/')) { src = '/assets/images/dakandchog-logo.png'; alt = 'Dak & Chog'; }
-        // Home page explicit check
-        if (p === '/' || p.endsWith('/index.html')) { kind = 'tavern'; }
+        // Home page explicit check: ONLY treat site root as home, not game sub-index pages
+        if (p === '/' || p === '/index.html') { kind = 'tavern'; }
         logo.src = src; logo.alt = alt;
         if (kind) logo.classList.add('sidebar-logo--' + kind);
         // Force full-width bleed on all sidebar logos to avoid cached CSS constraints
@@ -77,7 +77,8 @@
     // Append logo on non-home pages only
     try {
       const pp = String((location && location.pathname) || '').toLowerCase();
-      const isHome = (pp === '/' || pp.endsWith('/index.html'));
+      // Do not treat game subpages ending with /index.html as home; only '/' or '/index.html'
+      const isHome = (pp === '/' || pp === '/index.html');
       if (!isHome) header.appendChild(logo);
     } catch { try { header.appendChild(logo); } catch {} }
 
