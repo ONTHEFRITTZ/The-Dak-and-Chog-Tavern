@@ -49,14 +49,14 @@
       position:relative;
       width: min(92vw, 860px);
       /* Fit fully below wallet panel; keep a little breathing room */
-      height: min(88vw, 560px, calc(100vh - var(--panel-top) - 24px));
+      height: min(88vw, 560px, calc(100vh - var(--panel-top, 72px) - 24px));
       margin: 0 auto;
     }
     @media (max-height: 720px) {
-      .table-canvas { height: min(88vw, 520px, calc(100vh - var(--panel-top) - 24px)); }
+      .table-canvas { height: min(88vw, 520px, calc(100vh - var(--panel-top, 72px) - 24px)); }
     }
     @media (max-height: 640px) {
-      .table-canvas { height: min(88vw, 480px, calc(100vh - var(--panel-top) - 24px)); }
+      .table-canvas { height: min(88vw, 480px, calc(100vh - var(--panel-top, 72px) - 24px)); }
       .seat { width:100px; height:100px; }
     }
     .table-glow { position:absolute; inset:0; pointer-events:none; z-index:0; }
@@ -179,6 +179,7 @@
     }
   </style>
 </head>
+<body class="game">
 
   <!-- Inline wallet panel (no banner) -->
   <div id="wallet-inline" style="position:fixed; top:12px; right:12px; z-index:12000; display:flex; align-items:center; gap:8px; background: var(--panel-bg-soft); border:1px solid rgba(255,255,255,0.12); border-radius:12px; padding:6px 10px; color:#f4e6d3;">
