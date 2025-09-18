@@ -1,4 +1,4 @@
-const statusEl = document.getElementById('status');
+let statusEl = document.getElementById('status');
 const seatEls = Array.from(document.querySelectorAll('.seat'));
 const connectBtn = document.getElementById('connect-wallet');
 const devBotBtn = document.getElementById('toggle-dev-bot');
@@ -92,7 +92,27 @@ function ensureActionBar(){
 }
 
 function short(a){ return (a && a.length>10) ? (a.slice(0,6)+'...'+a.slice(-4)) : (a||''); }
-function setStatus(t){ if (statusEl) statusEl.textContent = t; }
+function ensureCenterStatus(){
+  try {
+    const canvas = document.querySelector('.table-canvas');
+    if (!canvas) return null;
+    let el = document.getElementById('center-status');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'center-status';
+      el.style.cssText = 'position:absolute; left:50%; top:8%; transform:translateX(-50%); background: var(--panel-bg-soft); border:1px solid rgba(255,255,255,0.12); border-radius:12px; padding:6px 10px; color:#f4e6d3; z-index:10; font-weight:600;';
+      canvas.appendChild(el);
+    }
+    return el;
+  } catch { return null; }
+}
+function setStatus(t){
+  try {
+    if (!statusEl) statusEl = document.getElementById('status');
+    if (statusEl) { statusEl.textContent = t; return; }
+    const el = ensureCenterStatus(); if (el) el.textContent = t;
+  } catch {}
+}
 function assetTag(){ try { return String(window.__ASSET_TAG||''); } catch(e){ return ''; } }
 function cardSrc(code){
   try {
