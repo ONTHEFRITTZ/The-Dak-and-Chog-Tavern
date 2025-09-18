@@ -45,7 +45,7 @@
     (function(){
       try {
         const p = String((location && location.pathname) || '').toLowerCase();
-        let src = '/assets/images/sign.png';
+        let src = '/assets/images/d-and-c.png';
         let alt = 'The Dak and Chog Tavern';
         let kind = 'tavern';
         if (p.includes('/games/faro/')) { src = '/assets/images/faro-logo.png'; alt = 'Faro'; kind = 'faro'; }
@@ -54,7 +54,7 @@
         else if (p.includes('/games/shell/')) { src = '/assets/images/shell-game-logo.png'; alt = 'Shell Game'; }
         else if (p.includes('/games/dakchog/')) { src = '/assets/images/dakandchog-logo.png'; alt = 'Dak & Chog'; }
         // Home page explicit check: ONLY treat site root as home, not game sub-index pages
-        if (p === '/' || p === '/index.html') { kind = 'tavern'; }
+        if (p === '/' || p === '/index.html') { kind = 'tavern'; src = '/assets/images/d-and-c.png'; alt = 'The Dak and Chog Tavern'; }
         logo.src = src; logo.alt = alt;
         if (kind) logo.classList.add('sidebar-logo--' + kind);
         // Force full-width bleed on all sidebar logos to avoid cached CSS constraints
@@ -74,13 +74,8 @@
         } catch {}
       } catch {}
     })();
-    // Append logo on non-home pages only
-    try {
-      const pp = String((location && location.pathname) || '').toLowerCase();
-      // Do not treat game subpages ending with /index.html as home; only '/' or '/index.html'
-      const isHome = (pp === '/' || pp === '/index.html');
-      if (!isHome) header.appendChild(logo);
-    } catch { try { header.appendChild(logo); } catch {} }
+    // Append logo on all pages (including Tavern home)
+    try { header.appendChild(logo); } catch {}
 
     const btn = document.createElement('button');
     btn.className = 'sidebar-toggle';
