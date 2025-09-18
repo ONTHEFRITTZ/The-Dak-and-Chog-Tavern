@@ -57,19 +57,21 @@
         if (p === '/' || p.endsWith('/index.html')) { kind = 'tavern'; }
         logo.src = src; logo.alt = alt;
         if (kind) logo.classList.add('sidebar-logo--' + kind);
-        // Ensure poker logo truly fills width even with cached CSS
-        if (kind === 'poker') {
-          try {
-            logo.style.display = 'block';
-            logo.style.width = 'calc(100% + 20px)';
-            logo.style.maxWidth = 'none';
-            logo.style.height = 'auto';
-            logo.style.maxHeight = '160px';
-            logo.style.marginLeft = '-10px';
-            logo.style.marginRight = '-10px';
-            logo.style.objectFit = 'contain';
-          } catch {}
-        }
+        // Force full-width bleed on all sidebar logos to avoid cached CSS constraints
+        try {
+          logo.style.display = 'block';
+          logo.style.width = 'calc(100% + 20px)';
+          logo.style.maxWidth = 'none';
+          logo.style.height = 'auto';
+          logo.style.marginLeft = '-10px';
+          logo.style.marginRight = '-10px';
+          logo.style.objectFit = 'contain';
+          // Per-kind vertical allowance
+          var mh = 140;
+          if (kind === 'poker') mh = 160;
+          if (kind === 'tavern') mh = 120;
+          logo.style.maxHeight = mh + 'px';
+        } catch {}
       } catch {}
     })();
     // Append logo on non-home pages only

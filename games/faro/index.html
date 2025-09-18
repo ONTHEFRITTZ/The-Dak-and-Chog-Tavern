@@ -4,8 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Faro</title>
-  <!-- Preload table surface so the table paints promptly -->
+  <!-- Preload table surface and room background so the table paints promptly -->
   <link rel="preload" as="image" href="../../assets/images/table.png" type="image/png">
+  <link rel="preload" as="image" href="../../assets/images/games-room.png" type="image/png">
   <script>
     (async()=>{
       try{
@@ -21,7 +22,11 @@
   </script>
       <style>
     body.game { display:flex; flex-direction:column; align-items:center; justify-content:flex-start; }
-    body { background: url('../../assets/images/tavern-bg.webp') no-repeat center center fixed; background-size: cover; }
+    body {
+      /* Match poker: force image to span full viewport width; crop vertically if needed */
+      background: #120c08 url('../../assets/images/games-room.png') no-repeat center center fixed;
+      background-size: 100% auto;
+    }
     .top-banner .banner-left { gap: 12px; }
     .game-header { width:95%; max-width:1280px; margin:0 auto 8px; display:flex; align-items:center; justify-content:space-between; gap:12px; }
     .game-logo { display:block; width:auto; height:auto; max-width: clamp(180px, 26vw, 320px); margin:16px 0 6px 12px; filter: drop-shadow(0 0 18px rgba(255,244,233,0.45)) drop-shadow(0 4px 12px rgba(0,0,0,0.25)); pointer-events:none; user-select:none; }
