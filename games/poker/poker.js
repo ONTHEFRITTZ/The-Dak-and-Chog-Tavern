@@ -1,4 +1,4 @@
-const statusEl = document.getElementById('status');
+const statusEl = document.getElementById('poker-status') || document.getElementById('status');
 const lobbyEl = document.getElementById('lobby');
 const connectBtn = document.getElementById('connect-wallet');
 let socket; let myAddr = null;

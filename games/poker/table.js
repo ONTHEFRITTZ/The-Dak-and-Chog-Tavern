@@ -2,6 +2,7 @@ const statusEl = document.getElementById('status');
 const seatEls = Array.from(document.querySelectorAll('.seat'));
 const connectBtn = document.getElementById('connect-wallet');
 const devBotBtn = document.getElementById('toggle-dev-bot');
+const disconnectBtn = document.getElementById('disconnect-wallet');
 let devBotOn = false;
 let socket; let myAddr = null; let currentTableId = null; let lastTable = null; let myHole = [];
 let lastState = null; let exposures = {}; let winnersNow = {};
@@ -74,6 +75,11 @@ function makeCardImg(code, opts){ opts = opts||{}; const hole=!!opts.hole, flip 
 function renderTable(t){
   if (!t || t.id !== currentTableId) return;
   lastTable = t;
+  try {
+    const humans = Array.isArray(t.seats) ? t.seats.filter(s => s && s.addr && !String(s.addr).startsWith('bot:')).length : 0;
+    const imSeated = Array.isArray(t.seats) && myAddr && t.seats.some(s => s && s.addr && String(s.addr).toLowerCase()===String(myAddr).toLowerCase());
+    if (devBotBtn) devBotBtn.style.display = (imSeated && humans === 1) ? '' : 'none';
+  } catch {}
   // Ensure even seat spacing around table edge
   try {
     const n = seatEls.length || 8;
@@ -326,7 +332,7 @@ async function ensureWallet(promptIfNeeded) {
       const got = await signer.getAddress();
       myAddr = String(got||addr||'').toLowerCase();
       setStatus('' + short(myAddr));
-      try { if (connectBtn) connectBtn.style.display = 'none'; } catch(e){}
+      try { if (connectBtn) connectBtn.style.display = 'none'; } catch(e){} try { if (disconnectBtn) { disconnectBtn.style.display=''; disconnectBtn.onclick = () => { try{ localStorage.removeItem('walletConnected'); sessionStorage.removeItem('walletConnected'); }catch(_){} try{ location.reload(); }catch(_){} }; } } catch(_){}
       if (devBotBtn) { devBotBtn.disabled = false; devBotBtn.title = 'Add/remove a test bot to play solo'; }
       if (socket && socket.connected) {
         try { socket.emit('identify', { addr: myAddr }); } catch(e){}
@@ -364,6 +370,7 @@ try {
 } catch {}
 
 if (connectBtn) connectBtn.addEventListener('click', function(){ ensureWallet(true); });
+
 
 
 
