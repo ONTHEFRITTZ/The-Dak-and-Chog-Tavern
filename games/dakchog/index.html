@@ -19,7 +19,10 @@
     })();
   </script>
       <style>
-    body.game { display:flex; flex-direction:column; align-items:center; justify-content:flex-start; }
+    body.game {
+      display:flex; flex-direction:column; align-items:center; justify-content:center;
+      min-height: 100vh; height: 100vh; overflow: hidden;
+    }
     body { background: url('../../assets/images/tavern-bg.png') no-repeat center center fixed; background-size: cover; }
     .top-banner .banner-left { gap: 12px; }
     .game-header { width:95%; max-width:1280px; margin:0 auto 8px; display:flex; align-items:center; justify-content:space-between; gap:12px; }
@@ -107,7 +110,7 @@
   <div class="game-header">
     <button id="open-rules" class="rules-btn">Rules</button>
   </div>
-  <div class="tavern" style="position:relative; width:min(92vw, 700px); margin:20px auto;">
+  <div class="tavern" style="position:relative; width:min(92vw, 700px); margin:0 auto;">
     <h1 class="visually-hidden">Dak &amp; Chog</h1>
 
     <div class="coin-wrap">
