@@ -177,7 +177,7 @@ function renderTable(t){
         };
         btns.appendChild(leave); btns.appendChild(ready); el.appendChild(btns);
         if (Array.isArray(myHole) && myHole.length===2) {
-          const row=document.createElement('div'); row.style.cssText='display:flex; gap:6px; margin-top:4px;';
+          const row=document.createElement('div'); row.style.cssText='display:flex; gap:6px; margin-top:auto;';
           try {
             const winInfo = winnersNow && winnersNow[String(myAddr).toLowerCase()];
             const usedHole = (winInfo && Array.isArray(winInfo.usedHole)) ? winInfo.usedHole : null;
@@ -192,7 +192,7 @@ function renderTable(t){
           const actors = Array.isArray(lastState && lastState.actors) ? lastState.actors : [];
           const actor = actors.find(function(a){ return a && a.addr && String(a.addr).toLowerCase()===addrLower; });
           if (actor) {
-            const row=document.createElement('div'); row.style.cssText='display:flex; gap:6px; margin-top:4px;';
+            const row=document.createElement('div'); row.style.cssText='display:flex; gap:6px; margin-top:auto;';
             const exp = exposures[addrLower];
             if (Array.isArray(exp) && exp.length===2) {
               const winInfo = winnersNow && winnersNow[addrLower];
@@ -493,5 +493,7 @@ try {
 } catch {}
 
 if (connectBtn) connectBtn.addEventListener('click', function(){ ensureWallet(true); });
+
+
 
 
