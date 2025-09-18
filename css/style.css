@@ -16,8 +16,8 @@
 /* Ensure every page with a top banner is offset below it */
 :root {
   --banner-h: 80px;
-  --panel-bg-soft: rgba(42,26,16,0.72);
-  --panel-bg: rgba(42,26,16,0.72);
+  --panel-bg-soft: rgba(62,42,26,0.64);
+  --panel-bg: rgba(62,42,26,0.64);
   --panel-bg-strong: rgba(24,14,8,0.88);
 }
 body:has(.top-banner) {
@@ -425,4 +425,6 @@ body.home .tavern {
 
 
 body.age-landing .age-warning { color:#ffffff !important; }
+
+
 
