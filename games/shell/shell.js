@@ -30,25 +30,33 @@ let tavernAddress;
 async function init() {
   if (!window.ethereum) {
     alert('MetaMask not detected.');
-    return;
+    return false;
   }
+  // Ensure ethers is loaded (fallback if needed)
+  try { if (!window.ethers) { await new Promise((res)=>{ const s=document.createElement('script'); s.src='https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js'; s.onload=res; s.onerror=res; document.head.appendChild(s); }); } } catch {}
   provider = new ethers.providers.Web3Provider(window.ethereum, 'any');
   signer = provider.getSigner();
   try { attachProvider(provider); } catch {}
-  userAddress = await signer.getAddress();
+  try {
+    userAddress = await signer.getAddress();
+  } catch {
+    try { await window.ethereum.request({ method:'eth_requestAccounts' }); userAddress = await signer.getAddress(); } catch { return false; }
+  }
   tavernAddress = await getAddressFor('tavern', provider);
   try {
     const chainId = await detectChainId(provider);
     const unifiedAddress = await getAddressFor('tavern', provider);
     renderTavernBanner({ contractKey: 'tavern', address: unifiedAddress, chainId, wallet: userAddress });
   } catch {}
+  return true;
 }
 
 shellElements.forEach((shell) => {
   shell.addEventListener('click', async () => {
     if (!shellAck) { return; }
     try {
-      await init();
+      const ok = await init();
+      if (!ok) { statusEl.innerText = 'Connect wallet to play.'; return; }
 
       const guessDisplay = parseInt(shell.dataset.guess); // 1,2,3 for UI
       const guess = Math.max(0, (guessDisplay|0) - 1);    // 0,1,2 for contract
