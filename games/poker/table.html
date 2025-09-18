@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Poker Table</title>
   <link rel="stylesheet" href="../../css/style.css">
-  <!-- Preload table surface to ensure it paints immediately -->
+  <!-- Preload table surface and room background to ensure they paint immediately -->
   <link rel="preload" as="image" href="../../assets/images/table.png" type="image/png">
-  <link rel="preload" as="image" href="../../assets/images/tavern-bg.webp" type="image/webp">
+  <link rel="preload" as="image" href="../../assets/images/games-room.png" type="image/png">
   <style>
     /* Full-viewport layout; no banner; keep content fully visible */
     body.game {
@@ -21,7 +21,7 @@
       padding-top: var(--panel-top);
       overflow: hidden;           /* avoid accidental page scroll */
     }
-    body { background: url('../../assets/images/tavern-bg.webp') no-repeat center center fixed; background-size: cover; }
+    body { background: url('../../assets/images/games-room.png') no-repeat center center fixed; background-size: cover; }
     /* Header row: logo (left) + stats (right) */
     .table-header { display:none; }
     /* Logo sizing and glow consistent with Faro; left aligned inside header */
