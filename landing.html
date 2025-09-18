@@ -60,18 +60,6 @@
       (async () => { try { const provider = window.ethereum? new ethers.providers.Web3Provider(window.ethereum,'any'):null; if (provider){ const acc=await provider.listAccounts(); if (acc && acc.length){ localStorage.setItem('walletConnected','true'); } } } catch {} })();
     })();
   </script>
-  <!-- Left Sidebar (collapsible) -->
-  <script>
-    (function(){
-      try {
-        var t = (window.__BUILD_TAG||Date.now());
-        var s = document.createElement('script');
-        s.type = 'module';
-        s.src = '/js/sidebar.js?v=' + encodeURIComponent(t);
-        document.body.appendChild(s);
-      } catch(e) {}
-    })();
-  </script>
 </body>
 </html>
 
