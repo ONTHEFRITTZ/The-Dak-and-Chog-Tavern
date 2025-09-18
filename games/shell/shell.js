@@ -12,6 +12,8 @@ const rulesOverlay = document.getElementById('rules-overlay');
 const rulesAck = document.getElementById('rules-ack');
 const openRulesBtn = document.getElementById('open-rules');
 const RULES_VERSION = 'v2';
+const RULES_ACK_KEY = `shell.rulesAck.${RULES_VERSION}`;
+const RULES_ACK_WINDOW_MS = 24 * 60 * 60 * 1000; // 24 hours
 let shellAck = false;
 
 function setShellInteractivity(enabled) {
@@ -137,23 +139,40 @@ try {
 // Show rules modal at load and block interactions until ack (per load)
 const onReady = (fn) => { if (document.readyState === 'loading') { window.addEventListener('DOMContentLoaded', fn, { once: true }); } else { fn(); } };
 onReady(() => {
-  shellAck = false;
-  try { rulesOverlay.style.display = 'flex'; setShellInteractivity(false); } catch {}
-  rulesAck?.addEventListener('click', () => { shellAck = true; try { rulesOverlay.style.display = 'none'; } catch {}; setShellInteractivity(true); });
-  // Allow user to reopen rules explicitly via button
+  // Determine if rules need to be shown based on 24h window
+  let mustShow = true;
+  try {
+    const last = parseInt(localStorage.getItem(RULES_ACK_KEY) || '0', 10) || 0;
+    if (last > 0 && (Date.now() - last) < RULES_ACK_WINDOW_MS) {
+      mustShow = false;
+    }
+  } catch {}
+
+  shellAck = !mustShow;
+  if (mustShow) {
+    try { rulesOverlay.style.display = 'flex'; setShellInteractivity(false); } catch {}
+  } else {
+    try { rulesOverlay.style.display = 'none'; setShellInteractivity(true); } catch {}
+  }
+
+  function acknowledgeAndClose() {
+    shellAck = true;
+    try { localStorage.setItem(RULES_ACK_KEY, String(Date.now())); } catch {}
+    try { rulesOverlay.style.display = 'none'; } catch {}
+    setShellInteractivity(true);
+  }
+
+  rulesAck?.addEventListener('click', acknowledgeAndClose);
+  // Allow user to reopen rules explicitly via button (does not reset ack timer)
   openRulesBtn?.addEventListener('click', () => { try { rulesOverlay.style.display = 'flex'; } catch {} });
   // Dismiss when clicking outside the modal (on scrim only)
   try {
     rulesOverlay.addEventListener('click', (e) => {
-      if (e.target === rulesOverlay) {
-        shellAck = true; rulesOverlay.style.display = 'none'; setShellInteractivity(true);
-      }
+      if (e.target === rulesOverlay) acknowledgeAndClose();
     });
     // Dismiss with Escape key
     window.addEventListener('keydown', (e) => {
-      if (rulesOverlay && rulesOverlay.style.display !== 'none' && e.key === 'Escape') {
-        shellAck = true; rulesOverlay.style.display = 'none'; setShellInteractivity(true);
-      }
+      if (rulesOverlay && rulesOverlay.style.display !== 'none' && e.key === 'Escape') acknowledgeAndClose();
     });
   } catch {}
 });
