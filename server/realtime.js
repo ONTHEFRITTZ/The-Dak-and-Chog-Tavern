@@ -33,6 +33,9 @@ const tables = new Map(); // tableId -> { id, seats: [{id, addr, ready, balance,
 const profiles = new Map(); // addrLower -> { cipher }
 const publicProfiles = new Map(); // addrLower -> { x }
 const stats = new Map(); // addrLower -> { rounds, wagered, won, lost }
+// Presence tracking
+const seenWallets = new Set(); // unique wallet addresses (lowercased) seen since boot
+const presenceBySocket = new Map(); // socket.id -> { addr: string|null, path: string|null, tableId: string|null, seatId: number|null, last: number }
 let paused = false;
 let rakeBps = Number(process.env.RT_RAKE_BPS || 100); // 1% default
 let feesAccrued = 0; // unitless, same units as bet amounts in table game
@@ -340,9 +343,23 @@ io.on('connection', (socket) => {
   let addrLower = null;
   let isAdmin = false;
 
+  // Initialize presence record
+  try { presenceBySocket.set(socket.id, { addr: null, path: null, tableId: null, seatId: null, last: nowMs() }); } catch {}
+
   socket.on('identify', (m) => {
     try { addrLower = String(m.addr||'').toLowerCase(); isAdmin = admins.has(addrLower); } catch {}
     socket.emit('rt:state', { paused, rakeBps, feesAccrued });
+    try { if (addrLower) { seenWallets.add(addrLower); const p = presenceBySocket.get(socket.id) || {}; p.addr = addrLower; p.last = nowMs(); presenceBySocket.set(socket.id, p); } } catch {}
+  });
+
+  // Client announces page location
+  socket.on('user:location', (m = {}) => {
+    try {
+      const p = presenceBySocket.get(socket.id) || { addr: addrLower, path: null, tableId: null, seatId: null, last: nowMs() };
+      p.path = String(m.path||'') || (socket.handshake?.headers?.referer || null);
+      p.last = nowMs();
+      presenceBySocket.set(socket.id, p);
+    } catch {}
   });
 
   socket.on('join_table', (m) => {
@@ -377,6 +394,7 @@ io.on('connection', (socket) => {
       io.to(tableId).emit('system', `${short(socket.id)} joined ${tableId}`);
       ensureLobbyPolicy();
       emitLobby();
+      try { const p = presenceBySocket.get(socket.id) || {}; p.tableId = tableId; p.last = nowMs(); presenceBySocket.set(socket.id, p); } catch {}
     } catch {}
   });
 
@@ -402,10 +420,12 @@ io.on('connection', (socket) => {
           const leaving = t.seats[curIdx];
           t.seats[curIdx] = null;
           try { t.bets.delete(String(leaving.addr||'').toLowerCase()); } catch {}
+          try { const p = presenceBySocket.get(socket.id) || {}; p.seatId = null; p.last = nowMs(); presenceBySocket.set(socket.id, p); } catch {}
         }
       } else if (idx >= 0 && idx < t.seats.length) {
         if (!t.seats[idx]) {
           t.seats[idx] = { id: idx, addr: addrLower, ready: false, balance: 0, lastActive: nowMs(), socketId: socket.id };
+          try { const p = presenceBySocket.get(socket.id) || {}; p.seatId = idx; p.last = nowMs(); presenceBySocket.set(socket.id, p); } catch {}
         }
       }
       // If two or more humans are seated, ensure dev-bot is disabled and removed, and turn off simulated mode
@@ -453,6 +473,7 @@ io.on('connection', (socket) => {
         }
         if (changed) { t.lastActive = nowMs(); emitUpdate(t); emitLobby(); }
       }
+      try { presenceBySocket.delete(socket.id); } catch {}
     } catch {}
   });
 
@@ -699,6 +720,23 @@ io.on('connection', (socket) => {
       t.bets.clear();
       io.to(currentTableId).emit('table:coup', { bankRank, playerRank, doublet, results, table: tablePublic(t) });
       emitUpdate(t);
+    } catch {}
+  });
+
+  // --- Admin presence API ---
+  socket.on('admin:presence:get', () => {
+    try {
+      if (!isAdmin) { socket.emit('error', { message: 'not admin' }); return; }
+      const now = nowMs();
+      const online = Array.from(presenceBySocket.entries()).map(([id, p]) => ({
+        socketId: id,
+        addr: p.addr || null,
+        path: p.path || null,
+        tableId: p.tableId || null,
+        seatId: (typeof p.seatId === 'number' ? p.seatId : null),
+        last: p.last || now,
+      }));
+      socket.emit('admin:presence', { uniqueWallets: seenWallets.size, online });
     } catch {}
   });
 

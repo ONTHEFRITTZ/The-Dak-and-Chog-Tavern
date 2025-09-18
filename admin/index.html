@@ -90,6 +90,10 @@
 
   <div class="tavern">
     <h1 style="margin:0 0 12px 0;">Admin (Owner Only)</h1>
+    <div class="admin-card" style="margin-bottom:12px; display:flex; align-items:center; gap:16px;">
+      <div><strong>Guests (unique wallets):</strong> <span id="guest-unique">0</span></div>
+      <div><strong>Online now:</strong> <span id="guest-online">0</span></div>
+    </div>
     <p class="muted" id="owner-note">Connect the owner wallet. Controls are disabled for non-owners. This page is hidden and unlinked.</p>
 
     <div class="grid">
@@ -282,6 +286,14 @@
     </div>
   </div>
 
+  <!-- Live presence -->
+  <div class="tavern" style="margin-top: -70px;">
+    <div class="admin-card" id="presence-card">
+      <h3 style="margin-top:0;">Live Users</h3>
+      <div id="presence-list" class="muted" style="font-family: ui-monospace, Menlo, Consolas, monospace; font-size:12px; white-space:nowrap; overflow:auto; max-height:320px;"></div>
+    </div>
+  </div>
+
   <div style="position:fixed; left:12px; bottom:12px; z-index:10000;">
     <div id="footer-meta" style="font-size:12px; color:#2b1e12; opacity:.95; background:rgba(255,244,233,0.96); border:2px solid #7800cd; border-radius:10px; padding:6px 8px; display:inline-block;">
       Loading build info...
@@ -314,4 +326,3 @@
   </script>
 </body>
 </html>
-

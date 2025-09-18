@@ -148,6 +148,7 @@
       try {
         const socket = io({ path: '/socket.io' });
         socket.on('connect', function(){
+          try { socket.emit('user:location', { path: location.pathname }); } catch(e) {}
           try { socket.emit('join_table', 'faro-lobby'); } catch(e) {}
           try { console.log('connected', socket.id); } catch(e) {}
         });

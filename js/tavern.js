@@ -153,6 +153,24 @@ export async function connectWallet() {
     } catch {}
 
     try { localStorage.setItem('walletConnected', 'true'); } catch {}
+    // Announce presence to realtime server (best-effort)
+    try {
+      if (!window.io) {
+        await new Promise((resolve)=>{ const s=document.createElement('script'); s.src='https://cdn.socket.io/4.7.5/socket.io.min.js'; s.onload=resolve; s.onerror=resolve; document.head.appendChild(s); });
+      }
+      if (window.io) {
+        if (!window.__presenceSocket) {
+          window.__presenceSocket = window.io(window.location.origin, { path: '/socket.io' });
+          window.__presenceSocket.on('connect', ()=>{
+            try { window.__presenceSocket.emit('identify', { addr: userAddress }); } catch {}
+            try { window.__presenceSocket.emit('user:location', { path: location.pathname }); } catch {}
+          });
+        } else {
+          try { window.__presenceSocket.emit('identify', { addr: userAddress }); } catch {}
+          try { window.__presenceSocket.emit('user:location', { path: location.pathname }); } catch {}
+        }
+      }
+    } catch {}
     // Do not auto-load profile here to avoid signature prompts on non-game pages
   } catch (err) {
     statusEl.innerText = 'Connection failed: ' + err.message;
@@ -188,6 +206,24 @@ async function silentConnect() {
       } catch { ensureAdminLink(false); }
     } catch {}
     try { localStorage.setItem('walletConnected', 'true'); } catch {}
+    // Announce presence (best-effort)
+    try {
+      if (!window.io) {
+        await new Promise((resolve)=>{ const s=document.createElement('script'); s.src='https://cdn.socket.io/4.7.5/socket.io.min.js'; s.onload=resolve; s.onerror=resolve; document.head.appendChild(s); });
+      }
+      if (window.io) {
+        if (!window.__presenceSocket) {
+          window.__presenceSocket = window.io(window.location.origin, { path: '/socket.io' });
+          window.__presenceSocket.on('connect', ()=>{
+            try { window.__presenceSocket.emit('identify', { addr: userAddress }); } catch {}
+            try { window.__presenceSocket.emit('user:location', { path: location.pathname }); } catch {}
+          });
+        } else {
+          try { window.__presenceSocket.emit('identify', { addr: userAddress }); } catch {}
+          try { window.__presenceSocket.emit('user:location', { path: location.pathname }); } catch {}
+        }
+      }
+    } catch {}
     // Avoid auto-loading profile on silent connect
     return true;
   } catch {
@@ -251,3 +287,4 @@ export { signer, provider, userAddress };
 export { ethers };
 // Also expose on window for non-module consumers
 try { window.ethers = ethers; } catch {}
+

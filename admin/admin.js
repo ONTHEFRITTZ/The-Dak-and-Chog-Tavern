@@ -463,6 +463,29 @@ function ensureIo() {
     }
     ioSocket.on('rt:state', updState);
     ioSocket.on('rt:paused', updState);
+
+    // Presence polling (admin-only)
+    const guestUniqueEl = document.getElementById('guest-unique');
+    const guestOnlineEl = document.getElementById('guest-online');
+    const presenceListEl = document.getElementById('presence-list');
+    function renderPresence(m){
+      try {
+        if (!m) return;
+        if (typeof m.uniqueWallets === 'number' && guestUniqueEl) guestUniqueEl.textContent = String(m.uniqueWallets);
+        if (Array.isArray(m.online) && guestOnlineEl) guestOnlineEl.textContent = String(m.online.length);
+        if (presenceListEl && Array.isArray(m.online)) {
+          const rows = m.online.map(u => {
+            const addr = (u.addr && (u.addr.slice(0,6)+'...'+u.addr.slice(-4))) || '-';
+            const loc = u.tableId ? `${u.tableId}${(typeof u.seatId==='number')?(' #'+u.seatId):''}` : (u.path || '-');
+            const ago = Math.max(0, Math.round((Date.now() - Number(u.last||0))/1000));
+            return `${addr}  @ ${loc}  (${ago}s ago)`;
+          });
+          presenceListEl.textContent = rows.length ? rows.join('\n') : 'No users online';
+        }
+      } catch {}
+    }
+    ioSocket.on('admin:presence', (m)=>renderPresence(m));
+    setInterval(() => { try { ioSocket.emit('admin:presence:get'); } catch {} }, 5000);
   } catch {}
 }
 
