@@ -21,7 +21,18 @@
     })();
   </script>
       <style>
-    body.game { display:flex; flex-direction:column; align-items:center; justify-content:flex-start; }
+    /* Full-viewport layout; no banner; keep content fully visible like Poker */
+    body.game {
+      --banner-h: 0px;           /* no top banner on this page */
+      --panel-top: 72px;         /* safe area for inline wallet panel */
+      min-height: 100vh;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:flex-start; /* anchor from top */
+      padding-top: var(--panel-top);
+      overflow: hidden;           /* avoid accidental page scroll */
+    }
     body {
       /* Match poker: force image to span full viewport width; crop vertically if needed */
       background: #120c08 url('../../assets/images/games-room.png') no-repeat center center fixed;
@@ -34,7 +45,20 @@
     .game-header .rules-btn:hover { transform: translateY(-1px); box-shadow:0 0 30px rgba(255,244,233,0.34); }
     .tavern { padding: 24px; background: none !important; border: none !important; box-shadow: none !important; }
     .table-wrap { display:flex; flex-direction:column; align-items:center; gap:20px; margin:-16px auto 32px; }
-    .table-canvas { position:relative; width:min(88vw, 860px); height:min(88vw, 560px); margin:0 auto; }
+    .table-canvas {
+      position:relative;
+      width: min(92vw, 860px);
+      /* Fit fully below wallet panel; keep a little breathing room */
+      height: min(88vw, 560px, calc(100vh - var(--panel-top) - 24px));
+      margin: 0 auto;
+    }
+    @media (max-height: 720px) {
+      .table-canvas { height: min(88vw, 520px, calc(100vh - var(--panel-top) - 24px)); }
+    }
+    @media (max-height: 640px) {
+      .table-canvas { height: min(88vw, 480px, calc(100vh - var(--panel-top) - 24px)); }
+      .seat { width:100px; height:100px; }
+    }
     .table-glow { position:absolute; inset:0; pointer-events:none; z-index:0; }
     .table-glow::before {
       content:'';
@@ -155,6 +179,13 @@
     }
   </style>
 </head>
+
+  <!-- Inline wallet panel (no banner) -->
+  <div id="wallet-inline" style="position:fixed; top:12px; right:12px; z-index:12000; display:flex; align-items:center; gap:8px; background: var(--panel-bg-soft); border:1px solid rgba(255,255,255,0.12); border-radius:12px; padding:6px 10px; color:#f4e6d3;">
+    <span id="wi-label" style="font-weight:700;">Wallet:</span>
+    <span id="wi-address">-</span>
+    <button id="wi-disconnect" style="display:none;">Disconnect</button>
+  </div>
 
   <script>(function(){try{var ok=localStorage.getItem('walletConnected')==='true'||sessionStorage.getItem('walletConnected')==='true';if(!ok) location.replace('/landing.html');}catch(e){location.replace('/landing.html');}})();</script>
   <div class="top-banner" role="region" aria-label="Wallet and status">
