@@ -23,7 +23,7 @@
 
     const links = [
       { href: '/index.html', label: 'Home' },
-      { href: '/games/faro/lobby.html', label: 'Faro Lobby' },
+      { href: '/games/faro/lobby.html', label: 'Faro' },
       { href: '/games/poker/index.html', label: 'Poker' },
       { href: '/games/hazard/index.html', label: 'Hazard' },
       { href: '/games/shell/index.html', label: 'Shell Game' },
@@ -37,6 +37,23 @@
 
     const header = document.createElement('div');
     header.className = 'sidebar-header';
+    // Page-specific logo at top of sidebar
+    const logo = document.createElement('img');
+    logo.className = 'sidebar-logo';
+    (function(){
+      try {
+        const p = String((location && location.pathname) || '').toLowerCase();
+        let src = '/assets/images/sign.png';
+        let alt = 'The Dak and Chog Tavern';
+        if (p.includes('/games/faro/')) { src = '/assets/images/faro-logo.png'; alt = 'Faro'; }
+        else if (p.includes('/games/poker/')) { src = '/assets/images/texas-holdem-logo.png'; alt = 'Poker'; }
+        else if (p.includes('/games/hazard/')) { src = '/assets/images/hazard-logo.png'; alt = 'Hazard'; }
+        else if (p.includes('/games/shell/')) { src = '/assets/images/shell-game-logo.png'; alt = 'Shell Game'; }
+        else if (p.includes('/games/dakchog/')) { src = '/assets/images/dakandchog-logo.png'; alt = 'Dak & Chog'; }
+        logo.src = src; logo.alt = alt;
+      } catch {}
+    })();
+    header.appendChild(logo);
 
     const btn = document.createElement('button');
     btn.className = 'sidebar-toggle';
@@ -88,4 +105,3 @@
     console.error('sidebar inject failed', e);
   }
 })();
-
