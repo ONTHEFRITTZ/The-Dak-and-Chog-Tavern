@@ -9,14 +9,17 @@
   <link rel="preload" as="image" href="../../assets/images/table.png" type="image/png">
   <link rel="preload" as="image" href="../../assets/images/tavern-bg.webp" type="image/webp">
   <style>
-    /* Place table content directly under banner with no page scroll */
+    /* Full-viewport layout; no banner; keep content fully visible */
     body.game {
+      --banner-h: 0px;           /* no top banner on this page */
+      --panel-top: 72px;         /* safe area for inline wallet panel */
       display:flex;
       flex-direction:column;
       align-items:center;
-      justify-content:flex-start;
-      /* global CSS adds padding-top: var(--banner-h); reduce content height accordingly */
-      min-height: calc(100vh - var(--banner-h));
+      justify-content:flex-start; /* anchor from top */
+      min-height: 100vh;
+      padding-top: var(--panel-top);
+      overflow: hidden;           /* avoid accidental page scroll */
     }
     body { background: url('../../assets/images/tavern-bg.webp') no-repeat center center fixed; background-size: cover; }
     /* Header row: logo (left) + stats (right) */
@@ -27,10 +30,17 @@
     /* Slightly smaller canvas so table + seats fit fully in viewport */
     .table-canvas {
       position:relative;
-      width:min(88vw, 860px);
-      height:min(88vw, 560px);
-      margin: 6px auto 0;
-      max-height: calc(100vh - var(--banner-h) - 24px);
+      width: min(92vw, 860px);
+      /* Fit fully below wallet panel; keep a little breathing room */
+      height: min(88vw, 560px, calc(100vh - var(--panel-top) - 24px));
+      margin: 0 auto;
+    }
+    @media (max-height: 720px) {
+      .table-canvas { height: min(88vw, 520px, calc(100vh - var(--panel-top) - 24px)); }
+    }
+    @media (max-height: 640px) {
+      .table-canvas { height: min(88vw, 480px, calc(100vh - var(--panel-top) - 24px)); }
+      .seat { width:100px; height:100px; }
     }
     /* Make the table itself pop without filling the container: remove color fill and add a soft backglow */
     .table-surface {

@@ -15,10 +15,20 @@ let actionBar = null; let communityEl = null; let amountInput = null; let infoTe
 
 
 // Position seats in a ring immediately so layout looks correct before data arrives
+function getRingRadii() {
+  try {
+    const canvas = document.querySelector('.table-canvas');
+    const cs = getComputedStyle(canvas || document.documentElement);
+    const rx = parseFloat(cs.getPropertyValue('--ring-rx')) || 52;
+    const ry = parseFloat(cs.getPropertyValue('--ring-ry')) || 48;
+    return { rx, ry };
+  } catch { return { rx: 52, ry: 48 }; }
+}
 function positionSeatsRing(){
   try {
     const n = seatEls.length || 8;
-    const rx = 52, ry = 48, startDeg = -90;
+    const rr = getRingRadii();
+    const rx = rr.rx, ry = rr.ry, startDeg = -90;
     seatEls.forEach(function(el, i){
       const ang = (startDeg + (360 / n) * i) * Math.PI / 180;
       const left = 50 + rx * Math.cos(ang);
@@ -83,8 +93,9 @@ function renderTable(t){
   // Ensure even seat spacing around table edge
   try {
     const n = seatEls.length || 8;
-    const rx = 52; // expanded horizontal radius in % (from center)
-    const ry = 48; // expanded vertical radius in % (from center)
+    const rr = getRingRadii();
+    const rx = rr.rx; // horizontal radius in % (from center)
+    const ry = rr.ry; // vertical radius in % (from center)
     const startDeg = -90; // start at top center
     seatEls.forEach(function(el, i){
       const ang = (startDeg + (360 / n) * i) * Math.PI / 180;
