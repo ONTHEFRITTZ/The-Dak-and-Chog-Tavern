@@ -103,12 +103,32 @@
     } catch {}
     if (isCollapsed()) nav.classList.add('collapsed');
 
+    // Maintain a CSS variable for top banner offset so it never overlaps sidebar
+    function updateSidebarOffset() {
+      try {
+        const w = window.innerWidth || 0;
+        const collapsed = nav.classList.contains('collapsed');
+        let px = '240px';
+        if (w <= 800) {
+          // On small screens, sidebar is offscreen when collapsed
+          px = collapsed ? '0px' : '240px';
+        } else {
+          // Desktop: collapsed rail width is 64px
+          px = collapsed ? '64px' : '240px';
+        }
+        document.documentElement.style.setProperty('--sidebar-left', px);
+      } catch {}
+    }
+    updateSidebarOffset();
+
     // Toggle handler
     btn.addEventListener('click', function(){
       const next = !nav.classList.contains('collapsed');
       if (next) nav.classList.add('collapsed'); else nav.classList.remove('collapsed');
       setCollapsed(next);
+      updateSidebarOffset();
     });
+    window.addEventListener('resize', updateSidebarOffset);
 
     // Accessibility: close with Esc when focused within the sidebar (optional behavior)
     nav.addEventListener('keydown', function(e){
