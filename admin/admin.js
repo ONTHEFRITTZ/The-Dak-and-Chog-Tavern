@@ -114,6 +114,9 @@ async function refresh() {
     if (wlOverrideInput) wlOverrideInput.placeholder = whitelistAddr || '';
     if (ppOverrideInput) ppOverrideInput.placeholder = pokerPooledAddr || '';
     renderTavernBanner({ contractKey: 'tavern', address: tavernAddr, chainId, wallet });
+    
+      try { const wb = document.getElementById('wallet-banner'); if (wb) wb.remove(); } catch {}
+      try { const nb = document.getElementById('nb-disconnect'); if (nb) nb.remove(); } catch {}
 
     if (tavernAddr && window.TavernABI && signer) {
       tavern = new window.ethers.Contract(tavernAddr, window.TavernABI, signer);
@@ -194,6 +197,7 @@ async function connect() {
     statusEl.textContent = 'Connecting...';
     const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
     await applyWalletFromAccounts(accounts);
+    statusEl.textContent = '';
   } catch (e) {
     console.error(e);
     statusEl.textContent = 'Connect failed';
@@ -227,9 +231,7 @@ async function applyWalletFromAccounts(accounts, { refreshAfter = true } = {}) {
   try {
     provider = new window.ethers.providers.Web3Provider(window.ethereum, 'any');
     signer = provider.getSigner();
-    wallet = accounts[0];
-    statusEl.textContent = 'Connected: ' + wallet;
-    try { if (poolToInput && !poolToInput.value) poolToInput.value = wallet; } catch {}
+    wallet = accounts[0];    try { if (poolToInput && !poolToInput.value) poolToInput.value = wallet; } catch {}
     updateWalletButtons();
     if (refreshAfter) await refresh();
   } catch (err) {
@@ -645,3 +647,7 @@ ppSetAddrBtn?.addEventListener('click', async () => {
     await refresh();
   } catch (e) { if (ppMsgEl) ppMsgEl.textContent = e?.data?.message||e?.message||'Failed'; }
 });
+
+
+
+

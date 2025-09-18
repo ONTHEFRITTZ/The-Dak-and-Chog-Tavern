@@ -320,7 +320,7 @@ export function renderTavernBanner({ contractKey, address, chainId, wallet, labe
     }
     // Right side: wallet + buttons when in top banner
     if (useTopBanner) {
-      let walletEl = document.getElementById('wallet-banner');
+            // Admin page: if page already has its own connect/disconnect controls, skip wallet-banner\r\n      var __hasAdminWalletControls = document.getElementById('disconnect-wallet') || document.getElementById('connect-wallet');\r\n      if (__hasAdminWalletControls) { try { var wb = document.getElementById('wallet-banner'); if (wb) wb.remove(); } catch {} /* skip wallet banner */ }\r\n      else\r\nlet walletEl = document.getElementById('wallet-banner');
       if (!walletEl) {
         walletEl = document.createElement('div');
         walletEl.id = 'wallet-banner';
@@ -405,3 +405,4 @@ export function showToast(message, type = 'info', duration = 2600) {
     }, Math.max(800, Number(duration)||2600));
   } catch {}
 }
+
