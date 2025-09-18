@@ -1,8 +1,8 @@
-const statusEl = document.getElementById('status');
+const statusEl = document.getElementById('poker-status') || document.getElementById('status');
 const lobbyEl = document.getElementById('lobby');
 const connectBtn = document.getElementById('connect-wallet');
 const tableEl = document.getElementById('table');
-let socket; let myAddr = null;
+let socket; let myAddr = null; let attemptedFallback = false;
 
 function setStatus(t){ try { statusEl.textContent = t; } catch {} }
 
@@ -64,12 +64,11 @@ function renderTable(t){
   } catch {}
 }
 
-async function connect(){
+function connectWithPath(path){
   try {
     socket = io(window.location.origin, {
-      path: '/poker.io/',
-      transports: ['polling','websocket'],
-      upgrade: true,
+      path,
+      transports: ['websocket','polling'],
       reconnection: true,
       reconnectionAttempts: 10,
       reconnectionDelay: 800,
@@ -79,16 +78,25 @@ async function connect(){
     setStatus('Socket.IO not available');
     return;
   }
-  socket.on('connect', () => { setStatus('Connected'); if (myAddr) { try { socket.emit('identify', { addr: myAddr }); } catch {} } try { socket.emit('lobby:get'); } catch {} });
-  socket.on('connect_error', (err) => { setStatus('Lobby unavailable. Retrying...'); try { console.error('connect_error', err && err.message); } catch {} });
+  socket.on('connect', () => { setStatus('Connected'); attemptedFallback = false; if (myAddr) { try { socket.emit('identify', { addr: myAddr }); } catch {} } try { socket.emit('lobby:get'); } catch {} });
+  socket.on('connect_error', (err) => {
+    setStatus('Lobby unavailable. Retrying...');
+    try { console.error('connect_error', err && err.message, 'path=', path); } catch {}
+    // Fallback once from /poker.io/ to /socket.io
+    if (path === '/poker.io/' && !attemptedFallback) {
+      attemptedFallback = true;
+      try { socket.close(); } catch {}
+      setTimeout(()=> connectWithPath('/socket.io'), 300);
+    }
+  });
   socket.on('reconnect_error', () => { setStatus('Reconnecting...'); });
   socket.on('disconnect', () => setStatus('Disconnected'));
   socket.on('lobby:list', (list) => renderLobby(list));
-  // No in-lobby seat rendering; seating happens on table.html
-  socket.on('system', (m) => { /* noop */ });
+  socket.on('system', () => {});
 }
 
-connect();
+// Try dedicated poker path first; fallback to default if unavailable
+connectWithPath('/poker.io/');
 
 // Wallet connect (isolated): gate seating until wallet connected
 connectBtn?.addEventListener('click', async () => {
