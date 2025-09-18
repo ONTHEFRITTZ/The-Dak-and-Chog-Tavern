@@ -1,1 +1,1 @@
-v1.3 - UI update
+v1.3 - Stable snapshot 2025-09-17
