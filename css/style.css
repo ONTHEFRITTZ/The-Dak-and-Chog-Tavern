@@ -56,6 +56,71 @@ body.game .tavern {
   margin: 0 auto; /* remove vertical margins so centering is exact */
 }
 
+/* Left Sidebar (site-wide) */
+.sidebar {
+  position: fixed;
+  top: var(--banner-h);
+  left: 0;
+  bottom: 0;
+  width: 240px;
+  background: var(--panel-bg-strong);
+  border-right: 1px solid rgba(255,255,255,0.12);
+  box-shadow: 6px 0 18px rgba(0,0,0,0.35);
+  padding: 10px 10px 14px;
+  color: #f4e6d3;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: width .18s ease, transform .18s ease;
+}
+.sidebar.collapsed { width: 64px; }
+.sidebar-header {
+  display:flex; align-items:center; justify-content:space-between; gap:8px;
+}
+.sidebar-header .title {
+  font-weight: 900;
+  letter-spacing: .5px;
+}
+.sidebar-toggle {
+  background: url('../assets/images/nav-gem.png') no-repeat center / 100% 100% !important;
+  border: none;
+  color: #fff;
+  font-weight: 700;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.45);
+  height: 2.4em;
+  padding: 0 14px;
+  cursor: pointer;
+}
+.sidebar-links { list-style:none; margin: 6px 0 0; padding: 0; display:flex; flex-direction:column; gap: 6px; }
+.sidebar-links li a {
+  display:block;
+  text-align:left;
+  text-decoration:none;
+  color:#f4e6d3;
+  background: rgba(0,0,0,0.25);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 10px;
+  padding: 10px 12px;
+  transition: background .12s ease, transform .12s ease;
+}
+.sidebar-links li a:hover { background: rgba(0,0,0,0.35); transform: translateX(2px); }
+
+/* Collapse label when narrow */
+.sidebar.collapsed .sidebar-links li a { text-indent: -9999px; position: relative; }
+.sidebar.collapsed .sidebar-links li a::after {
+  content: '•';
+  text-indent: 0;
+  position: absolute;
+  left: 50%; top: 50%; transform: translate(-50%, -50%);
+}
+
+/* Mobile: hide sidebar by default; can expand via toggle */
+@media (max-width: 800px) {
+  .sidebar { transform: translateX(-100%); }
+  .sidebar:not(.collapsed) { transform: translateX(0); }
+}
+
 /* Visually hidden utility for accessibility */
 .visually-hidden {
   position: absolute !important;

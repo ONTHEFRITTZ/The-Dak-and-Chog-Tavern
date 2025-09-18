@@ -66,6 +66,18 @@
       try { const tag = window.__BUILD_TAG || Date.now(); const s=document.createElement('script'); s.type='module'; s.src=`lobby.js?v=${encodeURIComponent(tag)}`; document.body.appendChild(s); } catch(e) { console.error('faro lobby boot failed', e); }
     })();
   </script>
+  <!-- Left Sidebar (collapsible) -->
+  <script>
+    (function(){
+      try {
+        var t = (window.__BUILD_TAG||Date.now());
+        var s = document.createElement('script');
+        s.type = 'module';
+        s.src = '/js/sidebar.js?v=' + encodeURIComponent(t);
+        document.body.appendChild(s);
+      } catch(e) {}
+    })();
+  </script>
 </body>
 </html>
 

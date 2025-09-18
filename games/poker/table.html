@@ -139,6 +139,18 @@
       catch(e){ try { window.__ASSET_TAG = Date.now(); } catch(_){ } load('table.js?v='+Date.now()); }
     })();
   </script>
+  <!-- Left Sidebar (collapsible) -->
+  <script>
+    (function(){
+      try {
+        var t = (window.__BUILD_TAG||Date.now());
+        var s = document.createElement('script');
+        s.type = 'module';
+        s.src = '/js/sidebar.js?v=' + encodeURIComponent(t);
+        document.body.appendChild(s);
+      } catch(e) {}
+    })();
+  </script>
 </body>
 </html>
 
