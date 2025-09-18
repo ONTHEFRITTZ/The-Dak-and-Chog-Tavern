@@ -94,6 +94,7 @@ body.game .tavern {
 .sidebar.collapsed .sidebar-logo { display: none; }
 /* Per-page fine-tuning */
 .sidebar .sidebar-logo--tavern { max-height: 48px; }
+.sidebar .sidebar-logo--poker { width:100%; max-width:100%; height:auto; max-height:120px; }
 .sidebar .sidebar-logo--poker { max-height: 48px; }
 .sidebar .sidebar-logo--hazard { max-height: 56px; }
 .sidebar .sidebar-logo--shell { max-height: 56px; }
