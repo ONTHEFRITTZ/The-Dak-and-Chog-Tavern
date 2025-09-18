@@ -78,8 +78,20 @@ body.game .tavern {
 .sidebar-header {
   display:flex; align-items:center; justify-content:space-between; gap:8px; flex-direction:column; align-items:flex-start;
 }
-.sidebar-logo { display:block; max-width: 100%; height: auto; border-radius:8px; margin-bottom:8px; filter: drop-shadow(0 4px 12px rgba(0,0,0,0.25)); }
+.sidebar-logo {
+  display:block;
+  max-width: 100%;
+  max-height: 88px;
+  height: auto;
+  width: auto;
+  object-fit: contain;
+  border-radius:8px;
+  margin-bottom:8px;
+  filter: drop-shadow(0 4px 12px rgba(0,0,0,0.25));
+}
 .sidebar.collapsed .sidebar-logo { display: none; }
+/* Tavern homepage: use a slightly smaller logo in sidebar */
+body.home .sidebar .sidebar-logo { max-height: 64px; }
 .sidebar-header .title {
   font-weight: 900;
   letter-spacing: .5px;
