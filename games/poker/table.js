@@ -298,7 +298,61 @@ async function connect(){
     lastState = st;
     const stage = String((st && st.stage) || '');
     try { if (stage === 'preflop' && !holdShowdown) { exposures = {}; winnersNow = {}; } } catch(e){}
-    ensureActionBar();
+ensureActionBar();
+
+// --- Socket.IO connection (with fallback path) ---
+function getQueryParam(name){
+  try { const u=new URL(window.location.href); return u.searchParams.get(name); } catch { return null; }
+}
+function resolveTableId(){
+  try { return getQueryParam('table') || 'poker-1'; } catch { return 'poker-1'; }
+}
+function connectWithPath(path){
+  try {
+    socket = io(window.location.origin, {
+      path,
+      transports: ['websocket','polling'],
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 800,
+      forceNew: true
+    });
+  } catch (e) {
+    setStatus('Socket.IO not available');
+    return;
+  }
+  currentTableId = resolveTableId();
+  socket.on('connect', () => {
+    setStatus('Connected');
+    try { socket.emit('join_table', { table: currentTableId }); } catch {}
+    try { socket.emit('table:get', { table: currentTableId }); } catch {}
+    try { socket.emit('poker:get', { table: currentTableId }); } catch {}
+  });
+  socket.on('connect_error', (err) => {
+    setStatus('Table unavailable. Retrying...');
+    try { console.error('connect_error', err && err.message, 'path=', path); } catch {}
+    if (path === '/poker.io/' ) {
+      try { socket.close(); } catch {}
+      setTimeout(() => connectWithPath('/socket.io'), 300);
+    }
+  });
+  socket.on('reconnect_error', () => { setStatus('Reconnecting...'); });
+  socket.on('disconnect', () => setStatus('Disconnected'));
+  socket.on('system', () => {});
+  socket.on('table:update', (t) => { try { renderTable(t); } catch {} });
+  socket.on('poker:state', (m) => {
+    try {
+      lastState = m || null;
+      try { if (m && m.table) renderTable(m.table); } catch {}
+    } catch {}
+  });
+  socket.on('poker:hand', (m) => {
+    try {
+      // Keep minimal handling; table:update should follow from server
+      if (m && m.table) renderTable(m.table);
+    } catch {}
+  });
+}
     const cards = Array.isArray(st && st.community) ? st.community : [];
     if (communityEl) communityEl && (communityEl.style.display='none');
     if (communityStrip) {
@@ -467,7 +521,8 @@ async function ensureWallet(promptIfNeeded) {
   } catch(e) { setStatus('Wallet connect failed'); }
 }
 
-connect();
+// Try dedicated poker path first; fallback to default if unavailable
+connectWithPath('/poker.io/');
 // If Tavern already connected, pick it up without re-prompting
 try { if (window.userAddress && String(window.userAddress)) { myAddr = String(window.userAddress).toLowerCase(); } } catch {}
 ensureWallet(false);
