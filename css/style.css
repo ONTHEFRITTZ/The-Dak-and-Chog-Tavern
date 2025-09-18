@@ -181,8 +181,8 @@ body.home .sidebar .sidebar-logo { max-height: 64px; }
 .tavern-sign {
   display:block;
   height:auto;
-  /* Visually reduce size a bit more for better fit */
-  transform: scale(0.72);
+  /* Further reduce size to fit viewport comfortably */
+  transform: scale(0.6);
   transform-origin: top center;
   position: relative;
   top: 36px; /* adjusted with top banner present */
@@ -192,7 +192,7 @@ body.home .sidebar .sidebar-logo { max-height: 64px; }
 /* Mobile tweaks for sign spacing/scale */
 @media (max-width: 600px) {
   .tavern-sign {
-    transform: scale(0.66);
+    transform: scale(0.52);
     top: 24px;
   }
 }
@@ -344,19 +344,18 @@ button:hover { background:#7800cd; }
 
 /* Game logo grid on Tavern */
 .game-logos {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: clamp(12px, 2vw, 20px);
-  flex-wrap: wrap;
+  align-items: center;
+  justify-items: center;
   margin-top: 12px;
 }
 .game-logo-link {
-  display: inline-block;
+  display: block;
+  width: 100%;
   filter: drop-shadow(0 4px 12px rgba(0,0,0,0.18));
   transition: transform .15s ease, filter .15s ease;
-  flex: 1 1 calc(33.333% - 20px);
-  max-width: calc(33.333% - 20px);
 }
 .game-logo-link img {
   display: block;
@@ -364,12 +363,11 @@ button:hover { background:#7800cd; }
   height: auto;
 }
 .game-logo-link:hover { transform: translateY(-2px) scale(1.02); filter: drop-shadow(0 6px 18px rgba(0,0,0,0.25)); }
-
 @media (max-width: 900px) {
-  .game-logo-link { flex-basis: calc(50% - 20px); max-width: calc(50% - 20px); }
+  .game-logos { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 520px) {
-  .game-logo-link { flex-basis: 100%; max-width: 100%; }
+  .game-logos { grid-template-columns: 1fr; }
 }
 
 /* Shell styles */
