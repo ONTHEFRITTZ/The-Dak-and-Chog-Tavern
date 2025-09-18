@@ -195,7 +195,7 @@ async function connect() {
   }
 }
 
-connectBtn?.addEventListener('click', connect);
+async function disconnectWallet() {\r\n  try {\r\n    wallet = null;\r\n    signer = null;\r\n    statusEl.textContent = 'Disconnected';\r\n    updateWalletButtons();\r\n    await refresh();\r\n  } catch {\r\n    updateWalletButtons();\r\n  }\r\n}\r\n\r\ndisconnectBtn?.addEventListener('click', disconnectWallet);\r\nconnectBtn?.addEventListener('click', connect);
 returnBtn?.addEventListener('click', () => { window.location.href = '/index.html'; });
 
 // Whitelist handlers (owner only)
@@ -214,7 +214,7 @@ function parseBulk(addrs){
     .split(/[,\n\r\t ]+/)
     .map(s=>s.trim()).filter(s=>/^0x[0-9a-fA-F]{40}$/.test(s));
 }
-
+\r\nfunction updateWalletButtons() {\r\n  const connected = !!wallet;\r\n  if (connectBtn) connectBtn.style.display = connected ? 'none' : '';\r\n  if (disconnectBtn) disconnectBtn.style.display = connected ? '' : 'none';\r\n}\r\n
 async function wlContract(){
   if (!whitelistAddr || !window.WhitelistABI || !signer) throw new Error('Whitelist address/ABI missing or wallet not connected');
   return new window.ethers.Contract(whitelistAddr, window.WhitelistABI, signer);
