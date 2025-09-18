@@ -10,7 +10,7 @@
   <link rel="preload" as="image" href="assets/images/tavern-bg.webp" type="image/webp">
   <link rel="preload" as="image" href="assets/images/shell-bg.webp" type="image/webp">
   <!-- Load base CSS before any JS to prevent white flash (FOUC) -->
-  <link rel="stylesheet" href="css/style.css">
+  <link id="base-css" rel="stylesheet" href="css/style.css">
   <script>
   (async()=>{
     try{
@@ -18,6 +18,15 @@
       const tag = (b && b.commit) ? String(b.commit).slice(0,12) : Date.now();
       const addHead = (el)=> document.head.appendChild(el);
       window.__BUILD_TAG = tag;
+      // Ensure CSS is cache-busted with the current build tag so old rules never reapply
+      try {
+        const link = document.getElementById('base-css') || document.querySelector('link[rel="stylesheet"][href*="css/style.css"]');
+        if (link) {
+          const u = new URL(link.getAttribute('href'), location.href);
+          u.searchParams.set('v', tag);
+          link.setAttribute('href', u.pathname + '?' + u.searchParams.toString());
+        }
+      } catch {}
       // CSS already loaded statically above to avoid FOUC
       const abi = document.createElement('script'); abi.src = `js/TavernABI.js?v=${tag}`; addHead(abi);
       const s1 = document.createElement('script'); s1.type='module'; s1.src = `js/tavern.js?v=${tag}`; addHead(s1);
