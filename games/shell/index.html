@@ -29,7 +29,9 @@
     })();
   </script>
           <style>
-    body.game { display:flex; flex-direction:column; align-items:center; justify-content:flex-start; }
+    /* Fit content to viewport and remove scroll */
+    html, body { height: 100%; overflow: hidden; }
+    body.game { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:100vh; height:100vh; }
     body {
       background: url('../../assets/images/shell-bg.webp') no-repeat 50% calc(50% + 5vh) fixed !important;
       background-size: cover !important;
@@ -39,7 +41,7 @@
     .game-logo { display:block; width:auto; height:auto; max-width: clamp(180px, 26vw, 320px); margin:16px 0 6px 12px; filter: drop-shadow(0 0 18px rgba(255,244,233,0.45)) drop-shadow(0 4px 12px rgba(0,0,0,0.25)); pointer-events:none; user-select:none; }
     .game-header .rules-btn { background: url('../../assets/images/nav-gem.png') no-repeat center / 100% 100%; border:none; color:#fff; font-weight:700; font-family:'Morris','Morris Alt',serif; text-shadow:0 1px 2px rgba(0,0,0,0.45); height:2.4em; padding:0 18px; cursor:pointer; box-shadow:0 0 18px rgba(146,0,250,0.35); transition: transform .12s ease, box-shadow .12s ease; }
     .game-header .rules-btn:hover { transform: translateY(-1px); box-shadow:0 0 22px rgba(146,0,250,0.45); }
-    .tavern { padding: 24px; background: none !important; border: none !important; box-shadow: none !important; }
+    .tavern { padding: 0; background: none !important; border: none !important; box-shadow: none !important; margin: 0 auto; }
 
     p { color:#f4e6d3; text-shadow:0 1px 2px rgba(0,0,0,0.45); }
     label { color:#f4e6d3; text-shadow:0 1px 2px rgba(0,0,0,0.45); }
@@ -65,19 +67,20 @@
       display:flex;
       justify-content:center;
       align-items:flex-end;
-      flex-wrap:wrap;
-      gap:48px;
-      margin:32px auto;
-      padding:24px;
+      flex-wrap:nowrap;
+      gap:16px;
+      margin:8px auto 12px;
+      padding:12px;
       background: transparent;
       border-radius:24px;
-      max-width:1600px;
+      max-width: 900px;
     }
     .shell {
       position:relative;
       z-index:0;
-      width: clamp(320px, 36vw, 620px);
-      height: clamp(320px, 36vw, 620px);
+      /* Force smaller cups so entire game fits without scroll */
+      width: clamp(160px, 22vw, 260px) !important;
+      height: clamp(160px, 22vw, 260px) !important;
       background: url('../../assets/images/cup.png') no-repeat center center;
       background-size: 100% 100%;
       filter: drop-shadow(0 32px 68px rgba(0,0,0,0.6));
