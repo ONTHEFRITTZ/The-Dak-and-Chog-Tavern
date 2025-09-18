@@ -18,6 +18,7 @@
 
 const http = require('http');
 const { Server } = require('socket.io');
+const crypto = require('crypto');
 
 const server = http.createServer((req, res) => {
   res.writeHead(200, { 'Content-Type': 'text/plain' });
@@ -33,9 +34,11 @@ const tables = new Map(); // tableId -> { id, seats: [{id, addr, ready, balance,
 const profiles = new Map(); // addrLower -> { cipher }
 const publicProfiles = new Map(); // addrLower -> { x }
 const stats = new Map(); // addrLower -> { rounds, wagered, won, lost }
-// Presence tracking
-const seenWallets = new Set(); // unique wallet addresses (lowercased) seen since boot
-const presenceBySocket = new Map(); // socket.id -> { addr: string|null, path: string|null, tableId: string|null, seatId: number|null, last: number }
+// Presence tracking (memory-only; does not persist to disk)
+const seenWallets = new Set(); // unique wallet hashes (sha256 of lowercased address)
+const presenceBySocket = new Map(); // socket.id -> { addrHash: string|null, addrMask: string|null, path: string|null, tableId: string|null, seatId: number|null, last: number }
+function maskAddress(addr){ try { const v=String(addr||''); if (v.length>10) return v.slice(0,6)+'...'+v.slice(-4); return v; } catch { return null; } }
+function hashAddress(addr){ try { return crypto.createHash('sha256').update(String(addr||'').toLowerCase()).digest('hex'); } catch { return null; } }
 let paused = false;
 let rakeBps = Number(process.env.RT_RAKE_BPS || 100); // 1% default
 let feesAccrued = 0; // unitless, same units as bet amounts in table game
@@ -344,12 +347,20 @@ io.on('connection', (socket) => {
   let isAdmin = false;
 
   // Initialize presence record
-  try { presenceBySocket.set(socket.id, { addr: null, path: null, tableId: null, seatId: null, last: nowMs() }); } catch {}
+  try { presenceBySocket.set(socket.id, { addrHash: null, addrMask: null, path: null, tableId: null, seatId: null, last: nowMs() }); } catch {}
 
   socket.on('identify', (m) => {
     try { addrLower = String(m.addr||'').toLowerCase(); isAdmin = admins.has(addrLower); } catch {}
     socket.emit('rt:state', { paused, rakeBps, feesAccrued });
-    try { if (addrLower) { seenWallets.add(addrLower); const p = presenceBySocket.get(socket.id) || {}; p.addr = addrLower; p.last = nowMs(); presenceBySocket.set(socket.id, p); } } catch {}
+    try {
+      if (addrLower) {
+        const h = hashAddress(addrLower);
+        seenWallets.add(h);
+        const p = presenceBySocket.get(socket.id) || {};
+        p.addrHash = h; p.addrMask = maskAddress(addrLower); p.last = nowMs();
+        presenceBySocket.set(socket.id, p);
+      }
+    } catch {}
   });
 
   // Client announces page location
@@ -730,7 +741,8 @@ io.on('connection', (socket) => {
       const now = nowMs();
       const online = Array.from(presenceBySocket.entries()).map(([id, p]) => ({
         socketId: id,
-        addr: p.addr || null,
+        addrHash: p.addrHash || null,
+        addrMask: p.addrMask || null,
         path: p.path || null,
         tableId: p.tableId || null,
         seatId: (typeof p.seatId === 'number' ? p.seatId : null),

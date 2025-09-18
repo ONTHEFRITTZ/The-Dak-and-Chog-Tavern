@@ -208,7 +208,8 @@ export function renderNetworkBanner({ contractKey, address, chainId, wallet }) {
 export function renderTavernBanner({ contractKey, address, chainId, wallet, labelOverride }) {
   try {
     const top = document.querySelector('.top-banner');
-    const useTopBanner = !!top;
+    const sidebarFooter = document.getElementById('sidebar-footer');
+    const useTopBanner = !!top && !sidebarFooter; // if sidebar footer exists, prefer it and skip top
     const root = useTopBanner ? top : (document.querySelector('.tavern') || document.body);
     // Ensure left/right regions in top banner
     let leftRegion, rightRegion;
@@ -241,7 +242,24 @@ export function renderTavernBanner({ contractKey, address, chainId, wallet, labe
     const targetChainKey = Object.keys(ADDRESS_BOOK).find(k => k !== 'default' && !isNaN(Number(k)));
     const targetChainId = targetChainKey ? Number(targetChainKey) : null;
 
-    if (useTopBanner) {
+    if (sidebarFooter) {
+      // Render compact readout inside sidebar footer and remove any prior banners
+      const target = sidebarFooter;
+      target.innerHTML = `
+        <div class="pill" title="Network">${name}${chainId ? ` (${chainId})` : ''}</div>
+        ${mismatch ? '<div class="pill pill-note" title="Notice">Default address</div>' : ''}
+        <div style="margin-top:4px;">
+          <span title="Address" style="white-space:nowrap;">${keyLabel}: ${explorer ? `<a id="sb-addr" href="${explorer}" target="_blank" rel="noopener" style="white-space:nowrap; display:inline-block; letter-spacing:0; word-spacing:0; font-variant-ligatures:none;">${short(address)}</a>` : short(address)}</span>
+          ${address ? '<button id="sb-copy" style="margin-left:8px;">Copy</button>' : ''}
+        </div>
+      `;
+      const copyBtn = target.querySelector('#sb-copy');
+      if (copyBtn && address) {
+        copyBtn.onclick = async () => { try { await navigator.clipboard.writeText(address); copyBtn.textContent = 'Copied'; setTimeout(()=>copyBtn.textContent='Copy', 1200); } catch {} };
+      }
+      try { const oldTop = document.getElementById('nb-top-info'); if (oldTop) oldTop.remove(); } catch {}
+      try { const old = document.getElementById('network-banner'); if (old) old.remove(); } catch {}
+    } else if (useTopBanner) {
       // Compact readout in top-banner left region
       let topInfo = document.getElementById('nb-top-info');
       if (!topInfo) {

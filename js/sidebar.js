@@ -77,6 +77,13 @@
 
     nav.appendChild(header);
     nav.appendChild(list);
+
+    // Footer for network/contract readout
+    const footer = document.createElement('div');
+    footer.className = 'sidebar-footer';
+    footer.id = 'sidebar-footer';
+    footer.innerHTML = '<div class="sb-net">Loading network…</div>';
+    nav.appendChild(footer);
     document.body.appendChild(nav);
 
     // Initial state: default to collapsed on small screens if no prior choice
