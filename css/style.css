@@ -344,16 +344,17 @@ button:hover { background:#7800cd; }
 
 /* Game logo grid on Tavern */
 .game-logos {
-  display: grid !important;
-  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  display: flex !important;
+  flex-wrap: wrap !important;
+  justify-content: center !important; /* center last row when not full */
   gap: clamp(12px, 2vw, 20px) !important;
   align-items: center !important;
-  justify-items: center !important;
   margin-top: 12px !important;
 }
 .game-logo-link {
   display: block !important;
-  width: 100% !important;
+  flex: 0 0 calc(33.333% - 20px) !important; /* three across */
+  max-width: calc(33.333% - 20px) !important;
   filter: drop-shadow(0 4px 12px rgba(0,0,0,0.18));
   transition: transform .15s ease, filter .15s ease;
 }
@@ -365,10 +366,10 @@ button:hover { background:#7800cd; }
 }
 .game-logo-link:hover { transform: translateY(-2px) scale(1.02); filter: drop-shadow(0 6px 18px rgba(0,0,0,0.25)); }
 @media (max-width: 900px) {
-  .game-logos { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .game-logo-link { flex-basis: calc(50% - 20px) !important; max-width: calc(50% - 20px) !important; }
 }
 @media (max-width: 520px) {
-  .game-logos { grid-template-columns: 1fr !important; }
+  .game-logo-link { flex-basis: 100% !important; max-width: 100% !important; }
 }
 
 /* Shell styles */
