@@ -2,7 +2,8 @@ const statusEl = document.getElementById('status');
 const seatEls = Array.from(document.querySelectorAll('.seat'));
 const connectBtn = document.getElementById('connect-wallet');
 const devBotBtn = document.getElementById('toggle-dev-bot');
-const disconnectBtn = document.getElementById('disconnect-wallet');
+const disconnectBtn = document.getElementById('wi-disconnect') || document.getElementById('disconnect-wallet');
+const walletAddrSpan = document.getElementById('wi-address');
 let devBotOn = false;
 let socket; let myAddr = null; let currentTableId = null; let lastTable = null; let myHole = [];
 let lastState = null; let exposures = {}; let winnersNow = {};
@@ -343,7 +344,8 @@ async function ensureWallet(promptIfNeeded) {
       const got = await signer.getAddress();
       myAddr = String(got||addr||'').toLowerCase();
       setStatus('' + short(myAddr)); try { if (walletAddrSpan) walletAddrSpan.textContent = short(myAddr); } catch{}
-      try { if (connectBtn) connectBtn.style.display = 'none'; } catch(e){} try { if (disconnectBtn) { disconnectBtn.style.display=''; disconnectBtn.onclick = () => { try{ localStorage.removeItem('walletConnected'); sessionStorage.removeItem('walletConnected'); }catch(_){} try{ location.reload(); }catch(_){} }; } } catch(_){}
+      try { if (connectBtn) connectBtn.style.display = 'none'; } catch(e){}
+      try { if (disconnectBtn) { disconnectBtn.style.display=''; disconnectBtn.onclick = () => { try{ localStorage.removeItem('walletConnected'); sessionStorage.removeItem('walletConnected'); }catch(_){} try{ location.reload(); }catch(_){} }; } } catch(_){}
       if (devBotBtn) { devBotBtn.disabled = false; devBotBtn.title = 'Add/remove a test bot to play solo'; }
       if (socket && socket.connected) {
         try { socket.emit('identify', { addr: myAddr }); } catch(e){}
@@ -357,7 +359,13 @@ async function ensureWallet(promptIfNeeded) {
 
 connect();
 // If Tavern already connected, pick it up without re-prompting
-try { if (window.userAddress && String(window.userAddress)) { myAddr = String(window.userAddress).toLowerCase(); } } catch {}
+try {
+  if (window.userAddress && String(window.userAddress)) {
+    myAddr = String(window.userAddress).toLowerCase();
+    try { if (walletAddrSpan) walletAddrSpan.textContent = short(myAddr); } catch{}
+    try { if (disconnectBtn) { disconnectBtn.style.display=''; disconnectBtn.onclick = () => { try{ localStorage.removeItem('walletConnected'); sessionStorage.removeItem('walletConnected'); }catch(_){} try{ location.reload(); }catch(_){} }; } } catch(_){}
+  }
+} catch {}
 ensureWallet(false);
 // React when Tavern announces wallet connection
 try {
@@ -366,7 +374,9 @@ try {
       const addr = String((ev && ev.detail && ev.detail.address) || '').toLowerCase();
       if (addr) {
         myAddr = addr; setStatus('');
+        try { if (walletAddrSpan) walletAddrSpan.textContent = short(myAddr); } catch{}
         try { if (connectBtn) connectBtn.style.display = 'none'; } catch {}
+        try { if (disconnectBtn) { disconnectBtn.style.display=''; disconnectBtn.onclick = () => { try{ localStorage.removeItem('walletConnected'); sessionStorage.removeItem('walletConnected'); }catch(_){} try{ location.reload(); }catch(_){} }; } } catch(_){}
         if (devBotBtn) { devBotBtn.disabled = false; devBotBtn.title = 'Add/remove a test bot to play solo'; }
         if (socket && socket.connected) {
         try { socket.emit('identify', { addr: myAddr }); } catch(e){}
@@ -381,6 +391,34 @@ try {
 } catch {}
 
 if (connectBtn) connectBtn.addEventListener('click', function(){ ensureWallet(true); });
+
+// Best-effort inline wallet UI sync in case events race
+try {
+  let tries = 0;
+  const t = setInterval(async () => {
+    try {
+      if (myAddr) { clearInterval(t); return; }
+      if (window.userAddress && String(window.userAddress)) {
+        myAddr = String(window.userAddress).toLowerCase();
+        try { if (walletAddrSpan) walletAddrSpan.textContent = short(myAddr); } catch{}
+        try { if (disconnectBtn) { disconnectBtn.style.display=''; disconnectBtn.onclick = () => { try{ localStorage.removeItem('walletConnected'); sessionStorage.removeItem('walletConnected'); }catch(_){} try{ location.reload(); }catch(_){} }; } } catch(_){}
+        clearInterval(t); return;
+      }
+      // One more passive check via eth_accounts without prompting
+      if (window.ethereum && window.ethers) {
+        const accounts = await window.ethereum.request({ method:'eth_accounts' });
+        const a = (Array.isArray(accounts) && accounts[0]) ? accounts[0] : null;
+        if (a) {
+          myAddr = String(a).toLowerCase();
+          try { if (walletAddrSpan) walletAddrSpan.textContent = short(myAddr); } catch{}
+          try { if (disconnectBtn) { disconnectBtn.style.display=''; disconnectBtn.onclick = () => { try{ localStorage.removeItem('walletConnected'); sessionStorage.removeItem('walletConnected'); }catch(_){} try{ location.reload(); }catch(_){} }; } } catch(_){}
+          clearInterval(t); return;
+        }
+      }
+    } catch {}
+    if (++tries > 10) { try { clearInterval(t); } catch{} }
+  }, 800);
+} catch {}
 
 
 
