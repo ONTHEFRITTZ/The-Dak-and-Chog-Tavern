@@ -470,8 +470,8 @@ body.age-landing {
 /* Pin build footer bottom-left across pages */
 #footer-meta {
   position: fixed !important;
-  left: 12px !important;
-  right: auto !important;
+  right: 12px !important;
+  left: auto !important;
   bottom: 12px !important;
   z-index: 10000 !important;
 }
