@@ -243,22 +243,34 @@ async function refreshHealth() {
     const markerEl = document.getElementById('health-marker');
     const whoEl = document.getElementById('health-whoami');
     const tag = Date.now();
-    // Build metadata
+
+    const fetchPlain = async (url) => {
+      try {
+        const resp = await fetch(`${url}?now=${tag}`, { cache: 'no-store' });
+        if (!resp.ok) return 'unavailable';
+        const text = (await resp.text()).trim();
+        const type = (resp.headers.get('content-type') || '').toLowerCase();
+        if (type.includes('text/html') || text.startsWith('<')) return 'unavailable';
+        return text;
+      } catch {
+        return 'unavailable';
+      }
+    };
+
     try {
-      const r = await fetch('/assets/build.json?now=' + tag, { cache: 'no-store' });
-      if (r.ok) { const b = await r.json(); buildEl.textContent = `commit=${String(b.commit||'').slice(0,12)} builtAt=${b.builtAt||''}`; }
-      else { buildEl.textContent = 'unavailable'; }
-    } catch { try { document.getElementById('health-build').textContent = 'unavailable'; } catch {} }
-    // Deploy marker
-    try {
-      const r = await fetch('/assets/deploy_check.txt?now=' + tag, { cache: 'no-store' });
-      markerEl.textContent = r.ok ? (await r.text()).trim() : 'unavailable';
-    } catch { try { document.getElementById('health-marker').textContent = 'unavailable'; } catch {} }
-    // WhoAmI
-    try {
-      const r = await fetch('/__whoami.txt?now=' + tag, { cache: 'no-store' });
-      whoEl.textContent = r.ok ? (await r.text()).trim() : 'unavailable';
-    } catch { try { document.getElementById('health-whoami').textContent = 'unavailable'; } catch {} }
+      const r = await fetch(`/assets/build.json?now=${tag}`, { cache: 'no-store' });
+      if (r.ok) {
+        const b = await r.json();
+        if (buildEl) buildEl.textContent = `commit=${String(b.commit || '').slice(0,12)} builtAt=${b.builtAt || ''}`;
+      } else if (buildEl) {
+        buildEl.textContent = 'unavailable';
+      }
+    } catch {
+      try { if (buildEl) buildEl.textContent = 'unavailable'; } catch {}
+    }
+
+    if (markerEl) markerEl.textContent = await fetchPlain('/assets/deploy_check.txt');
+    if (whoEl) whoEl.textContent = await fetchPlain('/__whoami.txt');
   } catch {}
 }
 document.getElementById('health-refresh')?.addEventListener('click', refreshHealth);
