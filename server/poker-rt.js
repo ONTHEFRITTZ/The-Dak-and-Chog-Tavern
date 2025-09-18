@@ -613,8 +613,8 @@ function endPokerByShowdown(tableId, t, winnerAddrs) {
     const winnerList = winners.map(addr => {
       const i = state.actors.findIndex(a => a.addr === addr);
       const hole = i>=0 ? Array.from(state.actors[i].cards||[]) : [];
-      const bf = bestFiveRank(hole, board);
-      return { addr, amount: each, usedHole: bf.usedHole, usedCommunity: bf.usedCommunity, rank: bf.rank, handName: handNameFromRank(bf.rank), rankName: handNameFromRank(bf.rank) };
+      const used = bestFiveUsed(hole, board);
+      return { addr, amount: each, usedHole: used.usedHole, usedCommunity: used.usedCommunity };
     });
     io.to(tableId).emit('poker:hand', { winners: winnerList, community: board, pot: state.pot||0, table: tablePublic(t) });
     // Clear any sim timers
@@ -657,8 +657,8 @@ function endPokerWithSidePots(tableId, t) {
       .filter(x=>x.amt>0)
       .map(x=> {
         const hole = Array.from(actors[x.i].cards||[]);
-        const bf = bestFiveRank(hole, board);
-        return { addr: actors[x.i].addr, amount: x.amt, usedHole: bf.usedHole, usedCommunity: bf.usedCommunity, rank: bf.rank, handName: handNameFromRank(bf.rank), rankName: handNameFromRank(bf.rank) };
+        const used = bestFiveUsed(hole, board);
+        return { addr: actors[x.i].addr, amount: x.amt, usedHole: used.usedHole, usedCommunity: used.usedCommunity };
       });
     // Reveal surviving players' hole cards at showdown for transparency
     const exposures = actors.filter(a => !a.folded).map(a => ({ addr: a.addr, cards: Array.from(a.cards||[]) }));
@@ -736,70 +736,20 @@ function maybeTriggerBot(tableId, t) {
 // ---- 7-card evaluator
 const RANKS = ['2','3','4','5','6','7','8','9','T','J','Q','K','A'];
 const RVAL = Object.fromEntries(RANKS.map((r,i)=>[r, i+2]));
-const RANK_ALIAS = { '10': 'T' };
-const SUIT_MAP = { c:'c', C:'c', '\\u2663':'c', d:'d', D:'d', '\\u2666':'d', h:'h', H:'h', '\\u2665':'h', s:'s', S:'s', '\\u2660':'s' };
-function parseCard(code){
-  try {
-    const raw = String(code || '').trim();
-    if (!raw) return { r:'', s:'', v:0 };
-    const rawSuit = raw.slice(-1);
-    const rawRank = raw.slice(0, -1) || raw;
-    const suit = SUIT_MAP[rawSuit] || rawSuit.toLowerCase();
-    const normalizedRank = (RANK_ALIAS[rawRank.toUpperCase()] || rawRank.toUpperCase());
-    const value = RVAL[normalizedRank] || 0;
-    return { r: normalizedRank, s: suit, v: value };
-  } catch {
-    return { r:'', s:'', v:0 };
-  }
-}
+function parseCard(c){ const r=c[0], s=c[1]; return { r, s, v:RVAL[r]||0 }; }
 function byvDesc(a,b){ return b.v-a.v; }
 function uniqueByRankDesc(cards){ const seen=new Set(); const out=[]; for(const c of cards.sort(byvDesc)){ if(!seen.has(c.v)){ out.push(c); seen.add(c.v);} } return out; }
-function straightHigh(cards){
-  try {
-    const u = uniqueByRankDesc(cards);
-    const base = u.map(c=>c.v);
-    const seq = base.slice();
-    // Ace-low wheel support: treat Ace as 1 in an additional slot
-    if (seq.includes(14)) seq.push(1);
-    let run = 1;
-    let high = 0; // high card of best straight found
-    for (let i = 1; i < seq.length; i++) {
-      if (seq[i] === seq[i-1] - 1) {
-        run++;
-        if (run >= 5) {
-          // Straight of length >=5 ending at index i; high card is at i-4
-          const candHigh = seq[i-4];
-          if (candHigh > high) high = candHigh;
-        }
-      } else if (seq[i] !== seq[i-1]) {
-        run = 1;
-      }
-      // if equal, duplicates were already removed by uniqueByRankDesc
-    }
-    return high;
-  } catch { return 0; }
-}
+function straightHigh(cards){ const u = uniqueByRankDesc(cards); const vs = u.map(c=>c.v); if (vs.includes(14)) vs.push(1); let best=0, run=1; for (let i=1;i<vs.length;i++){ if (vs[i]===vs[i-1]-1) { run++; best = Math.max(best, vs[i-1]); } else if (vs[i]!==vs[i-1]) run=1; if (run>=5) best = Math.max(best, vs[i-1]); } if (best===0 && vs.includes(5) && vs.includes(1)) return 5; return best; }
 function evaluate7(cards){ const cs = cards.map(parseCard).sort(byvDesc); const bySuit = cs.reduce((m,c)=>{ (m[c.s]=m[c.s]||[]).push(c); return m; },{}); const counts = cs.reduce((m,c)=>{ m[c.v]=(m[c.v]||0)+1; return m; },{}); const groups = Object.entries(counts).map(([v,c])=>({v:Number(v), c})).sort((a,b)=> b.c-a.c || b.v-a.v); let flushSuit=null; for (const s of Object.keys(bySuit)){ if (bySuit[s].length>=5) { flushSuit=s; break; } } if (flushSuit){ const fcs = bySuit[flushSuit].slice(); const hi = straightHigh(fcs); if (hi>0){ return { cls:8, tiebreak:[hi] }; } } if (groups[0]?.c===4){ const kicker = cs.find(c=>c.v!==groups[0].v)?.v||0; return { cls:7, tiebreak:[groups[0].v, kicker] }; } if (groups[0]?.c===3){ const second = groups.find(g=>g.c>=2 && g.v!==groups[0].v); if (second){ return { cls:6, tiebreak:[groups[0].v, second.v] }; } } if (flushSuit){ const top5 = bySuit[flushSuit].slice(0,5).map(c=>c.v); return { cls:5, tiebreak: top5 } } const sh = straightHigh(cs); if (sh>0){ return { cls:4, tiebreak:[sh] }; } if (groups[0]?.c===3){ const kickers = cs.filter(c=>c.v!==groups[0].v).slice(0,2).map(c=>c.v); return { cls:3, tiebreak:[groups[0].v, ...kickers] }; } if (groups[0]?.c===2 && groups[1]?.c===2){ const kicker = cs.find(c=>c.v!==groups[0].v && c.v!==groups[1].v)?.v||0; const hi=Math.max(groups[0].v,groups[1].v), lo=Math.min(groups[0].v,groups[1].v); return { cls:2, tiebreak:[hi, lo, kicker] }; } if (groups[0]?.c===2){ const kickers = cs.filter(c=>c.v!==groups[0].v).slice(0,3).map(c=>c.v); return { cls:1, tiebreak:[groups[0].v, ...kickers] }; } return { cls:0, tiebreak: cs.slice(0,5).map(c=>c.v) }; }
-function cmpRank(a,b){ if (!a || !b) return (!a && !b) ? 0 : (a ? 1 : -1); if (a.cls!==b.cls) return a.cls-b.cls; const na=Array.isArray(a.tiebreak)?a.tiebreak.length:0; const nb=Array.isArray(b.tiebreak)?b.tiebreak.length:0; const n=Math.max(na, nb); for (let i=0; i<n; i++){ const av = Number((a.tiebreak||[])[i]) || 0; const bv = Number((b.tiebreak||[])[i]) || 0; if (av !== bv) return av - bv; } return 0; }\r\nfunction rankScore(rank){ try { const cls = Number(rank?.cls) || 0; const tb = Array.isArray(rank?.tiebreak) ? rank.tiebreak : []; const ordered = [cls, Number(tb[0])||0, Number(tb[1])||0, Number(tb[2])||0, Number(tb[3])||0, Number(tb[4])||0]; return ordered.reduce((acc,val)=> acc*100 + val, 0); } catch { return 0; } }
-// Compute best 5-card hand from 7 and return rank + used indices
-function compareValueArrays(a, b){
-  const max = Math.max(a.length, b.length);
-  for (let i = 0; i < max; i++){
-    const av = typeof a[i] === 'number' ? a[i] : -1;
-    const bv = typeof b[i] === 'number' ? b[i] : -1;
-    if (av !== bv) return av - bv;
-  }
-  return 0;
-}
+function cmpRank(a,b){ if (a.cls!==b.cls) return a.cls-b.cls; const n=Math.max(a.tiebreak.length,b.tiebreak.length); for(let i=0;i<n;i++){ const av=a.tiebreak[i]||0, bv=b.tiebreak[i]||0; if (av!==bv) return av-bv; } return 0; }
+function determineWinners(holeCardsArr, actorIdxs, board){ const winners=[]; let best=null; for (let i=0;i<holeCardsArr.length;i++){ const hole=holeCardsArr[i]; const evald=evaluate7([...(hole||[]), ...(board||[])]); if (!best || cmpRank(evald,best)>0){ best=evald; winners.length=0; winners.push(actorIdxs[i]); } else if (cmpRank(evald,best)===0){ winners.push(actorIdxs[i]); } } return winners; }
 
-function bestFiveRank(hole, board){
+// Determine the best 5-card selection (indices) for a Hold'em hand
+function bestFiveUsed(hole, board){
   try {
-    const all = Array.from(hole||[]).concat(Array.from(board||[]));
+    const all = Array.from(hole||[]).concat(Array.from(board||[])); // [h0,h1,b0..b4]
     const idxs = all.map((_,i)=>i);
-    let bestRank=null;
-    let bestPick=null;
-    let bestHoleVals=[];
-    let bestCardVals=[];
+    let best=null; let bestPick=null;
     function* comb5(arr, start=0, k=5, prefix=[]) {
       if (k===0) { yield prefix; return; }
       for (let i=start; i<=arr.length-k; i++) { yield* comb5(arr, i+1, k-1, prefix.concat([arr[i]])); }
@@ -807,93 +757,13 @@ function bestFiveRank(hole, board){
     for (const pick of comb5(idxs)){
       const cards = pick.map(i=> all[i]);
       const rank = evaluate7(cards);
-      const cardVals = pick.map(i=> parseCard(all[i]).v).sort((a,b)=>b-a);
-      const holeVals = pick.filter(i=> i < 2).map(i=> parseCard(all[i]).v).sort((a,b)=>b-a);
-      if (!bestRank || cmpRank(rank, bestRank) > 0){
-        bestRank = rank;
-        bestPick = pick;
-        bestHoleVals = holeVals.slice();
-        bestCardVals = cardVals.slice();
-        continue;
-      }
-      if (cmpRank(rank, bestRank) === 0){
-        const holeCmp = compareValueArrays(holeVals, bestHoleVals);
-        if (holeCmp > 0 || (holeCmp === 0 && compareValueArrays(cardVals, bestCardVals) > 0)){
-          bestRank = rank;
-          bestPick = pick;
-          bestHoleVals = holeVals.slice();
-          bestCardVals = cardVals.slice();
-        }
-      }
-    }
-    if (!bestRank){
-      bestRank = { cls:0, tiebreak:[0,0,0,0,0] };
-      bestPick = [];
-      bestHoleVals = [];
-      bestCardVals = [];
+      if (!best || cmpRank(rank, best) > 0){ best = rank; bestPick = pick; }
     }
     const usedHole = []; const usedCommunity = [];
     (bestPick||[]).forEach(i=>{ if (i<2) usedHole.push(i); else usedCommunity.push(i-2); });
-    return { rank: bestRank, usedHole, usedCommunity, holeValues: bestHoleVals, cardValues: bestCardVals };
-  } catch { return { rank:{ cls:0, tiebreak:[0,0,0,0,0] }, usedHole:[], usedCommunity:[], holeValues:[], cardValues:[] }; }
-}
-
-function handNameFromRank(rank){
-  try {
-    const cls = Number(rank && rank.cls);
-    const hi = (rank && Array.isArray(rank.tiebreak) && rank.tiebreak[0]) || 0;
-    if (cls === 8) return (hi===14) ? 'Royal Flush' : 'Straight Flush';
-    if (cls === 7) return 'Four of a Kind';
-    if (cls === 6) return 'Full House';
-    if (cls === 5) return 'Flush';
-    if (cls === 4) return 'Straight';
-    if (cls === 3) return 'Three of a Kind';
-    if (cls === 2) return 'Two Pair';
-    if (cls === 1) return 'One Pair';
-    return 'High Card';
-  } catch { return 'Winner'; }
-}
-
-function determineWinners(holeCardsArr, actorIdxs, board){
-  const winners = [];
-  let bestScore = null;
-  let bestHoleVals = [];
-  let bestCardVals = [];
-  for (let i = 0; i < holeCardsArr.length; i++){
-    const data = bestFiveRank(holeCardsArr[i], board);
-    const score = rankScore(data.rank);
-    if (bestScore === null || score > bestScore){
-      bestScore = score;
-      bestHoleVals = data.holeValues.slice();
-      bestCardVals = data.cardValues.slice();
-      winners.length = 0;
-      winners.push(actorIdxs[i]);
-    } else if (score === bestScore){
-      const holeCmp = compareValueArrays(data.holeValues, bestHoleVals);
-      if (holeCmp > 0){
-        bestHoleVals = data.holeValues.slice();
-        bestCardVals = data.cardValues.slice();
-        winners.length = 0;
-        winners.push(actorIdxs[i]);
-      } else if (holeCmp === 0){
-        const cardCmp = compareValueArrays(data.cardValues, bestCardVals);
-        if (cardCmp > 0){
-          bestCardVals = data.cardValues.slice();
-          winners.length = 0;
-          winners.push(actorIdxs[i]);
-        } else if (cardCmp === 0){
-          winners.push(actorIdxs[i]);
-        }
-      }
-    }
-  }
-  return winners;
-}
-
-function bestFiveUsed(hole, board){
-  try {
-    const data = bestFiveRank(hole, board);
-    return { usedHole: data.usedHole, usedCommunity: data.usedCommunity };
+    return { usedHole, usedCommunity };
   } catch { return { usedHole: [], usedCommunity: [] }; }
 }
+
+
 
