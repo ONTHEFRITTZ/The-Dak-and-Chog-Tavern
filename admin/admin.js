@@ -16,11 +16,6 @@ const tavSetPoolBtn = document.getElementById('tavern-set-pool');
 const tavSetMaxBetBtn = document.getElementById('tavern-set-maxbet');
 const tavOverrideInput = document.getElementById('tavern-override');
 const tavSetAddrBtn = document.getElementById('tavern-set-addr');
-const tavToInput = document.getElementById('tavern-to');
-const tavAmtInput = document.getElementById('tavern-amt');
-const tavWithdrawBtn = document.getElementById('tavern-withdraw');
-const tavFundAmtInput = document.getElementById('tavern-fund-amt');
-const tavFundBtn = document.getElementById('tavern-fund');
 
 // Faro elements
 const faroAddrEl = document.getElementById('faro-address');
@@ -34,13 +29,6 @@ const faroFeeInput = document.getElementById('faro-fee');
 const faroSetFeeBtn = document.getElementById('faro-set-fee');
 const faroOverrideInput = document.getElementById('faro-override');
 const faroSetAddrBtn = document.getElementById('faro-set-addr');
-const faroToInput = document.getElementById('faro-to');
-const faroAmtInput = document.getElementById('faro-amt');
-const faroWithdrawBtn = document.getElementById('faro-withdraw');
-const faroFeesAmtInput = document.getElementById('faro-fees-amt');
-const faroWithdrawFeesBtn = document.getElementById('faro-withdraw-fees');
-const faroFundAmtInput = document.getElementById('faro-fund-amt');
-const faroFundBtn = document.getElementById('faro-fund');
 const faroPoolEl = document.getElementById('faro-pool');
 const faroPoolInput = document.getElementById('faro-pool-input');
 const faroSetPoolBtn = document.getElementById('faro-set-pool');
@@ -78,11 +66,6 @@ const wlMsgEl = document.getElementById('wl-msg');
 const ppAddrEl = document.getElementById('pokerpooled-address');
 const ppOverrideInput = document.getElementById('pokerpooled-override');
 const ppSetAddrBtn = document.getElementById('pokerpooled-set-addr');
-const ppSeatInput = document.getElementById('pokerpooled-seat');
-const ppAmtInput = document.getElementById('pokerpooled-amt');
-const ppReadBtn = document.getElementById('pokerpooled-read');
-const ppWithdrawBtn = document.getElementById('pokerpooled-withdraw');
-const ppUnseatBtn = document.getElementById('pokerpooled-unseat');
 const ppMsgEl = document.getElementById('pokerpooled-msg');
 
 let provider, signer, wallet;
@@ -134,7 +117,6 @@ async function refresh() {
         const maxBet = await tavern.maxBet();
         tavMaxBetInput.placeholder = fmtEth(maxBet);
         try { const tp = await tavern.pool(); if (tavPoolEl) tavPoolEl.textContent = tp || '-'; } catch { if (tavPoolEl) tavPoolEl.textContent = '(not pooled)'; }
-        try { tavAmtInput.placeholder = fmtEth(bal); } catch {}
         if (tavOwnerMatchEl) {
           const match = isTavOwnerNow();
           tavOwnerMatchEl.textContent = match ? 'Yes' : 'No';
@@ -160,8 +142,6 @@ async function refresh() {
         const fee = await faro.feeBps();
         faroFeeInput.placeholder = String(fee);
         try { const feesAcc = await faro.feesAccrued(); if (faroFeesEl) faroFeesEl.textContent = fmtEth(feesAcc) + ' MON'; } catch {}
-        try { faroAmtInput.placeholder = fmtEth(bal); } catch {}
-        try { const feesAcc = await faro.feesAccrued(); faroFeesAmtInput.placeholder = fmtEth(feesAcc); } catch {}
         try { const p = await faro.pool(); if (faroPoolEl) faroPoolEl.textContent = p; } catch { if (faroPoolEl) faroPoolEl.textContent = '(n/a)'; }
         if (faroOwnerMatchEl) {
           const match = isFaroOwnerNow();
@@ -186,8 +166,8 @@ async function refresh() {
     const isFaroOwner = wallet && faroOwner && wallet.toLowerCase() === faroOwner.toLowerCase();
     
     // Enable/disable owner-only controls
-    [tavSetMaxBetBtn, tavWithdrawBtn, tavFundBtn].forEach(el => { if (el) el.classList.toggle('readonly', !isTavOwner); });
-    [faroSetMaxBetBtn, faroSetFeeBtn, faroWithdrawBtn, faroWithdrawFeesBtn, faroFundBtn, faroSetPoolBtn, faroPauseBtn, faroResumeBtn].forEach(el => { if (el) el.classList.toggle('readonly', !isFaroOwner); });
+    [tavSetMaxBetBtn, tavSetPoolBtn].forEach(el => { if (el) el.classList.toggle('readonly', !isTavOwner); });
+    [faroSetMaxBetBtn, faroSetFeeBtn, faroSetPoolBtn, faroPauseBtn, faroResumeBtn].forEach(el => { if (el) el.classList.toggle('readonly', !isFaroOwner); });
     document.getElementById('owner-note').textContent = (isTavOwner || isFaroOwner) ? 'Owner controls enabled.' : 'Connect the owner wallet. Controls are disabled for non-owners.';
 
     // Realtime controls rely on Tavern owner
@@ -208,8 +188,6 @@ async function connect() {
     signer = provider.getSigner();
     wallet = await signer.getAddress();
     statusEl.textContent = 'Connected: ' + wallet;
-    try { if (tavToInput && !tavToInput.value) tavToInput.value = wallet; } catch {}
-    try { if (faroToInput && !faroToInput.value) faroToInput.value = wallet; } catch {}
     try { if (poolToInput && !poolToInput.value) poolToInput.value = wallet; } catch {}
     await refresh();
   } catch (e) {
@@ -289,9 +267,10 @@ window.addEventListener('DOMContentLoaded', () => { try { refreshHealth(); } cat
 // Set pool on Tavern (owner only)
 tavSetPoolBtn?.addEventListener('click', async () => {
   try {
-    if (!tavern) return;
+    if (!tavern) { statusEl.textContent = 'Tavern not connected'; return; }
+    if (!isTavOwnerNow()) { statusEl.textContent = 'Owner only: Tavern'; return; }
     const target = (tavPoolInput && tavPoolInput.value && tavPoolInput.value.trim()) || (poolOverrideInput && poolOverrideInput.value && poolOverrideInput.value.trim()) || poolAddr;
-    if (!target || !target.startsWith('0x') || target.length !== 42) { alert('Enter a valid pool address'); return; }
+    if (!target || !target.startsWith('0x') || target.length !== 42) { statusEl.textContent = 'Enter a valid pool address'; return; }
     const tx = await tavern.setPool(target);
     statusEl.textContent = `Setting pool... ${tx.hash.slice(0,10)}...`;
     await tx.wait();
@@ -378,10 +357,11 @@ document.getElementById('rt-restart')?.addEventListener('click', ()=>{
   } catch {}
 });
 
-// Actions — Tavern
+// Actions - Tavern
 tavSetMaxBetBtn?.addEventListener('click', async () => {
   try {
-    if (!tavern) return;
+    if (!tavern) { statusEl.textContent = 'Tavern not connected'; return; }
+    if (!isTavOwnerNow()) { statusEl.textContent = 'Owner only: Tavern'; return; }
     const val = String(tavMaxBetInput.value||'').trim();
     if (!val) return;
     if (!isTavOwnerNow()) { statusEl.textContent = 'Owner only: Tavern'; return; }
@@ -392,34 +372,7 @@ tavSetMaxBetBtn?.addEventListener('click', async () => {
   } catch (e) { statusEl.textContent = e?.data?.message || e?.message || 'Failed'; }
 });
 
-tavWithdrawBtn?.addEventListener('click', async () => {
-  try {
-    if (!tavern) { statusEl.textContent = 'Tavern not connected'; return; }
-    if (!isTavOwnerNow()) { statusEl.textContent = 'Owner only: Tavern'; return; }
-    const to = String(tavToInput.value||'').trim();
-    const amt = String(tavAmtInput.value||'').trim();
-    if (!to) { statusEl.textContent = 'Enter withdraw address'; return; }
-    if (!amt) { statusEl.textContent = 'Enter amount'; return; }
-    const tx = await tavern.withdraw(to, window.ethers.utils.parseEther(amt));
-    statusEl.textContent = 'Tavern withdraw tx sent';
-    await tx.wait();
-    await refresh();
-  } catch (e) { statusEl.textContent = e?.data?.message || e?.message || 'Failed'; }
-});
-
-tavFundBtn?.addEventListener('click', async () => {
-  try {
-    if (!signer || !tavernAddr) { statusEl.textContent = 'Tavern not connected'; return; }
-    const amt = String(tavFundAmtInput.value||'').trim();
-    if (!amt) { statusEl.textContent = 'Enter fund amount'; return; }
-    const tx = await signer.sendTransaction({ to: tavernAddr, value: window.ethers.utils.parseEther(amt) });
-    statusEl.textContent = 'Tavern fund tx sent';
-    await tx.wait();
-    await refresh();
-  } catch (e) { statusEl.textContent = e?.data?.message || e?.message || 'Failed'; }
-});
-
-// Actions — Faro
+// Actions - Faro
 faroSetMaxBetBtn?.addEventListener('click', async () => {
   try {
     if (!faro) { statusEl.textContent = 'Faro not connected'; return; }
@@ -441,48 +394,6 @@ faroSetFeeBtn?.addEventListener('click', async () => {
     if (!(bps >= 0 && bps <= 1000)) { statusEl.textContent = 'feeBps 0..1000'; return; }
     const tx = await faro.setFeeBps(bps);
     statusEl.textContent = 'Faro setFeeBps tx sent';
-    await tx.wait();
-    await refresh();
-  } catch (e) { statusEl.textContent = e?.data?.message || e?.message || 'Failed'; }
-});
-
-faroWithdrawBtn?.addEventListener('click', async () => {
-  try {
-    if (!faro) { statusEl.textContent = 'Faro not connected'; return; }
-    if (!isFaroOwnerNow()) { statusEl.textContent = 'Owner only: Faro'; return; }
-    const to = String(faroToInput.value||'').trim();
-    const amt = String(faroAmtInput.value||'').trim();
-    if (!to) { statusEl.textContent = 'Enter withdraw address'; return; }
-    if (!amt) { statusEl.textContent = 'Enter amount'; return; }
-    const tx = await faro.withdraw(to, window.ethers.utils.parseEther(amt));
-    statusEl.textContent = 'Faro withdraw tx sent';
-    await tx.wait();
-    await refresh();
-  } catch (e) { statusEl.textContent = e?.data?.message || e?.message || 'Failed'; }
-});
-
-faroWithdrawFeesBtn?.addEventListener('click', async () => {
-  try {
-    if (!faro) { statusEl.textContent = 'Faro not connected'; return; }
-    if (!isFaroOwnerNow()) { statusEl.textContent = 'Owner only: Faro'; return; }
-    const to = String(faroToInput.value||'').trim();
-    const amt = String(faroFeesAmtInput.value||'').trim();
-    if (!to) { statusEl.textContent = 'Enter withdraw address'; return; }
-    if (!amt) { statusEl.textContent = 'Enter amount'; return; }
-    const tx = await faro.withdrawFees(to, window.ethers.utils.parseEther(amt));
-    statusEl.textContent = 'Faro withdrawFees tx sent';
-    await tx.wait();
-    await refresh();
-  } catch (e) { statusEl.textContent = e?.data?.message || e?.message || 'Failed'; }
-});
-
-faroFundBtn?.addEventListener('click', async () => {
-  try {
-    if (!signer || !faroAddr) { statusEl.textContent = 'Faro not connected'; return; }
-    const amt = String(faroFundAmtInput.value||'').trim();
-    if (!amt) { statusEl.textContent = 'Enter fund amount'; return; }
-    const tx = await signer.sendTransaction({ to: faroAddr, value: window.ethers.utils.parseEther(amt) });
-    statusEl.textContent = 'Faro fund tx sent';
     await tx.wait();
     await refresh();
   } catch (e) { statusEl.textContent = e?.data?.message || e?.message || 'Failed'; }
@@ -605,7 +516,7 @@ poolDeauthorizeBtn?.addEventListener('click', async () => {
   } catch (e) { statusEl.textContent = e?.data?.message || e?.message || 'Failed'; }
 });
 
-// --- Poker (Pooled) handlers ---
+// Poker (pooled) address override
 ppSetAddrBtn?.addEventListener('click', async () => {
   try {
     const v = String(ppOverrideInput?.value||'').trim();
@@ -614,34 +525,4 @@ ppSetAddrBtn?.addEventListener('click', async () => {
     if (ppAddrEl) ppAddrEl.textContent = v; if (ppMsgEl) ppMsgEl.textContent='Poker table address set.';
     await refresh();
   } catch (e) { if (ppMsgEl) ppMsgEl.textContent = e?.data?.message||e?.message||'Failed'; }
-});
-
-ppReadBtn?.addEventListener('click', async () => {
-  try {
-    if (!pokerPooled) { if (ppMsgEl) ppMsgEl.textContent='Poker table not bound'; return; }
-    const seatId = Number(ppSeatInput?.value||0);
-    const s = await pokerPooled.seats(seatId);
-    if (ppMsgEl) ppMsgEl.textContent = `Seat ${seatId}: player=${s.player}, balance=${window.ethers.utils.formatEther(s.balance)} ETH`;
-  } catch (e) { if (ppMsgEl) ppMsgEl.textContent = e?.data?.message||e?.message||'Read failed'; }
-});
-
-ppWithdrawBtn?.addEventListener('click', async () => {
-  try {
-    if (!pokerPooled) { if (ppMsgEl) ppMsgEl.textContent='Poker table not bound'; return; }
-    const seatId = Number(ppSeatInput?.value||0);
-    const amt = window.ethers.utils.parseEther(String(ppAmtInput?.value||'0'));
-    const tx = await pokerPooled.withdraw(seatId, amt);
-    if (ppMsgEl) ppMsgEl.textContent = `Withdraw... ${tx.hash.slice(0,10)}...`;
-    await tx.wait(); if (ppMsgEl) ppMsgEl.textContent = 'Withdraw confirmed.';
-  } catch (e) { if (ppMsgEl) ppMsgEl.textContent = e?.data?.message||e?.message||'Withdraw failed (check inHand==false and pool authorization)'; }
-});
-
-ppUnseatBtn?.addEventListener('click', async () => {
-  try {
-    if (!pokerPooled) { if (ppMsgEl) ppMsgEl.textContent='Poker table not bound'; return; }
-    const seatId = Number(ppSeatInput?.value||0);
-    const tx = await pokerPooled.unseat(seatId);
-    if (ppMsgEl) ppMsgEl.textContent = `Unseat... ${tx.hash.slice(0,10)}...`;
-    await tx.wait(); if (ppMsgEl) ppMsgEl.textContent = 'Unseat confirmed.';
-  } catch (e) { if (ppMsgEl) ppMsgEl.textContent = e?.data?.message||e?.message||'Unseat failed'; }
 });

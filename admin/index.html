@@ -37,17 +37,38 @@
     }
     /* Main container */
     .tavern { width:95%; max-width:1100px; margin:120px auto 90px; padding: 24px !important; box-sizing:border-box; }
-    .admin-card { background: rgba(255,244,233,0.96); border:4px solid #7800cd; border-radius:12px; padding:20px; color:#2b1e12; width:100%; box-sizing:border-box; overflow:hidden; }
-    .grid { display:flex; flex-direction:column; gap:16px; }
+    .admin-card {
+      background: var(--panel-bg-soft);
+      border:1px solid rgba(255,255,255,0.12);
+      border-radius:15px;
+      padding:20px;
+      color:#f4e6d3;
+      width:100%;
+      box-sizing:border-box;
+      box-shadow:0 24px 60px rgba(0,0,0,0.55);
+    }
+    .grid { display:flex; flex-direction:column; gap:20px; }
     label { display:block; margin:6px 0 2px; font-weight:600; }
-    input[type=text], input[type=number], textarea { width:100%; padding:6px; box-sizing:border-box; }
+    input[type=text], input[type=number], textarea {
+      width:100%;
+      padding:6px;
+      box-sizing:border-box;
+      background: rgba(0,0,0,0.35);
+      color:#f4e6d3;
+      border:1px solid rgba(255,255,255,0.12);
+      border-radius:8px;
+    }
     .row { display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap; }
     .row > div { flex: 1 1 260px; min-width:220px; max-width:100%; }
     .row .btn { flex: 0 0 auto; }
-    .muted { color:#5c4a3f; font-size:12px; }
+    .muted {
+      color: rgba(244,230,211,0.78);
+      font-size:12px;
+    }
     .danger { background:#8b0000; color:#fff; }
     .ok { background:#006400; color:#fff; }
-    .btn { padding:6px 10px; border-radius:6px; cursor:pointer; border:none; }
+    .btn { padding:6px 10px; border-radius:6px; cursor:pointer; border:none; color:#f4e6d3; background: rgba(255,255,255,0.08); }
+    .btn:hover { background: rgba(255,255,255,0.16); }
     .readonly { opacity:.6; }
   </style>
 </head>
@@ -147,19 +168,6 @@
           </div>
           <button id="pokerpooled-set-addr" class="btn">Use</button>
         </div>
-        <div class="row" style="margin-top:8px;">
-          <div style="flex:1;">
-            <label>Seat ID</label>
-            <input id="pokerpooled-seat" type="number" min="0" max="5" value="0">
-          </div>
-          <div style="flex:1;">
-            <label>Amount (ETH)</label>
-            <input id="pokerpooled-amt" type="number" min="0" step="0.001" value="0.01">
-          </div>
-          <button id="pokerpooled-read" class="btn">Read Seat</button>
-          <button id="pokerpooled-withdraw" class="btn ok">Withdraw</button>
-          <button id="pokerpooled-unseat" class="btn danger">Unseat</button>
-        </div>
         <div class="muted" id="pokerpooled-msg" style="margin-top:6px;"></div>
       </div>
       <div class="admin-card" id="rt-card">
@@ -215,25 +223,6 @@
           </div>
           <button id="tavern-set-addr" class="btn">Use</button>
         </div>
-        <hr>
-        <div class="row">
-          <div style="flex:1;">
-            <label>Withdraw To (address)</label>
-            <input id="tavern-to" type="text" placeholder="0x...">
-          </div>
-          <div style="width:180px;">
-            <label>Amount (MON)</label>
-            <input id="tavern-amt" type="number" min="0" step="0.001" placeholder="0.1">
-          </div>
-          <button id="tavern-withdraw" class="btn danger">Withdraw</button>
-        </div>
-        <div class="row" style="margin-top:6px;">
-          <div style="width:180px;">
-            <label>Fund Amount (MON)</label>
-            <input id="tavern-fund-amt" type="number" min="0" step="0.001" placeholder="0.1">
-          </div>
-          <button id="tavern-fund" class="btn ok">Fund</button>
-        </div>
       </div>
 
       <div class="admin-card" id="faro-card">
@@ -275,32 +264,6 @@
             <input id="faro-override" type="text" placeholder="0x...">
           </div>
           <button id="faro-set-addr" class="btn">Use</button>
-        </div>
-        <hr>
-        <div class="row">
-          <div style="flex:1;">
-            <label>Withdraw To (address)</label>
-            <input id="faro-to" type="text" placeholder="0x...">
-          </div>
-          <div style="width:180px;">
-            <label>Amount (MON)</label>
-            <input id="faro-amt" type="number" min="0" step="0.001" placeholder="0.1">
-          </div>
-          <button id="faro-withdraw" class="btn danger">Withdraw</button>
-        </div>
-        <div class="row" style="margin-top:6px;">
-          <div style="flex:1;">
-            <label>Withdraw Fees (MON)</label>
-            <input id="faro-fees-amt" type="number" min="0" step="0.001" placeholder="0.01">
-          </div>
-          <button id="faro-withdraw-fees" class="btn danger">Withdraw Fees</button>
-        </div>
-        <div class="row" style="margin-top:6px;">
-          <div style="width:180px;">
-            <label>Fund Amount (MON)</label>
-            <input id="faro-fund-amt" type="number" min="0" step="0.001" placeholder="0.1">
-          </div>
-          <button id="faro-fund" class="btn ok">Fund</button>
         </div>
       </div>
 
