@@ -16,6 +16,8 @@ const diceImages = [
 let provider, signer, contract;
 let inFlight = false;          // prevent overlapping plays
 let cooldownUntil = 0;         // brief cooldown after resolution
+let diceLock = false;          // lock dice to the last game result
+let diceLockTimer = null;
 let selectedMain = 7;
 let currentWallet = null;
 let hazardEnableTimer = null;
@@ -61,7 +63,9 @@ function splitSumToDice(sum) {
 }
 
 // Display dice (use images if present, else Unicode dice or numbers)
-function displayDice(d1, d2) {
+function setDiceFaces(d1, d2, opts){
+  opts = opts || {};
+  if (diceLock && !opts.force) return;
   const imgPathsExist = !!diceImages[0];
   if (dice1El) {
     if (imgPathsExist) {
@@ -89,6 +93,9 @@ function displayDice(d1, d2) {
   }
 }
 
+// Backward-compat alias
+const displayDice = (d1,d2)=> setDiceFaces(d1,d2);
+
 // Animate dice visually
 function animateDice() {
   const el1 = dice1El, el2 = dice2El;
@@ -98,7 +105,7 @@ function animateDice() {
   const iv = setInterval(() => {
     const r1 = Math.floor(Math.random() * 6) + 1;
     const r2 = Math.floor(Math.random() * 6) + 1;
-    displayDice(r1, r2);
+    setDiceFaces(r1, r2);
     frames--;
     if (frames <= 0) {
       clearInterval(iv);
@@ -202,7 +209,11 @@ onReady(async () => {
     if (!currentWallet || player.toLowerCase() !== currentWallet) return;
 
     const [d1, d2] = splitSumToDice(Number(finalSum));
-    displayDice(d1, d2);
+    // Force-update dice to the authoritative game result and lock for a short period
+    setDiceFaces(d1, d2, { force:true });
+    try { if (diceLockTimer) clearTimeout(diceLockTimer); } catch {}
+    diceLock = true;
+    diceLockTimer = setTimeout(() => { diceLock = false; }, 3000);
 
     const wagerEth = ethers.utils.formatEther(wager);
     const payoutEth = win ? ethers.utils.formatEther(wager.mul(2)) : '0';
