@@ -29,12 +29,12 @@
         <div style="display:flex; gap:18px; justify-content:center; flex-wrap:wrap;">
           <button id="btn-metamask" type="button" aria-label="Connect with MetaMask" title="MetaMask"
                   style="padding:10px; border-radius:12px; display:flex; align-items:center; justify-content:center; width:64px; height:64px; cursor:pointer; background:transparent; border:none; box-shadow:none;">
-            <img src="/assets/images/logos/metamask.png" alt="MetaMask" style="width:48px; height:48px; object-fit:contain;"/>
+            <img id="logo-metamask" src="/assets/images/logos/metamask.png" alt="MetaMask" width="48" height="48" loading="eager" decoding="async" fetchpriority="high" style="width:48px; height:48px; object-fit:contain;"/>
           </button>
           <div style="display:flex; flex-direction:column; align-items:center; gap:6px;">
             <button id="btn-phantom" type="button" aria-label="Connect with Phantom" title="Phantom"
                     style="padding:10px; border-radius:12px; display:flex; align-items:center; justify-content:center; width:64px; height:64px; cursor:pointer; background:transparent; border:none; box-shadow:none;">
-              <img src="/assets/images/logos/phantom.png" alt="Phantom" style="width:48px; height:48px; object-fit:contain;"/>
+              <img id="logo-phantom" src="/assets/images/logos/phantom.png" alt="Phantom" width="48" height="48" loading="eager" decoding="async" fetchpriority="high" style="width:48px; height:48px; object-fit:contain;"/>
             </button>
             <div id="phantom-missing" style="display:none; font-size:12px;">
               Don’t have Phantom? <a href="https://phantom.app/download" target="_blank" rel="noopener">Get Phantom</a>
@@ -62,6 +62,10 @@
         try {
           const hasMetaMask = !!(window.ethereum && window.ethereum.request);
           const hasPhantom = !!(window.phantom && window.phantom.ethereum && window.phantom.ethereum.request);
+          // Cache-bust logo src to avoid stale 404s after deploy
+          const tag = (window.__BUILD_TAG ? String(window.__BUILD_TAG) : String(Date.now()));
+          try { const mmimg = document.getElementById('logo-metamask'); if (mmimg) mmimg.src = '/assets/images/logos/metamask.png?v=' + encodeURIComponent(tag); } catch {}
+          try { const phimg = document.getElementById('logo-phantom'); if (phimg) phimg.src = '/assets/images/logos/phantom.png?v=' + encodeURIComponent(tag); } catch {}
           if (!hasPhantom) {
             const pm = document.getElementById('phantom-missing');
             if (pm) pm.style.display = 'block';
