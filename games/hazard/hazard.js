@@ -14,6 +14,8 @@ const diceImages = [
 ];
 
 let provider, signer, contract;
+let inFlight = false;          // prevent overlapping plays
+let cooldownUntil = 0;         // brief cooldown after resolution
 let selectedMain = 7;
 let currentWallet = null;
 let hazardEnableTimer = null;
@@ -267,9 +269,17 @@ window.addEventListener('beforeunload', () => { try { contract.off('HazardPlayed
 
   // Roll button handler (guard element)
   rollBtn?.addEventListener('click', async () => {
+  // Guard: prevent re-clicks during tx or cooldown
+  const now = Date.now();
+  if (inFlight || now < cooldownUntil) {
+    try { statusEl.textContent = 'Please wait... resolving previous roll.'; } catch {}
+    return;
+  }
+  inFlight = true;
   if (!hazardAck) { try { rulesOverlay.style.display = 'flex'; } catch {}; return; }
   if (!signer || !contract) {
     alert('Connect wallet on the Tavern first.');
+    inFlight = false;
     return;
   }
 
@@ -279,6 +289,7 @@ window.addEventListener('beforeunload', () => { try { contract.off('HazardPlayed
       currentWallet = addr ? addr.toLowerCase() : null;
     } catch {
       statusEl.textContent = 'Connect wallet on the Tavern first.';
+      inFlight = false;
       return;
     }
   }
@@ -286,10 +297,12 @@ window.addEventListener('beforeunload', () => { try { contract.off('HazardPlayed
   const bet = betInput.value;
   if (!bet || Number(bet) <= 0) {
     statusEl.textContent = 'Enter a valid bet amount.';
+    inFlight = false;
     return;
   }
   if (!Number.isInteger(selectedMain) || selectedMain < 5 || selectedMain > 9) {
     statusEl.textContent = 'Choose a main between 5 and 9.';
+    inFlight = false;
     return;
   }
 
@@ -298,6 +311,7 @@ window.addEventListener('beforeunload', () => { try { contract.off('HazardPlayed
     wager = ethers.utils.parseEther(bet);
   } catch {
     statusEl.textContent = 'Enter a valid bet amount.';
+    inFlight = false;
     return;
   }
 
@@ -320,6 +334,7 @@ window.addEventListener('beforeunload', () => { try { contract.off('HazardPlayed
     }
     if (!ok) {
       statusEl.textContent = 'Bankroll too low for this bet (needs 2x cover). Try a smaller amount.';
+      inFlight = false;
       return;
     }
   } catch (err) {
@@ -341,6 +356,7 @@ window.addEventListener('beforeunload', () => { try { contract.off('HazardPlayed
       const msg = pre?.error?.message || pre?.data?.message || pre?.reason || pre?.message || 'Reverted';
       statusEl.textContent = 'Rejected: ' + msg;
       rollBtn.disabled = false;
+      inFlight = false;
       return;
     }
 
@@ -386,6 +402,9 @@ window.addEventListener('beforeunload', () => { try { contract.off('HazardPlayed
 
     if (hazardEnableTimer) { clearTimeout(hazardEnableTimer); }
     hazardEnableTimer = setTimeout(() => { try { rollBtn.disabled = false; } catch {} }, 12000);
+    // Set a short cooldown to avoid immediate re-click while network/events settle
+    cooldownUntil = Date.now() + 2500;
+    inFlight = false;
   } catch (err) {
     console.error('Play error:', err);
     let reason = '';
@@ -397,6 +416,7 @@ window.addEventListener('beforeunload', () => { try { contract.off('HazardPlayed
     statusEl.textContent = 'Reverted: ' + reason;
     rollBtn.disabled = false;
     if (hazardEnableTimer) { clearTimeout(hazardEnableTimer); hazardEnableTimer = null; }
+    inFlight = false;
   }
 });
 
