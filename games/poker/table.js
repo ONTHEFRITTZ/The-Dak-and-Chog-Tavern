@@ -12,7 +12,7 @@ let lastState = null; let exposures = {}; let winnersNow = {};
 try { if (devBotBtn) { devBotBtn.disabled = true; devBotBtn.title = 'Connect wallet to use Dev Bot'; devBotBtn.textContent = 'Dev Bot'; } } catch(e){}
 
 let actionBar = null; let communityEl = null; let amountInput = null; let infoText = null; let communityStrip = null; let burnStrip = null;
-let centerEl = null; let centerTimer = null;
+let centerEl = null; let centerTimer = null; let holdShowdown = false;
 
 
 
@@ -188,7 +188,13 @@ function renderTable(t){
       if (myAddr && addrLower===String(myAddr).toLowerCase()){
         const btns = document.createElement('div'); btns.className='btns';
         const leave = document.createElement('button'); leave.textContent='Leave'; leave.onclick=function(){ socket.emit('seat',{ index:-1 }); };
-        const ready = document.createElement('button'); ready.textContent = s.ready? 'Unready':'Ready'; ready.onclick=function(){ socket.emit('ready',{ ready: !s.ready }); };
+          const ready = document.createElement('button'); ready.textContent = s.ready? 'Unready':'Ready'; ready.onclick=function(){
+            try { holdShowdown = false; } catch(_){ }
+            try { if (centerEl) centerEl.style.display = 'none'; } catch(_){ }
+            try { if (communityStrip) { communityStrip.classList.remove('showdown'); communityStrip.innerHTML=''; } } catch(_){ }
+            try { if (actionBar) actionBar.style.display = 'none'; } catch(_){ }
+            socket.emit('ready',{ ready: !s.ready });
+          };
         btns.appendChild(leave); btns.appendChild(ready); el.appendChild(btns);
         if (Array.isArray(myHole) && myHole.length===2) { const row=document.createElement('div'); row.style.cssText='display:flex; gap:6px; margin-top:10px;'; myHole.forEach(function(code){ row.appendChild(makeCardImg(code,{hole:true,flip:true})); }); el.appendChild(row); }
       } else {
@@ -281,13 +287,15 @@ async function connect(){
   socket.on('poker:state', function(st){ try {
     lastState = st; try { if (String((st && st.stage) || '') === 'preflop') { exposures = {}; winnersNow = {}; } } catch(e){}
     ensureActionBar();
-    try { if (centerEl && String((st && st.stage) || '') === 'preflop') { centerEl.style.display = 'none'; } } catch(_){ }
+    try { if (centerEl && String((st && st.stage) || '') === 'preflop' && !holdShowdown) { centerEl.style.display = 'none'; } } catch(_){ }
     const cards = Array.isArray(st && st.community) ? st.community : [];
     if (communityEl) communityEl && (communityEl.style.display='none');
     if (communityStrip) {
-      communityStrip.innerHTML = '';
-      communityStrip.classList.remove('showdown');
-      cards.forEach(function(code){ communityStrip.appendChild(makeCardImg(code, { flip:true })); });
+      if (!holdShowdown) {
+        communityStrip.innerHTML = '';
+        communityStrip.classList.remove('showdown');
+        cards.forEach(function(code){ communityStrip.appendChild(makeCardImg(code, { flip:true })); });
+      }
     }
     // Burn cards: show back-faced pile (no overlap) to indicate burns that occurred
     try {
@@ -381,6 +389,10 @@ async function connect(){
     try { const arr = Array.isArray(m && m.exposures) ? m.exposures : []; exposures = {}; arr.forEach(function(e){ const a = String((e && e.addr) || '').toLowerCase(); const cards = Array.isArray(e && e.cards) ? e.cards : []; if (a && cards.length===2) exposures[a] = cards; }); } catch(e){}
     try { winnersNow = {}; (Array.isArray(m && m.winners)? m.winners:[]).forEach(function(w){ const a=String((w && w.addr) || '').toLowerCase(); const amt = Number((w && w.amount) || 0); const usedHole = Array.isArray(w && w.usedHole) ? w.usedHole : null; if (a) winnersNow[a] = { amount: amt, usedHole: usedHole }; }); } catch(e){}
     if (lastTable) renderTable(lastTable);
+    // Freeze visuals until player clicks Ready
+    try { holdShowdown = true; } catch(_){ }
+    // Hide action controls during showdown
+    try { if (actionBar) actionBar.style.display = 'none'; } catch(_){ }
     // Center announce winners (with hand name) and render Last Hand panel
     try {
       if (!centerEl) { try { centerEl = document.getElementById('poker-center'); } catch(_) { centerEl = null; } }
