@@ -163,7 +163,9 @@
         fetch('/assets/build.json',{cache:'no-store'})
           .then(r=>r.ok?r.json():null)
           .then(b=>{
-            var tag=(b&&b.commit)?String(b.commit).slice(0,12):Date.now();
+            var c = (b&&b.commit)?String(b.commit).slice(0,12):Date.now();
+            var t = (b&&b.builtAt)?String(b.builtAt):Date.now();
+            var tag = c + '-' + t; // include built time to hard-bust caches
             try { window.__ASSET_TAG = tag; } catch(_){ }
             load('table.js?v='+encodeURIComponent(tag));
           })
