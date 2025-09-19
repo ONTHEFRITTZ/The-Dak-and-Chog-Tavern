@@ -354,8 +354,36 @@ window.addEventListener('beforeunload', () => { try { contract.off('HazardPlayed
 
     const tx = await contract.playHazard(selectedMain, { value: wager, gasLimit });
     statusEl.textContent = 'Dice rolling on-chain...';
-    await tx.wait();
+    const receipt = await tx.wait();
     statusEl.textContent = 'Waiting for result...';
+
+    // Fallback: parse receipt for HazardPlayed to update UI even if socket event is delayed or missed
+    try {
+      const iface = new ethers.utils.Interface(window.TavernABI || []);
+      const tavernLower = String(tavernAddress||'').toLowerCase();
+      for (const log of (receipt && receipt.logs) || []){
+        if (String(log.address||'').toLowerCase() !== tavernLower) continue;
+        try {
+          const parsed = iface.parseLog(log);
+          if (parsed && parsed.name === 'HazardPlayed'){
+            const args = parsed.args || {};
+            const player = String(args.player||args[0]||'');
+            // Only update UI for this wallet
+            if (currentWallet && player.toLowerCase() !== currentWallet) continue;
+            const wagerEv = args.wager||args[1];
+            const winEv = !!(args.win||args[2]);
+            const mainEv = Number(args.main||args[3]);
+            const finalSumEv = Number(args.finalSum||args[4]);
+            const chanceEv = Number(args.chance||args[5]);
+            const iterationsEv = Number(args.iterations||args[6]);
+            // Reuse the same handler used by the live event
+            try { await onHazardPlayed(player, wagerEv, winEv, mainEv, finalSumEv, chanceEv, iterationsEv); } catch {}
+            break;
+          }
+        } catch {}
+      }
+    } catch {}
+
     if (hazardEnableTimer) { clearTimeout(hazardEnableTimer); }
     hazardEnableTimer = setTimeout(() => { try { rollBtn.disabled = false; } catch {} }, 12000);
   } catch (err) {
