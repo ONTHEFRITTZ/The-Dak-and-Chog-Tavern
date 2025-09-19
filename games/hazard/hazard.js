@@ -208,7 +208,12 @@ onReady(async () => {
   // Event listener (HazardPlayed)
   const onHazardPlayed = async (player, wager, win, main, finalSum, chance, iterations) => {
   try {
-    if (!currentWallet || player.toLowerCase() !== currentWallet) return;
+    const playerLower = String(player||'').toLowerCase();
+    const routerLower = String(tavernAddress||'').toLowerCase();
+    // Accept events addressed to the user OR to the router (when using a forwarder)
+    if (!currentWallet && !routerLower) return;
+    const isForMe = (currentWallet && playerLower === currentWallet) || (routerLower && playerLower === routerLower);
+    if (!isForMe) return;
 
     const [d1, d2] = splitSumToDice(Number(finalSum));
     // Force-update dice to the authoritative game result and lock until next roll
@@ -403,6 +408,7 @@ try {
     // Fallback: parse receipt for HazardPlayed to update UI even if socket event is delayed or missed
     try {
       const iface = new ethers.utils.Interface(window.TavernABI || []);
+      const routerLower = String(tavernAddress||'').toLowerCase();
       for (const log of (receipt && receipt.logs) || []){
         if (String(log.address||'').toLowerCase() !== unifiedLower) continue;
         try {
@@ -410,8 +416,9 @@ try {
           if (parsed && parsed.name === 'HazardPlayed'){
             const args = parsed.args || {};
             const player = String(args.player||args[0]||'');
-            // Only update UI for this wallet
-            if (currentWallet && player.toLowerCase() !== currentWallet) continue;
+            const pl = player.toLowerCase();
+            // Only update UI when event is for this wallet or the router (forwarder)
+            if (currentWallet && pl !== currentWallet && pl !== routerLower) continue;
             const wagerEv = args.wager||args[1];
             const winEv = !!(args.win||args[2]);
             const mainEv = Number(args.main||args[3]);
