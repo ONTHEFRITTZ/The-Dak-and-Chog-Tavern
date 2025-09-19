@@ -25,7 +25,7 @@
     body.game {
       --banner-h: 0px;           /* no top banner on this page */
       --panel-top: 72px;         /* safe area for inline wallet panel */
-      --panel-w: clamp(260px, 28vw, 340px);
+      --panel-w: clamp(220px, 24vw, 300px);
       min-height: 100vh;
       display:flex;
       flex-direction:column;
@@ -120,7 +120,7 @@
       background: var(--panel-bg-soft);
       border:1px solid rgba(255,255,255,0.12);
       border-radius:18px;
-      padding:20px 24px;
+      padding:12px 14px;
       box-shadow:0 24px 60px rgba(0,0,0,0.55);
       color:#f4e6d3;
     }
@@ -154,13 +154,13 @@
       flex-direction:column;
       align-items:stretch;
       justify-content:flex-start;
-      gap:10px;
+      gap:6px;
     }
     .faro-controls .bet-row {
       display:flex;
       align-items:center;
-      justify-content:space-between;
-      gap:10px;
+      justify-content:flex-start;
+      gap:8px;
       flex-wrap:nowrap;
     }
     .faro-controls .copper-row {
@@ -191,11 +191,11 @@
       grid-template-columns: repeat(3, max-content);
       justify-content: center;
       justify-items: center;
-      gap:8px 10px;
+      gap:6px 8px;
       width: auto; /* fit content width (don’t stretch) */
       max-width: 100%;
       background: rgba(0,0,0,0.38);
-      padding:14px;
+      padding:10px;
       border-radius:16px;
       border:1px solid rgba(255,255,255,0.1);
       box-shadow: inset 0 0 22px rgba(0,0,0,0.35);
