@@ -244,7 +244,23 @@ function renderTable(t){
             socket.emit('ready',{ ready: !s.ready });
           };
         btns.appendChild(leave); btns.appendChild(ready); el.appendChild(btns);
-        if (Array.isArray(myHole) && myHole.length===2) { const row=document.createElement('div'); row.style.cssText='display:flex; gap:6px; margin-top:10px;'; myHole.forEach(function(code){ row.appendChild(makeCardImg(code,{hole:true,flip:true})); }); el.appendChild(row); }
+        if (Array.isArray(myHole) && myHole.length===2) {
+          const row=document.createElement('div');
+          row.style.cssText='display:flex; gap:6px; margin-top:10px;';
+          try {
+            const me = String(myAddr||'').toLowerCase();
+            const winInfo = winnersNow && winnersNow[me];
+            const usedHole = (winInfo && Array.isArray(winInfo.usedHole)) ? winInfo.usedHole : null;
+            const isWin = !!winInfo;
+            myHole.forEach(function(code, i){
+              const win = isWin && (!usedHole || usedHole.indexOf(i) >= 0);
+              row.appendChild(makeCardImg(code,{hole:true,flip:true,win}));
+            });
+          } catch(_) {
+            myHole.forEach(function(code){ row.appendChild(makeCardImg(code,{hole:true,flip:true})); });
+          }
+          el.appendChild(row);
+        }
       } else {
         try {
           const actors = Array.isArray(lastState && lastState.actors) ? lastState.actors : [];

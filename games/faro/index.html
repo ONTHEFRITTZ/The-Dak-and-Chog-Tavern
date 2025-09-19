@@ -1,3 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Faro</title>
+  <!-- Preload table surface and games-room background so the table paints promptly -->
+  <link rel="preload" as="image" href="../../assets/images/table.png" type="image/png">
+  <link rel="preload" as="image" href="../../assets/images/games-room.png" type="image/png">
+  <script>
+    (async()=>{
+      try{
+        const b = await fetch('/assets/build.json', { cache:'no-store' }).then(r=>r.ok?r.json():null).catch(()=>null);
+        const tag = (b && b.commit) ? String(b.commit).slice(0,12) : Date.now();
+        window.__BUILD_TAG = tag;
+        const css = document.createElement('link'); css.rel='stylesheet'; css.href = `../../css/style.css?v=${tag}`; document.head.appendChild(css);
+        const abi = document.createElement('script'); abi.src = `../../js/FaroV3ABI.js?v=${tag}`; document.head.appendChild(abi);
+        const s1 = document.createElement('script'); s1.type='module'; s1.src = `../../js/tavern.js?v=${tag}`; document.head.appendChild(s1);
+        const s2 = document.createElement('script'); s2.type='module'; s2.src = `../../js/state.js?v=${tag}`; document.head.appendChild(s2);
+      }catch(e){ console.error('head loader failed', e); }
+    })();
+  </script>
+      <style>
+    /* Full-viewport layout; no banner; keep content fully visible like Poker */
+    body.game {
+      --banner-h: 0px;           /* no top banner on this page */
+      --panel-top: 72px;         /* safe area for inline wallet panel */
+      --panel-w: clamp(220px, 24vw, 300px);
+      min-height: 100vh;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:flex-start; /* anchor from top */
+      padding-top: var(--panel-top);
+      overflow: hidden;           /* avoid accidental page scroll */
+    }
+    body {
+      /* Match poker: force image to span full viewport width; crop vertically if needed */
+      background: #120c08 url('../../assets/images/games-room.png') no-repeat center center fixed !important;
+      background-size: 100% auto !important;
+    }
+    #faro-root { position: relative; width: 100%; height: calc(100vh - var(--panel-top)); }
+  </style>
+</head>
+<body class="game">
+  <div id="tavern-wallet-panel"></div>
+  <div id="faro-root"></div>
 
+  <script type="module">
+    import './table.js?v=' + (window.__BUILD_TAG||Date.now());
+  </script>
+</body>
+</html>
 
 
