@@ -114,7 +114,7 @@ flipBtn.addEventListener('click', async () => {
     }
 
     statusEl.textContent = 'Submitting transaction…';
-    const tx = await tavern.playCoin(betOnChog, { value: betWei });
+    const tx = await tavern.playCoin(betOnChog, { value: betWei, gasLimit: 120000 });
     statusEl.textContent = `Tx sent: ${tx.hash.slice(0,10)}… waiting confirmation…`;
     const rc = await tx.wait();
     // Parse CoinPlayed event if present
