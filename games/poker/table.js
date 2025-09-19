@@ -63,7 +63,18 @@ function ensureActionBar(){
     burnStrip = document.createElement('div');
     burnStrip.style.cssText = 'position:absolute; left:50%; top:50%; transform:translate(calc(-50% - 240px), -58%); display:flex; gap:0; pointer-events:none; z-index:2; align-items:center;';
     canvas.appendChild(burnStrip);
-    try { centerEl = document.getElementById('poker-center') || null; } catch(_) { centerEl = null; }
+    try {
+      centerEl = document.getElementById('poker-center') || null;
+      if (!centerEl) {
+        // Fallback: create the banner if markup is missing
+        const div = document.createElement('div');
+        div.id = 'poker-center';
+        div.className = 'center-banner';
+        div.style.display = 'none';
+        canvas.appendChild(div);
+        centerEl = div;
+      }
+    } catch(_) { centerEl = null; }
     return actionBar;
   } catch(e){ return null; }
 }
