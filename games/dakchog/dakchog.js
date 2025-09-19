@@ -44,16 +44,19 @@ let coinAnimTimer = null;
 let coinAnimSide = 'dak';
 const COIN_ANIM_MS = 800; // match CSS keyframes duration (.coin.flip { animation: flip 0.8s ease })
 function performCoinFlipCycle() {
-  // Toggle side, set background, and retrigger CSS animation exactly once per cycle
-  coinAnimSide = (coinAnimSide === 'dak') ? 'chog' : 'dak';
-  setCoin(coinAnimSide);
+  // Retrigger CSS animation. Swap face at the HALFWAY point (180deg) to avoid duplicate faces at cycle boundaries.
   try { coinEl.classList.remove('flip'); void coinEl.offsetWidth; coinEl.classList.add('flip'); } catch {}
-  // Schedule the next cycle after the animation finishes
+  // Swap to the opposite face mid‑animation
+  setTimeout(() => {
+    coinAnimSide = (coinAnimSide === 'dak') ? 'chog' : 'dak';
+    setCoin(coinAnimSide);
+  }, Math.floor(COIN_ANIM_MS / 2));
+  // Schedule the next full cycle
   coinAnimTimer = setTimeout(performCoinFlipCycle, COIN_ANIM_MS + 20);
 }
 function startCoinAnim() {
   try { if (coinAnimTimer) { clearTimeout(coinAnimTimer); coinAnimTimer = null; } } catch {}
-  coinAnimSide = (Math.random() > 0.5) ? 'chog' : 'dak';
+  // Do not change the face immediately; let the first mid‑cycle swap handle alternation cleanly
   performCoinFlipCycle();
 }
 function stopCoinAnim(finalSide) {
