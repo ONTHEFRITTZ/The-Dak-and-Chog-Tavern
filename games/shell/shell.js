@@ -1,7 +1,8 @@
 // shell.js
 // Uses the unified Tavern contract ABI (window.TavernABI)
 import { getAddressFor, detectChainId, renderTavernBanner, showToast } from '../../js/config.js';
-import { attachProvider } from '../../js/contract-utils.js';
+// Avoid cross-origin ESM import issues; provide a local no-op attachProvider
+function attachProvider(p) { try { window.__shellProvider = p; } catch {} }
 
 function getShells() { try { return Array.from(document.querySelectorAll('.shell')); } catch { return []; } }
 const statusEl = document.getElementById('shell-result') || document.getElementById('status');
