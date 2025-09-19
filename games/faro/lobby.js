@@ -1,6 +1,7 @@
 // Faro Lobby page: connects to realtime server and renders tables list
 const lobbyList = document.getElementById('lobby');
 const bannerStatus = document.getElementById('status');
+const cardStatus = document.getElementById('faro-status');
 const returnBtn = document.getElementById('return');
 returnBtn?.addEventListener('click', () => { window.location.href = '/index.html'; });
 
@@ -44,12 +45,16 @@ async function connect() {
     try { lobbyList.innerHTML = `<div style="opacity:.7; font-size:13px;">${msg}</div>`; } catch {}
     try { if (bannerStatus) bannerStatus.textContent = msg; } catch {}
   };
-  socket.on('connect', ()=>{ status('Loading tables…'); try { socket.emit('user:location', { path: location.pathname }); } catch {} try { socket.emit('lobby:get'); } catch {} });
+  socket.on('connect', ()=>{ status('Connected'); try { socket.emit('user:location', { path: location.pathname }); } catch {} try { socket.emit('lobby:get'); } catch {} });
   socket.on('connect_error', ()=> status('Lobby unavailable. Retrying…'));
   socket.on('reconnect_error', ()=> status('Reconnecting to lobby…'));
   socket.on('reconnect_failed', ()=> status('Unable to reach lobby. Please retry.'));
   socket.on('lobby:list', (list)=> renderLobby(Array.isArray(list)?list:[]));
+  // Ensure the in-card status shows Connected beneath the header
+  socket.on('connect', ()=>{ try { if (cardStatus) cardStatus.textContent = 'Connected'; } catch {} });
 }
 
 connect();
+
+
 
