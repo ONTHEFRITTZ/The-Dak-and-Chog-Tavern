@@ -220,18 +220,23 @@ async function silentConnect() {
     hideInlineConnectIfBannerPresent();
     try { statusEl.innerText = ''; } catch {}
     try {
-      const chainId = await detectChainId(provider);
-      const tavernAddress = await getAddressFor('tavern', provider);
-      renderTavernBanner({ contractKey: 'tavern', address: tavernAddress, chainId, wallet: userAddress, labelOverride: 'Address' });
-      try {
-        if (tavernAddress && window.TavernABI) {
-          const c = new ethers.Contract(tavernAddress, window.TavernABI, signer);
-          const owner = await c.owner();
-          ensureAdminLink(owner && owner.toLowerCase() === userAddress.toLowerCase());
-        } else {
-          ensureAdminLink(false);
-        }
-      } catch { ensureAdminLink(false); }
+      const onLanding = (function(){ try { const p=String(location.pathname||''); return p=== '/landing.html' || p.endsWith('/landing.html') || p.endsWith('landing.html'); } catch { return false; } })();
+      if (!onLanding) {
+        const chainId = await detectChainId(provider);
+        const tavernAddress = await getAddressFor('tavern', provider);
+        renderTavernBanner({ contractKey: 'tavern', address: tavernAddress, chainId, wallet: userAddress, labelOverride: 'Address' });
+        try {
+          if (tavernAddress && window.TavernABI) {
+            const c = new ethers.Contract(tavernAddress, window.TavernABI, signer);
+            const owner = await c.owner();
+            ensureAdminLink(owner && owner.toLowerCase() === userAddress.toLowerCase());
+          } else {
+            ensureAdminLink(false);
+          }
+        } catch { ensureAdminLink(false); }
+      } else {
+        try { const nb = document.getElementById('network-banner'); if (nb) nb.remove(); } catch {}
+      }
     } catch {}
     try { localStorage.setItem('walletConnected', 'true'); } catch {}
     // Announce presence (best-effort)
@@ -265,7 +270,7 @@ async function bootConnect() {
   // Do not render network/contract banner or auto-connect on the landing page
   try {
     const path = String(location.pathname || '');
-    const isLanding = path === '/landing.html' || path.endsWith('/landing.html');
+    const isLanding = path === '/landing.html' || path.endsWith('/landing.html') || path.endsWith('landing.html');
     if (isLanding) {
       try { setConnectButtonAsConnect(); } catch {}
       return;
