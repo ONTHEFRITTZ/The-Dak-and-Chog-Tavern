@@ -1,7 +1,7 @@
 import { ethers } from 'https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.esm.min.js';
 // Defer loading of config.js with a version tag to avoid stale cache
 let cfgLoaded = false;
-let getAddressFor, detectChainId, getAddress, renderTavernBanner, CONTRACTS, showToast;
+let getAddressFor, detectChainId, getAddress, renderTavernBanner, CONTRACTS, showToast, switchToChain;
 async function ensureConfig() {
   if (cfgLoaded) return;
   try {
@@ -13,6 +13,7 @@ async function ensureConfig() {
     renderTavernBanner = mod.renderTavernBanner;
     CONTRACTS = mod.CONTRACTS;
     showToast = mod.showToast;
+    switchToChain = mod.switchToChain;
     cfgLoaded = true;
   } catch (e) {
     console.error('Failed to load config.js', e);
@@ -39,6 +40,29 @@ function resolveInjectedEvmProvider(explicit){
     if (window?.phantom?.ethereum) return window.phantom.ethereum;
   } catch {}
   return undefined;
+}
+
+// Ensure wallet is on Monad Testnet (chainId 10143)
+async function ensureMonadNetwork(curProvider){
+  try {
+    const chainId = await detectChainId(curProvider);
+    if (Number(chainId) === 10143) return true;
+    // Attempt switch; Phantom and MetaMask both support wallet_switchEthereumChain
+    const hex = '0x' + Number(10143).toString(16);
+    if (switchToChain) {
+      const ok = await switchToChain(hex);
+      return !!ok;
+    }
+    if (curProvider?.provider?.request) {
+      await curProvider.provider.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: hex }] });
+      return true;
+    }
+    if (window?.ethereum?.request) {
+      await window.ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: hex }] });
+      return true;
+    }
+  } catch {}
+  return false;
 }
 
 // DOM Elements
@@ -148,6 +172,8 @@ export async function connectWallet(explicitProviderKey) {
     provider = new ethers.providers.Web3Provider(injected, 'any');
     signer = provider.getSigner();
     userAddress = await signer.getAddress();
+    // Ensure Monad Testnet is selected
+    try { const ok = await ensureMonadNetwork(provider); if (!ok) { try { showToast && showToast('Please switch to Monad Testnet', 'error'); } catch {} } } catch {}
     try { window.userAddress = userAddress; window.dispatchEvent(new CustomEvent('wallet:connected', { detail: { address: userAddress } })); } catch {}
 
     // Update top banner controls
@@ -221,6 +247,7 @@ async function silentConnect() {
     if (!accounts || !accounts.length) return false;
     signer = provider.getSigner();
     userAddress = accounts[0];
+    try { await ensureMonadNetwork(provider); } catch {}
     try { window.userAddress = userAddress; window.dispatchEvent(new CustomEvent('wallet:connected', { detail: { address: userAddress } })); } catch {}
     setConnectButtonAsDisconnect();
     hideInlineConnectIfBannerPresent();
