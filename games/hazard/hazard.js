@@ -283,6 +283,8 @@ window.addEventListener('beforeunload', () => { try { contract.off('HazardPlayed
     try { statusEl.textContent = 'Please wait... resolving previous roll.'; } catch {}
     return;
   }
+  // Allow animation for the new roll and clear any prior result lock
+  diceLock = false;
   inFlight = true;
   if (!hazardAck) { try { rulesOverlay.style.display = 'flex'; } catch {}; return; }
   if (!signer || !contract) {
