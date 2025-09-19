@@ -30,8 +30,6 @@ const statusEl = document.getElementById('hazard-result') || document.getElement
 const rollBtn = document.getElementById('roll-dice');
 const dice1El = document.getElementById('dice1');
 const dice2El = document.getElementById('dice2');
-const dice1Img = document.getElementById('dice1img');
-const dice2Img = document.getElementById('dice2img');
 const betInput = document.getElementById('bet');
 const returnBtn = document.getElementById('return');
 const rollsList = document.getElementById('rolls');
@@ -50,9 +48,9 @@ try {
   const savedMain = localStorage.getItem('hazard.main');
   if (savedMain) selectedMain = Number(savedMain);
 } catch {}
-// Dice init: ensure <img> elements stay mounted and show a default face
-try { if (dice1Img && !dice1Img.getAttribute('src')) dice1Img.src = diceImages[0]; } catch {}
-try { if (dice2Img && !dice2Img.getAttribute('src')) dice2Img.src = diceImages[0]; } catch {}
+// Dice init: show a default face via image src
+try { if (dice1El && !dice1El.getAttribute('src')) dice1El.src = diceImages[0]; } catch {}
+try { if (dice2El && !dice2El.getAttribute('src')) dice2El.src = diceImages[0]; } catch {}
 betInput.addEventListener('input', () => {
   try { localStorage.setItem('hazard.bet', betInput.value || ''); } catch {}
 });
@@ -73,32 +71,14 @@ function setDiceFaces(d1, d2, opts){
   opts = opts || {};
   if (diceLock && !opts.force) return;
   const imgPathsExist = !!diceImages[0];
-  if (imgPathsExist && dice1Img && dice2Img) {
-    dice1Img.src = diceImages[d1 - 1];
-    dice2Img.src = diceImages[d2 - 1];
-  } else {
-    // Fallback to Unicode/text if images missing
-    if (dice1El) { try { dice1El.textContent = String.fromCodePoint(0x2680 + (d1 - 1)); } catch { dice1El.textContent = String(d1); } }
-    if (dice2El) { try { dice2El.textContent = String.fromCodePoint(0x2680 + (d2 - 1)); } catch { dice2El.textContent = String(d2); } }
+  if (imgPathsExist && dice1El && dice2El) {
+    dice1El.src = diceImages[d1 - 1];
+    dice2El.src = diceImages[d2 - 1];
   }
 }
 
 // Enforce correct dice sizing (startup + bfcache + before animations)
-function enforceDiceSize(){
-  try {
-    const els = [dice1El, dice2El];
-    for (const el of els){ if(!el) continue; el.style.width='140px'; el.style.height='140px'; el.style.minWidth='140px'; el.style.minHeight='140px'; el.style.flex='0 0 auto'; el.style.overflow='hidden'; }
-  } catch {}
-}
-window.addEventListener('pageshow', enforceDiceSize);
-enforceDiceSize();
-
-// Guard against external CSS mutations (belt-and-suspenders)
-try {
-  const mo = new MutationObserver(() => enforceDiceSize());
-  if (dice1El) mo.observe(dice1El, { attributes:true, attributeFilter:['style','class'] });
-  if (dice2El) mo.observe(dice2El, { attributes:true, attributeFilter:['style','class'] });
-} catch {}
+// No size enforcement needed; <img> elements have explicit width/height
 
 // Backward-compat alias
 const displayDice = (d1,d2)=> setDiceFaces(d1,d2);
