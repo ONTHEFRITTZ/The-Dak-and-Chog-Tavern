@@ -97,6 +97,48 @@ function cardSrc(code){
   return '../../assets/images/chog_cards/chog-ace-of-spades.png' + q;
 }
 function cardBackSrc(){ const v = assetTag(); const q = v ? ('?v=' + encodeURIComponent(v)) : ''; return '../../assets/images/chog_cards/dak-and-chog-cardback.png' + q; }
+
+// Helpers for winner announcements and Last Hand debug
+function codeToRankSuit(code){
+  try {
+    const m = String(code||'').trim().match(/^([2-9]|10|[TJQKA])([shdc])$/i);
+    if (!m) return null;
+    const r = m[1].toUpperCase(); const s = m[2].toLowerCase();
+    const rmap = { 'A':14,'K':13,'Q':12,'J':11,'T':10,'10':10,'9':9,'8':8,'7':7,'6':6,'5':5,'4':4,'3':3,'2':2 };
+    const smap = { 's':'s','h':'h','d':'d','c':'c' };
+    return { r: rmap[r], s: smap[s], raw: r+(s) };
+  } catch { return null; }
+}
+function bestHandName(cards7){
+  if (!Array.isArray(cards7) || cards7.length < 5) return 'Unknown';
+  const cs = cards7.map(codeToRankSuit).filter(Boolean);
+  if (cs.length < 5) return 'Unknown';
+  const bySuit = { s:[], h:[], d:[], c:[] };
+  const counts = {}; cs.forEach(c=>{ bySuit[c.s].push(c.r); counts[c.r]=(counts[c.r]||0)+1; });
+  const uniqRanks = Array.from(new Set(cs.map(c=>c.r))).sort((a,b)=>b-a);
+  function hasStraight(ranks){
+    const u = Array.from(new Set(ranks)).sort((a,b)=>b-a);
+    const wheel = [5,4,3,2,14];
+    const hasWheel = wheel.every(v=>u.includes(v));
+    if (hasWheel) return true;
+    let run=1; for (let i=1;i<u.length;i++){ if (u[i]===u[i-1]-1) { run++; if (run>=5) return true; } else { run=1; } }
+    return false;
+  }
+  for (const k of Object.keys(bySuit)){
+    if (bySuit[k].length>=5){ if (hasStraight(bySuit[k])) return 'Straight Flush'; }
+  }
+  if (Object.values(counts).some(v=>v===4)) return 'Four of a Kind';
+  const trips = Object.values(counts).filter(v=>v===3).length;
+  const pairs = Object.values(counts).filter(v=>v===2).length;
+  if (trips>=1 && (pairs>=1 || trips>=2)) return 'Full House';
+  if (Object.values(bySuit).some(arr=>arr.length>=5)) return 'Flush';
+  if (hasStraight(uniqRanks)) return 'Straight';
+  if (trips>=1) return 'Three of a Kind';
+  if (pairs>=2) return 'Two Pair';
+  if (pairs>=1) return 'One Pair';
+  return 'High Card';
+}
+function shortAddr(a){ return (a && a.length>10) ? (a.slice(0,6)+'...'+a.slice(-4)) : (a||''); }
 function makeCardImg(code, opts){ opts = opts||{}; const hole=!!opts.hole, flip = opts.flip!==false, win = !!opts.win; const img=document.createElement('img'); img.alt=String(code||''); img.src = (code==='BACK')? cardBackSrc() : cardSrc(code); img.className='card' + (hole?' card--hole':'') + (flip?' card--flip':'') + (win?' card--win':''); if (flip) requestAnimationFrame(function(){ img.classList.add('card--show'); }); return img; }
 
 function renderTable(t){
@@ -328,17 +370,22 @@ async function connect(){
     try { const arr = Array.isArray(m && m.exposures) ? m.exposures : []; exposures = {}; arr.forEach(function(e){ const a = String((e && e.addr) || '').toLowerCase(); const cards = Array.isArray(e && e.cards) ? e.cards : []; if (a && cards.length===2) exposures[a] = cards; }); } catch(e){}
     try { winnersNow = {}; (Array.isArray(m && m.winners)? m.winners:[]).forEach(function(w){ const a=String((w && w.addr) || '').toLowerCase(); const amt = Number((w && w.amount) || 0); const usedHole = Array.isArray(w && w.usedHole) ? w.usedHole : null; if (a) winnersNow[a] = { amount: amt, usedHole: usedHole }; }); } catch(e){}
     if (lastTable) renderTable(lastTable);
-    // Center announce winners
+    // Center announce winners (with hand name) and render Last Hand panel
     try {
       if (!centerEl) { try { centerEl = document.getElementById('poker-center'); } catch(_) { centerEl = null; } }
       if (centerEl) {
         const winners = Array.isArray(m && m.winners) ? m.winners : [];
         if (winners.length) {
+          const comm = Array.isArray(m && m.community) ? m.community : [];
+          const expArr = Array.isArray(m && m.exposures) ? m.exposures : [];
           const lines = winners.map(function(w){
             const a = (w && w.addr) ? String(w.addr) : '';
             const amt = Number((w && w.amount) || 0);
-            const sh = (a && a.length>10) ? (a.slice(0,6)+'...'+a.slice(-4)) : (a||'');
-            return (amt>0?('+'.concat(String(amt))):String(amt)) + ' — ' + sh;
+            const sh = shortAddr(a);
+            const exp = expArr.find(x=>String(x.addr||'').toLowerCase()===a.toLowerCase());
+            const seven = (Array.isArray(exp&&exp.cards)?exp.cards:[]).concat(comm);
+            const name = bestHandName(seven);
+            return (amt>0?('+'.concat(String(amt))):String(amt)) + ' — ' + sh + ' — ' + name;
           });
           centerEl.innerHTML = 'Winner' + (winners.length>1?'s':'') + ':<br>' + lines.join('<br>');
           centerEl.style.display = '';
@@ -347,6 +394,7 @@ async function connect(){
         } else { centerEl.style.display = 'none'; }
       }
     } catch(_){ }
+    try { renderLastHandPanel(m); } catch(_){ }
     if (burnStrip) burnStrip.innerHTML = '';
   } catch(e){} });
 

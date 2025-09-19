@@ -144,6 +144,12 @@
     <div class="seat" data-index="7"></div>
   </div>
 
+  <!-- Last Hand debug panel (fixed, compact) -->
+  <div id="last-hand" style="position:fixed; right:12px; bottom:12px; z-index:9000; background: var(--panel-bg-soft); border:1px solid rgba(255,255,255,0.08); border-radius:14px; padding:10px 12px; color:#f4e6d3; text-align:left; box-shadow:0 12px 32px rgba(0,0,0,0.35); width:min(92vw, 360px); max-height:40vh; overflow:auto; display:none;">
+    <div style="font-weight:700; margin-bottom:6px;">Last Hand</div>
+    <div id="lh-content" style="font-size:12px; line-height:1.35;"></div>
+  </div>
+
   <!-- Wallet banner + auto-connect like Tavern -->
   <script type="module" src="../../js/tavern.js"></script>
   <!-- Socket.IO (CDN) -->
