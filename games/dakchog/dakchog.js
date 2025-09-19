@@ -31,7 +31,7 @@ try {
 
 let provider, signer, wallet, tavern;
 let choice = 'dak';
-let rulesOK = false;
+let rulesOK = true; // rules gate removed
 
 const IMG_DAK = '../../assets/images/coin-dak.png';
 const IMG_CHOG = '../../assets/images/coin-chog.png';
@@ -144,10 +144,8 @@ const onReady = (fn) => { if (document.readyState === 'loading') { window.addEve
 onReady(async () => {
   setCoin('dak');
   setChoice('dak');
-  // Require rules acknowledgement every load
-  rulesOK = false;
-  try { rulesOverlay.style.display = 'flex'; } catch {}
-  rulesAck?.addEventListener('click', () => { rulesOK = true; try { rulesOverlay.style.display = 'none'; } catch {} });
-  openRulesBtn?.addEventListener('click', () => { try { rulesOverlay.style.display = 'flex'; } catch {} });
+  // Remove rules gating entirely
+  try { if (rulesOverlay) rulesOverlay.style.display = 'none'; } catch {}
+  try { if (openRulesBtn) openRulesBtn.style.display = 'none'; } catch {}
   await ensureWallet();
 });

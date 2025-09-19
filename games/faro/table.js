@@ -10,7 +10,7 @@ const walletAddrSpan = document.getElementById('wi-address');
 const rulesOverlay = document.getElementById('rules-overlay');
 const rulesAck = document.getElementById('rules-ack');
 const openRulesBtn = document.getElementById('open-rules');
-let faroAck = true;
+let faroAck = true; // rules gate removed
 const RULES_VERSION = 'v2';
 const logEl = document.getElementById('log');
 const tableInput = document.getElementById('table-id');
@@ -206,14 +206,9 @@ async function ensureIdentity() {
 // Match ACK behavior used by other games (e.g., Hazard)
 const onReady = (fn) => { if (document.readyState === 'loading') { window.addEventListener('DOMContentLoaded', fn, { once: true }); } else { fn(); } };
 onReady(() => {
-  // Require rules acknowledgement every load
-  faroAck = false;
-  try { if (rulesOverlay) { rulesOverlay.style.display = 'flex'; } } catch {}
-  rulesAck?.addEventListener('click', () => {
-    faroAck = true;
-    try { if (rulesOverlay) rulesOverlay.style.display = 'none'; } catch {}
-  });
-  openRulesBtn?.addEventListener('click', () => { try { if (rulesOverlay) rulesOverlay.style.display = 'flex'; } catch {} });
+  faroAck = true;
+  try { if (rulesOverlay) rulesOverlay.style.display = 'none'; } catch {}
+  try { if (openRulesBtn) openRulesBtn.style.display = 'none'; } catch {}
 });
 
 // Lobby rendering is disabled on the game page
@@ -429,7 +424,7 @@ async function connect() {
 
 // Attach UI handlers
 joinBtn?.addEventListener('click', () => {
-  if (!faroAck) { try { rulesOverlay.style.display='flex'; } catch{}; return; }
+  // rules gate removed
   const id = (tableInput?.value || 'lobby').trim();
   socket?.emit('join_table', { table: id });
 });
@@ -444,7 +439,7 @@ rankButtons.forEach(btn => {
     const rnum = rankNumber(lbl);
     if (!(rnum>=1 && rnum<=13)) return;
     // Gating: require rules ACK and being seated before placing bets
-    if (!faroAck) { try { rulesOverlay.style.display = 'flex'; } catch {}; return; }
+    // rules gate removed
     if (!(typeof mySeatId === 'number')) { log('Take a seat to place bets.'); return; }
     openBetModal(rnum);
   });

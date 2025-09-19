@@ -30,9 +30,9 @@ const mainButtons = document.querySelectorAll('.main-select button');
 const rulesOverlay = document.getElementById('rules-overlay');
 const rulesAck = document.getElementById('rules-ack');
 const openRulesBtn = document.getElementById('open-rules');
-let hazardAck = false;
+let hazardAck = true; // rules gate removed
 const RULES_VERSION = 'v2';
-const RULES_ACK_KEY = `hazard.rulesAck.${RULES_VERSION}`;
+// rules ack key no longer used
 
 // Persist and restore basic UI state (bet + main)
 try {
@@ -153,30 +153,9 @@ mainButtons.forEach(btn => {
 // Initialize provider/signers and attach handlers
 const onReady = (fn) => { if (document.readyState === 'loading') { window.addEventListener('DOMContentLoaded', fn, { once: true }); } else { fn(); } };
 onReady(async () => {
-  // Rules acknowledgement UX: persist for 24h per RULES_VERSION
-  hazardAck = false;
-  try {
-    const tsRaw = localStorage.getItem(RULES_ACK_KEY);
-    const ts = tsRaw ? parseInt(tsRaw, 10) : 0;
-    const dayMs = 24 * 60 * 60 * 1000;
-    if (ts && (Date.now() - ts) < dayMs) {
-      hazardAck = true;
-      rulesOverlay.style.display = 'none';
-      setHazardInteractivity(true);
-    } else {
-      rulesOverlay.style.display = 'flex';
-      setHazardInteractivity(false);
-    }
-  } catch {
-    try { rulesOverlay.style.display = 'flex'; setHazardInteractivity(false); } catch {}
-  }
-  rulesAck?.addEventListener('click', () => {
-    hazardAck = true;
-    try { localStorage.setItem(RULES_ACK_KEY, String(Date.now())); } catch {}
-    try { rulesOverlay.style.display = 'none'; } catch {}
-    setHazardInteractivity(true);
-  });
-  openRulesBtn?.addEventListener('click', () => { try { rulesOverlay.style.display = 'flex'; } catch {} });
+  hazardAck = true;
+  try { if (rulesOverlay) rulesOverlay.style.display = 'none'; } catch {}
+  try { if (openRulesBtn) openRulesBtn.style.display = 'none'; } catch {}
 
   // Accept either storage flag, but still try provider init even if missing
   let walletFlag = undefined;

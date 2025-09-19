@@ -11,8 +11,7 @@ const betInput = document.getElementById('bet');
 const rulesOverlay = document.getElementById('rules-overlay');
 const rulesAck = document.getElementById('rules-ack');
 const openRulesBtn = document.getElementById('open-rules');
-const RULES_VERSION = 'v2';
-let shellAck = !!(window && window.__shellAck);
+let shellAck = true; // rules gate removed
 
 function setShellInteractivity(enabled) {
   try {
@@ -44,7 +43,7 @@ async function init() {
 
 shellElements.forEach((shell) => {
   shell.addEventListener('click', async () => {
-    if (!shellAck) { try { rulesOverlay.style.display = 'flex'; } catch {}; return; }
+    // rules gate removed
     try {
       await init();
 
@@ -126,7 +125,7 @@ try {
   shells.forEach((el, idx) => {
     el.setAttribute('tabindex', el.getAttribute('tabindex') || '0');
     el.addEventListener('keydown', (e) => {
-      if (!shellAck) { try { rulesOverlay.style.display = 'flex'; } catch {}; return; }
+      // rules gate removed
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); el.click(); }
       if (e.key === 'ArrowLeft') { e.preventDefault(); const t = shells[(idx + shells.length - 1) % shells.length]; t && t.focus(); }
       if (e.key === 'ArrowRight') { e.preventDefault(); const t = shells[(idx + 1) % shells.length]; t && t.focus(); }
@@ -137,15 +136,8 @@ try {
 // Show rules modal at load and block interactions until ack (per load)
 const onReady = (fn) => { if (document.readyState === 'loading') { window.addEventListener('DOMContentLoaded', fn, { once: true }); } else { fn(); } };
 onReady(() => {
-  shellAck = !!(window && window.__shellAck);
-  try { rulesOverlay.style.display = 'flex'; setShellInteractivity(false); } catch {}
-  rulesAck?.addEventListener('click', () => {
-    shellAck = true;
-    try { window.__shellAck = true; } catch {}
-    try { rulesOverlay.style.display = 'none'; } catch {};
-    setShellInteractivity(true);
-  });
-  openRulesBtn?.addEventListener('click', () => { try { rulesOverlay.style.display = 'flex'; } catch {} });
-  // Accept external ack if any script dispatches it
-  try { window.addEventListener('shell:ack', () => { shellAck = true; setShellInteractivity(true); try { rulesOverlay.style.display = 'none'; } catch {} }); } catch {}
+  shellAck = true;
+  try { if (rulesOverlay) rulesOverlay.style.display = 'none'; } catch {}
+  // Disable Rules button if present
+  try { if (openRulesBtn) openRulesBtn.style.display = 'none'; } catch {}
 });
