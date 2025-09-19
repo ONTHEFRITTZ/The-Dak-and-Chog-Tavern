@@ -220,7 +220,7 @@ async function silentConnect() {
     hideInlineConnectIfBannerPresent();
     try { statusEl.innerText = ''; } catch {}
     try {
-      const onLanding = (function(){ try { const p=String(location.pathname||''); return p=== '/landing.html' || p.endsWith('/landing.html') || p.endsWith('landing.html'); } catch { return false; } })();
+      const onLanding = (function(){ try { const p=String(location.pathname||'').toLowerCase(); return p.includes('/landing') || p.endsWith('landing.html'); } catch { return false; } })();
       if (!onLanding) {
         const chainId = await detectChainId(provider);
         const tavernAddress = await getAddressFor('tavern', provider);
@@ -269,8 +269,8 @@ async function bootConnect() {
   await ensureConfig();
   // Do not render network/contract banner or auto-connect on the landing page
   try {
-    const path = String(location.pathname || '');
-    const isLanding = path === '/landing.html' || path.endsWith('/landing.html') || path.endsWith('landing.html');
+    const path = String(location.pathname || '').toLowerCase();
+    const isLanding = path.includes('/landing') || path.endsWith('landing.html');
     if (isLanding) {
       try { setConnectButtonAsConnect(); } catch {}
       return;

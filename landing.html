@@ -1,11 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
+  <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>The Dak and Chog Tavern — Enter</title>
   <!-- Load base CSS before JS to eliminate white flash on first paint -->
   <link rel="stylesheet" href="css/style.css">
+  <style>
+    /* Never show the network banner or top banner on landing */
+    #network-banner, .top-banner { display: none !important; }
+  </style>
 </head>
 <body class="age-landing">
   <main class="age-hero" role="main">
@@ -85,6 +89,8 @@
       if (ph) ph.addEventListener('click', () => pick('phantom'));
       window.addEventListener('keydown', (e) => { if (e.key === 'Enter') { try { btn?.click(); } catch {} } });
       // No automatic prompts; user must click to pick a wallet
+      // Defensive: remove any stray network banner if injected by cached scripts
+      try { document.getElementById('network-banner')?.remove(); } catch {}
     })();
   </script>
 </body>
