@@ -1,5 +1,5 @@
 // Faro Lobby page: connects to realtime server and renders tables list
-const lobbyList = document.getElementById('lobby-list');
+const lobbyList = document.getElementById('lobby');
 const returnBtn = document.getElementById('return');
 returnBtn?.addEventListener('click', () => { window.location.href = '/index.html'; });
 
@@ -16,16 +16,10 @@ function renderLobby(list) {
     sorted.forEach(row => {
       const seated = Number(row.seated||0);
       const cap = Number(row.capacity||6);
-      const isFull = seated >= cap;
       const card = document.createElement('div'); card.className='lobby-item';
-      const left = document.createElement('div');
-      const name = document.createElement('div'); name.className = 'name' + (isFull?' full':'');
-      name.innerHTML = `<strong>${row.id}</strong> ${isFull? '(Full)':'(Open)'}`;
-      const count = document.createElement('div'); count.textContent = `Players: ${seated}/${cap}`;
-      left.appendChild(name); left.appendChild(count);
-      const btn = document.createElement('button');
-      if (isFull) { btn.textContent = 'Full'; btn.disabled = true; }
-      else { btn.textContent = 'Join'; btn.onclick = () => { window.location.href = `/games/faro/index.html?table=${encodeURIComponent(row.id)}`; }; }
+      const left = document.createElement('div'); left.textContent = `${row.id} - Players ${seated}/${cap}`;
+      const btn = document.createElement('button'); btn.textContent = 'Open Table';
+      btn.onclick = () => { window.location.href = `/games/faro/index.html?table=${encodeURIComponent(row.id)}`; };
       card.appendChild(left); card.appendChild(btn);
       lobbyList.appendChild(card);
     });

@@ -30,13 +30,10 @@
       filter: drop-shadow(0 0 18px rgba(255,244,233,0.45)) drop-shadow(0 4px 12px rgba(0,0,0,0.25));
       pointer-events:none; user-select:none;
     }
-    /* Strong selector to avoid any stale/global CSS overrides */
-    #faro-lobby.lobby-wrap { width:95%; max-width:1000px; margin: clamp(24px, 10vh, 120px) auto 32px !important; position:relative; }
+    /* Match Poker lobby container dimensions and placement */
+    #faro-lobby.lobby-wrap { width:95%; max-width:1000px; margin: clamp(24px, 10vh, 120px) auto 32px; position:relative; }
     body.game { padding-top: 0 !important; }
     .lobby-card { background: var(--panel-bg-soft); border:1px solid rgba(255,255,255,0.12); border-radius:14px; padding:20px; color:#f4e6d3; box-shadow:0 24px 60px rgba(0,0,0,0.55); }
-    .lobby-list { display:flex; flex-wrap:wrap; gap:10px; }
-    .lobby-item { background:rgba(30,16,10,0.85); border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:10px; min-width:220px; display:flex; align-items:center; justify-content:space-between; gap:10px; }
-    .lobby-item .name.full { opacity:.55; }
   </style>
 </head>
 <body class="game">
@@ -48,7 +45,7 @@
     <div class="lobby-card">
       <h2 style="margin:0 0 8px;">Faro Lobby</h2>
       <div id="faro-status" class="muted" style="margin-bottom:8px; font-size:13px; min-height:18px;"></div>
-      <div id="lobby-list" class="lobby-list">
+      <div id="lobby" class="lobby-list">
         <div style="opacity:.7; font-size:13px;">Connecting to lobby...</div>
       </div>
     </div>
