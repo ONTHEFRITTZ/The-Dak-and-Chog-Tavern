@@ -207,8 +207,10 @@ onReady(async () => {
     const wagerEth = ethers.utils.formatEther(wager);
     const payoutEth = win ? ethers.utils.formatEther(wager.mul(2)) : '0';
     const explanation = explainOutcome(Number(main), Number(finalSum), Number(chance), win);
-
-    statusEl.textContent = win ? 'You won ' + payoutEth + ' MON! ' + explanation : 'You lost. ' + explanation;
+    const rolledMsg = 'Rolled ' + Number(finalSum) + '. ';
+    statusEl.textContent = win
+      ? ('You won ' + payoutEth + ' MON! ' + rolledMsg + explanation)
+      : ('You lost. ' + rolledMsg + explanation);
     try { showToast(win ? 'You won ' + payoutEth + ' MON' : 'You lost', win ? 'success' : 'info'); } catch {}
 
     if (rollsList) {
