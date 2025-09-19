@@ -3,9 +3,12 @@
   <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>The Dak and Chog Tavern — Enter</title>
+  <title>The Dak and Chog Tavern – Enter</title>
   <!-- Load base CSS before JS to eliminate white flash on first paint -->
   <link rel="stylesheet" href="css/style.css">
+  <!-- Preload wallet logos to avoid flicker/missing due to late loads -->
+  <link rel="preload" as="image" href="/assets/images/logos/metamask.png" type="image/png">
+  <link rel="preload" as="image" href="/assets/images/logos/phantom.png" type="image/png">
   <style>
     /* Never show the network banner or top banner on landing */
     #network-banner, .top-banner { display: none !important; }
