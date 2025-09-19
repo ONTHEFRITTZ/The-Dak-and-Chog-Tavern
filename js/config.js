@@ -65,8 +65,9 @@ export async function detectChainId(provider) {
     }
   } catch {}
   try {
-    if (window?.ethereum?.request) {
-      const hex = await window.ethereum.request({ method: 'eth_chainId' });
+    const injected = (window && window.__walletProvider) || (window && window.phantom && window.phantom.ethereum) || (window && window.ethereum);
+    if (injected && typeof injected.request === 'function') {
+      const hex = await injected.request({ method: 'eth_chainId' });
       return parseInt(hex, 16);
     }
   } catch {}

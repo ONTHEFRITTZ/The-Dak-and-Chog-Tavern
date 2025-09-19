@@ -200,6 +200,7 @@ export async function connectWallet(explicitProviderKey) {
     provider = new ethers.providers.Web3Provider(injected, 'any');
     signer = provider.getSigner();
     userAddress = await signer.getAddress();
+    try { window.__walletProvider = injected; } catch {}
     // Ensure Monad Testnet is selected
     try { const ok = await ensureMonadNetwork(provider); if (!ok) { try { showToast && showToast('Please switch to Monad Testnet', 'error'); } catch {} } } catch {}
     try { window.userAddress = userAddress; window.dispatchEvent(new CustomEvent('wallet:connected', { detail: { address: userAddress } })); } catch {}
@@ -275,6 +276,7 @@ async function silentConnect() {
     if (!accounts || !accounts.length) return false;
     signer = provider.getSigner();
     userAddress = accounts[0];
+    try { window.__walletProvider = injected; } catch {}
     try { await ensureMonadNetwork(provider); } catch {}
     try { window.userAddress = userAddress; window.dispatchEvent(new CustomEvent('wallet:connected', { detail: { address: userAddress } })); } catch {}
     setConnectButtonAsDisconnect();
