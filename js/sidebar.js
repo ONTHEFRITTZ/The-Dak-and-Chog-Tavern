@@ -89,11 +89,22 @@
     const list = document.createElement('ul');
     list.className = 'sidebar-links';
 
+    const cacheBust = () => String(window.__BUILD_TAG || Date.now());
+    function withNow(u){ try { const url = new URL(u, location.href); url.searchParams.set('now', cacheBust()); return url.pathname + '?' + url.searchParams.toString(); } catch { return u; } }
+
     for (const { href, label } of links) {
       const li = document.createElement('li');
       const a = document.createElement('a');
-      a.href = href;
+      a.href = withNow(href);
       a.textContent = label;
+      // Force fresh navigation on click; avoid history-cache restores
+      a.addEventListener('click', function(e){
+        try {
+          e.preventDefault();
+          const target = withNow(href);
+          window.location.assign(target);
+        } catch { /* fall back to default */ }
+      });
       li.appendChild(a);
       list.appendChild(li);
     }

@@ -12,7 +12,7 @@
   <!-- Load base CSS before any JS to prevent white flash (FOUC) -->
   <link id="base-css" rel="stylesheet" href="css/style.css">
   <script>
-  (async()=>{
+    (async()=>{
     try{
       const b = await fetch('/assets/build.json', { cache:'no-store' }).then(r=>r.ok?r.json():null).catch(()=>null);
       const tag = (b && b.commit) ? String(b.commit).slice(0,12) : Date.now();
@@ -158,6 +158,16 @@
           try { if (ev && ev.key === 'walletConnected' && ev.newValue !== 'true') { location.replace('/landing.html'); } } catch {}
         });
       } catch {}
+    })();
+  </script>
+  <script>
+    (function(){
+      try{
+        function cacheBust(u){ try{ var url=new URL(u, location.href); url.searchParams.set('now', String(window.__BUILD_TAG||Date.now())); return url.pathname+'?'+url.searchParams.toString(); }catch{return u} }
+        function hook(a){ if(!a) return; a.addEventListener('click', function(e){ try{ e.preventDefault(); var target=cacheBust(a.getAttribute('href')); window.location.assign(target);}catch{}}); }
+        var as = document.querySelectorAll('a.game-logo-link[href^="/games/"]');
+        as.forEach(hook);
+      }catch(e){}
     })();
   </script>
   <!-- Realtime: auto-connect to Socket.IO and join faro-lobby -->
