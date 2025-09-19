@@ -645,7 +645,22 @@ function endPokerWithSidePots(tableId, t) {
       if (!elig.length) { prev = L; continue; }
       const holeArr = elig.map(x => x.a.cards);
       const idxArr = elig.map(x => x.i);
-      const winIdxs = determineWinners(holeArr, idxArr, board);
+      let winIdxs = determineWinners(holeArr, idxArr, board);
+      // Enforce site split rule: only split if identical hole ranks
+      try {
+        if (winIdxs.length > 1) {
+          const tuples = winIdxs.map((idx, k) => ({ i: idx, t: holeRankTuple(holeArr[k]||[]) })).filter(x=>Array.isArray(x.t));
+          if (tuples.length === winIdxs.length) {
+            const same = allEqual(tuples.map(x=>x.t), (a,b)=> a[0]===b[0] && a[1]===b[1]);
+            if (!same) {
+              // Pick the highest hole rank tuple (lex desc); if ties remain (identical ranks), those can split
+              tuples.sort((x,y)=> cmpTupleDesc(x.t, y.t));
+              const bestT = tuples[0].t;
+              winIdxs = tuples.filter(x=> x.t[0]===bestT[0] && x.t[1]===bestT[1]).map(x=> x.i);
+            }
+          }
+        }
+      } catch {}
       const share = winIdxs.length ? Math.floor(potAmt / winIdxs.length) : 0;
       for (const wi of winIdxs) payouts[wi] += share;
       prev = L;
@@ -660,6 +675,22 @@ function endPokerWithSidePots(tableId, t) {
         const used = bestFiveUsed(hole, board);
         return { addr: actors[x.i].addr, amount: x.amt, usedHole: used.usedHole, usedCommunity: used.usedCommunity };
       });
+    // Enforce site split rule again at exposure time to avoid UI confusion if any rounding created extra entries
+    try {
+      if (winnerList.length > 1) {
+        const tuples = winnerList.map(w => ({ w, t: holeRankTuple(actors[actors.findIndex(a=>a.addr===w.addr)]?.cards||[]) })).filter(x=>Array.isArray(x.t));
+        if (tuples.length === winnerList.length) {
+          const same = allEqual(tuples.map(x=>x.t), (a,b)=> a[0]===b[0] && a[1]===b[1]);
+          if (!same) {
+            tuples.sort((x,y)=> cmpTupleDesc(x.t, y.t));
+            const bestT = tuples[0].t;
+            const keepAddrs = new Set(tuples.filter(x=> x.t[0]===bestT[0] && x.t[1]===bestT[1]).map(x=> x.w.addr));
+            // Zero out amounts for others
+            for (const item of winnerList) { if (!keepAddrs.has(item.addr)) item.amount = 0; }
+          }
+        }
+      }
+    } catch {}
     // Reveal surviving players' hole cards at showdown for transparency
     const exposures = actors.filter(a => !a.folded).map(a => ({ addr: a.addr, cards: Array.from(a.cards||[]) }));
     io.to(tableId).emit('poker:hand', { winners: winnerList, community: board, exposures, pot: state.pot||0, table: tablePublic(t) });
@@ -743,6 +774,11 @@ function straightHigh(cards){ const u = uniqueByRankDesc(cards); const vs = u.ma
 function evaluate7(cards){ const cs = cards.map(parseCard).sort(byvDesc); const bySuit = cs.reduce((m,c)=>{ (m[c.s]=m[c.s]||[]).push(c); return m; },{}); const counts = cs.reduce((m,c)=>{ m[c.v]=(m[c.v]||0)+1; return m; },{}); const groups = Object.entries(counts).map(([v,c])=>({v:Number(v), c})).sort((a,b)=> b.c-a.c || b.v-a.v); let flushSuit=null; for (const s of Object.keys(bySuit)){ if (bySuit[s].length>=5) { flushSuit=s; break; } } if (flushSuit){ const fcs = bySuit[flushSuit].slice(); const hi = straightHigh(fcs); if (hi>0){ return { cls:8, tiebreak:[hi] }; } } if (groups[0]?.c===4){ const kicker = cs.find(c=>c.v!==groups[0].v)?.v||0; return { cls:7, tiebreak:[groups[0].v, kicker] }; } if (groups[0]?.c===3){ const second = groups.find(g=>g.c>=2 && g.v!==groups[0].v); if (second){ return { cls:6, tiebreak:[groups[0].v, second.v] }; } } if (flushSuit){ const top5 = bySuit[flushSuit].slice(0,5).map(c=>c.v); return { cls:5, tiebreak: top5 } } const sh = straightHigh(cs); if (sh>0){ return { cls:4, tiebreak:[sh] }; } if (groups[0]?.c===3){ const kickers = cs.filter(c=>c.v!==groups[0].v).slice(0,2).map(c=>c.v); return { cls:3, tiebreak:[groups[0].v, ...kickers] }; } if (groups[0]?.c===2 && groups[1]?.c===2){ const kicker = cs.find(c=>c.v!==groups[0].v && c.v!==groups[1].v)?.v||0; const hi=Math.max(groups[0].v,groups[1].v), lo=Math.min(groups[0].v,groups[1].v); return { cls:2, tiebreak:[hi, lo, kicker] }; } if (groups[0]?.c===2){ const kickers = cs.filter(c=>c.v!==groups[0].v).slice(0,3).map(c=>c.v); return { cls:1, tiebreak:[groups[0].v, ...kickers] }; } return { cls:0, tiebreak: cs.slice(0,5).map(c=>c.v) }; }
 function cmpRank(a,b){ if (a.cls!==b.cls) return a.cls-b.cls; const n=Math.max(a.tiebreak.length,b.tiebreak.length); for(let i=0;i<n;i++){ const av=a.tiebreak[i]||0, bv=b.tiebreak[i]||0; if (av!==bv) return av-bv; } return 0; }
 function determineWinners(holeCardsArr, actorIdxs, board){ const winners=[]; let best=null; for (let i=0;i<holeCardsArr.length;i++){ const hole=holeCardsArr[i]; const evald=evaluate7([...(hole||[]), ...(board||[])]); if (!best || cmpRank(evald,best)>0){ best=evald; winners.length=0; winners.push(actorIdxs[i]); } else if (cmpRank(evald,best)===0){ winners.push(actorIdxs[i]); } } return winners; }
+
+// Site rule: split pot ONLY if winners have identical hole card ranks
+function holeRankTuple(hole){ try { if (!Array.isArray(hole) || hole.length!==2) return null; const v = hole.map(c=> RVAL[c[0]]||0).sort((a,b)=>a-b); return v.length===2 ? v : null; } catch { return null; } }
+function allEqual(arr, eq){ if (!arr.length) return true; for (let i=1;i<arr.length;i++){ if (!eq(arr[i], arr[0])) return false; } return true; }
+function cmpTupleDesc(a,b){ for (let i=0;i<Math.max(a.length,b.length);i++){ const av=a[i]||0, bv=b[i]||0; if (av!==bv) return bv-av; } return 0; }
 
 // Determine the best 5-card selection (indices) for a Hold'em hand
 function bestFiveUsed(hole, board){
