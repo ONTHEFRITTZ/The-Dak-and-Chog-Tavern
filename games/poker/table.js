@@ -324,7 +324,18 @@ async function connect(){
   socket.on('poker:state', function(st){ try {
     lastState = st; try { if (String((st && st.stage) || '') === 'preflop') { exposures = {}; winnersNow = {}; } } catch(e){}
     ensureActionBar();
-    try { if (centerEl && String((st && st.stage) || '') === 'preflop' && !holdShowdown) { centerEl.style.display = 'none'; } } catch(_){ }
+    const stage = String((st && st.stage) || '');
+    // If a new hand is starting, always clear any showdown hold and visuals
+    if (stage === 'preflop') {
+      try {
+        holdShowdown = false;
+        const tid = (function(){ try { const u=new URL(window.location.href); return u.searchParams.get('table')||'poker-1'; } catch { return 'poker-1'; } })();
+        localStorage.removeItem('poker.hold.'+tid);
+        localStorage.removeItem('poker.lastHand.'+tid);
+      } catch {}
+      try { if (centerEl) centerEl.style.display = 'none'; } catch(_){ }
+      try { if (communityStrip) { communityStrip.classList.remove('showdown'); communityStrip.innerHTML=''; } } catch(_){ }
+    }
 
     // Restore persisted showdown (after refresh) when applicable
     try {
@@ -376,7 +387,7 @@ async function connect(){
     if (communityEl) communityEl && (communityEl.style.display='none');
     if (communityStrip) {
       if (holdShowdown) {
-        // Re-assert current board visual state during showdown
+        // Keep current showdown visuals; do not clear the board
         try { communityStrip.classList.add('showdown'); } catch(_){}
       } else {
         communityStrip.innerHTML = '';
