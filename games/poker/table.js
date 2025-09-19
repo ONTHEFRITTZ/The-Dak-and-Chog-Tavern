@@ -12,7 +12,7 @@ let lastState = null; let exposures = {}; let winnersNow = {};
 try { if (devBotBtn) { devBotBtn.disabled = true; devBotBtn.title = 'Connect wallet to use Dev Bot'; devBotBtn.textContent = 'Dev Bot'; } } catch(e){}
 
 let actionBar = null; let communityEl = null; let amountInput = null; let infoText = null; let communityStrip = null; let burnStrip = null;
-let centerEl = null; let centerTimer = null; let holdShowdown = false;
+let centerEl = null; let centerTimer = null; let holdShowdown = false; let lastHandBox = null; let lastHandContent = null; let holdShowdown = false;
 
 
 
@@ -540,6 +540,7 @@ try {
     if (++tries > 10) { try { clearInterval(t); } catch{} }
   }, 800);
 } catch {}
+
 
 
 
