@@ -48,22 +48,7 @@ try {
   const savedMain = localStorage.getItem('hazard.main');
   if (savedMain) selectedMain = Number(savedMain);
 } catch {}
-function ensureDiceSizing(){
-  try {
-    [dice1El, dice2El].forEach((el)=>{
-      if (!el) return;
-      el.style.width = '140px';
-      el.style.height = '140px';
-      el.style.minWidth = '140px';
-      el.style.minHeight = '140px';
-      el.style.backgroundSize = 'cover';
-      el.style.backgroundPosition = 'center';
-      el.style.backgroundRepeat = 'no-repeat';
-      el.style.flex = '0 0 auto';
-    });
-  } catch {}
-}
-ensureDiceSizing();
+// Dice init
 if (dice1El && !dice1El.textContent) dice1El.textContent = '?';
 if (dice2El && !dice2El.textContent) dice2El.textContent = '?';
 betInput.addEventListener('input', () => {
@@ -124,7 +109,6 @@ function startDiceAnim() {
     const r1 = Math.floor(Math.random() * 6) + 1;
     const r2 = Math.floor(Math.random() * 6) + 1;
     // During animation we must allow updates; ensure lock is not blocking
-    ensureDiceSizing();
     setDiceFaces(r1, r2, { force: true });
   }, 120);
 }
