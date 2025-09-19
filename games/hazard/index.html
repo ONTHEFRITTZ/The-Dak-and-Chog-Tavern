@@ -4,8 +4,17 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Hazard - Dak & Chog Tavern</title>
-  <!-- Ensure CSS comes before JS to avoid FOUC -->
-  <link rel="stylesheet" href="../../css/style.css">
+  <!-- Load CSS with build tag to bust cache on updates -->
+  <script>
+    (async()=>{
+      try{
+        const b = await fetch('/assets/build.json', { cache:'no-store' }).then(r=>r.ok?r.json():null).catch(()=>null);
+        const tag = (b && b.commit) ? String(b.commit).slice(0,12) : Date.now();
+        window.__BUILD_TAG = tag;
+        const css = document.createElement('link'); css.rel='stylesheet'; css.href = `../../css/style.css?v=${encodeURIComponent(tag)}`; document.head.appendChild(css);
+      }catch(e){ console.error('hazard css loader failed', e); }
+    })();
+  </script>
   <script src="../../js/TavernABI.js"></script>
   <script src="../../js/PoolABI.js"></script>
 
