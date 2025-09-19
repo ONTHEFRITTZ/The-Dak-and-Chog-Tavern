@@ -16,8 +16,7 @@ const diceImages = [
 let provider, signer, contract;
 let inFlight = false;          // prevent overlapping plays
 let cooldownUntil = 0;         // brief cooldown after resolution
-let diceLock = false;          // lock dice to the last game result
-let diceLockTimer = null;
+let diceLock = false;          // lock dice to the last game result (until next roll)
 let selectedMain = 7;
 let currentWallet = null;
 let hazardEnableTimer = null;
@@ -209,11 +208,9 @@ onReady(async () => {
     if (!currentWallet || player.toLowerCase() !== currentWallet) return;
 
     const [d1, d2] = splitSumToDice(Number(finalSum));
-    // Force-update dice to the authoritative game result and lock for a short period
+    // Force-update dice to the authoritative game result and lock until next roll
     setDiceFaces(d1, d2, { force:true });
-    try { if (diceLockTimer) clearTimeout(diceLockTimer); } catch {}
     diceLock = true;
-    diceLockTimer = setTimeout(() => { diceLock = false; }, 3000);
 
     const wagerEth = ethers.utils.formatEther(wager);
     const payoutEth = win ? ethers.utils.formatEther(wager.mul(2)) : '0';
