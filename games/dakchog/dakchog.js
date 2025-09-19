@@ -30,6 +30,8 @@ try {
 } catch {}
 
 let provider, signer, wallet, tavern;
+let unifiedAddr = null;  // unified Tavern address (emits CoinPlayed)
+let unifiedLower = null; // lowercase for log filtering
 let sendAddr = null; // resolved contract used for sends (DakChogRouter preferred)
 let choice = 'dak';
 let rulesOK = true; // rules gate removed
@@ -84,8 +86,11 @@ async function ensureWallet() {
       const chainId = await detectChainId(provider);
       const resolved = await resolveDakChogContract();
       sendAddr = resolved.addr;
+      // Resolve unified Tavern for event/log filtering
+      unifiedAddr = await getAddressFor('tavern', provider);
+      unifiedLower = String(unifiedAddr||'').toLowerCase();
       const labelOverride = resolved.label || 'Tavern';
-      renderTavernBanner({ contractKey: 'tavern', address: sendAddr || '', chainId, wallet, labelOverride });
+      renderTavernBanner({ contractKey: 'tavern', address: sendAddr || unifiedAddr || '', chainId, wallet, labelOverride });
       if (sendAddr && window.TavernABI) {
         tavern = new ethers.Contract(sendAddr, window.TavernABI, signer);
       } else {
@@ -147,17 +152,41 @@ flipBtn.addEventListener('click', async () => {
     const tx = await tavern.playCoin(betOnChog, { value: betWei, gasLimit: 120000 });
     statusEl.textContent = `Tx sent: ${tx.hash.slice(0,10)}… waiting confirmation…`;
     const rc = await tx.wait();
-    // Parse CoinPlayed event if present
-    let ev;
-    try { ev = rc.events?.find(e => e.event === 'CoinPlayed'); } catch {}
-    if (ev && ev.args) {
-      const resultChog = !!ev.args.resultChog;
-      const won = !!ev.args.won;
-      setTimeout(() => { setCoin(resultChog ? 'chog' : 'dak'); }, 380);
-      statusEl.textContent = won ? `On-chain: ${resultChog ? 'CHOG' : 'DAK'} – you won!` : `On-chain: ${resultChog ? 'CHOG' : 'DAK'} – you lost.`;
+    // Parse CoinPlayed event if present (direct decode)
+    let resultChog = null, won = null;
+    try {
+      const ev = rc.events?.find(e => e.event === 'CoinPlayed');
+      if (ev && ev.args) { resultChog = !!ev.args.resultChog; won = !!ev.args.won; }
+    } catch {}
+    // Fallback: parse receipt logs from unified Tavern address
+    if (resultChog === null) {
+      try {
+        const iface = new ethers.utils.Interface(window.TavernABI || []);
+        const routerLower = String(sendAddr||'').toLowerCase();
+        for (const log of (rc && rc.logs) || []){
+          if (unifiedLower && String(log.address||'').toLowerCase() !== unifiedLower) continue;
+          try {
+            const parsed = iface.parseLog(log);
+            if (parsed && parsed.name === 'CoinPlayed'){
+              const args = parsed.args || {};
+              const player = String(args.player||args[0]||'').toLowerCase();
+              const isMine = (wallet && player === wallet.toLowerCase()) || (routerLower && player === routerLower);
+              if (!isMine) continue;
+              won = !!(args.won||args[2]);
+              resultChog = !!(args.resultChog||args[3]);
+              break;
+            }
+          } catch {}
+        }
+      } catch {}
+    }
+    if (resultChog !== null) {
+      // Stop animation and update the coin immediately with the authoritative result
+      try { coinEl.classList.remove('flip'); void coinEl.offsetWidth; } catch {}
+      setCoin(resultChog ? 'chog' : 'dak');
+      statusEl.textContent = won ? `On-chain: ${resultChog ? 'CHOG' : 'DAK'} — you won!` : `On-chain: ${resultChog ? 'CHOG' : 'DAK'} — you lost.`;
     } else {
-      // Fallback: query past logs or just show confirmed
-      statusEl.textContent = 'Confirmed. Check wallet or explorer for result.';
+      statusEl.textContent = 'Confirmed. Awaiting result event…';
     }
   } catch (e) {
     console.error(e);
