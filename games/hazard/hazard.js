@@ -97,14 +97,22 @@ function setDiceFaces(d1, d2, opts){
   }
 }
 
-// Enforce correct dice sizing when page is shown (handles bfcache returns)
-function enforceDiceSizeOnShow(){
+// Enforce correct dice sizing (startup + bfcache + before animations)
+function enforceDiceSize(){
   try {
     const els = [dice1El, dice2El];
     for (const el of els){ if(!el) continue; el.style.width='140px'; el.style.height='140px'; el.style.minWidth='140px'; el.style.minHeight='140px'; el.style.backgroundSize='cover'; el.style.backgroundPosition='center'; el.style.backgroundRepeat='no-repeat'; el.style.flex='0 0 auto'; }
   } catch {}
 }
-window.addEventListener('pageshow', enforceDiceSizeOnShow);
+window.addEventListener('pageshow', enforceDiceSize);
+enforceDiceSize();
+
+// Guard against external CSS mutations (belt-and-suspenders)
+try {
+  const mo = new MutationObserver(() => enforceDiceSize());
+  if (dice1El) mo.observe(dice1El, { attributes:true, attributeFilter:['style','class'] });
+  if (dice2El) mo.observe(dice2El, { attributes:true, attributeFilter:['style','class'] });
+} catch {}
 
 // Backward-compat alias
 const displayDice = (d1,d2)=> setDiceFaces(d1,d2);
@@ -114,6 +122,7 @@ function startDiceAnim() {
   try { dice1El.classList.add('shake'); dice2El.classList.add('shake'); } catch {}
   // Clear any existing interval
   if (animIv) { try { clearInterval(animIv); } catch {} animIv = null; }
+  enforceDiceSize();
   animIv = setInterval(() => {
     const r1 = Math.floor(Math.random() * 6) + 1;
     const r2 = Math.floor(Math.random() * 6) + 1;
