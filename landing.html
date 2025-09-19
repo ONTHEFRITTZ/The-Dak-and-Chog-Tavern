@@ -24,13 +24,13 @@
       <div id="wallet-choice" style="display:none; margin-top:14px;">
         <div style="margin-bottom:8px; font-weight:700;">Choose a wallet</div>
         <div style="display:flex; gap:18px; justify-content:center; flex-wrap:wrap;">
-          <button id="btn-metamask" aria-label="Connect with MetaMask" title="MetaMask"
-                  style="padding:10px; border-radius:12px; display:flex; align-items:center; justify-content:center; width:64px; height:64px;">
+          <button id="btn-metamask" type="button" aria-label="Connect with MetaMask" title="MetaMask"
+                  style="padding:10px; border-radius:12px; display:flex; align-items:center; justify-content:center; width:64px; height:64px; cursor:pointer;">
             <img src="./assets/images/logos/metamask.png" alt="MetaMask" style="width:48px; height:48px; object-fit:contain;"/>
           </button>
           <div style="display:flex; flex-direction:column; align-items:center; gap:6px;">
-            <button id="btn-phantom" aria-label="Connect with Phantom" title="Phantom"
-                    style="padding:10px; border-radius:12px; display:flex; align-items:center; justify-content:center; width:64px; height:64px;">
+            <button id="btn-phantom" type="button" aria-label="Connect with Phantom" title="Phantom"
+                    style="padding:10px; border-radius:12px; display:flex; align-items:center; justify-content:center; width:64px; height:64px; cursor:pointer;">
               <img src="./assets/images/logos/phantom.png" alt="Phantom" style="width:48px; height:48px; object-fit:contain;"/>
             </button>
             <div id="phantom-missing" style="display:none; font-size:12px;">
@@ -85,8 +85,8 @@
         } catch(e){ try { status.textContent = 'Failed to connect: ' + (e?.message||''); } catch {} }
       }
       if (btn) btn.addEventListener('click', showChooser);
-      if (mm) mm.addEventListener('click', () => pick('metamask'));
-      if (ph) ph.addEventListener('click', () => pick('phantom'));
+      if (mm) mm.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); pick('metamask'); });
+      if (ph) ph.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); pick('phantom'); });
       window.addEventListener('keydown', (e) => { if (e.key === 'Enter') { try { btn?.click(); } catch {} } });
       // No automatic prompts; user must click to pick a wallet
       // Defensive: remove any stray network banner if injected by cached scripts
