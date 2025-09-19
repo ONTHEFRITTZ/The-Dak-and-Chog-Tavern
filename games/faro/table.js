@@ -493,9 +493,15 @@ returnBtn?.addEventListener('click', () => { window.location.href = '/index.html
       const provider = new ethers.providers.Web3Provider(window.ethereum, 'any');
       const accounts = await provider.listAccounts();
       if (accounts && accounts.length) myAddr = accounts[0];
-      // Auto-connect if previously authorized on this domain
+      // Auto-connect if previously authorized on this domain (session only)
       try {
-        if ((!accounts || !accounts.length) && localStorage.getItem('walletConnected') === 'true') {
+        let shouldReconnect = (sessionStorage.getItem('walletConnected') === 'true');
+        if (!shouldReconnect && localStorage.getItem('walletConnected') === 'true') {
+          sessionStorage.setItem('walletConnected', 'true');
+          try { localStorage.removeItem('walletConnected'); } catch {}
+          shouldReconnect = true;
+        }
+        if ((!accounts || !accounts.length) && shouldReconnect) {
           await window.ethereum.request({ method: 'eth_requestAccounts' });
           const acc2 = await provider.listAccounts();
           if (acc2 && acc2.length) myAddr = acc2[0];

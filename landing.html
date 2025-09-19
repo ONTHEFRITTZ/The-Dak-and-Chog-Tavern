@@ -82,12 +82,19 @@
       }
       async function pick(key){
         try { status.textContent = 'Connecting...'; } catch {}
-        try { localStorage.setItem('walletProvider', key); sessionStorage.setItem('walletProvider', key); } catch {}
+        try {
+          sessionStorage.setItem('walletProvider', key);
+          try { window.__preferredWalletKey = key; } catch {}
+          try { localStorage.removeItem('walletProvider'); } catch {}
+        } catch {}
         try {
           const tag = (window.__BUILD_TAG ? String(window.__BUILD_TAG) : String(Date.now()));
           const mod = await import(`./js/tavern.js?v=${encodeURIComponent(tag)}`);
           await mod.connectWallet(key);
-          try { sessionStorage.setItem('walletConnected','true'); localStorage.setItem('walletConnected','true'); } catch {}
+          try {
+            sessionStorage.setItem('walletConnected','true');
+            try { localStorage.removeItem('walletConnected'); } catch {}
+          } catch {}
           window.location.href = 'index.html';
         } catch(e){ try { status.textContent = 'Failed to connect: ' + (e?.message||''); } catch {} }
       }

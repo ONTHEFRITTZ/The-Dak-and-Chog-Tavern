@@ -75,10 +75,41 @@ function setDiceFaces(d1, d2, opts){
     dice1El.src = diceImages[d1 - 1];
     dice2El.src = diceImages[d2 - 1];
   }
+  try { enforceDiceSize(); } catch {}
 }
 
-// Enforce correct dice sizing (startup + bfcache + before animations)
-// No size enforcement needed; <img> elements have explicit width/height
+// Enforce correct dice sizing across all states (DOM restore, bfcache, etc.)
+function enforceDiceSize() {
+  try {
+    const targetPx = 140;
+    const ensure = (el) => {
+      if (!el) return;
+      try {
+        // Apply hard inline sizing with !important to defeat any container rules
+        el.style.setProperty('width', targetPx + 'px', 'important');
+        el.style.setProperty('height', targetPx + 'px', 'important');
+        el.style.setProperty('min-width', targetPx + 'px', 'important');
+        el.style.setProperty('min-height', targetPx + 'px', 'important');
+        el.style.setProperty('max-width', targetPx + 'px', 'important');
+        el.style.setProperty('max-height', targetPx + 'px', 'important');
+        el.style.setProperty('flex', '0 0 auto', 'important');
+        el.style.setProperty('object-fit', 'cover', 'important');
+        el.style.removeProperty('transform');
+      } catch {}
+    };
+    ensure(dice1El);
+    ensure(dice2El);
+    try {
+      const row = document.querySelector('.hz-dice-row');
+      if (row) {
+        row.style.setProperty('display', 'flex', 'important');
+        row.style.setProperty('justify-content', 'center', 'important');
+        row.style.setProperty('gap', '16px', 'important');
+        row.style.removeProperty('transform');
+      }
+    } catch {}
+  } catch {}
+}
 
 // Backward-compat alias
 const displayDice = (d1,d2)=> setDiceFaces(d1,d2);
@@ -149,13 +180,29 @@ mainButtons.forEach(btn => {
 // Initialize provider/signers and attach handlers
 const onReady = (fn) => { if (document.readyState === 'loading') { window.addEventListener('DOMContentLoaded', fn, { once: true }); } else { fn(); } };
 onReady(async () => {
+  // Assert correct dice sizing immediately and on key lifecycle events
+  try { enforceDiceSize(); } catch {}
+  try { window.addEventListener('resize', enforceDiceSize); } catch {}
+  try { document.addEventListener('visibilitychange', () => { if (!document.hidden) enforceDiceSize(); }); } catch {}
+  try { window.addEventListener('pageshow', () => { enforceDiceSize(); }); } catch {}
   hazardAck = true;
   try { if (rulesOverlay) rulesOverlay.style.display = 'none'; } catch {}
   try { if (openRulesBtn) openRulesBtn.style.display = 'none'; } catch {}
 
   // Accept either storage flag, but still try provider init even if missing
   let walletFlag = undefined;
-  try { walletFlag = localStorage.getItem('walletConnected') || sessionStorage.getItem('walletConnected'); } catch {}
+  try {
+    const sessionWallet = sessionStorage.getItem('walletConnected');
+    if (sessionWallet === 'true') {
+      walletFlag = 'true';
+    } else if (localStorage.getItem('walletConnected') === 'true') {
+      walletFlag = 'true';
+      try {
+        sessionStorage.setItem('walletConnected', 'true');
+        localStorage.removeItem('walletConnected');
+      } catch {}
+    }
+  } catch {}
   // Prefer selected wallet from tavern.js; fallback to injected if needed
   try {
     provider = walletProvider || (window.ethereum ? new ethers.providers.Web3Provider(window.ethereum, 'any') : undefined);
@@ -165,7 +212,12 @@ onReady(async () => {
     let walletAddress = null;
     try { walletAddress = await signer.getAddress(); } catch {}
     if (walletAddress) { currentWallet = walletAddress.toLowerCase(); }
-    try { if (walletAddress && walletFlag !== 'true') localStorage.setItem('walletConnected','true'); } catch {}
+    try {
+      if (walletAddress && walletFlag !== 'true') {
+        sessionStorage.setItem('walletConnected','true');
+        try { localStorage.removeItem('walletConnected'); } catch {}
+      }
+    } catch {}
     // Prefer dedicated Hazard submitter (router) for sends; fall back to Tavern for sends
     tavernAddress = await getAddressFor('hazard', provider) || await getAddressFor('tavern', provider);
     // Unified Tavern address always emits the game events (hoisted vars)
@@ -262,17 +314,29 @@ try {
   }
 });
     }
-    // Also react to storage flag being set by tavern.js connect flow
-    window.addEventListener('storage', async (e) => {
+    const syncWalletState = async () => {
       try {
-        if (e.key === 'walletConnected' && e.newValue === 'true') {
-        const w = await signer.getAddress().catch(() => null);
-        if (w) {
-          currentWallet = w.toLowerCase();
+        if (walletProvider) provider = walletProvider;
+        if (walletSigner) {
+          signer = walletSigner;
+        } else if (provider && provider.getSigner) {
+          signer = provider.getSigner();
+        }
+        const addr = await signer?.getAddress()?.catch(() => null);
+        if (addr) {
+          currentWallet = String(addr).toLowerCase();
           rollBtn.disabled = false;
           statusEl.textContent = '';
         }
-      }
+      } catch {}
+    };
+
+    try { window.addEventListener('wallet:connected', syncWalletState); } catch {}
+    window.addEventListener('storage', async (e) => {
+      try {
+        if (e.key === 'walletConnected' && e.newValue === 'true') {
+          await syncWalletState();
+        }
       } catch {}
     });
   } catch {}

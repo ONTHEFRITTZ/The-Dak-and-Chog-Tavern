@@ -27,16 +27,63 @@ let provider;
 let signer;
 let userAddress;
 
+function rememberWalletProvider(key){
+  try {
+    if (key) {
+      sessionStorage.setItem('walletProvider', key);
+      window.__preferredWalletKey = key;
+    } else {
+      sessionStorage.removeItem('walletProvider');
+    }
+  } catch {}
+  try { localStorage.removeItem('walletProvider'); } catch {}
+}
+
+function markWalletConnected(flag) {
+  try {
+    if (flag) {
+      sessionStorage.setItem('walletConnected', 'true');
+    } else {
+      sessionStorage.removeItem('walletConnected');
+    }
+  } catch {}
+  try { localStorage.removeItem('walletConnected'); } catch {}
+}
+
 function getPreferredWalletKey(){
-  try { return localStorage.getItem('walletProvider') || sessionStorage.getItem('walletProvider') || ''; } catch { return ''; }
+  try {
+    const sessionChoice = sessionStorage.getItem('walletProvider');
+    if (sessionChoice) {
+      window.__preferredWalletKey = sessionChoice;
+      return sessionChoice;
+    }
+    const legacy = localStorage.getItem('walletProvider');
+    if (legacy) {
+      rememberWalletProvider(legacy);
+      return legacy;
+    }
+  } catch {}
+  return window.__preferredWalletKey || '';
 }
 
 function resolveInjectedEvmProvider(explicit){
   try {
-    const key = explicit || getPreferredWalletKey();
-    if (key === 'phantom' && window?.phantom?.ethereum) return window.phantom.ethereum;
-    if (key === 'metamask' && window?.ethereum) return window.ethereum;
-    // Fallback: prefer MetaMask, then Phantom EVM
+    let key = explicit || getPreferredWalletKey();
+    if (key) {
+      if (key === 'phantom') {
+        const p = window?.phantom?.ethereum;
+        if (p) return p;
+        return undefined;
+      }
+      if (key === 'metamask') {
+        const meta = window?.ethereum;
+        if (meta) return meta;
+        return undefined;
+      }
+    }
+    // No stored preference; fall back to whichever provider is present (MetaMask first)
+    if (window?.ethereum && !window?.phantom?.ethereum) return window.ethereum;
+    if (window?.phantom?.ethereum && !window?.ethereum) return window.phantom.ethereum;
     if (window?.ethereum) return window.ethereum;
     if (window?.phantom?.ethereum) return window.phantom.ethereum;
   } catch {}
@@ -160,8 +207,12 @@ function setConnectButtonAsDisconnect() {
     connectButton.style.display = '';
     connectButton.textContent = 'Disconnect';
     connectButton.onclick = () => {
-      try { localStorage.removeItem('walletConnected'); } catch {}
-      try { sessionStorage.removeItem('walletConnected'); } catch {}
+      markWalletConnected(false);
+      rememberWalletProvider('');
+      try { window.__walletProvider = undefined; } catch {}
+      provider = undefined;
+      signer = undefined;
+      userAddress = undefined;
       try { location.replace('/landing.html'); } catch { location.href='/landing.html'; }
     };
   } catch {}
@@ -188,6 +239,10 @@ export async function connectWallet(explicitProviderKey) {
     signer = provider.getSigner();
     userAddress = await signer.getAddress();
     try { window.__walletProvider = injected; } catch {}
+    try {
+      const key = (injected === (window?.phantom?.ethereum)) ? 'phantom' : 'metamask';
+      rememberWalletProvider(key);
+    } catch {}
     // Ensure Monad Testnet is selected
     try { const ok = await ensureMonadNetwork(provider); if (!ok) { try { showToast && showToast('Please switch to Monad Testnet', 'error'); } catch {} } } catch {}
     try { window.userAddress = userAddress; window.dispatchEvent(new CustomEvent('wallet:connected', { detail: { address: userAddress } })); } catch {}
@@ -218,10 +273,10 @@ export async function connectWallet(explicitProviderKey) {
     } catch {}
 
     try {
-      localStorage.setItem('walletConnected', 'true');
-      const key = (explicitProviderKey || (injected === (window?.phantom?.ethereum) ? 'phantom' : 'metamask'));
-      localStorage.setItem('walletProvider', key);
+      const key = explicitProviderKey || (injected === (window?.phantom?.ethereum) ? 'phantom' : 'metamask');
+      rememberWalletProvider(key);
     } catch {}
+    markWalletConnected(true);
     // Announce presence to realtime server (best-effort)
     try {
       if (!window.io) {
@@ -288,7 +343,7 @@ async function silentConnect() {
         try { const nb = document.getElementById('network-banner'); if (nb) nb.remove(); } catch {}
       }
     } catch {}
-    try { localStorage.setItem('walletConnected', 'true'); } catch {}
+    markWalletConnected(true);
     // Announce presence (best-effort)
     try {
       if (!window.io) {
@@ -331,7 +386,13 @@ async function bootConnect() {
   autoConnected = await silentConnect();
   if (!autoConnected) {
     try {
-      const remembered = (localStorage.getItem('walletConnected') === 'true') || (sessionStorage.getItem('walletConnected') === 'true');
+      let remembered = false;
+      if (sessionStorage.getItem('walletConnected') === 'true') {
+        remembered = true;
+      } else if (localStorage.getItem('walletConnected') === 'true') {
+        markWalletConnected(true);
+        remembered = true;
+      }
       if (remembered) autoConnected = await silentConnect();
     } catch {}
   }

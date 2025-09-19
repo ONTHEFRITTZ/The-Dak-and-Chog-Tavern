@@ -3,8 +3,29 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <title>Poker (Isolated)</title>
-  <link rel="stylesheet" href="../../css/style.css">
+  <script>
+    (function(){try{
+      window.addEventListener('unload', function(){});
+      window.addEventListener('pageshow', function(e){ if (e && e.persisted) { location.reload(); } });
+      var nav = (performance && performance.getEntriesByType) ? performance.getEntriesByType('navigation') : null;
+      if (nav && nav[0] && nav[0].type === 'back_forward') { location.reload(); }
+    }catch(e){}})();
+  </script>
+  <script>
+    (async()=>{
+      try{
+        const b = await fetch('/assets/build.json', { cache:'no-store' }).then(r=>r.ok?r.json():null).catch(()=>null);
+        const tag = (b && b.commit) ? String(b.commit).slice(0,12) : Date.now();
+        window.__BUILD_TAG = tag;
+        const css = document.createElement('link'); css.rel='stylesheet'; css.href = `../../css/style.css?v=${tag}`;
+        document.head.appendChild(css);
+      }catch(e){ console.error('poker head loader failed', e); }
+    })();
+  </script>
   <!-- Preload table + games-room background so lobby->table paints fast -->
   <link rel="preload" as="image" href="../../assets/images/table.png" type="image/png">
   <link rel="preload" as="image" href="../../assets/images/games-room.png" type="image/png">

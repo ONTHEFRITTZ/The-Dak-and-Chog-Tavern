@@ -36,7 +36,19 @@
   </script>
 </head>
 <body class="home">
-  <script>(function(){try{var ok=(localStorage.getItem('walletConnected')==='true')||(sessionStorage.getItem('walletConnected')==='true'); if(!ok) location.replace('/landing.html');}catch(e){location.replace('/landing.html');}})();</script>
+  <script>(function(){
+    try {
+      var connected = (sessionStorage.getItem('walletConnected') === 'true');
+      if (!connected && localStorage.getItem('walletConnected') === 'true') {
+        sessionStorage.setItem('walletConnected', 'true');
+        try { localStorage.removeItem('walletConnected'); } catch {}
+        connected = true;
+      }
+      if (!connected) location.replace('/landing.html');
+    } catch (e) {
+      location.replace('/landing.html');
+    }
+  })();</script>
   <!-- Inline wallet panel (replaces removed top banner) -->
   <div id="wallet-inline" style="position:fixed; top:12px; right:12px; z-index:12000; display:flex; align-items:center; gap:8px; background: var(--panel-bg-soft); border:1px solid rgba(255,255,255,0.12); border-radius:12px; padding:6px 10px; color:#f4e6d3;">
     <span id="wi-label" style="font-weight:700;">Wallet:</span>
@@ -195,7 +207,7 @@
       try {
         var disconnectBtn = document.getElementById('wi-disconnect');
         var walletAddrSpan = document.getElementById('wi-address');
-        function show(addr){ try { if (walletAddrSpan) walletAddrSpan.textContent = short(String(addr||'')); } catch{} try { if (disconnectBtn) { disconnectBtn.style.display=''; disconnectBtn.onclick = function(){ try{ localStorage.removeItem('walletConnected'); sessionStorage.removeItem('walletConnected'); }catch(_){} try{ location.reload(); }catch(_){} }; } } catch{} }
+        function show(addr){ try { if (walletAddrSpan) walletAddrSpan.textContent = short(String(addr||'')); } catch{} try { if (disconnectBtn) { disconnectBtn.style.display=''; disconnectBtn.onclick = function(){ try{ sessionStorage.removeItem('walletConnected'); sessionStorage.removeItem('walletProvider'); }catch(_){} try{ localStorage.removeItem('walletConnected'); localStorage.removeItem('walletProvider'); }catch(_){} try{ location.reload(); }catch(_){} }; } } catch{} }
         if (window.userAddress && String(window.userAddress)) { show(window.userAddress); }
         window.addEventListener('wallet:connected', function(ev){ try { var a = String((ev && ev.detail && ev.detail.address) || ''); if (a) show(a); } catch{} });
         // Passive check once in case event raced
@@ -244,10 +256,21 @@
 <script>
 (function(){
   try {
-    var ok = (localStorage.getItem('walletConnected')==='true') || (sessionStorage.getItem('walletConnected')==='true');
+    var connected = (sessionStorage.getItem('walletConnected') === 'true');
+    if (!connected && localStorage.getItem('walletConnected') === 'true') {
+      sessionStorage.setItem('walletConnected', 'true');
+      try { localStorage.removeItem('walletConnected'); } catch(_){}
+      connected = true;
+    }
     var links = document.querySelectorAll('a[href^="/games/"]');
     for (var i=0;i<links.length;i++){
-      links[i].addEventListener('click', function(e){ if(!((localStorage.getItem('walletConnected')==='true') || (sessionStorage.getItem('walletConnected')==='true'))){ e.preventDefault(); alert('Connect wallet in Tavern first'); } });
+      links[i].addEventListener('click', function(e){
+        var live = sessionStorage.getItem('walletConnected') === 'true';
+        if (!live) {
+          e.preventDefault();
+          alert('Connect wallet in Tavern first');
+        }
+      });
     }
   } catch (e) {}
 })();
