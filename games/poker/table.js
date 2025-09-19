@@ -12,6 +12,7 @@ let lastState = null; let exposures = {}; let winnersNow = {};
 try { if (devBotBtn) { devBotBtn.disabled = true; devBotBtn.title = 'Connect wallet to use Dev Bot'; devBotBtn.textContent = 'Dev Bot'; } } catch(e){}
 
 let actionBar = null; let communityEl = null; let amountInput = null; let infoText = null; let communityStrip = null; let burnStrip = null;
+let centerEl = null; let centerTimer = null;
 
 
 
@@ -62,6 +63,7 @@ function ensureActionBar(){
     burnStrip = document.createElement('div');
     burnStrip.style.cssText = 'position:absolute; left:50%; top:50%; transform:translate(calc(-50% - 240px), -58%); display:flex; gap:0; pointer-events:none; z-index:2; align-items:center;';
     canvas.appendChild(burnStrip);
+    try { centerEl = document.getElementById('poker-center') || null; } catch(_) { centerEl = null; }
     return actionBar;
   } catch(e){ return null; }
 }
@@ -226,6 +228,7 @@ async function connect(){
   socket.on('poker:state', function(st){ try {
     lastState = st; try { if (String((st && st.stage) || '') === 'preflop') { exposures = {}; winnersNow = {}; } } catch(e){}
     ensureActionBar();
+    try { if (centerEl && String((st && st.stage) || '') === 'preflop') { centerEl.style.display = 'none'; } } catch(_){ }
     const cards = Array.isArray(st && st.community) ? st.community : [];
     if (communityEl) communityEl && (communityEl.style.display='none');
     if (communityStrip) {
@@ -325,7 +328,26 @@ async function connect(){
     try { const arr = Array.isArray(m && m.exposures) ? m.exposures : []; exposures = {}; arr.forEach(function(e){ const a = String((e && e.addr) || '').toLowerCase(); const cards = Array.isArray(e && e.cards) ? e.cards : []; if (a && cards.length===2) exposures[a] = cards; }); } catch(e){}
     try { winnersNow = {}; (Array.isArray(m && m.winners)? m.winners:[]).forEach(function(w){ const a=String((w && w.addr) || '').toLowerCase(); const amt = Number((w && w.amount) || 0); const usedHole = Array.isArray(w && w.usedHole) ? w.usedHole : null; if (a) winnersNow[a] = { amount: amt, usedHole: usedHole }; }); } catch(e){}
     if (lastTable) renderTable(lastTable);
-if (burnStrip) burnStrip.innerHTML = '';
+    // Center announce winners
+    try {
+      if (!centerEl) { try { centerEl = document.getElementById('poker-center'); } catch(_) { centerEl = null; } }
+      if (centerEl) {
+        const winners = Array.isArray(m && m.winners) ? m.winners : [];
+        if (winners.length) {
+          const lines = winners.map(function(w){
+            const a = (w && w.addr) ? String(w.addr) : '';
+            const amt = Number((w && w.amount) || 0);
+            const sh = (a && a.length>10) ? (a.slice(0,6)+'...'+a.slice(-4)) : (a||'');
+            return (amt>0?('+'.concat(String(amt))):String(amt)) + ' — ' + sh;
+          });
+          centerEl.innerHTML = 'Winner' + (winners.length>1?'s':'') + ':<br>' + lines.join('<br>');
+          centerEl.style.display = '';
+          if (centerTimer) { try { clearTimeout(centerTimer); } catch(_){} centerTimer = null; }
+          centerTimer = setTimeout(function(){ try { centerEl.style.display = 'none'; } catch(_){} }, 6500);
+        } else { centerEl.style.display = 'none'; }
+      }
+    } catch(_){ }
+    if (burnStrip) burnStrip.innerHTML = '';
   } catch(e){} });
 
   if (devBotBtn) devBotBtn.addEventListener('click', function(){
