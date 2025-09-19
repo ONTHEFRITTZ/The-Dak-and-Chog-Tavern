@@ -50,10 +50,24 @@ function ensureActionBar(){
     const canvas = document.querySelector('.table-canvas');
     if (!canvas) return null;
     actionBar = document.createElement('div');
-    actionBar.style.cssText = 'position:absolute; left:50%; bottom:12%; transform:translateX(-50%); display:none; gap:8px; background:rgba(255,244,233,0.95); border:3px solid #7800cd; border-radius:12px; padding:8px 10px; box-shadow:0 4px 12px rgba(0,0,0,0.2); align-items:center; z-index:6;';
-    infoText = document.createElement('div'); infoText.style.color='#2b1e12'; infoText.style.fontSize='12px'; actionBar.appendChild(infoText);
+    actionBar.style.cssText = [
+      'position:absolute','left:50%','bottom:12%','transform:translateX(-50%)','display:none','gap:8px',
+      'background: var(--panel-bg-soft)','border:1px solid rgba(255,255,255,0.12)','border-radius:12px',
+      'padding:8px 10px','box-shadow:0 24px 60px rgba(0,0,0,0.45)','align-items:center','z-index:6',
+      'color:#f4e6d3'
+    ].join(';');
+    infoText = document.createElement('div'); infoText.style.color='#f4e6d3'; infoText.style.fontSize='12px'; actionBar.appendChild(infoText);
     const btns = document.createElement('div'); btns.style.display='flex'; btns.style.gap='8px'; btns.className='action-btns'; actionBar.appendChild(btns);
-    amountInput = document.createElement('input'); amountInput.type='number'; amountInput.min='1'; amountInput.step='1'; amountInput.value='2'; amountInput.style.width='70px'; amountInput.placeholder='amt'; amountInput.title='Bet/Raise amount'; actionBar.appendChild(amountInput);
+    amountInput = document.createElement('input'); amountInput.type='number'; amountInput.min='1'; amountInput.step='1'; amountInput.value='2'; amountInput.style.width='70px'; amountInput.placeholder='amt'; amountInput.title='Bet/Raise amount';
+    try {
+      amountInput.style.background = 'rgba(0,0,0,0.35)';
+      amountInput.style.border = '1px solid rgba(255,255,255,0.16)';
+      amountInput.style.color = '#f4e6d3';
+      amountInput.style.borderRadius = '10px';
+      amountInput.style.padding = '4px 8px';
+      amountInput.style.boxShadow = 'inset 0 1px 1px rgba(255,255,255,0.12)';
+    } catch {}
+    actionBar.appendChild(amountInput);
     canvas.appendChild(actionBar);
 
     communityStrip = document.createElement('div');
