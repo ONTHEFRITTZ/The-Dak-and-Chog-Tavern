@@ -30,6 +30,7 @@ try {
 } catch {}
 
 let provider, signer, wallet, tavern;
+let sendAddr = null; // resolved contract used for sends (DakChogRouter preferred)
 let choice = 'dak';
 let rulesOK = true; // rules gate removed
 
@@ -51,6 +52,27 @@ function setCoin(side) {
   coinEl.style.backgroundImage = `url(${img})`;
 }
 
+async function resolveDakChogContract() {
+  // Prefer per-game router; fall back to unified Tavern. Ensure we target a CONTRACT (has bytecode).
+  const ethers = window.ethers;
+  try {
+    const router = await getAddressFor('dakchog', provider);
+    const unified = await getAddressFor('tavern', provider);
+    let target = router || unified || null;
+    // If router provided, verify it is a contract; otherwise fall back to unified
+    if (router) {
+      try { const code = await provider.getCode(router); if (!code || code === '0x') target = unified || null; } catch { target = unified || null; }
+    }
+    // Verify final target is a contract
+    if (target) {
+      const code = await provider.getCode(target).catch(()=> '0x');
+      if (!code || code === '0x') { return { addr: null, label: null }; }
+      return { addr: target, label: (target?.toLowerCase() === router?.toLowerCase()) ? 'DakChog' : 'Tavern' };
+    }
+  } catch {}
+  return { addr: null, label: null };
+}
+
 async function ensureWallet() {
   if (!window.ethereum) return;
   try {
@@ -60,10 +82,14 @@ async function ensureWallet() {
     wallet = await signer.getAddress();
     try {
       const chainId = await detectChainId(provider);
-      const addr = (await getAddressFor('dakchog', provider)) || (await getAddressFor('tavern', provider));
-      renderTavernBanner({ contractKey: 'tavern', address: addr, chainId, wallet });
-      if (addr && window.TavernABI) {
-        tavern = new ethers.Contract(addr, window.TavernABI, signer);
+      const resolved = await resolveDakChogContract();
+      sendAddr = resolved.addr;
+      const labelOverride = resolved.label || 'Tavern';
+      renderTavernBanner({ contractKey: 'tavern', address: sendAddr || '', chainId, wallet, labelOverride });
+      if (sendAddr && window.TavernABI) {
+        tavern = new ethers.Contract(sendAddr, window.TavernABI, signer);
+      } else {
+        tavern = null;
       }
     } catch {}
   } catch {}
@@ -74,7 +100,7 @@ flipBtn.addEventListener('click', async () => {
   const ethers = window.ethers;
   const bet = Number(betInput.value || 0);
   if (!provider || !signer || !wallet) { statusEl.textContent = 'Connect wallet first.'; return; }
-  if (!tavern || !window.TavernABI) { statusEl.textContent = 'Tavern contract not configured.'; return; }
+  if (!tavern || !window.TavernABI) { statusEl.textContent = 'Tavern/DakChog contract not configured for this network.'; return; }
   if (!(bet > 0)) { statusEl.textContent = 'Enter a valid bet amount.'; return; }
 
   // Animate coin while tx is pending
@@ -105,8 +131,12 @@ flipBtn.addEventListener('click', async () => {
       if (!ok) { statusEl.textContent = 'Bankroll too low for this bet. Try a smaller amount.'; return; }
     } catch {}
 
-    // Static call to surface revert reasons
-    try { await tavern.callStatic.playCoin(betOnChog, { value: betWei }); }
+    // Static call to surface revert reasons; ensure target is a contract
+    try {
+      const code = await provider.getCode(sendAddr).catch(()=> '0x');
+      if (!code || code === '0x') { statusEl.textContent = 'Configured address is not a contract.'; return; }
+      await tavern.callStatic.playCoin(betOnChog, { value: betWei });
+    }
     catch (pre) {
       const msg = pre?.error?.message || pre?.data?.message || pre?.reason || pre?.message || 'Reverted';
       statusEl.textContent = 'Rejected: ' + msg;
