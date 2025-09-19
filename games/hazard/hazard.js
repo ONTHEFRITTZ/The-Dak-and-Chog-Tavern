@@ -363,9 +363,14 @@ window.addEventListener('beforeunload', () => { try { contract.off('HazardPlayed
     let gasLimit;
     try {
       const est = await contract.estimateGas.playHazard(selectedMain, { value: wager });
-      gasLimit = est.mul(120).div(100);
+      const min = ethers.BigNumber.from(600000);     // floor for complex paths
+      const max = ethers.BigNumber.from(1200000);    // conservative cap
+      let padded = est.mul(160).div(100);            // +60% safety
+      if (padded.lt(min)) padded = min;
+      if (padded.gt(max)) padded = max;
+      gasLimit = padded;
     } catch {
-      gasLimit = ethers.utils.hexlify(300000);
+      gasLimit = ethers.BigNumber.from(800000);      // robust fallback
     }
 
     const tx = await contract.playHazard(selectedMain, { value: wager, gasLimit });
@@ -413,7 +418,12 @@ window.addEventListener('beforeunload', () => { try { contract.off('HazardPlayed
     else if (err?.reason) reason = err.reason;
     else reason = err.message || JSON.stringify(err);
 
-    statusEl.textContent = 'Reverted: ' + reason;
+    // Friendlier surface for common gas issues
+    if (/out of gas|intrinsic gas too low|exceeds block/i.test(reason)) {
+      statusEl.textContent = 'Reverted: Out of gas. Please try again; gas limit has been increased.';
+    } else {
+      statusEl.textContent = 'Reverted: ' + reason;
+    }
     rollBtn.disabled = false;
     if (hazardEnableTimer) { clearTimeout(hazardEnableTimer); hazardEnableTimer = null; }
     inFlight = false;
