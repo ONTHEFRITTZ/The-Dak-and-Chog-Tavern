@@ -40,27 +40,34 @@ const IMG_DAK = '../../assets/images/coin-dak.png';
 const IMG_CHOG = '../../assets/images/coin-chog.png';
 
 // Continuous coin flip animation while awaiting on-chain result
-let coinAnimTimer = null;
+let coinAnimNext = null; // timer for next cycle (full duration)
+let coinAnimMid = null;  // timer for mid-cycle face swap
 let coinAnimSide = 'dak';
 const COIN_ANIM_MS = 800; // match CSS keyframes duration (.coin.flip { animation: flip 0.8s ease })
 function performCoinFlipCycle() {
-  // Retrigger CSS animation. Swap face at the HALFWAY point (180deg) to avoid duplicate faces at cycle boundaries.
+  // Toggle face at cycle start so each half shows a different side
+  coinAnimSide = (coinAnimSide === 'dak') ? 'chog' : 'dak';
+  setCoin(coinAnimSide);
+  // Retrigger CSS flip for this cycle
   try { coinEl.classList.remove('flip'); void coinEl.offsetWidth; coinEl.classList.add('flip'); } catch {}
-  // Swap to the opposite face mid‑animation
-  setTimeout(() => {
+  // Mid-cycle: swap to the opposite face so the second half shows the other side
+  try { if (coinAnimMid) { clearTimeout(coinAnimMid); } } catch {}
+  coinAnimMid = setTimeout(() => {
     coinAnimSide = (coinAnimSide === 'dak') ? 'chog' : 'dak';
     setCoin(coinAnimSide);
   }, Math.floor(COIN_ANIM_MS / 2));
-  // Schedule the next full cycle
-  coinAnimTimer = setTimeout(performCoinFlipCycle, COIN_ANIM_MS + 20);
+  // Schedule next cycle after full duration
+  try { if (coinAnimNext) { clearTimeout(coinAnimNext); } } catch {}
+  coinAnimNext = setTimeout(performCoinFlipCycle, COIN_ANIM_MS + 20);
 }
 function startCoinAnim() {
-  try { if (coinAnimTimer) { clearTimeout(coinAnimTimer); coinAnimTimer = null; } } catch {}
-  // Do not change the face immediately; let the first mid‑cycle swap handle alternation cleanly
+  try { if (coinAnimNext) { clearTimeout(coinAnimNext); coinAnimNext = null; } } catch {}
+  try { if (coinAnimMid) { clearTimeout(coinAnimMid); coinAnimMid = null; } } catch {}
   performCoinFlipCycle();
 }
 function stopCoinAnim(finalSide) {
-  if (coinAnimTimer) { try { clearTimeout(coinAnimTimer); } catch {} coinAnimTimer = null; }
+  if (coinAnimNext) { try { clearTimeout(coinAnimNext); } catch {} coinAnimNext = null; }
+  if (coinAnimMid)  { try { clearTimeout(coinAnimMid);  } catch {} coinAnimMid  = null; }
   try { coinEl.classList.remove('flip'); } catch {}
   if (finalSide === 'dak' || finalSide === 'chog') setCoin(finalSide);
 }
