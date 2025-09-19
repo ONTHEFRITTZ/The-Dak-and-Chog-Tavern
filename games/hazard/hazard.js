@@ -50,9 +50,9 @@ try {
   const savedMain = localStorage.getItem('hazard.main');
   if (savedMain) selectedMain = Number(savedMain);
 } catch {}
-// Dice init
-if (dice1El && dice1Img && !dice1Img.getAttribute('src')) dice1El.textContent = '?';
-if (dice2El && dice2Img && !dice2Img.getAttribute('src')) dice2El.textContent = '?';
+// Dice init: ensure <img> elements stay mounted and show a default face
+try { if (dice1Img && !dice1Img.getAttribute('src')) dice1Img.src = diceImages[0]; } catch {}
+try { if (dice2Img && !dice2Img.getAttribute('src')) dice2Img.src = diceImages[0]; } catch {}
 betInput.addEventListener('input', () => {
   try { localStorage.setItem('hazard.bet', betInput.value || ''); } catch {}
 });
@@ -74,7 +74,6 @@ function setDiceFaces(d1, d2, opts){
   if (diceLock && !opts.force) return;
   const imgPathsExist = !!diceImages[0];
   if (imgPathsExist && dice1Img && dice2Img) {
-    try { if (dice1El) dice1El.textContent = ''; if (dice2El) dice2El.textContent = ''; } catch {}
     dice1Img.src = diceImages[d1 - 1];
     dice2Img.src = diceImages[d2 - 1];
   } else {
@@ -88,7 +87,7 @@ function setDiceFaces(d1, d2, opts){
 function enforceDiceSize(){
   try {
     const els = [dice1El, dice2El];
-    for (const el of els){ if(!el) continue; el.style.width='140px'; el.style.height='140px'; el.style.minWidth='140px'; el.style.minHeight='140px'; el.style.flex='0 0 auto'; overflow='hidden'; }
+    for (const el of els){ if(!el) continue; el.style.width='140px'; el.style.height='140px'; el.style.minWidth='140px'; el.style.minHeight='140px'; el.style.flex='0 0 auto'; el.style.overflow='hidden'; }
   } catch {}
 }
 window.addEventListener('pageshow', enforceDiceSize);
