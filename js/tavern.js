@@ -25,6 +25,22 @@ let provider;
 let signer;
 let userAddress;
 
+function getPreferredWalletKey(){
+  try { return localStorage.getItem('walletProvider') || sessionStorage.getItem('walletProvider') || ''; } catch { return ''; }
+}
+
+function resolveInjectedEvmProvider(explicit){
+  try {
+    const key = explicit || getPreferredWalletKey();
+    if (key === 'phantom' && window?.phantom?.ethereum) return window.phantom.ethereum;
+    if (key === 'metamask' && window?.ethereum) return window.ethereum;
+    // Fallback: prefer MetaMask, then Phantom EVM
+    if (window?.ethereum) return window.ethereum;
+    if (window?.phantom?.ethereum) return window.phantom.ethereum;
+  } catch {}
+  return undefined;
+}
+
 // DOM Elements
 const connectButton = document.getElementById('connect-wallet');
 const statusEl = document.getElementById('status');
@@ -122,13 +138,14 @@ function setConnectButtonAsConnect() {
 }
 
 // Connect Wallet
-export async function connectWallet() {
+export async function connectWallet(explicitProviderKey) {
   await ensureConfig();
-  if (!window.ethereum) return alert('MetaMask not detected.');
+  const injected = resolveInjectedEvmProvider(explicitProviderKey);
+  if (!injected) return alert('No EVM wallet detected (MetaMask or Phantom).');
 
   try {
-    await ethereum.request({ method: 'eth_requestAccounts' });
-    provider = new ethers.providers.Web3Provider(window.ethereum, 'any');
+    await injected.request({ method: 'eth_requestAccounts' });
+    provider = new ethers.providers.Web3Provider(injected, 'any');
     signer = provider.getSigner();
     userAddress = await signer.getAddress();
     try { window.userAddress = userAddress; window.dispatchEvent(new CustomEvent('wallet:connected', { detail: { address: userAddress } })); } catch {}
@@ -158,7 +175,11 @@ export async function connectWallet() {
       }
     } catch {}
 
-    try { localStorage.setItem('walletConnected', 'true'); } catch {}
+    try {
+      localStorage.setItem('walletConnected', 'true');
+      const key = (explicitProviderKey || (injected === (window?.phantom?.ethereum) ? 'phantom' : 'metamask'));
+      localStorage.setItem('walletProvider', key);
+    } catch {}
     // Announce presence to realtime server (best-effort)
     try {
       if (!window.io) {
@@ -186,9 +207,10 @@ export async function connectWallet() {
 // Silent connect (no user prompt): use existing authorization if present
 async function silentConnect() {
   await ensureConfig();
-  if (!window.ethereum) return false;
+  const injected = resolveInjectedEvmProvider();
+  if (!injected) return false;
   try {
-    provider = new ethers.providers.Web3Provider(window.ethereum, 'any');
+    provider = new ethers.providers.Web3Provider(injected, 'any');
     const accounts = await provider.listAccounts();
     if (!accounts || !accounts.length) return false;
     signer = provider.getSigner();
@@ -240,6 +262,15 @@ async function silentConnect() {
 // Auto-connect if previously connected (silent when possible)
 async function bootConnect() {
   await ensureConfig();
+  // Do not render network/contract banner or auto-connect on the landing page
+  try {
+    const path = String(location.pathname || '');
+    const isLanding = path === '/landing.html' || path.endsWith('/landing.html');
+    if (isLanding) {
+      try { setConnectButtonAsConnect(); } catch {}
+      return;
+    }
+  } catch {}
   try {
     const chainId = await detectChainId(undefined);
     const address = getAddress('tavern', chainId);
