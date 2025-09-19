@@ -41,33 +41,32 @@ const IMG_CHOG = '../../assets/images/coin-chog.png';
 
 // Continuous coin flip animation while awaiting on-chain result
 let coinAnimNext = null; // timer for next cycle (full duration)
-let coinAnimMid = null;  // timer for mid-cycle face swap
+let coinAnimMid1 = null; // timer for first mid-cycle face swap (25%)
+let coinAnimMid2 = null; // timer for second mid-cycle face swap (75%)
 let coinAnimSide = 'dak';
 const COIN_ANIM_MS = 800; // match CSS keyframes duration (.coin.flip { animation: flip 0.8s ease })
 function performCoinFlipCycle() {
-  // Toggle face at cycle start so each half shows a different side
-  coinAnimSide = (coinAnimSide === 'dak') ? 'chog' : 'dak';
-  setCoin(coinAnimSide);
-  // Retrigger CSS flip for this cycle
+  // Retrigger CSS flip for this cycle (do not swap face yet)
   try { coinEl.classList.remove('flip'); void coinEl.offsetWidth; coinEl.classList.add('flip'); } catch {}
-  // Mid-cycle: swap to the opposite face so the second half shows the other side
-  try { if (coinAnimMid) { clearTimeout(coinAnimMid); } } catch {}
-  coinAnimMid = setTimeout(() => {
-    coinAnimSide = (coinAnimSide === 'dak') ? 'chog' : 'dak';
-    setCoin(coinAnimSide);
-  }, Math.floor(COIN_ANIM_MS / 2));
+  // Swap at 90deg (25%) and 270deg (75%) when the coin is edge-on
+  try { if (coinAnimMid1) { clearTimeout(coinAnimMid1); } } catch {}
+  try { if (coinAnimMid2) { clearTimeout(coinAnimMid2); } } catch {}
+  coinAnimMid1 = setTimeout(() => { coinAnimSide = (coinAnimSide === 'dak') ? 'chog' : 'dak'; setCoin(coinAnimSide); }, Math.floor(COIN_ANIM_MS * 0.25));
+  coinAnimMid2 = setTimeout(() => { coinAnimSide = (coinAnimSide === 'dak') ? 'chog' : 'dak'; setCoin(coinAnimSide); }, Math.floor(COIN_ANIM_MS * 0.75));
   // Schedule next cycle after full duration
   try { if (coinAnimNext) { clearTimeout(coinAnimNext); } } catch {}
   coinAnimNext = setTimeout(performCoinFlipCycle, COIN_ANIM_MS + 20);
 }
 function startCoinAnim() {
   try { if (coinAnimNext) { clearTimeout(coinAnimNext); coinAnimNext = null; } } catch {}
-  try { if (coinAnimMid) { clearTimeout(coinAnimMid); coinAnimMid = null; } } catch {}
+  try { if (coinAnimMid1) { clearTimeout(coinAnimMid1); coinAnimMid1 = null; } } catch {}
+  try { if (coinAnimMid2) { clearTimeout(coinAnimMid2); coinAnimMid2 = null; } } catch {}
   performCoinFlipCycle();
 }
 function stopCoinAnim(finalSide) {
   if (coinAnimNext) { try { clearTimeout(coinAnimNext); } catch {} coinAnimNext = null; }
-  if (coinAnimMid)  { try { clearTimeout(coinAnimMid);  } catch {} coinAnimMid  = null; }
+  if (coinAnimMid1) { try { clearTimeout(coinAnimMid1); } catch {} coinAnimMid1 = null; }
+  if (coinAnimMid2) { try { clearTimeout(coinAnimMid2); } catch {} coinAnimMid2 = null; }
   try { coinEl.classList.remove('flip'); } catch {}
   if (finalSide === 'dak' || finalSide === 'chog') setCoin(finalSide);
 }

@@ -54,7 +54,14 @@
       box-shadow:none;
     }
     .coin.flip { animation: flip 0.8s ease; }
-    @keyframes flip { 0% { transform: rotateY(0deg); } 50% { transform: rotateY(180deg); } 100% { transform: rotateY(360deg); } }
+    /* Include edge-on orientations so JS can swap the face seamlessly at 90deg and 270deg */
+    @keyframes flip {
+      0%   { transform: rotateY(0deg); }
+      25%  { transform: rotateY(90deg); }
+      50%  { transform: rotateY(180deg); }
+      75%  { transform: rotateY(270deg); }
+      100% { transform: rotateY(360deg); }
+    }
 
     .choice { display:flex; align-items:center; justify-content:center; gap:6px; }
     .choice button {
