@@ -30,6 +30,8 @@ const statusEl = document.getElementById('hazard-result') || document.getElement
 const rollBtn = document.getElementById('roll-dice');
 const dice1El = document.getElementById('dice1');
 const dice2El = document.getElementById('dice2');
+const dice1Img = document.getElementById('dice1img');
+const dice2Img = document.getElementById('dice2img');
 const betInput = document.getElementById('bet');
 const returnBtn = document.getElementById('return');
 const rollsList = document.getElementById('rolls');
@@ -49,8 +51,8 @@ try {
   if (savedMain) selectedMain = Number(savedMain);
 } catch {}
 // Dice init
-if (dice1El && !dice1El.textContent) dice1El.textContent = '?';
-if (dice2El && !dice2El.textContent) dice2El.textContent = '?';
+if (dice1El && dice1Img && !dice1Img.getAttribute('src')) dice1El.textContent = '?';
+if (dice2El && dice2Img && !dice2Img.getAttribute('src')) dice2El.textContent = '?';
 betInput.addEventListener('input', () => {
   try { localStorage.setItem('hazard.bet', betInput.value || ''); } catch {}
 });
@@ -71,29 +73,14 @@ function setDiceFaces(d1, d2, opts){
   opts = opts || {};
   if (diceLock && !opts.force) return;
   const imgPathsExist = !!diceImages[0];
-  if (dice1El) {
-    if (imgPathsExist) {
-      dice1El.style.backgroundImage = `url(${diceImages[d1 - 1]})`;
-      dice1El.style.backgroundSize = 'cover';
-      dice1El.style.backgroundPosition = 'center';
-      dice1El.style.backgroundRepeat = 'no-repeat';
-      dice1El.textContent = '';
-    } else {
-      dice1El.style.backgroundImage = '';
-      try { dice1El.textContent = String.fromCodePoint(0x2680 + (d1 - 1)); } catch { dice1El.textContent = String(d1); }
-    }
-  }
-  if (dice2El) {
-    if (imgPathsExist) {
-      dice2El.style.backgroundImage = `url(${diceImages[d2 - 1]})`;
-      dice2El.style.backgroundSize = 'cover';
-      dice2El.style.backgroundPosition = 'center';
-      dice2El.style.backgroundRepeat = 'no-repeat';
-      dice2El.textContent = '';
-    } else {
-      dice2El.style.backgroundImage = '';
-      try { dice2El.textContent = String.fromCodePoint(0x2680 + (d2 - 1)); } catch { dice2El.textContent = String(d2); }
-    }
+  if (imgPathsExist && dice1Img && dice2Img) {
+    try { if (dice1El) dice1El.textContent = ''; if (dice2El) dice2El.textContent = ''; } catch {}
+    dice1Img.src = diceImages[d1 - 1];
+    dice2Img.src = diceImages[d2 - 1];
+  } else {
+    // Fallback to Unicode/text if images missing
+    if (dice1El) { try { dice1El.textContent = String.fromCodePoint(0x2680 + (d1 - 1)); } catch { dice1El.textContent = String(d1); } }
+    if (dice2El) { try { dice2El.textContent = String.fromCodePoint(0x2680 + (d2 - 1)); } catch { dice2El.textContent = String(d2); } }
   }
 }
 
@@ -101,7 +88,7 @@ function setDiceFaces(d1, d2, opts){
 function enforceDiceSize(){
   try {
     const els = [dice1El, dice2El];
-    for (const el of els){ if(!el) continue; el.style.width='140px'; el.style.height='140px'; el.style.minWidth='140px'; el.style.minHeight='140px'; el.style.backgroundSize='cover'; el.style.backgroundPosition='center'; el.style.backgroundRepeat='no-repeat'; el.style.flex='0 0 auto'; }
+    for (const el of els){ if(!el) continue; el.style.width='140px'; el.style.height='140px'; el.style.minWidth='140px'; el.style.minHeight='140px'; el.style.flex='0 0 auto'; overflow='hidden'; }
   } catch {}
 }
 window.addEventListener('pageshow', enforceDiceSize);
