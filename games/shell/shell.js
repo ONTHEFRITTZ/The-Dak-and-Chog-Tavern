@@ -12,8 +12,8 @@ const rulesOverlay = document.getElementById('rules-overlay');
 const rulesAck = document.getElementById('rules-ack');
 const openRulesBtn = document.getElementById('open-rules');
 const RULES_VERSION = 'v2';
-// Show rules every load (no 24h gating)
-let shellAck = false;
+// Show rules every load (no 24h gating); sync with global fallback
+let shellAck = !!window.__shellAck;
 
 function setShellInteractivity(enabled) {
   try {
@@ -160,8 +160,8 @@ const onReady = (fn) => { if (document.readyState === 'loading') { window.addEve
 onReady(() => {
   bindShellClicks();
   // Always require rules acknowledgement per load
-  shellAck = false;
-  try { if (rulesOverlay) { rulesOverlay.style.display = 'flex'; } } catch {}
+  shellAck = !!window.__shellAck;
+  try { if (!shellAck && rulesOverlay) { rulesOverlay.style.display = 'flex'; } } catch {}
   setShellInteractivity(false);
 
   function acknowledgeAndClose() {
@@ -170,7 +170,7 @@ onReady(() => {
     setShellInteractivity(true);
   }
 
-  rulesAck?.addEventListener('click', acknowledgeAndClose);
+  rulesAck?.addEventListener('click', () => { acknowledgeAndClose(); try { window.__shellAck = true; } catch{} });
   // Allow user to reopen rules explicitly via button
   openRulesBtn?.addEventListener('click', () => { try { rulesOverlay.style.display = 'flex'; } catch {} });
   // Dismiss when clicking outside the modal (on scrim only) or with Escape
@@ -180,4 +180,6 @@ onReady(() => {
       if (rulesOverlay && rulesOverlay.style.display !== 'none' && e.key === 'Escape') acknowledgeAndClose();
     });
   } catch {}
+  // Listen for global fallback ack event (in case inline script handled it)
+  try { window.addEventListener('shell:ack', () => { shellAck = true; setShellInteractivity(true); }); } catch{}
 });
