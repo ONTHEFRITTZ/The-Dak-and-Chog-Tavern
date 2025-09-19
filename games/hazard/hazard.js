@@ -18,6 +18,7 @@ let provider, signer, contract;
 let inFlight = false;          // prevent overlapping plays
 let cooldownUntil = 0;         // brief cooldown after resolution
 let diceLock = false;          // lock dice to the last game result (until next roll)
+let animIv = null;             // dice animation interval while tx pending
 let selectedMain = 7;
 let currentWallet = null;
 let hazardEnableTimer = null;
@@ -96,23 +97,22 @@ function setDiceFaces(d1, d2, opts){
 // Backward-compat alias
 const displayDice = (d1,d2)=> setDiceFaces(d1,d2);
 
-// Animate dice visually
-function animateDice() {
-  const el1 = dice1El, el2 = dice2El;
-  el1.classList.add('shake');
-  el2.classList.add('shake');
-  let frames = 10;
-  const iv = setInterval(() => {
+// Animate dice continuously until stopped
+function startDiceAnim() {
+  try { dice1El.classList.add('shake'); dice2El.classList.add('shake'); } catch {}
+  // Clear any existing interval
+  if (animIv) { try { clearInterval(animIv); } catch {} animIv = null; }
+  animIv = setInterval(() => {
     const r1 = Math.floor(Math.random() * 6) + 1;
     const r2 = Math.floor(Math.random() * 6) + 1;
-    setDiceFaces(r1, r2);
-    frames--;
-    if (frames <= 0) {
-      clearInterval(iv);
-      el1.classList.remove('shake');
-      el2.classList.remove('shake');
-    }
-  }, 100);
+    // During animation we must allow updates; ensure lock is not blocking
+    setDiceFaces(r1, r2, { force: true });
+  }, 120);
+}
+
+function stopDiceAnim() {
+  if (animIv) { try { clearInterval(animIv); } catch {} animIv = null; }
+  try { dice1El.classList.remove('shake'); dice2El.classList.remove('shake'); } catch {}
 }
 
 // Outcome explanation matching contract rules
@@ -210,6 +210,7 @@ onReady(async () => {
 
     const [d1, d2] = splitSumToDice(Number(finalSum));
     // Force-update dice to the authoritative game result and lock until next roll
+    stopDiceAnim();
     setDiceFaces(d1, d2, { force:true });
     diceLock = true;
 
@@ -363,7 +364,7 @@ try {
   rollBtn.disabled = true;
 
   try { if (typeof animationsEnabled === 'undefined') { animationsEnabled = true; } } catch { var animationsEnabled = true; }
-  if (animationsEnabled) animateDice();
+  if (animationsEnabled) startDiceAnim();
 
   try {
     // Always do a static preflight to surface revert reasons before sending
@@ -440,6 +441,7 @@ try {
     } else {
       statusEl.textContent = 'Reverted: ' + reason;
     }
+    stopDiceAnim();
     rollBtn.disabled = false;
     if (hazardEnableTimer) { clearTimeout(hazardEnableTimer); hazardEnableTimer = null; }
     inFlight = false;
