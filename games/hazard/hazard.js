@@ -2,6 +2,7 @@
 // UI wired to MonHazard contract (HazardPlayed event) using ethers v5 UMD
 import { getAddressFor, detectChainId, renderTavernBanner, showToast } from '../../js/config.js';
 import { attachProvider } from '../../js/contract-utils.js';
+import { provider as walletProvider, signer as walletSigner } from '../../js/tavern.js';
 
 let tavernAddress; // unified contract address
 const diceImages = [
@@ -168,15 +169,11 @@ onReady(async () => {
   // Accept either storage flag, but still try provider init even if missing
   let walletFlag = undefined;
   try { walletFlag = localStorage.getItem('walletConnected') || sessionStorage.getItem('walletConnected'); } catch {}
-  if (!window.ethereum) {
-    statusEl.textContent = 'MetaMask not detected.';
-    rollBtn.disabled = true;
-    return;
-  }
-
+  // Prefer selected wallet from tavern.js; fallback to injected if needed
   try {
-    provider = new ethers.providers.Web3Provider(window.ethereum, 'any');
-    signer = provider.getSigner();
+    provider = walletProvider || (window.ethereum ? new ethers.providers.Web3Provider(window.ethereum, 'any') : undefined);
+    signer = walletSigner || (provider ? provider.getSigner() : undefined);
+    if (!provider || !signer) { throw new Error('No EVM wallet detected'); }
     try { attachProvider(provider); } catch {}
     let walletAddress = null;
     try { walletAddress = await signer.getAddress(); } catch {}

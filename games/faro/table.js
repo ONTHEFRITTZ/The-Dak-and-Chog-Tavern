@@ -165,10 +165,15 @@ function log(msg) { try { logEl.textContent = `[${new Date().toLocaleTimeString(
 // Resolve Faro address based on current provider/network and overrides
 async function resolveFaroAddress() {
   try {
-    if (!onchainProvider && window.ethereum) {
-      const provider = new ethers.providers.Web3Provider(window.ethereum, 'any');
-      onchainProvider = provider;
-      onchainSigner = provider.getSigner();
+    if (!onchainProvider) {
+      if (walletProvider) {
+        onchainProvider = walletProvider;
+        onchainSigner = walletSigner || walletProvider.getSigner();
+      } else if (window.ethereum) {
+        const provider = new ethers.providers.Web3Provider(window.ethereum, 'any');
+        onchainProvider = provider;
+        onchainSigner = provider.getSigner();
+      }
     }
   } catch {}
   try {

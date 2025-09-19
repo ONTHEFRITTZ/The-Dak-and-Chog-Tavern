@@ -2,6 +2,7 @@
 // Uses the unified Tavern contract ABI (window.TavernABI)
 import { getAddressFor, detectChainId, renderTavernBanner, showToast } from '../../js/config.js';
 import { attachProvider } from '../../js/contract-utils.js';
+import { provider as walletProvider, signer as walletSigner } from '../../js/tavern.js';
 
 const shellElements = document.querySelectorAll('.shell');
 const statusEl = document.getElementById('shell-result') || document.getElementById('status');
@@ -25,12 +26,10 @@ let userAddress;
 let tavernAddress;
 
 async function init() {
-  if (!window.ethereum) {
-    alert('MetaMask not detected.');
-    return;
-  }
-  provider = new ethers.providers.Web3Provider(window.ethereum, 'any');
-  signer = provider.getSigner();
+  // Prefer the site-selected wallet (MetaMask or Phantom EVM) from tavern.js
+  provider = walletProvider || (window.ethereum ? new ethers.providers.Web3Provider(window.ethereum, 'any') : undefined);
+  signer = walletSigner || (provider ? provider.getSigner() : undefined);
+  if (!provider || !signer) { alert('No EVM wallet detected. Connect on the landing page.'); return; }
   try { attachProvider(provider); } catch {}
   userAddress = await signer.getAddress();
   tavernAddress = await getAddressFor('tavern', provider);
