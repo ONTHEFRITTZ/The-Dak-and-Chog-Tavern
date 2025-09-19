@@ -334,15 +334,14 @@ window.addEventListener('beforeunload', () => { try { contract.off('HazardPlayed
   if (animationsEnabled) animateDice();
 
   try {
-    if (!hasPool) {
-      try {
-        await contract.callStatic.playHazard(selectedMain, { value: wager });
-      } catch (pre) {
-        const msg = pre?.error?.message || pre?.data?.message || pre?.reason || pre?.message || 'Reverted';
-        statusEl.textContent = 'Rejected: ' + msg;
-        rollBtn.disabled = false;
-        return;
-      }
+    // Always do a static preflight to surface revert reasons before sending
+    try {
+      await contract.callStatic.playHazard(selectedMain, { value: wager });
+    } catch (pre) {
+      const msg = pre?.error?.message || pre?.data?.message || pre?.reason || pre?.message || 'Reverted';
+      statusEl.textContent = 'Rejected: ' + msg;
+      rollBtn.disabled = false;
+      return;
     }
 
     let gasLimit;
