@@ -48,20 +48,6 @@ const poolAuthInput = document.getElementById('pool-auth');
 const poolAuthorizeBtn = document.getElementById('pool-authorize');
 const poolDeauthorizeBtn = document.getElementById('pool-deauthorize');
 
-// MGID elements
-const mgidExplorerEl = document.getElementById('mgid-explorer');
-const mgidOverrideInput = document.getElementById('mgid-override');
-const mgidSetAddrBtn = document.getElementById('mgid-set-addr');
-const mgidGameInput = document.getElementById('mgid-game');
-const mgidNameInput = document.getElementById('mgid-name');
-const mgidImageInput = document.getElementById('mgid-image');
-const mgidUrlInput = document.getElementById('mgid-url');
-const mgidRegisterBtn = document.getElementById('mgid-register');
-const mgidMsgEl = document.getElementById('mgid-msg');
-let mgidAddr = '0xceCBFF203C8B6044F52CE23D914A1bfD997541A4';
-const MGID_ABI = [
-  'function registerGame(address _game, string _name, string _image, string _url) external',
-];
 
 // Whitelist elements
 const wlAddrEl = document.getElementById('wl-address');
@@ -206,15 +192,7 @@ async function refresh() {
   } catch {}
 }
 
-// Bind MGID actions
-function bindMgid(){
-  try {
-    setMgidAddress(mgidAddr);
-    if (mgidSetAddrBtn) mgidSetAddrBtn.onclick = () => { try { setMgidAddress(String(mgidOverrideInput.value||'').trim()); } catch {} };
-    if (mgidRegisterBtn) mgidRegisterBtn.onclick = () => { mgidRegister().catch(()=>{}); };
-  } catch {}
-}
-bindMgid();
+// (MGID registration UI removed per request)
 
 async function connect() {
   if (!window.ethereum) { statusEl.textContent = 'MetaMask not detected'; return; }
@@ -512,37 +490,6 @@ function ensureIo() {
     ioSocket.on('admin:presence', (m)=>renderPresence(m));
     setInterval(() => { try { ioSocket.emit('admin:presence:get'); } catch {} }, 5000);
   } catch {}
-}
-
-function setMgidAddress(addr){
-  try {
-    if (addr && /^0x[0-9a-fA-F]{40}$/.test(addr)) mgidAddr = addr;
-    if (mgidExplorerEl) mgidExplorerEl.textContent = mgidAddr;
-    if (mgidExplorerEl) mgidExplorerEl.href = `https://testnet.monadexplorer.com/address/${mgidAddr}?tab=Contract`;
-  } catch {}
-}
-
-async function mgidRegister(){
-  try {
-    mgidMsgEl.textContent = '';
-    if (!provider || !signer) { mgidMsgEl.textContent = 'Connect wallet (owner) first.'; return; }
-    const _game = String(mgidGameInput.value||'').trim();
-    const _name = String(mgidNameInput.value||'').trim();
-    const _image = String(mgidImageInput.value||'').trim();
-    const _url = String(mgidUrlInput.value||'').trim();
-    if (!_game || !_name || !_image || !_url) { mgidMsgEl.textContent = 'Fill all fields.'; return; }
-    const ethers = window.ethers;
-    const contract = new ethers.Contract(mgidAddr, MGID_ABI, signer);
-    mgidMsgEl.textContent = 'Submitting transaction...';
-    const tx = await contract.registerGame(_game, _name, _image, _url);
-    mgidMsgEl.textContent = `Tx sent: ${tx.hash.slice(0,10)}... waiting confirmation...`;
-    await tx.wait();
-    mgidMsgEl.textContent = 'Game registered successfully.';
-  } catch (e) {
-    console.error('MGID register error', e);
-    const msg = e?.error?.message || e?.data?.message || e?.reason || e?.message || 'Error';
-    mgidMsgEl.textContent = 'Error: ' + msg;
-  }
 }
 
 document.getElementById('rt-pause')?.addEventListener('click', ()=>{ try { if (ioSocket) ioSocket.emit('admin:pause', { paused: true }); } catch {} });
