@@ -48,8 +48,6 @@
     (async()=>{ try{ const b=await fetch('/assets/build.json',{cache:'no-store'}).then(r=>r.ok?r.json():null).catch(()=>null); const tag=(b&&b.commit)?String(b.commit).slice(0,12):Date.now(); window.__BUILD_TAG=tag; const wl=document.createElement('script'); wl.src=`./js/WhitelistABI.js?v=${tag}`; document.head.appendChild(wl);}catch{}})();
   </script>
   <script type="module">
-    import { detectChainId, getAddressFor } from './js/config.js';
-    import { connectWallet } from './js/tavern.js';
     (function(){
       const btn = document.getElementById('enter-tavern');
       const chooser = document.getElementById('wallet-choice');
@@ -79,7 +77,9 @@
         try { status.textContent = 'Connecting...'; } catch {}
         try { localStorage.setItem('walletProvider', key); sessionStorage.setItem('walletProvider', key); } catch {}
         try {
-          await connectWallet(key);
+          const tag = (window.__BUILD_TAG ? String(window.__BUILD_TAG) : String(Date.now()));
+          const mod = await import(`./js/tavern.js?v=${encodeURIComponent(tag)}`);
+          await mod.connectWallet(key);
           try { sessionStorage.setItem('walletConnected','true'); localStorage.setItem('walletConnected','true'); } catch {}
           window.location.href = 'index.html';
         } catch(e){ try { status.textContent = 'Failed to connect: ' + (e?.message||''); } catch {} }
