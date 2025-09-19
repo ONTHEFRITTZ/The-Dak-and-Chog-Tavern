@@ -179,8 +179,11 @@ onReady(async () => {
     try { walletAddress = await signer.getAddress(); } catch {}
     if (walletAddress) { currentWallet = walletAddress.toLowerCase(); }
     try { if (walletAddress && walletFlag !== 'true') localStorage.setItem('walletConnected','true'); } catch {}
-    // Prefer dedicated Hazard submitter contract; fall back to Tavern
+    // Prefer dedicated Hazard submitter (router) for sends; fall back to Tavern for sends
     tavernAddress = await getAddressFor('hazard', provider) || await getAddressFor('tavern', provider);
+    // Unified Tavern address always emits the game events
+    const unifiedAddr = await getAddressFor('tavern', provider);
+    const unifiedLower = String(unifiedAddr||'').toLowerCase();
     contract = new ethers.Contract(tavernAddress, window.TavernABI, signer);
     try {
       const chainId = await detectChainId(provider);
@@ -233,8 +236,12 @@ onReady(async () => {
     try { rollBtn.disabled = false; } catch {}
   }
 };
-contract.on('HazardPlayed', onHazardPlayed);
-window.addEventListener('beforeunload', () => { try { contract.off('HazardPlayed', onHazardPlayed); } catch {} });
+// Listen from the unified Tavern contract (not the router), so events are always received
+try {
+  const eventSource = new ethers.Contract(unifiedAddr, window.TavernABI, provider);
+  eventSource.on('HazardPlayed', onHazardPlayed);
+  window.addEventListener('beforeunload', () => { try { eventSource.off('HazardPlayed', onHazardPlayed); } catch {} });
+} catch {}
 
   // If the user connects their wallet after load, enable play without reloading
   try {
@@ -391,9 +398,8 @@ window.addEventListener('beforeunload', () => { try { contract.off('HazardPlayed
     // Fallback: parse receipt for HazardPlayed to update UI even if socket event is delayed or missed
     try {
       const iface = new ethers.utils.Interface(window.TavernABI || []);
-      const tavernLower = String(tavernAddress||'').toLowerCase();
       for (const log of (receipt && receipt.logs) || []){
-        if (String(log.address||'').toLowerCase() !== tavernLower) continue;
+        if (String(log.address||'').toLowerCase() !== unifiedLower) continue;
         try {
           const parsed = iface.parseLog(log);
           if (parsed && parsed.name === 'HazardPlayed'){
