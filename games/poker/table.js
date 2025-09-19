@@ -187,6 +187,17 @@ function bestHandName(cards7){
   return 'High Card';
 }
 function shortAddr(a){ return (a && a.length>10) ? (a.slice(0,6)+'...'+a.slice(-4)) : (a||''); }
+
+// Winner-split sanity per site rule: split ONLY if all winners have identical hole card ranks
+function holeRanksKey(cards2){
+  try {
+    const a = Array.isArray(cards2) ? cards2 : [];
+    if (a.length !== 2) return null;
+    const r = a.map(c => (codeToRankSuit(c)||{}).r).filter(Boolean).sort((x,y)=>x-y);
+    if (r.length !== 2) return null;
+    return r.join('-');
+  } catch { return null; }
+}
 function makeCardImg(code, opts){ opts = opts||{}; const hole=!!opts.hole, flip = opts.flip!==false, win = !!opts.win; const img=document.createElement('img'); img.alt=String(code||''); img.src = (code==='BACK')? cardBackSrc() : cardSrc(code); img.className='card' + (hole?' card--hole':'') + (flip?' card--flip':'') + (win?' card--win':''); if (flip) requestAnimationFrame(function(){ img.classList.add('card--show'); }); return img; }
 
 function renderTable(t){
@@ -468,11 +479,11 @@ async function connect(){
   });
 
   socket.on('poker:hand', function(m){ try {
-    // If folded to bot, clear the board (no community shown)
-    var winners = Array.isArray(m && m.winners) ? m.winners : [];
+    // Showdown event from server
+    var winnersRaw = Array.isArray(m && m.winners) ? m.winners : [];
     // Capture used community indices to highlight winning board cards
     usedBoard = [];
-    try { winners.forEach(function(w){ var uc = Array.isArray(w && w.usedCommunity) ? w.usedCommunity : []; uc.forEach(function(i){ if (usedBoard.indexOf(i)===-1) usedBoard.push(i); }); }); } catch(_){ usedBoard = []; }
+    try { winnersRaw.forEach(function(w){ var uc = Array.isArray(w && w.usedCommunity) ? w.usedCommunity : []; uc.forEach(function(i){ if (usedBoard.indexOf(i)===-1) usedBoard.push(i); }); }); } catch(_){ usedBoard = []; }
     if (communityStrip) {
       communityStrip.innerHTML='';
       var comm = Array.isArray(m && m.community)? m.community:[];
@@ -483,8 +494,25 @@ async function connect(){
         try { Array.from(communityStrip.querySelectorAll('img.card')).forEach(function(img){ img.style.transform = 'translateY(-6px)'; }); } catch(_){ }
       }
     }
-    try { const arr = Array.isArray(m && m.exposures) ? m.exposures : []; exposures = {}; arr.forEach(function(e){ const a = String((e && e.addr) || '').toLowerCase(); const cards = Array.isArray(e && e.cards) ? e.cards : []; if (a && cards.length===2) exposures[a] = cards; }); } catch(e){}
-    try { winnersNow = {}; (Array.isArray(m && m.winners)? m.winners:[]).forEach(function(w){ const a=String((w && w.addr) || '').toLowerCase(); const amt = Number((w && w.amount) || 0); const usedHole = Array.isArray(w && w.usedHole) ? w.usedHole : null; if (a) winnersNow[a] = { amount: amt, usedHole: usedHole }; }); } catch(e){}
+    // Build exposures map and enforce site split rule
+    let expArr = [];
+    try { const arr = Array.isArray(m && m.exposures) ? m.exposures : []; exposures = {}; expArr = arr; arr.forEach(function(e){ const a = String((e && e.addr) || '').toLowerCase(); const cards = Array.isArray(e && e.cards) ? e.cards : []; if (a && cards.length===2) exposures[a] = cards; }); } catch(e){}
+    let filteredWinners = winnersRaw;
+    try {
+      if (winnersRaw.length > 1) {
+        const keys = winnersRaw.map(function(w){ const a=String((w && w.addr)||'').toLowerCase(); const exp = expArr.find(x=>String(x.addr||'').toLowerCase()===a); return holeRanksKey(exp && exp.cards); }).filter(Boolean);
+        if (keys.length === winnersRaw.length) {
+          const allSame = keys.every(k => k === keys[0]);
+          if (!allSame) {
+            // Keep the top-amount winner from server payload for display/badges
+            let top = winnersRaw[0];
+            for (let i=1;i<winnersRaw.length;i++){ if (Number(winnersRaw[i].amount||0) > Number(top.amount||0)) top = winnersRaw[i]; }
+            filteredWinners = [ top ];
+          }
+        }
+      }
+    } catch(_){ filteredWinners = winnersRaw; }
+    try { winnersNow = {}; filteredWinners.forEach(function(w){ const a=String((w && w.addr) || '').toLowerCase(); const amt = Number((w && w.amount) || 0); const usedHole = Array.isArray(w && w.usedHole) ? w.usedHole : null; if (a) winnersNow[a] = { amount: amt, usedHole: usedHole }; }); } catch(e){}
     if (lastTable) renderTable(lastTable);
     // Freeze visuals until player clicks Ready
     try { holdShowdown = true; } catch(_){ }
@@ -500,7 +528,7 @@ async function connect(){
     try {
       if (!centerEl) { try { centerEl = document.getElementById('poker-center'); } catch(_) { centerEl = null; } }
       if (centerEl) {
-        const winners = Array.isArray(m && m.winners) ? m.winners : [];
+        const winners = filteredWinners;
         if (winners.length) {
           const comm = Array.isArray(m && m.community) ? m.community : [];
           const expArr = Array.isArray(m && m.exposures) ? m.exposures : [];
