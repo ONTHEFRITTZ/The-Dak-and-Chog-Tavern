@@ -19,8 +19,9 @@
   <style>
     body { background: #120c08 url('../../assets/images/games-room.png') no-repeat center center fixed !important; background-size: 100% auto !important; }
     /* Match Poker lobby layout: stack, start from top, full viewport */
-    body.game {
-      display:flex; flex-direction:column; align-items:center; justify-content:flex-start;
+    /* Ensure lobby aligns to the top like Poker */
+    body.game.lobby-page {
+      display:flex; flex-direction:column; align-items:center; justify-content:flex-start !important;
       min-height: 100vh;
     }
     /* Place logo above container with a soft backglow (match Hazard sizing) */
@@ -36,9 +37,19 @@
     .lobby-card { background: var(--panel-bg-soft); border:1px solid rgba(255,255,255,0.12); border-radius:14px; padding:20px; color:#f4e6d3; box-shadow:0 24px 60px rgba(0,0,0,0.55); }
   </style>
 </head>
-<body class="game">
+<body class="game lobby-page">
 
   <script>(function(){try{var ok=sessionStorage.getItem('walletConnected')==='true';if(!ok) location.replace('/landing.html');}catch(e){location.replace('/landing.html');}})();</script>
+  
+  <!-- Top banner (match Poker isolated layout) -->
+  <div class="top-banner" role="region" aria-label="Wallet and status">
+    <div class="banner-left">
+      <div id="status" class="banner-status">Connecting...</div>
+    </div>
+    <div class="banner-right">
+      <div class="controls"></div>
+    </div>
+  </div>
   
 
   <div id="faro-lobby" class="lobby-wrap">
