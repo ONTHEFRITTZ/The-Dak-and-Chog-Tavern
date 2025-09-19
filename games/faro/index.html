@@ -127,8 +127,9 @@
     /* Dock the active table panel to the right without shifting the table */
     #table-panel.faro-panel {
       position: fixed;
-      top: calc(var(--panel-top, 72px) + 8px);
+      top: 50%;
       right: 12px;
+      transform: translateY(-50%);
       z-index: 11000;
       width: var(--panel-w);
       max-height: calc(100vh - var(--panel-top, 72px) - 24px);
@@ -139,15 +140,9 @@
     .panel-open .table-canvas { width: min(calc(92vw - var(--panel-w) - 24px), 860px); }
     /* On very narrow screens, allow full-width fallback above content */
     @media (max-width: 780px) {
-      #table-panel.faro-panel {
-        left: 50%;
-        right: auto;
-        transform: translateX(-50%);
-        width: min(96vw, 520px);
-      }
-      /* On narrow screens, let content use full width; no side reservation */
-      .panel-open .table-wrap { padding-right: 0; }
-      .panel-open .table-canvas { width: min(92vw, 860px); }
+      /* Keep panel right-anchored; maintain non-overlap reservation */
+      .panel-open .table-wrap { padding-right: calc(var(--panel-w) + 12px); }
+      .panel-open .table-canvas { width: min(calc(92vw - var(--panel-w) - 20px), 860px); }
     }
     .faro-controls {
       display:flex;

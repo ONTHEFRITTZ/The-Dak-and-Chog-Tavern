@@ -222,9 +222,7 @@ function renderLobby() { try { lobbyPanel.style.display = 'none'; } catch {} }
 function renderTable(table) {
   currentTable = table;
   try {
-    const seatedNow = Array.isArray(table?.seats) ? table.seats.filter(Boolean).length : 0;
     lobbyPanel.style.display = 'none';
-    tablePanel.style.display = (table?.started || seatedNow > 0) ? 'block' : 'none';
   } catch {}
   myIsOwner = false; mySeatId = null;
   try { if (Date.now() >= centerLockUntil) centerReadout.textContent = ''; } catch {}
@@ -305,6 +303,12 @@ function renderTable(table) {
   try {
     const canBet = (typeof mySeatId === 'number');
     rankButtons.forEach(b => { b.disabled = !canBet; b.title = canBet ? '' : 'Click Sit to place bets'; });
+  } catch {}
+  // Show panel only when I am seated; also toggle reserved layout
+  try {
+    const isSeated = (typeof mySeatId === 'number');
+    if (tablePanel) tablePanel.style.display = isSeated ? 'block' : 'none';
+    document.body.classList.toggle('panel-open', isSeated);
   } catch {}
   const seated = table.seats.filter(Boolean);
   const allReady = seated.length && seated.every(s => !!s.ready);
@@ -398,8 +402,6 @@ async function connect() {
   socket.on('table:update', (table) => { renderTable(table); });
   socket.on('table:started', (table) => {
     log('Game started!');
-    try { tablePanel.style.display = 'block'; } catch {}
-    try { document.body.classList.add('panel-open'); } catch {}
     try { centerReadout.textContent = 'Place your bet'; } catch {}
     renderTable(table);
   });
