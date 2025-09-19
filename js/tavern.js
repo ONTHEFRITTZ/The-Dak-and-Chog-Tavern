@@ -211,7 +211,13 @@ async function silentConnect() {
   if (!injected) return false;
   try {
     provider = new ethers.providers.Web3Provider(injected, 'any');
-    const accounts = await provider.listAccounts();
+    // Prefer direct EIP-1193 call for broader wallet compatibility (e.g., Phantom EVM)
+    let accounts = [];
+    try { accounts = await injected.request({ method: 'eth_accounts' }); } catch {}
+    if (!accounts || !accounts.length) {
+      // Fallback to ethers provider method if needed
+      try { accounts = await provider.listAccounts(); } catch {}
+    }
     if (!accounts || !accounts.length) return false;
     signer = provider.getSigner();
     userAddress = accounts[0];
