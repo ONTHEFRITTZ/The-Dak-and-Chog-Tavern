@@ -337,12 +337,7 @@ async function bootConnect() {
       return;
     }
   } catch {}
-  try {
-    const chainId = await detectChainId(undefined);
-    const address = getAddress('tavern', chainId);
-    renderTavernBanner({ contractKey: 'tavern', address, chainId, labelOverride: 'Address' });
-    hideInlineConnectIfBannerPresent();
-  } catch {}
+  // Defer banner rendering until after silentConnect so the correct provider/network is used
   let autoConnected = false;
   autoConnected = await silentConnect();
   if (!autoConnected) {
@@ -361,6 +356,26 @@ async function bootConnect() {
       } else {
         setConnectButtonAsConnect();
       }
+    } catch {}
+  } else {
+    // Already connected: render banner and listen for chain changes
+    try {
+      const chainId = await detectChainId(provider);
+      const tavernAddress = await getAddressFor('tavern', provider);
+      renderTavernBanner({ contractKey: 'tavern', address: tavernAddress, chainId, wallet: userAddress, labelOverride: 'Address' });
+      hideInlineConnectIfBannerPresent();
+      try {
+        const base = provider && provider.provider;
+        if (base && base.on) {
+          base.on('chainChanged', async () => {
+            try {
+              const cid = await detectChainId(provider);
+              const addr = await getAddressFor('tavern', provider);
+              renderTavernBanner({ contractKey: 'tavern', address: addr, chainId: cid, wallet: userAddress, labelOverride: 'Address' });
+            } catch {}
+          });
+        }
+      } catch {}
     } catch {}
   }
 }
