@@ -4,3 +4,8 @@
 tmp_*
 .DS_Store
 Thumbs.db
+artifacts/
+cache/
+coverage/
+typechain/
+Contracts/archive/*.md
