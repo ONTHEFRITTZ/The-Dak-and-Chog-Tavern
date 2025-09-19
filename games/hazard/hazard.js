@@ -265,8 +265,8 @@ window.addEventListener('beforeunload', () => { try { contract.off('HazardPlayed
     });
   } catch {}
 
-  // Roll button handler
-  rollBtn.addEventListener('click', async () => {
+  // Roll button handler (guard element)
+  rollBtn?.addEventListener('click', async () => {
   if (!hazardAck) { try { rulesOverlay.style.display = 'flex'; } catch {}; return; }
   if (!signer || !contract) {
     alert('Connect wallet on the Tavern first.');
@@ -372,5 +372,5 @@ window.addEventListener('beforeunload', () => { try { contract.off('HazardPlayed
   }
 });
 
-  returnBtn.addEventListener('click', () => { window.location.href = '/index.html'; });
+  returnBtn?.addEventListener('click', () => { window.location.href = '/index.html'; });
 });
