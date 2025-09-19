@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Game Rules - The Dak & Chog Tavern</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    body { color:#f4e6d3; }
+    .rules-wrap { width:min(92vw, 980px); margin:24px auto; background:var(--panel-bg-soft); border:1px solid rgba(255,255,255,0.12); border-radius:14px; box-shadow:0 24px 60px rgba(0,0,0,0.55); padding:20px; }
+    h1,h2,h3 { margin-top:0; }
+    nav.rules-nav { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
+    nav.rules-nav a { padding:6px 10px; border-radius:8px; background:rgba(0,0,0,0.25); color:#f4e6d3; text-decoration:none; font-weight:600; }
+    section { margin:18px 0; }
+  </style>
+</head>
+<body>
+  <div class="rules-wrap">
+    <h1>Game Rules</h1>
+    <nav class="rules-nav">
+      <a href="#faro">Faro</a>
+      <a href="#poker">Poker</a>
+      <a href="#hazard">Hazard</a>
+      <a href="#shell">Shell Game</a>
+      <a href="#dakchog">Dak &amp; Chog</a>
+    </nav>
+
+    <section id="faro">
+      <h2>Faro</h2>
+      <ul>
+        <li>52‑card deck; suits ignored; ranks A–K.</li>
+        <li>Before each coup, place bets on ranks (A–K). Coppering a bet wagers against that rank.</li>
+        <li>Each coup reveals two cards: bank then player.</li>
+        <li>Bank card: uncoppered bets on that rank lose; coppered bets win even money.</li>
+        <li>Player card: uncoppered bets on that rank win even money; coppered bets lose.</li>
+        <li>Doublet (same rank twice): house takes half of all bets on that rank.</li>
+      </ul>
+    </section>
+
+    <section id="poker">
+      <h2>Poker</h2>
+      <p>Texas Hold’em with blinds and standard hand ranking. Join a table, take a seat, ready up, and act when it’s your turn. Pots resolve at showdown or on fold.</p>
+    </section>
+
+    <section id="hazard">
+      <h2>Hazard</h2>
+      <p>Choose a main (e.g., 7). Roll two dice; outcomes follow traditional Hazard rules. Wagers resolve immediately on certain totals, otherwise a point is established and rolls continue until point or main resolves.</p>
+    </section>
+
+    <section id="shell">
+      <h2>Shell Game</h2>
+      <ul>
+        <li>Pick one of three shells; contract randomly selects the winning cup.</li>
+        <li>If your guess matches the winning cup, you win 2× wager (bankroll permitting); otherwise you lose the wager.</li>
+      </ul>
+    </section>
+
+    <section id="dakchog">
+      <h2>Dak &amp; Chog (Coin Flip)</h2>
+      <ul>
+        <li>Pick Dak or Chog and place a wager.</li>
+        <li>Contract flips; matching your choice pays 2× wager (bankroll permitting); otherwise you lose the wager.</li>
+      </ul>
+    </section>
+  </div>
+
+  <!-- Left Sidebar (collapsible) -->
+  <script>
+    (function(){
+      try {
+        var t = (Date.now());
+        var s = document.createElement('script');
+        s.type = 'module';
+        s.src = '/js/sidebar.js?v=' + encodeURIComponent(t);
+        document.body.appendChild(s);
+      } catch(e) {}
+    })();
+  </script>
+</body>
+</html>
+

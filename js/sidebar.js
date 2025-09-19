@@ -28,6 +28,7 @@
       { href: '/games/hazard/index.html', label: 'Hazard' },
       { href: '/games/shell/index.html', label: 'Shell Game' },
       { href: '/games/dakchog/index.html', label: 'Dak & Chog' },
+      { href: '/rules.html', label: 'Rules' },
     ];
 
     const nav = document.createElement('nav');
