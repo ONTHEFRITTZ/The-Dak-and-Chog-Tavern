@@ -24,9 +24,9 @@ export const ADDRESS_BOOK = {
     faro:   "0xA020F34b536ED7341bFD9F01BD73d3F569B84Fd4",
     pool:   "0x78F62d85244621493b5c3961bBaD4069Ab979C86",
     whitelist: "0xB5e34B3C6c66aE92FC2999413eeb0D7d51122eA3",
-    hazard:  "",
-    shell:   "",
-    dakchog: "",
+    hazard:  "0xE0368d4e5bE42f46B991e7e075EA601Ee25aD69F", // HazardRouter
+    shell:   "0xbA7270d2fCa458760107AE2BB80C104bB207068A", // ShellRouter
+    dakchog: "0x8BA35Eca0fe68787b275C6ed065675829843Adf5", // DakChogRouter
     // shell/hazard can fall back to defaults unless specified later
   },
   // 1: { shell: "0x...", hazard: "0x..." },
