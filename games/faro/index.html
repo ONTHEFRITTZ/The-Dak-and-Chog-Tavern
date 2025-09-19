@@ -114,9 +114,8 @@
       display:flex;
       flex-direction:column;
       gap:14px;
-      align-items:center;
-      justify-content:center;
-      width:min(95vw, 780px);
+      align-items:stretch;
+      justify-content:flex-start;
       background: var(--panel-bg-soft);
       border:1px solid rgba(255,255,255,0.12);
       border-radius:18px;
@@ -124,12 +123,43 @@
       box-shadow:0 24px 60px rgba(0,0,0,0.55);
       color:#f4e6d3;
     }
+    /* Dock the active table panel to the right without shifting the table */
+    #table-panel.faro-panel {
+      position: fixed;
+      top: calc(var(--panel-top, 72px) + 8px);
+      right: 12px;
+      z-index: 11000;
+      width: clamp(280px, 36vw, 420px);
+      max-height: calc(100vh - var(--panel-top, 72px) - 24px);
+      overflow: auto;
+    }
+    /* On very narrow screens, allow full-width fallback above content */
+    @media (max-width: 780px) {
+      #table-panel.faro-panel {
+        left: 50%;
+        right: auto;
+        transform: translateX(-50%);
+        width: min(96vw, 520px);
+      }
+    }
     .faro-controls {
       display:flex;
-      align-items:center;
-      justify-content:center;
+      flex-direction:column;
+      align-items:stretch;
+      justify-content:flex-start;
       gap:10px;
-      flex-wrap:wrap;
+    }
+    .faro-controls .bet-row {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      flex-wrap:nowrap;
+    }
+    .faro-controls .copper-row {
+      display:flex;
+      align-items:center;
+      justify-content:flex-start;
     }
     .faro-controls label {
       color:#f4e6d3;
@@ -151,10 +181,9 @@
     }
     .faro-board {
       display:grid;
-      grid-template-columns: repeat(13, minmax(36px, 1fr));
+      grid-template-columns: repeat(3, 1fr);
       gap:8px;
       width:100%;
-      max-width:720px;
       background: rgba(0,0,0,0.38);
       padding:14px;
       border-radius:16px;
@@ -246,10 +275,14 @@
 
       <div class="faro-panel" id="table-panel" style="display:none;">
         <div class="faro-controls">
-          <label for="bet-amt">Bet (MON):</label>
-          <input id="bet-amt" type="number" min="0.001" step="0.001" value="0.01" style="width:110px; text-align:center;" />
-          <label style="font-size:13px;"><input type="checkbox" id="bet-copper"> Copper (bet against)</label>
-          <button id="clear-bets" style="display:none;">Clear Bets</button>
+          <div class="bet-row">
+            <label for="bet-amt">Bet (MON):</label>
+            <input id="bet-amt" type="number" min="0.001" step="0.001" value="0.01" style="width:110px; text-align:center;" />
+          </div>
+          <div class="copper-row">
+            <label style="font-size:13px;"><input type="checkbox" id="bet-copper"> Copper (bet against)</label>
+          </div>
+          <button id="clear-bets" style="display:none; align-self:flex-end;">Clear Bets</button>
         </div>
         <div class="faro-board" aria-label="Faro ranks">
           <button class="rank-btn" data-rank="A">A</button>
