@@ -38,7 +38,8 @@ rsync -rlt --delete --prune-empty-dirs \
   --include '*/' \
   --include '*.html' \
   --include '*.ico' --include '*.png' --include '*.jpg' --include '*.jpeg' --include '*.webp' --include '*.svg' \
-  --include 'css/***' --include 'js/***' --include 'assets/***' --include 'admin/***' --include 'games/***' --include 'server/***' \
+  --include 'css/***' --include 'js/***' --include 'assets/***' --include 'admin/***' --include 'games/***' \
+  --include 'server/nginx/***' \
   --include 'images/***' --include 'img/***' --include 'fonts/***' --include 'media/***' \
   --exclude '*' \
   ./ "$UPLOAD/"
