@@ -162,12 +162,16 @@
       try {
         var overlay = document.getElementById('rules-overlay');
         var ackBtn = document.getElementById('rules-ack');
+        var openBtn = document.getElementById('open-rules');
         function show(){ try { overlay.style.display='flex'; } catch{} }
         function hide(){ try { overlay.style.display='none'; } catch{} }
         function ack(){ try { window.__shellAck = true; hide(); window.dispatchEvent(new Event('shell:ack')); } catch{} }
         if (overlay && ackBtn) {
           if (!window.__shellAck) show();
           try { ackBtn.addEventListener('click', ack, { once: true }); } catch{}
+        }
+        if (overlay && openBtn) {
+          try { openBtn.addEventListener('click', function(){ show(); }); } catch{}
         }
       } catch (e) {}
     })();

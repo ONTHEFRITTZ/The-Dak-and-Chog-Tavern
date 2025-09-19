@@ -78,6 +78,23 @@ export async function getAddressFor(contractKey, provider) {
   return getAddress(contractKey, chainId);
 }
 
+// Minimal, safe UI helpers (no-ops if elements absent)
+export function renderTavernBanner(opts = {}) {
+  try {
+    const el = document.getElementById('status');
+    if (!el) return;
+    const addr = (opts && (opts.wallet || opts.address)) || '';
+    el.textContent = addr ? `Wallet ready` : '';
+  } catch {}
+}
+
+export function showToast(message, level = 'info') {
+  try {
+    // Basic console toast; can be upgraded to UI snackbar if desired
+    console[level === 'error' ? 'error' : (level === 'warn' ? 'warn' : 'log')](message);
+  } catch {}
+}
+
 // Chain name helpers and banner rendering
 export const CHAIN_NAMES = {
   1: 'Ethereum',
