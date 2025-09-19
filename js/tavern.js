@@ -1,7 +1,7 @@
 import { ethers } from 'https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.esm.min.js';
 // Defer loading of config.js with a version tag to avoid stale cache
 let cfgLoaded = false;
-let getAddressFor, detectChainId, getAddress, renderTavernBanner, CONTRACTS, showToast, switchToChain;
+let getAddressFor, detectChainId, getAddress, renderTavernBanner, CONTRACTS, showToast, switchToChain, RPC_ENDPOINTS;
 async function ensureConfig() {
   if (cfgLoaded) return;
   try {
@@ -14,6 +14,7 @@ async function ensureConfig() {
     CONTRACTS = mod.CONTRACTS;
     showToast = mod.showToast;
     switchToChain = mod.switchToChain;
+    RPC_ENDPOINTS = mod.RPC_ENDPOINTS;
     cfgLoaded = true;
   } catch (e) {
     console.error('Failed to load config.js', e);
@@ -47,19 +48,46 @@ async function ensureMonadNetwork(curProvider){
   try {
     const chainId = await detectChainId(curProvider);
     if (Number(chainId) === 10143) return true;
-    // Attempt switch; Phantom and MetaMask both support wallet_switchEthereumChain
+    // Attempt switch; if chain unknown (4902), add it first
     const hex = '0x' + Number(10143).toString(16);
-    if (switchToChain) {
-      const ok = await switchToChain(hex);
-      return !!ok;
+    const injected = (curProvider && curProvider.provider) || (window?.phantom?.ethereum) || window?.ethereum;
+    async function trySwitch(){
+      try {
+        if (switchToChain) {
+          const ok = await switchToChain(hex);
+          return !!ok;
+        }
+      } catch {}
+      try { if (injected?.request) { await injected.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: hex }] }); return true; } } catch(e){ throw e; }
+      return false;
     }
-    if (curProvider?.provider?.request) {
-      await curProvider.provider.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: hex }] });
-      return true;
-    }
-    if (window?.ethereum?.request) {
-      await window.ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: hex }] });
-      return true;
+    try {
+      const sw = await trySwitch();
+      if (sw) return true;
+    } catch (e) {
+      // Add chain if unrecognized
+      const code = e && (e.code ?? e?.data?.originalError?.code);
+      if (code === 4902 || /unrecognized|not added/i.test(String(e.message||''))){
+        try {
+          let rpc = (RPC_ENDPOINTS && RPC_ENDPOINTS[10143]) || '';
+          if (rpc.startsWith('wss://')) rpc = 'https://' + rpc.slice(6);
+          if (rpc.startsWith('ws://')) rpc = 'http://' + rpc.slice(5);
+          if (!rpc) rpc = 'https://monad-testnet.drpc.org';
+          const params = [{
+            chainId: hex,
+            chainName: 'Monad Testnet',
+            nativeCurrency: { name: 'MON', symbol: 'MON', decimals: 18 },
+            rpcUrls: [rpc],
+            blockExplorerUrls: ['https://testnet.monadexplorer.com']
+          }];
+          if (injected?.request) {
+            await injected.request({ method: 'wallet_addEthereumChain', params });
+          }
+          // Try switching again after adding
+          const sw2 = await trySwitch();
+          if (sw2) return true;
+        } catch {}
+      }
     }
   } catch {}
   return false;
