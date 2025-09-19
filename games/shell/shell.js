@@ -1,5 +1,6 @@
 // shell.js
 // Uses the unified Tavern contract ABI (window.TavernABI)
+try { console.log('[shell] module loading'); } catch {}
 import { getAddressFor, detectChainId, renderTavernBanner, showToast } from '../../js/config.js';
 // Avoid cross-origin ESM import issues; provide a local no-op attachProvider
 function attachProvider(p) { try { window.__shellProvider = p; } catch {} }
@@ -66,10 +67,12 @@ async function ensureAbi() {
 
 function bindShellClicks() {
   const shells = getShells();
+  try { console.log('[shell] binding click handlers for', shells.length, 'shell(s)'); } catch {}
   shells.forEach((shell) => {
     // Avoid double-binding
     if (shell.__boundClick) return; shell.__boundClick = true;
     shell.addEventListener('click', async () => {
+      try { console.log('[shell] cup clicked'); } catch {}
       if (!shellAck) { try { if (rulesOverlay) rulesOverlay.style.display = 'flex'; } catch {}; return; }
       try {
         const ok = await init();
@@ -171,7 +174,7 @@ onReady(() => {
     setShellInteractivity(true);
   }
 
-  rulesAck?.addEventListener('click', () => { acknowledgeAndClose(); try { window.__shellAck = true; } catch{} });
+  rulesAck?.addEventListener('click', () => { try { console.log('[shell] rules ack click'); } catch {} acknowledgeAndClose(); try { window.__shellAck = true; } catch{} });
   // Allow user to reopen rules explicitly via button
   openRulesBtn?.addEventListener('click', () => { try { rulesOverlay.style.display = 'flex'; } catch {} });
   // Dismiss when clicking outside the modal (on scrim only) or with Escape
@@ -182,5 +185,8 @@ onReady(() => {
     });
   } catch {}
   // Listen for global fallback ack event (in case inline script handled it)
-  try { window.addEventListener('shell:ack', () => { shellAck = true; setShellInteractivity(true); }); } catch{}
+  try { window.addEventListener('shell:ack', () => { try { console.log('[shell] received shell:ack'); } catch {} shellAck = true; setShellInteractivity(true); }); } catch{}
 });
+
+// Extra safety: rebind after full window load
+try { window.addEventListener('load', () => { try { bindShellClicks(); } catch(e){ console.error('[shell] bind after load failed', e); } }); } catch {}
