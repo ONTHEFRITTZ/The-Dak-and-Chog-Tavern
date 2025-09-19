@@ -135,14 +135,10 @@
       max-height: calc(100vh - var(--panel-top, 72px) - 24px);
       overflow: auto;
     }
-    /* Reserve space so the panel never overlaps the table/seats */
-    .panel-open .table-wrap { padding-right: calc(var(--panel-w) + 16px); }
-    .panel-open .table-canvas { width: min(calc(92vw - var(--panel-w) - 24px), 860px); }
+    /* Keep table centered; do not shift it horizontally when panel opens */
     /* On very narrow screens, allow full-width fallback above content */
     @media (max-width: 780px) {
-      /* Keep panel right-anchored; maintain non-overlap reservation */
-      .panel-open .table-wrap { padding-right: calc(var(--panel-w) + 12px); }
-      .panel-open .table-canvas { width: min(calc(92vw - var(--panel-w) - 20px), 860px); }
+      /* No horizontal shift on small screens either */
     }
     .faro-controls {
       display:flex;
