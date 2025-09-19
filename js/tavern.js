@@ -48,26 +48,16 @@ async function ensureMonadNetwork(curProvider){
   try {
     const chainId = await detectChainId(curProvider);
     if (Number(chainId) === 10143) return true;
-    // Attempt switch; if chain unknown (4902), add it first
+    // Attempt switch on the selected injected provider only; if chain unknown (4902), add it first
     const hex = '0x' + Number(10143).toString(16);
-    const injected = (curProvider && curProvider.provider) || (window?.phantom?.ethereum) || window?.ethereum;
-    async function trySwitch(){
-      try {
-        if (switchToChain) {
-          const ok = await switchToChain(hex);
-          return !!ok;
-        }
-      } catch {}
-      try { if (injected?.request) { await injected.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: hex }] }); return true; } } catch(e){ throw e; }
-      return false;
-    }
+    const injected = (curProvider && curProvider.provider) || (window?.__walletProvider) || (window?.phantom?.ethereum) || window?.ethereum;
+    if (!injected || typeof injected.request !== 'function') return false;
     try {
-      const sw = await trySwitch();
-      if (sw) return true;
+      await injected.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: hex }] });
+      return true;
     } catch (e) {
-      // Add chain if unrecognized
       const code = e && (e.code ?? e?.data?.originalError?.code);
-      if (code === 4902 || /unrecognized|not added/i.test(String(e.message||''))){
+      if (code === 4902 || /unrecognized|not added/i.test(String(e.message||''))) {
         try {
           let rpc = (RPC_ENDPOINTS && RPC_ENDPOINTS[10143]) || '';
           if (rpc.startsWith('wss://')) rpc = 'https://' + rpc.slice(6);
@@ -80,12 +70,9 @@ async function ensureMonadNetwork(curProvider){
             rpcUrls: [rpc],
             blockExplorerUrls: ['https://testnet.monadexplorer.com']
           }];
-          if (injected?.request) {
-            await injected.request({ method: 'wallet_addEthereumChain', params });
-          }
-          // Try switching again after adding
-          const sw2 = await trySwitch();
-          if (sw2) return true;
+          await injected.request({ method: 'wallet_addEthereumChain', params });
+          await injected.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: hex }] });
+          return true;
         } catch {}
       }
     }

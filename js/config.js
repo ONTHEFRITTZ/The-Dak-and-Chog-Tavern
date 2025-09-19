@@ -132,11 +132,9 @@ export function explorerAddressUrl(chainId, address) {
 
 export async function switchToChain(chainIdHex) {
   try {
-    if (!window?.ethereum?.request) throw new Error('No wallet provider');
-    await window.ethereum.request({
-      method: 'wallet_switchEthereumChain',
-      params: [{ chainId: chainIdHex }],
-    });
+    const injected = (window && window.__walletProvider) || (window && window.phantom && window.phantom.ethereum) || (window && window.ethereum);
+    if (!injected || typeof injected.request !== 'function') throw new Error('No wallet provider');
+    await injected.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: chainIdHex }] });
     return true;
   } catch (err) {
     console.warn('Switch network error', err);
