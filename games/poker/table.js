@@ -51,7 +51,7 @@ function ensureActionBar(){
     if (!canvas) return null;
     actionBar = document.createElement('div');
     actionBar.style.cssText = [
-      'position:absolute','left:50%','bottom:22%','transform:translateX(-50%)','display:none','gap:10px',
+      'position:absolute','left:50%','bottom:26%','transform:translateX(-50%)','display:none','gap:10px',
       'background: var(--panel-bg-soft)','border:1px solid rgba(255,255,255,0.12)','border-radius:12px',
       'padding:12px 14px','box-shadow:0 24px 60px rgba(0,0,0,0.45)','align-items:center','z-index:6',
       'color:#f4e6d3'
@@ -375,7 +375,10 @@ async function connect(){
     const cards = Array.isArray(st && st.community) ? st.community : [];
     if (communityEl) communityEl && (communityEl.style.display='none');
     if (communityStrip) {
-      if (!holdShowdown) {
+      if (holdShowdown) {
+        // Re-assert current board visual state during showdown
+        try { communityStrip.classList.add('showdown'); } catch(_){}
+      } else {
         communityStrip.innerHTML = '';
         communityStrip.classList.remove('showdown');
         cards.forEach(function(code){ communityStrip.appendChild(makeCardImg(code, { flip:true })); });
