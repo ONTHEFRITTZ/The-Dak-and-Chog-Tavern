@@ -3,6 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <title>Dak & Chog - The Dak and Chog Tavern</title>
   <script>
     (async()=>{
@@ -18,6 +21,12 @@
       }catch(e){ console.error('head loader failed', e); }
     })();
   </script>
+  <script>(function(){try{
+    window.addEventListener('unload', function(){});
+    window.addEventListener('pageshow', function(e){ if (e && e.persisted) { location.reload(); } });
+    var nav = (performance && performance.getEntriesByType) ? performance.getEntriesByType('navigation') : null;
+    if (nav && nav[0] && nav[0].type === 'back_forward') { location.reload(); }
+  }catch(e){}})();</script>
       <style>
     /* Lock page to viewport and remove scroll */
     html, body { height: 100%; overflow: hidden; }

@@ -4,8 +4,17 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Hazard - Dak & Chog Tavern</title>
-  <!-- Opt-out of back/forward cache to avoid stale CSS/DOM snapshots -->
-  <script>try{ window.addEventListener('unload', function(){}); }catch(e){}</script>
+  <!-- Strong no-cache hints (best-effort on static hosting) -->
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <!-- Opt-out/reload on bfcache restores across browsers -->
+  <script>(function(){try{
+    window.addEventListener('unload', function(){}); // disables bfcache in many browsers
+    window.addEventListener('pageshow', function(e){ if (e && e.persisted) { location.reload(); } });
+    var nav = (performance && performance.getEntriesByType) ? performance.getEntriesByType('navigation') : null;
+    if (nav && nav[0] && nav[0].type === 'back_forward') { location.reload(); }
+  }catch(e){}})();</script>
   <!-- Load CSS with build tag to bust cache on updates -->
   <script>
     (async()=>{
