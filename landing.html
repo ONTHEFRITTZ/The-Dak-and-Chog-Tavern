@@ -17,6 +17,25 @@
       <div class="age-cta">
         <button id="enter-tavern" aria-label="Confirm age and enter the tavern">I'm 19+, Let me in!</button>
       </div>
+      <div id="wallet-choice" style="display:none; margin-top:14px;">
+        <div style="margin-bottom:8px; font-weight:700;">Choose a wallet</div>
+        <div style="display:flex; gap:14px; justify-content:center; flex-wrap:wrap;">
+          <button id="btn-metamask" style="padding:10px 14px; border-radius:12px; display:flex; align-items:center; gap:8px;">
+            <img src="./assets/images/logos/metamask.png" alt="MetaMask" style="width:24px; height:24px; object-fit:contain;"/>
+            <span>MetaMask</span>
+          </button>
+          <div style="display:flex; flex-direction:column; align-items:center; gap:6px;">
+            <button id="btn-phantom" style="padding:10px 14px; border-radius:12px; display:flex; align-items:center; gap:8px;">
+              <img src="./assets/images/logos/phantom.png" alt="Phantom" style="width:24px; height:24px; object-fit:contain;"/>
+              <span>Phantom</span>
+            </button>
+            <div id="phantom-missing" style="display:none; font-size:12px;">
+              Don’t have Phantom? <a href="https://phantom.app/download" target="_blank" rel="noopener">Get Phantom</a>
+            </div>
+          </div>
+        </div>
+        <div id="wc-status" style="margin-top:8px; font-size:12px;"></div>
+      </div>
     </section>
   </main>
 
@@ -26,39 +45,46 @@
   </script>
   <script type="module">
     import { detectChainId, getAddressFor } from './js/config.js';
+    import { connectWallet } from './js/tavern.js';
     (function(){
       const btn = document.getElementById('enter-tavern');
-      async function proceed(){
-        // Require wallet connection
-        if (!window.ethereum || !window.ethereum.request) { alert('MetaMask not detected.'); return; }
+      const chooser = document.getElementById('wallet-choice');
+      const mm = document.getElementById('btn-metamask');
+      const ph = document.getElementById('btn-phantom');
+      const status = document.getElementById('wc-status');
+      function showChooser(){
+        try { chooser.style.display='block'; } catch {}
         try {
-          await window.ethereum.request({ method: 'eth_requestAccounts' });
-          const provider = new ethers.providers.Web3Provider(window.ethereum,'any');
-          const signer = provider.getSigner();
-          const wallet = await signer.getAddress();
-          try { sessionStorage.setItem('walletConnected','true'); } catch {}
-          // Optional whitelist (disabled for now)
-          try {
-            const WL_ENABLED = false; // toggle back to true to re-enable gate
-            if (WL_ENABLED) {
-              const wlAddr = await getAddressFor('whitelist', provider);
-              if (wlAddr && window.WhitelistABI) {
-                const c = new ethers.Contract(wlAddr, window.WhitelistABI, provider);
-                const ok = await c.isAllowed(wallet);
-                if (!ok) { alert('This wallet is not whitelisted for early access.'); return; }
-              }
-            }
-          } catch {}
-          window.location.href = 'index.html';
-        } catch (e) {
-          // user rejected or error
-        }
+          const hasMetaMask = !!(window.ethereum && window.ethereum.request);
+          const hasPhantom = !!(window.phantom && window.phantom.ethereum && window.phantom.ethereum.request);
+          if (!hasPhantom) {
+            const pm = document.getElementById('phantom-missing');
+            if (pm) pm.style.display = 'block';
+          }
+          if (!hasMetaMask) {
+            const mmBtn = document.getElementById('btn-metamask');
+            if (mmBtn) { mmBtn.disabled = true; mmBtn.title = 'MetaMask not detected'; }
+          }
+          if (!hasPhantom) {
+            const phBtn = document.getElementById('btn-phantom');
+            if (phBtn) { phBtn.disabled = false; phBtn.title = 'Phantom EVM not detected — install using the link below'; }
+          }
+        } catch {}
       }
-      if (btn) btn.addEventListener('click', proceed);
+      async function pick(key){
+        try { status.textContent = 'Connecting...'; } catch {}
+        try { localStorage.setItem('walletProvider', key); sessionStorage.setItem('walletProvider', key); } catch {}
+        try {
+          await connectWallet(key);
+          try { sessionStorage.setItem('walletConnected','true'); localStorage.setItem('walletConnected','true'); } catch {}
+          window.location.href = 'index.html';
+        } catch(e){ try { status.textContent = 'Failed to connect: ' + (e?.message||''); } catch {} }
+      }
+      if (btn) btn.addEventListener('click', showChooser);
+      if (mm) mm.addEventListener('click', () => pick('metamask'));
+      if (ph) ph.addEventListener('click', () => pick('phantom'));
       window.addEventListener('keydown', (e) => { if (e.key === 'Enter') { try { btn?.click(); } catch {} } });
-      // Best-effort: do nothing automatically; require explicit user action
-      // (Keep a silent check to avoid console noise, but no redirects or prompts)
-      (async () => { try { const provider = window.ethereum? new ethers.providers.Web3Provider(window.ethereum,'any'):null; if (provider){ await provider.listAccounts().catch(()=>{}); } } catch {} })();
+      // No automatic prompts; user must click to pick a wallet
     })();
   </script>
 </body>
