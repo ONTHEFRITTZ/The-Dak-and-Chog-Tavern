@@ -39,6 +39,26 @@ let rulesOK = true; // rules gate removed
 const IMG_DAK = '../../assets/images/coin-dak.png';
 const IMG_CHOG = '../../assets/images/coin-chog.png';
 
+// Continuous coin flip animation while awaiting on-chain result
+let coinAnimIv = null;
+let coinAnimSide = 'dak';
+function startCoinAnim() {
+  try { if (coinAnimIv) { clearInterval(coinAnimIv); coinAnimIv = null; } } catch {}
+  coinAnimSide = (Math.random() > 0.5) ? 'chog' : 'dak';
+  setCoin(coinAnimSide);
+  try { coinEl.classList.remove('flip'); void coinEl.offsetWidth; coinEl.classList.add('flip'); } catch {}
+  coinAnimIv = setInterval(() => {
+    coinAnimSide = (coinAnimSide === 'dak') ? 'chog' : 'dak';
+    setCoin(coinAnimSide);
+    try { coinEl.classList.remove('flip'); void coinEl.offsetWidth; coinEl.classList.add('flip'); } catch {}
+  }, 500);
+}
+function stopCoinAnim(finalSide) {
+  if (coinAnimIv) { try { clearInterval(coinAnimIv); } catch {} coinAnimIv = null; }
+  try { coinEl.classList.remove('flip'); } catch {}
+  if (finalSide === 'dak' || finalSide === 'chog') setCoin(finalSide);
+}
+
 function rulesFresh(key) { try { const t = Number(localStorage.getItem(key) || 0); return Date.now() - t < 86400000; } catch { return false; } }
 
 function setChoice(side) {
@@ -108,8 +128,8 @@ flipBtn.addEventListener('click', async () => {
   if (!tavern || !window.TavernABI) { statusEl.textContent = 'Tavern/DakChog contract not configured for this network.'; return; }
   if (!(bet > 0)) { statusEl.textContent = 'Enter a valid bet amount.'; return; }
 
-  // Animate coin while tx is pending
-  try { coinEl.classList.remove('flip'); void coinEl.offsetWidth; coinEl.classList.add('flip'); } catch {}
+  // Animate coin continuously while tx is pending
+  startCoinAnim();
   statusEl.textContent = 'Checking conditions…';
   try {
     const betOnChog = (choice === 'chog');
@@ -145,6 +165,8 @@ flipBtn.addEventListener('click', async () => {
     catch (pre) {
       const msg = pre?.error?.message || pre?.data?.message || pre?.reason || pre?.message || 'Reverted';
       statusEl.textContent = 'Rejected: ' + msg;
+      // Stop animation on preflight failure
+      try { stopCoinAnim(); } catch {}
       return;
     }
 
@@ -182,8 +204,7 @@ flipBtn.addEventListener('click', async () => {
     }
     if (resultChog !== null) {
       // Stop animation and update the coin immediately with the authoritative result
-      try { coinEl.classList.remove('flip'); void coinEl.offsetWidth; } catch {}
-      setCoin(resultChog ? 'chog' : 'dak');
+      stopCoinAnim(resultChog ? 'chog' : 'dak');
       statusEl.textContent = won ? `On-chain: ${resultChog ? 'CHOG' : 'DAK'} — you won!` : `On-chain: ${resultChog ? 'CHOG' : 'DAK'} — you lost.`;
     } else {
       statusEl.textContent = 'Confirmed. Awaiting result event…';
@@ -192,6 +213,7 @@ flipBtn.addEventListener('click', async () => {
     console.error(e);
     const msg = e?.error?.message || e?.data?.message || e?.reason || e?.message || 'Transaction failed.';
     statusEl.textContent = msg;
+    try { stopCoinAnim(); } catch {}
   }
 });
 
