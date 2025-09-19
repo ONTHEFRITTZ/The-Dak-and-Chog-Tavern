@@ -399,6 +399,7 @@ async function connect() {
   socket.on('table:started', (table) => {
     log('Game started!');
     try { tablePanel.style.display = 'block'; } catch {}
+    try { document.body.classList.add('panel-open'); } catch {}
     try { centerReadout.textContent = 'Place your bet'; } catch {}
     renderTable(table);
   });

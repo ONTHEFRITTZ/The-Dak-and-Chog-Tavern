@@ -25,6 +25,7 @@
     body.game {
       --banner-h: 0px;           /* no top banner on this page */
       --panel-top: 72px;         /* safe area for inline wallet panel */
+      --panel-w: clamp(280px, 36vw, 420px);
       min-height: 100vh;
       display:flex;
       flex-direction:column;
@@ -129,10 +130,13 @@
       top: calc(var(--panel-top, 72px) + 8px);
       right: 12px;
       z-index: 11000;
-      width: clamp(280px, 36vw, 420px);
+      width: var(--panel-w);
       max-height: calc(100vh - var(--panel-top, 72px) - 24px);
       overflow: auto;
     }
+    /* Reserve space so the panel never overlaps the table/seats */
+    .panel-open .table-wrap { padding-right: calc(var(--panel-w) + 16px); }
+    .panel-open .table-canvas { width: min(calc(92vw - var(--panel-w) - 24px), 860px); }
     /* On very narrow screens, allow full-width fallback above content */
     @media (max-width: 780px) {
       #table-panel.faro-panel {
@@ -141,6 +145,9 @@
         transform: translateX(-50%);
         width: min(96vw, 520px);
       }
+      /* On narrow screens, let content use full width; no side reservation */
+      .panel-open .table-wrap { padding-right: 0; }
+      .panel-open .table-canvas { width: min(92vw, 860px); }
     }
     .faro-controls {
       display:flex;
@@ -181,7 +188,9 @@
     }
     .faro-board {
       display:grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(3, max-content);
+      justify-content: space-between;
+      justify-items: center;
       gap:8px;
       width:100%;
       background: rgba(0,0,0,0.38);
