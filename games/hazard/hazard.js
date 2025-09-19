@@ -4,7 +4,9 @@ import { getAddressFor, detectChainId, renderTavernBanner, showToast } from '../
 import { attachProvider } from '../../js/contract-utils.js';
 import { provider as walletProvider, signer as walletSigner } from '../../js/tavern.js';
 
-let tavernAddress; // unified contract address
+let tavernAddress; // contract used for sends (Hazard router preferred)
+let unifiedAddr;   // unified Tavern address (emits HazardPlayed)
+let unifiedLower;  // lowercase of unified Tavern address for log filtering
 const diceImages = [
   '../../assets/images/dice/standard/dice1.png',
   '../../assets/images/dice/standard/dice2.png',
@@ -181,9 +183,9 @@ onReady(async () => {
     try { if (walletAddress && walletFlag !== 'true') localStorage.setItem('walletConnected','true'); } catch {}
     // Prefer dedicated Hazard submitter (router) for sends; fall back to Tavern for sends
     tavernAddress = await getAddressFor('hazard', provider) || await getAddressFor('tavern', provider);
-    // Unified Tavern address always emits the game events
-    const unifiedAddr = await getAddressFor('tavern', provider);
-    const unifiedLower = String(unifiedAddr||'').toLowerCase();
+    // Unified Tavern address always emits the game events (hoisted vars)
+    unifiedAddr = await getAddressFor('tavern', provider);
+    unifiedLower = String(unifiedAddr||'').toLowerCase();
     contract = new ethers.Contract(tavernAddress, window.TavernABI, signer);
     try {
       const chainId = await detectChainId(provider);
@@ -239,9 +241,11 @@ onReady(async () => {
 };
 // Listen from the unified Tavern contract (not the router), so events are always received
 try {
-  const eventSource = new ethers.Contract(unifiedAddr, window.TavernABI, provider);
-  eventSource.on('HazardPlayed', onHazardPlayed);
-  window.addEventListener('beforeunload', () => { try { eventSource.off('HazardPlayed', onHazardPlayed); } catch {} });
+  if (unifiedAddr) {
+    const eventSource = new ethers.Contract(unifiedAddr, window.TavernABI, provider);
+    eventSource.on('HazardPlayed', onHazardPlayed);
+    window.addEventListener('beforeunload', () => { try { eventSource.off('HazardPlayed', onHazardPlayed); } catch {} });
+  }
 } catch {}
 
   // If the user connects their wallet after load, enable play without reloading
