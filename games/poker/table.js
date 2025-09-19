@@ -179,13 +179,13 @@ function renderTable(t){
         const leave = document.createElement('button'); leave.textContent='Leave'; leave.onclick=function(){ socket.emit('seat',{ index:-1 }); };
         const ready = document.createElement('button'); ready.textContent = s.ready? 'Unready':'Ready'; ready.onclick=function(){ socket.emit('ready',{ ready: !s.ready }); };
         btns.appendChild(leave); btns.appendChild(ready); el.appendChild(btns);
-        if (Array.isArray(myHole) && myHole.length===2) { const row=document.createElement('div'); row.style.cssText='display:flex; gap:6px; margin-top:4px;'; myHole.forEach(function(code){ row.appendChild(makeCardImg(code,{hole:true,flip:true})); }); el.appendChild(row); }
+        if (Array.isArray(myHole) && myHole.length===2) { const row=document.createElement('div'); row.style.cssText='display:flex; gap:6px; margin-top:10px;'; myHole.forEach(function(code){ row.appendChild(makeCardImg(code,{hole:true,flip:true})); }); el.appendChild(row); }
       } else {
         try {
           const actors = Array.isArray(lastState && lastState.actors) ? lastState.actors : [];
           const actor = actors.find(function(a){ return a && a.addr && String(a.addr).toLowerCase()===addrLower; });
           if (actor) {
-            const row=document.createElement('div'); row.style.cssText='display:flex; gap:6px; margin-top:4px;';
+            const row=document.createElement('div'); row.style.cssText='display:flex; gap:6px; margin-top:10px;';
             const exp = exposures[addrLower];
             if (Array.isArray(exp) && exp.length===2) {
               const winInfo = winnersNow && winnersNow[addrLower];
