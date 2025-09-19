@@ -12,7 +12,7 @@ let lastState = null; let exposures = {}; let winnersNow = {};
 try { if (devBotBtn) { devBotBtn.disabled = true; devBotBtn.title = 'Connect wallet to use Dev Bot'; devBotBtn.textContent = 'Dev Bot'; } } catch(e){}
 
 let actionBar = null; let communityEl = null; let amountInput = null; let infoText = null; let communityStrip = null; let burnStrip = null;
-let centerEl = null; let centerTimer = null; let holdShowdown = false; let lastHandBox = null; let lastHandContent = null; let holdShowdown = false;
+let centerEl = null; let centerTimer = null; let holdShowdown = false; let lastHandBox = null; let lastHandContent = null;
 
 
 
@@ -51,9 +51,9 @@ function ensureActionBar(){
     if (!canvas) return null;
     actionBar = document.createElement('div');
     actionBar.style.cssText = [
-      'position:absolute','left:50%','bottom:12%','transform:translateX(-50%)','display:none','gap:8px',
+      'position:absolute','left:50%','bottom:22%','transform:translateX(-50%)','display:none','gap:10px',
       'background: var(--panel-bg-soft)','border:1px solid rgba(255,255,255,0.12)','border-radius:12px',
-      'padding:8px 10px','box-shadow:0 24px 60px rgba(0,0,0,0.45)','align-items:center','z-index:6',
+      'padding:12px 14px','box-shadow:0 24px 60px rgba(0,0,0,0.45)','align-items:center','z-index:6',
       'color:#f4e6d3'
     ].join(';');
     infoText = document.createElement('div'); infoText.style.color='#f4e6d3'; infoText.style.fontSize='12px'; actionBar.appendChild(infoText);
@@ -89,8 +89,31 @@ function ensureActionBar(){
         centerEl = div;
       }
     } catch(_) { centerEl = null; }
+    try { lastHandBox = document.getElementById('last-hand') || null; lastHandContent = document.getElementById('lh-content') || null; } catch(_) { lastHandBox = null; lastHandContent = null; }
     return actionBar;
   } catch(e){ return null; }
+}
+
+// Build a compact Last Hand receipt in the bottom-right panel
+function renderLastHandPanel(payload){
+  try {
+    if (!lastHandBox || !lastHandContent) return;
+    const winners = Array.isArray(payload && payload.winners) ? payload.winners : [];
+    const exposuresArr = Array.isArray(payload && payload.exposures) ? payload.exposures : [];
+    const comm = Array.isArray(payload && payload.community) ? payload.community : [];
+    let html = '';
+    if (comm.length) html += '<div><b>Community:</b> ' + comm.join(' ') + '</div>';
+    if (exposuresArr.length){
+      html += '<div style="margin-top:6px;"><b>Players:</b></div>';
+      exposuresArr.forEach(function(e){ const a = String((e&&e.addr)||''); const cards = Array.isArray(e&&e.cards)? e.cards:[]; html += '<div>' + (a && a.length>10 ? (a.slice(0,6)+'...'+a.slice(-4)) : (a||'')) + ': ' + cards.join(' ') + '</div>'; });
+    }
+    if (winners.length){
+      html += '<div style="margin-top:6px;"><b>Winners:</b></div>';
+      winners.forEach(function(w){ const a=String((w&&w.addr)||''); const amt=Number((w&&w.amount)||0); html += '<div>' + (a && a.length>10 ? (a.slice(0,6)+'...'+a.slice(-4)) : (a||'')) + ' +' + amt + '</div>'; });
+    }
+    lastHandContent.innerHTML = html || '<div>No data</div>';
+    lastHandBox.style.display = html ? '' : 'none';
+  } catch {}
 }
 
 function short(a){ return (a && a.length>10) ? (a.slice(0,6)+'...'+a.slice(-4)) : (a||''); }
@@ -302,6 +325,53 @@ async function connect(){
     lastState = st; try { if (String((st && st.stage) || '') === 'preflop') { exposures = {}; winnersNow = {}; } } catch(e){}
     ensureActionBar();
     try { if (centerEl && String((st && st.stage) || '') === 'preflop' && !holdShowdown) { centerEl.style.display = 'none'; } } catch(_){ }
+
+    // Restore persisted showdown (after refresh) when applicable
+    try {
+      if (!holdShowdown) {
+        const tid = (function(){ try { const u=new URL(window.location.href); return u.searchParams.get('table')||'poker-1'; } catch { return 'poker-1'; } })();
+        const holdKey = 'poker.hold.' + tid;
+        const lastKey = 'poker.lastHand.' + tid;
+        if (localStorage.getItem(holdKey) === '1') {
+          const raw = localStorage.getItem(lastKey);
+          if (raw) {
+            const last = JSON.parse(raw);
+            holdShowdown = true;
+            try { if (actionBar) actionBar.style.display = 'none'; } catch {}
+            // Restore board
+            if (communityStrip) {
+              communityStrip.innerHTML = '';
+              const comm = Array.isArray(last && last.community) ? last.community : [];
+              comm.forEach(function(code){ communityStrip.appendChild(makeCardImg(code, { flip:true })); });
+              if (comm.length) communityStrip.classList.add('showdown');
+            }
+            // Restore banner
+            if (centerEl) {
+              const winners = Array.isArray(last && last.winners) ? last.winners : [];
+              const comm = Array.isArray(last && last.community) ? last.community : [];
+              const expArr = Array.isArray(last && last.exposures) ? last.exposures : [];
+              if (winners.length) {
+                const lines = winners.map(function(w){
+                  const a = (w && w.addr) ? String(w.addr) : '';
+                  const amt = Number((w && w.amount) || 0);
+                  const sh = short(a);
+                  let name = '';
+                  try {
+                    const exp = expArr.find(x=>String(x.addr||'').toLowerCase()===a.toLowerCase());
+                    const seven = (Array.isArray(exp&&exp.cards)?exp.cards:[]).concat(comm);
+                    if (typeof bestHandName === 'function') name = bestHandName(seven);
+                  } catch {}
+                  return (amt>0?('+'.concat(String(amt))):String(amt)) + ' — ' + sh + (name?(' — ' + name):'');
+                });
+                centerEl.innerHTML = 'Winner' + (winners.length>1?'s':'') + ':<br>' + lines.join('<br>');
+                centerEl.style.display = '';
+                try { centerEl.style.top = '62%'; } catch {}
+              }
+            }
+          }
+        }
+      }
+    } catch {}
     const cards = Array.isArray(st && st.community) ? st.community : [];
     if (communityEl) communityEl && (communityEl.style.display='none');
     if (communityStrip) {
@@ -405,8 +475,14 @@ async function connect(){
     if (lastTable) renderTable(lastTable);
     // Freeze visuals until player clicks Ready
     try { holdShowdown = true; } catch(_){ }
-    // Hide action controls during showdown
+    // Hide action controls during showdown and persist last hand
     try { if (actionBar) actionBar.style.display = 'none'; } catch(_){ }
+    try {
+      const tid = (function(){ try { const u=new URL(window.location.href); return u.searchParams.get('table')||'poker-1'; } catch { return 'poker-1'; } })();
+      localStorage.setItem('poker.hold.'+tid,'1');
+      const toSave = { community: (Array.isArray(m && m.community)? m.community:[]), exposures: (Array.isArray(m && m.exposures)? m.exposures:[]), winners: (Array.isArray(m && m.winners)? m.winners:[]), ts: Date.now() };
+      localStorage.setItem('poker.lastHand.'+tid, JSON.stringify(toSave));
+    } catch {}
     // Center announce winners (with hand name) and render Last Hand panel
     try {
       if (!centerEl) { try { centerEl = document.getElementById('poker-center'); } catch(_) { centerEl = null; } }
@@ -426,8 +502,6 @@ async function connect(){
           });
           centerEl.innerHTML = 'Winner' + (winners.length>1?'s':'') + ':<br>' + lines.join('<br>');
           centerEl.style.display = '';
-          if (centerTimer) { try { clearTimeout(centerTimer); } catch(_){} centerTimer = null; }
-          centerTimer = setTimeout(function(){ try { centerEl.style.display = 'none'; } catch(_){} }, 6500);
         } else { centerEl.style.display = 'none'; }
       }
     } catch(_){ }
