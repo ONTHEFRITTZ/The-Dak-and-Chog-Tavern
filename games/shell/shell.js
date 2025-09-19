@@ -51,13 +51,26 @@ async function init() {
   return true;
 }
 
+// Ensure Tavern ABI is present before building Contract
+async function ensureAbi() {
+  if (window.TavernABI) return true;
+  const candidates = ['/js/TavernABI.js','../../js/TavernABI.js'];
+  for (const src of candidates) {
+    try {
+      await new Promise((resolve) => { const s=document.createElement('script'); s.src=src; s.onload=()=>resolve(true); s.onerror=()=>resolve(false); document.head.appendChild(s); });
+      if (window.TavernABI) return true;
+    } catch {}
+  }
+  return !!window.TavernABI;
+}
+
 function bindShellClicks() {
   const shells = getShells();
   shells.forEach((shell) => {
     // Avoid double-binding
     if (shell.__boundClick) return; shell.__boundClick = true;
     shell.addEventListener('click', async () => {
-      if (!shellAck) { return; }
+      if (!shellAck) { try { if (rulesOverlay) rulesOverlay.style.display = 'flex'; } catch {}; return; }
       try {
         const ok = await init();
         if (!ok) { statusEl.innerText = 'Connect wallet to play.'; return; }
@@ -67,6 +80,9 @@ function bindShellClicks() {
         let betAmount = parseFloat(betInput.value);
         if (isNaN(betAmount) || betAmount < 0.001) betAmount = 0.001;
 
+        // Ensure ABI available (fallback load if needed)
+        await ensureAbi();
+        if (!window.TavernABI) { statusEl.innerText = 'Game ABI not loaded. Please retry.'; return; }
         const contract = new ethers.Contract(tavernAddress, window.TavernABI, signer);
 
         statusEl.innerText = 'Playing...';
