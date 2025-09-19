@@ -8,6 +8,10 @@ const DEFAULT_ADDRESSES = {
   faro:   "0x934305e0F4b92eb318aBe0A8f701510d3BdF1d8f",
   pool:   "",
   whitelist: "",
+  // Per‑game submitter contracts (optional). If empty, UIs fall back to Tavern.
+  hazard:  "",
+  shell:   "",
+  dakchog: "",
 };
 
 // Address book keyed by chainId (as number or string) or "default"
@@ -20,6 +24,9 @@ export const ADDRESS_BOOK = {
     faro:   "0xA020F34b536ED7341bFD9F01BD73d3F569B84Fd4",
     pool:   "0x78F62d85244621493b5c3961bBaD4069Ab979C86",
     whitelist: "0xB5e34B3C6c66aE92FC2999413eeb0D7d51122eA3",
+    hazard:  "",
+    shell:   "",
+    dakchog: "",
     // shell/hazard can fall back to defaults unless specified later
   },
   // 1: { shell: "0x...", hazard: "0x..." },

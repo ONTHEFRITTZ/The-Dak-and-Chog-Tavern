@@ -179,7 +179,8 @@ onReady(async () => {
     try { walletAddress = await signer.getAddress(); } catch {}
     if (walletAddress) { currentWallet = walletAddress.toLowerCase(); }
     try { if (walletAddress && walletFlag !== 'true') localStorage.setItem('walletConnected','true'); } catch {}
-    tavernAddress = await getAddressFor('tavern', provider);
+    // Prefer dedicated Hazard submitter contract; fall back to Tavern
+    tavernAddress = await getAddressFor('hazard', provider) || await getAddressFor('tavern', provider);
     contract = new ethers.Contract(tavernAddress, window.TavernABI, signer);
     try {
       const chainId = await detectChainId(provider);

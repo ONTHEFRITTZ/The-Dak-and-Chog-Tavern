@@ -32,7 +32,8 @@ async function init() {
   if (!provider || !signer) { alert('No EVM wallet detected. Connect on the landing page.'); return; }
   try { attachProvider(provider); } catch {}
   userAddress = await signer.getAddress();
-  tavernAddress = await getAddressFor('tavern', provider);
+  // Prefer dedicated Shell submitter contract; fall back to Tavern
+  tavernAddress = await getAddressFor('shell', provider) || await getAddressFor('tavern', provider);
   try {
     const chainId = await detectChainId(provider);
     const unifiedAddress = await getAddressFor('tavern', provider);

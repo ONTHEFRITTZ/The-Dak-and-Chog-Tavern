@@ -98,6 +98,26 @@
     <p class="muted" id="owner-note">Connect the owner wallet. Controls are disabled for non-owners. This page is hidden and unlinked.</p>
 
     <div class="grid">
+      <div class="admin-card" id="games-card">
+        <h3 style="margin-top:0;">Game Contracts (per‑game submitters)</h3>
+        <div class="muted">If empty, games will use the Tavern contract. Set only when you deploy a dedicated contract per game.</div>
+        <div class="row" style="margin-top:8px;">
+          <div>
+            <label>Hazard</label>
+            <input id="game-hazard" type="text" placeholder="0x... (optional)">
+          </div>
+          <div>
+            <label>Shell Game</label>
+            <input id="game-shell" type="text" placeholder="0x... (optional)">
+          </div>
+          <div>
+            <label>Dak &amp; Chog</label>
+            <input id="game-dakchog" type="text" placeholder="0x... (optional)">
+          </div>
+          <button id="games-save" class="btn ok">Save</button>
+        </div>
+        <div class="muted" id="games-msg" style="margin-top:8px;"></div>
+      </div>
       <div class="admin-card" id="mgid-card">
         <h3 style="margin-top:0;">Monad Games ID — Register Game</h3>
         <div class="muted">Contract: <a id="mgid-explorer" href="https://testnet.monadexplorer.com/address/0xceCBFF203C8B6044F52CE23D914A1bfD997541A4?tab=Contract" target="_blank" rel="noopener">0xceCBFF203C8B6044F52CE23D914A1bfD997541A4</a></div>

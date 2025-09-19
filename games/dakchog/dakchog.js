@@ -60,7 +60,7 @@ async function ensureWallet() {
     wallet = await signer.getAddress();
     try {
       const chainId = await detectChainId(provider);
-      const addr = await getAddressFor('tavern', provider);
+      const addr = (await getAddressFor('dakchog', provider)) || (await getAddressFor('tavern', provider));
       renderTavernBanner({ contractKey: 'tavern', address: addr, chainId, wallet });
       if (addr && window.TavernABI) {
         tavern = new ethers.Contract(addr, window.TavernABI, signer);
