@@ -40,21 +40,24 @@ const IMG_DAK = '../../assets/images/coin-dak.png';
 const IMG_CHOG = '../../assets/images/coin-chog.png';
 
 // Continuous coin flip animation while awaiting on-chain result
-let coinAnimIv = null;
+let coinAnimTimer = null;
 let coinAnimSide = 'dak';
-function startCoinAnim() {
-  try { if (coinAnimIv) { clearInterval(coinAnimIv); coinAnimIv = null; } } catch {}
-  coinAnimSide = (Math.random() > 0.5) ? 'chog' : 'dak';
+const COIN_ANIM_MS = 800; // match CSS keyframes duration (.coin.flip { animation: flip 0.8s ease })
+function performCoinFlipCycle() {
+  // Toggle side, set background, and retrigger CSS animation exactly once per cycle
+  coinAnimSide = (coinAnimSide === 'dak') ? 'chog' : 'dak';
   setCoin(coinAnimSide);
   try { coinEl.classList.remove('flip'); void coinEl.offsetWidth; coinEl.classList.add('flip'); } catch {}
-  coinAnimIv = setInterval(() => {
-    coinAnimSide = (coinAnimSide === 'dak') ? 'chog' : 'dak';
-    setCoin(coinAnimSide);
-    try { coinEl.classList.remove('flip'); void coinEl.offsetWidth; coinEl.classList.add('flip'); } catch {}
-  }, 500);
+  // Schedule the next cycle after the animation finishes
+  coinAnimTimer = setTimeout(performCoinFlipCycle, COIN_ANIM_MS + 20);
+}
+function startCoinAnim() {
+  try { if (coinAnimTimer) { clearTimeout(coinAnimTimer); coinAnimTimer = null; } } catch {}
+  coinAnimSide = (Math.random() > 0.5) ? 'chog' : 'dak';
+  performCoinFlipCycle();
 }
 function stopCoinAnim(finalSide) {
-  if (coinAnimIv) { try { clearInterval(coinAnimIv); } catch {} coinAnimIv = null; }
+  if (coinAnimTimer) { try { clearTimeout(coinAnimTimer); } catch {} coinAnimTimer = null; }
   try { coinEl.classList.remove('flip'); } catch {}
   if (finalSide === 'dak' || finalSide === 'chog') setCoin(finalSide);
 }
