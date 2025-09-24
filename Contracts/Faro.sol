@@ -27,7 +27,12 @@ contract Faro {
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
     event PoolUpdated(address indexed pool);
 
-    constructor(address poolAddr) { owner = msg.sender; if (poolAddr != address(0)) pool = IBankrollPool(poolAddr); }
+    constructor(address poolAddr) {
+        owner = msg.sender;
+        if (poolAddr != address(0)) {
+            pool = IBankrollPool(poolAddr);
+        }
+    }
     receive() external payable {}
     function fund() external payable {}
     function withdraw(address payable to, uint256 amount) external onlyOwner { require(address(this).balance >= amount, "insufficient"); to.transfer(amount); }
@@ -77,4 +82,3 @@ contract Faro {
         if (address(pool) != address(0)) { (bool ok,) = payable(address(pool)).call{value:v.wager}(""); require(ok, "pool deposit failed"); }
     }
 }
-
