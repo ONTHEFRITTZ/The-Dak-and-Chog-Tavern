@@ -51,11 +51,14 @@ contract HoldemPoker {
     event Contributed(uint256 indexed handId, uint8 indexed seat, uint256 amount);
     event HandSettled(uint256 indexed handId, address[] winners, uint256[] payouts, uint256 rake);
 
-    constructor(address poolAddr, uint16 _rakeBps, uint256 _sb, uint256 _bb) {
+    constructor(address poolAddr) {
         require(poolAddr != address(0), "pool");
         pool = IBankrollPoolPay(poolAddr);
         owner = msg.sender;
-        rakeBps = _rakeBps; smallBlind = _sb; bigBlind = _bb;
+        // Sensible defaults; owner may adjust later
+        rakeBps = 100;                 // 1%
+        smallBlind = 1_000_000_000_000_000;   // 0.001 MON
+        bigBlind   = 2_000_000_000_000_000;   // 0.002 MON
     }
 
     receive() external payable {}
@@ -157,4 +160,3 @@ contract HoldemPoker {
         emit HandSettled(handId, winners, payouts, rake);
     }
 }
-
