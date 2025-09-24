@@ -27,9 +27,10 @@ contract Shell {
     event PoolUpdated(address indexed pool);
 
     constructor(address poolAddr) {
-        require(poolAddr != address(0), "pool");
         owner = msg.sender;
-        pool = IBankrollPool(poolAddr);
+        if (poolAddr != address(0)) {
+            pool = IBankrollPool(poolAddr);
+        }
     }
     receive() external payable {}
     function fund() external payable {}

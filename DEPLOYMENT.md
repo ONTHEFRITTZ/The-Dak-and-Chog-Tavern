@@ -1,5 +1,10 @@
 Deploying The Dak & Chog Tavern
 
+Contributor Workflow (Codex)
+- Always commit and push changes to `main` on GitHub once the work is ready.
+- After pushing, share the EC2 deploy snippet below so it can be run from the browser terminal.
+- NEVER touch backend/server code unless explicitly instructed; limit updates to the front-end.
+
 Stable Snapshot
 - Version tag: `assets/version.txt` contains the current stable label (e.g., `stable-2025-09-11`).
 - Build markers:
@@ -144,10 +149,16 @@ Notes
 Troubleshooting
 
 - SyntaxError: Invalid or unexpected token (poker-rt.js)
-  - If PM2 logs show an error like `const t = getTable(tableId);\\n try {` at `server/poker-rt.js:89`, the source on the EC2 box contains a literal `\\n` sequence instead of a real newline.
+  - If PM2 logs show an error like `const t = getTable(tableId);\
+ try {` at `server/poker-rt.js:89`, the source on the EC2 box contains a literal `\
+` sequence instead of a real newline.
   - Fix on EC2 and restart:
 ```
-sudo perl -0777 -pe "s/const t = getTable\(tableId\);\\n[ \t]*try/const t = getTable(tableId);\ntry/" -i /home/ubuntu/The-Dak-and-Chog-Tavern/server/poker-rt.js
+sudo perl -0777 -pe "s/const t = getTable\(tableId\);\
+[ \t]*try/const t = getTable(tableId);
+try/" -i /home/ubuntu/The-Dak-and-Chog-Tavern/server/poker-rt.js
 pm2 restart poker-rt && pm2 logs poker-rt
 ```
   - Best fix is to pull latest `main` which already contains the corrected block.
+
+

@@ -74,8 +74,8 @@
     .readonly { opacity:.6; }
   </style>
 </head>
-<body><script>(function(){try{if(sessionStorage.getItem('walletConnected')!=='true') location.replace('/landing.html');}catch(e){location.replace('/landing.html');}})();</script>
 <body class="game">
+  <script>(function(){try{if(sessionStorage.getItem('walletConnected')!=='true') location.replace('/landing.html');}catch(e){location.replace('/landing.html');}})();</script>
   <div class="top-banner" role="region" aria-label="Wallet and status">
     <div class="banner-left">
       <button id="return" class="return-btn">Return to Tavern</button>
@@ -97,7 +97,7 @@
     </div>
     <p class="muted" id="owner-note">Connect the owner wallet. Controls are disabled for non-owners. This page is hidden and unlinked.</p>
 
-      </div>
+    <div class="grid">
       <div class="admin-card" id="whitelist-card">
         <h3 style="margin-top:0;">Whitelist</h3>
         <div class="muted">Address: <span id="wl-address">(set below)</span></div>

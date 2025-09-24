@@ -1,13 +1,18 @@
-﻿// Minimal client for multiplayer table (hybrid: on-chain bets to Faro contract)
+// Minimal client for multiplayer table (hybrid: on-chain bets to Faro contract)
 import { getAddressFor } from '../../js/config.js';
 import { signer as walletSigner, provider as walletProvider } from '../../js/tavern.js';
+import { detectBundler, walletSendCalls } from '../../js/bundler.js';
 const __isLocalHost = ['localhost','127.0.0.1'].includes(location.hostname);
 
 const statusEl = document.getElementById('status');
 // Inline wallet elements (match Poker UI)
 const disconnectBtn = document.getElementById('wi-disconnect') || document.getElementById('disconnect-wallet');
 const walletAddrSpan = document.getElementById('wi-address');
-// Rules ACK removed across site
+const rulesOverlay = document.getElementById('rules-overlay');
+const rulesAck = document.getElementById('rules-ack');
+const openRulesBtn = document.getElementById('open-rules');
+let faroAck = true; // rules gate removed
+const RULES_VERSION = 'v2';
 const logEl = document.getElementById('log');
 const tableInput = document.getElementById('table-id');
 const joinBtn = document.getElementById('join-table');
@@ -204,7 +209,13 @@ async function ensureIdentity() {
   return false;
 }
 
-// Rules ACK removed: no overlay or gating
+// Match ACK behavior used by other games (e.g., Hazard)
+const onReady = (fn) => { if (document.readyState === 'loading') { window.addEventListener('DOMContentLoaded', fn, { once: true }); } else { fn(); } };
+onReady(() => {
+  faroAck = true;
+  try { if (rulesOverlay) rulesOverlay.style.display = 'none'; } catch {}
+  try { if (openRulesBtn) openRulesBtn.style.display = 'none'; } catch {}
+});
 
 // Lobby rendering is disabled on the game page
 function renderLobby() { try { lobbyPanel.style.display = 'none'; } catch {} }
@@ -384,9 +395,9 @@ async function connect() {
   });
   socket.on('connect_error', (err) => {
     log('Connection error: ' + (err?.message || 'unknown'));
-    showLobby('Lobby server unavailable. Retryingâ€¦');
+    showLobby('Lobby server unavailable. Retrying...');
   });
-  socket.on('reconnect_error', () => { showLobby('Reconnecting to lobbyâ€¦'); });
+  socket.on('reconnect_error', () => { showLobby('Reconnecting to lobby...'); });
   socket.on('reconnect_failed', () => { showLobby('Unable to reach lobby. Please retry.'); });
   socket.on('lobby:list', (list) => { renderLobby(Array.isArray(list)?list:[]); });
   socket.on('table:update', (table) => { renderTable(table); });
@@ -409,7 +420,7 @@ async function connect() {
       const myTxt = mine ? (mine.delta>0 ? ` You won +${mine.delta}` : (mine.delta<0 ? ` You lost ${mine.delta}` : ' Push')) : '';
       const label = `Bank ${name(bank)} vs Player ${name(player)}${m.doublet?' (doublet)':''}`;
       const who = winners.length ? ` Winners: ${winners.join(', ')}` : '';
-      centerReadout.textContent = `${label}${who}${myTxt ? ' â€”'+myTxt : ''}`;
+      centerReadout.textContent = `${label}${who}${myTxt ? ' - '+myTxt : ''}`;
     } catch {}
   });
   socket.on('chat', (m) => { log(`${m.from}: ${m.text}`); });
@@ -479,9 +490,8 @@ returnBtn?.addEventListener('click', () => { window.location.href = '/index.html
 // Resolve address (if connected previously via Tavern) for display/identity
 (async () => {
   try {
-    const injected = (function(){ try { const pref=(sessionStorage.getItem('walletProvider')||'').toLowerCase(); if(pref==='phantom') return (window.phantom&&window.phantom.ethereum)||window.__walletProvider; if(pref==='metamask') return window.ethereum||window.__walletProvider; return window.__walletProvider||window.ethereum||(window.phantom&&window.phantom.ethereum)||null; } catch { return window.__walletProvider||window.ethereum||(window.phantom&&window.phantom.ethereum)||null; } })();
-    if (injected) {
-      const provider = new ethers.providers.Web3Provider(injected, 'any');
+    if (window.ethereum) {
+      const provider = new ethers.providers.Web3Provider(window.ethereum, 'any');
       const accounts = await provider.listAccounts();
       if (accounts && accounts.length) myAddr = accounts[0];
       // Auto-connect if previously authorized on this domain (session only)
@@ -493,7 +503,7 @@ returnBtn?.addEventListener('click', () => { window.location.href = '/index.html
           shouldReconnect = true;
         }
         if ((!accounts || !accounts.length) && shouldReconnect) {
-          await injected.request({ method: 'eth_requestAccounts' });
+          await window.ethereum.request({ method: 'eth_requestAccounts' });
           const acc2 = await provider.listAccounts();
           if (acc2 && acc2.length) myAddr = acc2[0];
         }
@@ -504,9 +514,9 @@ returnBtn?.addEventListener('click', () => { window.location.href = '/index.html
       try { await resolveFaroAddress(); } catch {}
       try {
         // React to network/account changes by refreshing address
-        if (injected && typeof injected.on === 'function') {
-          injected.on('chainChanged', async () => { try { await resolveFaroAddress(); } catch {} });
-          injected.on('accountsChanged', async (accs) => {
+        if (window.ethereum?.on) {
+          window.ethereum.on('chainChanged', async () => { try { await resolveFaroAddress(); } catch {} });
+          window.ethereum.on('accountsChanged', async (accs) => {
             try {
               myAddr = (accs && accs[0]) ? accs[0] : null;
               // Refresh seat UI to enable/disable Sit button when wallet connects/disconnects
@@ -529,7 +539,13 @@ async function placeOnchainBet(rankNum, ethAmount, copper) {
     const candidates = ['/js/FaroV3ABI.js','/js/FaroABI.js','../../js/FaroV3ABI.js','../../js/FaroABI.js'];
     for (const src of candidates) {
       try {
-        await new Promise((resolve) => { const s=document.createElement('script'); s.src=src; s.onload=()=>resolve(true); s.onerror=()=>resolve(false); document.head.appendChild(s); });
+        await new Promise((resolve) => {
+          const s = document.createElement('script');
+          s.src = src;
+          s.onload = () => resolve(true);
+          s.onerror = () => resolve(false);
+          document.head.appendChild(s);
+        });
         if (window.FaroV3ABI || window.FaroABI) return true;
       } catch {}
     }
@@ -547,10 +563,44 @@ async function placeOnchainBet(rankNum, ethAmount, copper) {
     return;
   }
   const ethersRef = window.ethers;
-  let abi = window.FaroV3ABI || window.FaroABI; // prefer V3 with copper
+  const abi = window.FaroV3ABI || window.FaroABI; // prefer V3 with copper
   const c = new ethersRef.Contract(faroAddr, abi, onchainSigner);
-  log(`Submitting on-chain bet ${ethAmount} MON on ${rankNum}${copper ? ' (copper)' : ''}â€¦`);
-  try {\n    const use = (window.Bundler ? await window.Bundler.detectBundler(onchainProvider && onchainProvider.provider) : { available:false });\n    if (use && use.available) {\n      const ethersRef = window.ethers;\n      const iface = new ethersRef.utils.Interface((window.FaroV3ABI||window.FaroABI)||[]);\n      const data = (window.FaroV3ABI) ? iface.encodeFunctionData('playFaro',[rankNum, !!copper]) : iface.encodeFunctionData('playFaro',[rankNum]);\n      const from = await onchainSigner.getAddress();\n      const network = await onchainProvider.getNetwork().catch(()=>({chainId:undefined}));\n      await window.Bundler.walletSendCalls({ provider: use.provider, from, chainId: network.chainId, calls: [{ to: faroAddr, data, value: ethersRef.utils.hexlify(ethersRef.utils.parseEther(String(ethAmount))) }] });\n    } else {\n      const tx = window.FaroV3ABI\n        ? await c.playFaro(rankNum, copper, { value: ethersRef.utils.parseEther(String(ethAmount)) })\n        : await c.playFaro(rankNum, { value: ethersRef.utils.parseEther(String(ethAmount)) });\n      const rc = await tx.wait();\n      try {\n        const ev = rc.events?.find(e => e.event === 'FaroPlayed');\n        if (ev && ev.args) {\n          const win = !!ev.args.win; const push = !!ev.args.push;\n          const bank = Number(ev.args.bankRank); const player = Number(ev.args.playerRank);\n          log(push ? Push. bank=, player= : (win ? You won! bank=, player= : You lost. bank=, player=));\n        } else {\n          log('Confirmed on-chain. Check explorer for details.');\n        }\n      } catch {}\n    }\n  }
+  log(`Submitting on-chain bet ${ethAmount} MON on ${rankNum}${copper ? ' (copper)' : ''}...`);
+  const betValue = ethersRef.utils.parseEther(String(ethAmount));
+  try {
+    const bundlerSource = (onchainProvider && onchainProvider.provider) || onchainProvider || (walletProvider && walletProvider.provider) || window.ethereum;
+    const bundler = await detectBundler(bundlerSource);
+    if (bundler && bundler.available) {
+      const iface = new ethersRef.utils.Interface(Array.isArray(abi) ? abi : []);
+      const data = window.FaroV3ABI
+        ? iface.encodeFunctionData('playFaro', [rankNum, !!copper])
+        : iface.encodeFunctionData('playFaro', [rankNum]);
+      const from = await onchainSigner.getAddress();
+      let net;
+      try {
+        if (onchainProvider && typeof onchainProvider.getNetwork === 'function') {
+          net = await onchainProvider.getNetwork();
+        } else if (walletProvider && typeof walletProvider.getNetwork === 'function') {
+          net = await walletProvider.getNetwork();
+        }
+      } catch {}
+      await walletSendCalls({
+        provider: bundler.provider,
+        from,
+        chainId: net && net.chainId,
+        calls: [{ to: faroAddr, data, value: ethersRef.utils.hexlify(betValue) }]
+      });
+      log('Bundler request sent. Waiting for result...');
+      return;
+    }
+  } catch (bundlerErr) {
+    console.warn('Bundler send failed; falling back to direct transaction', bundlerErr);
+  }
+  const tx = window.FaroV3ABI
+    ? await c.playFaro(rankNum, copper, { value: betValue })
+    : await c.playFaro(rankNum, { value: betValue });
+  log(`Tx sent: ${tx.hash.slice(0,10)}... waiting...`);
+  const rc = await tx.wait();
   try {
     const ev = rc.events?.find(e => e.event === 'FaroPlayed');
     if (ev && ev.args) {
@@ -562,6 +612,7 @@ async function placeOnchainBet(rankNum, ethAmount, copper) {
     }
   } catch {}
 }
+
 
 
 

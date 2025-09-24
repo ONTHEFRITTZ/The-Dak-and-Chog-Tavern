@@ -1,4 +1,4 @@
-﻿const statusEl = document.getElementById('status');
+const statusEl = document.getElementById('status');
 const seatEls = Array.from(document.querySelectorAll('.seat'));
 const connectBtn = document.getElementById('connect-wallet');
 const devBotBtn = document.getElementById('toggle-dev-bot');
@@ -468,7 +468,7 @@ async function connect(){
                     const seven = (Array.isArray(exp&&exp.cards)?exp.cards:[]).concat(comm);
                     if (typeof bestHandName === 'function') name = bestHandName(seven);
                   } catch {}
-                  return (amt>0?('+'.concat(String(amt))):String(amt)) + ' â€” ' + sh + (name?(' â€” ' + name):'');
+                  return (amt>0?('+'.concat(String(amt))):String(amt)) + ' - ' + sh + (name?(' - ' + name):'');
                 });
                 centerEl.innerHTML = 'Winner' + (winners.length>1?'s':'') + ':<br>' + lines.join('<br>');
                 centerEl.style.display = '';
@@ -624,7 +624,7 @@ async function connect(){
             const exp = expArr.find(x=>String(x.addr||'').toLowerCase()===a.toLowerCase());
             const seven = (Array.isArray(exp&&exp.cards)?exp.cards:[]).concat(comm);
             const name = bestHandName(seven);
-            return (amt>0?('+'.concat(String(amt))):String(amt)) + ' â€” ' + sh + ' â€” ' + name;
+            return (amt>0?('+'.concat(String(amt))):String(amt)) + ' - ' + sh + ' - ' + name;
           });
           centerEl.innerHTML = 'Winner' + (winners.length>1?'s':'') + ':<br>' + lines.join('<br>');
           centerEl.style.display = '';

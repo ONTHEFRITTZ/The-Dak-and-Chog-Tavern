@@ -1,13 +1,21 @@
-﻿// games/hazard/hazard.js
+// games/hazard/hazard.js
 // UI wired to MonHazard contract (HazardPlayed event) using ethers v5 UMD
 import { getAddressFor, detectChainId, renderTavernBanner, showToast } from '../../js/config.js';
 import { attachProvider } from '../../js/contract-utils.js';
-import { provider as walletProvider, signer as walletSigner } from '../../js/tavern.js';\nimport { detectBundler, walletSendCalls } from '../../js/bundler.js';
+import { provider as walletProvider, signer as walletSigner } from '../../js/tavern.js';
+import { detectBundler, walletSendCalls } from '../../js/bundler.js';
 
 let tavernAddress; // contract used for sends (Hazard router preferred)
 let unifiedAddr;   // unified Tavern address (emits HazardPlayed)
 let unifiedLower;  // lowercase of unified Tavern address for log filtering
-const diceSprite = (function(){\n  const base='../../assets/images/dice/standard/dice-sprite';\n  const candidates=[base+'.webp', base+'.avif', base+'.png', base+'.png.png'];\n  for (const u of candidates){ try { return u; } catch {} }\n  return base + '.png';\n})();
+const diceImages = [
+  '../../assets/images/dice/standard/dice1.png',
+  '../../assets/images/dice/standard/dice2.png',
+  '../../assets/images/dice/standard/dice3.png',
+  '../../assets/images/dice/standard/dice4.png',
+  '../../assets/images/dice/standard/dice5.png',
+  '../../assets/images/dice/standard/dice6.png'
+];
 
 let provider, signer, contract;
 let inFlight = false;          // prevent overlapping plays
@@ -27,7 +35,12 @@ const betInput = document.getElementById('bet');
 const returnBtn = document.getElementById('return');
 const rollsList = document.getElementById('rolls');
 const mainButtons = document.querySelectorAll('.main-select button');
-// Rules ACK removed across site
+const rulesOverlay = document.getElementById('rules-overlay');
+const rulesAck = document.getElementById('rules-ack');
+const openRulesBtn = document.getElementById('open-rules');
+let hazardAck = true; // rules gate removed
+const RULES_VERSION = 'v2';
+// rules ack key no longer used
 
 // Persist and restore basic UI state (bet + main)
 try {
@@ -37,7 +50,8 @@ try {
   if (savedMain) selectedMain = Number(savedMain);
 } catch {}
 // Dice init: show a default face via image src
-try { if (dice1El) { dice1El.style.backgroundImage = 'url(' + diceSprite + ')'; } } catch {}\ntry { if (dice2El) { dice2El.style.backgroundImage = 'url(' + diceSprite + ')'; } } catch {}
+try { if (dice1El && !dice1El.getAttribute('src')) dice1El.src = diceImages[0]; } catch {}
+try { if (dice2El && !dice2El.getAttribute('src')) dice2El.src = diceImages[0]; } catch {}
 betInput.addEventListener('input', () => {
   try { localStorage.setItem('hazard.bet', betInput.value || ''); } catch {}
 });
@@ -54,7 +68,7 @@ function splitSumToDice(sum) {
 }
 
 // Display dice (use images if present, else Unicode dice or numbers)
-function setDiceFaces(d1, d2, opts){\n  opts = opts || {};\n  if (diceLock && !opts.force) return;\n  try { if (dice1El) { dice1El.style.backgroundImage = 'url(' + diceSprite + ')'; } } catch {}\n  try { if (dice2El) { dice2El.style.backgroundImage = 'url(' + diceSprite + ')'; } } catch {}\n  // sprite layout: 6 columns x 1 row, 140x140 tiles\n  const tw = 140, th = 140;\n  const col1 = Math.max(1,Math.min(6,Number(d1))) - 1;\n  const col2 = Math.max(1,Math.min(6,Number(d2))) - 1;\n  try { dice1El.style.backgroundPosition = (-col1*tw) + 'px 0px'; } catch {}\n  try { dice2El.style.backgroundPosition = (-col2*tw) + 'px 0px'; } catch {}\n}{
+function setDiceFaces(d1, d2, opts){
   opts = opts || {};
   if (diceLock && !opts.force) return;
   const imgPathsExist = !!diceImages[0];
@@ -127,17 +141,17 @@ function explainOutcome(main, finalSum, chance, win) {
   chance = Number(chance);
 
   if (chance === 0) {
-    if (finalSum === main) return `Immediate win â€” rolled your main (${main}).`;
-    if (finalSum === 2 || finalSum === 3) return `Immediate loss â€” rolled ${finalSum}.`;
+    if (finalSum === main) return `Immediate win - rolled your main (${main}).`;
+    if (finalSum === 2 || finalSum === 3) return `Immediate loss - rolled ${finalSum}.`;
     if (finalSum === 11 || finalSum === 12) {
-      if (main === 7) return `Immediate loss â€” rolled ${finalSum} and main was 7.`;
-      if (main === 5 || main === 9) return `Immediate win â€” rolled ${finalSum} (special for main ${main}).`;
-      return `Immediate loss â€” rolled ${finalSum}.`;
+      if (main === 7) return `Immediate loss - rolled ${finalSum} and main was 7.`;
+      if (main === 5 || main === 9) return `Immediate win - rolled ${finalSum} (special for main ${main}).`;
+      return `Immediate loss - rolled ${finalSum}.`;
     }
     return `Point established at ${finalSum}. Game continues until point or main resolves.`;
   } else {
     if (finalSum === chance) return `Won by hitting the chance/point (${chance}).`;
-    if (finalSum === main) return `Lost â€” rolled your main (${main}) before hitting the point (${chance}).`;
+    if (finalSum === main) return `Lost - rolled your main (${main}) before hitting the point (${chance}).`;
     return `Resolved with roll ${finalSum}.`;
   }
 }
@@ -436,36 +450,55 @@ try {
       gasLimit = ethers.BigNumber.from(800000);      // robust fallback
     }
 
-    const use = await detectBundler(provider);\n    if (use && use.available) {\n      const iface = new ethers.utils.Interface(window.TavernABI || []);\n      const data = iface.encodeFunctionData('playHazard', [selectedMain]);\n      const from = await signer.getAddress();\n      const chainId = await provider.getNetwork().then(n=>n.chainId).catch(()=>undefined);\n      await walletSendCalls({ provider: use.provider, from, chainId, calls: [{ to: tavernAddress, data, value: ethers.utils.hexlify(wager) }] });\n      statusEl.textContent = 'Waiting for result...';\n    } else {\n      const tx = await contract.playHazard(selectedMain, { value: wager, gasLimit });\n      statusEl.textContent = 'Dice rolling on-chain...';\n      const receipt = await tx.wait();\n      statusEl.textContent = 'Waiting for result...';\n      // parse below\n    }
-    statusEl.textContent = 'Waiting for result...';
+    let receipt = null;
+    const bundler = await detectBundler((provider && provider.provider) || provider);
+    if (bundler && bundler.available) {
+      const iface = new ethers.utils.Interface(window.TavernABI || []);
+      const data = iface.encodeFunctionData('playHazard', [selectedMain]);
+      const from = await signer.getAddress();
+      const net = await provider.getNetwork().catch(() => ({ chainId: undefined }));
+      const hexValue = ethers.utils.hexlify(wager);
+      await walletSendCalls({
+        provider: bundler.provider,
+        from,
+        chainId: net.chainId,
+        calls: [{ to: tavernAddress, data, value: hexValue }]
+      });
+      statusEl.textContent = 'Waiting for result...';
+    } else {
+      const tx = await contract.playHazard(selectedMain, { value: wager, gasLimit });
+      statusEl.textContent = 'Dice rolling on-chain...';
+      receipt = await tx.wait();
+      statusEl.textContent = 'Waiting for result...';
+    }
 
     // Fallback: parse receipt for HazardPlayed to update UI even if socket event is delayed or missed
-    try {
-      const iface = new ethers.utils.Interface(window.TavernABI || []);
-      const routerLower = String(tavernAddress||'').toLowerCase();
-      for (const log of (receipt && receipt.logs) || []){
-        if (String(log.address||'').toLowerCase() !== unifiedLower) continue;
-        try {
-          const parsed = iface.parseLog(log);
-          if (parsed && parsed.name === 'HazardPlayed'){
-            const args = parsed.args || {};
-            const player = String(args.player||args[0]||'');
-            const pl = player.toLowerCase();
-            // Only update UI when event is for this wallet or the router (forwarder)
-            if (currentWallet && pl !== currentWallet && pl !== routerLower) continue;
-            const wagerEv = args.wager||args[1];
-            const winEv = !!(args.win||args[2]);
-            const mainEv = Number(args.main||args[3]);
-            const finalSumEv = Number(args.finalSum||args[4]);
-            const chanceEv = Number(args.chance||args[5]);
-            const iterationsEv = Number(args.iterations||args[6]);
-            // Reuse the same handler used by the live event
-            try { await onHazardPlayed(player, wagerEv, winEv, mainEv, finalSumEv, chanceEv, iterationsEv); } catch {}
-            break;
-          }
-        } catch {}
-      }
-    } catch {}
+    if (receipt) {
+      try {
+        const iface = new ethers.utils.Interface(window.TavernABI || []);
+        const routerLower = String(tavernAddress||'').toLowerCase();
+        for (const log of (receipt.logs || [])) {
+          if (String(log.address||'').toLowerCase() !== unifiedLower) continue;
+          try {
+            const parsed = iface.parseLog(log);
+            if (parsed && parsed.name === 'HazardPlayed') {
+              const args = parsed.args || {};
+              const player = String(args.player||args[0]||'');
+              const pl = player.toLowerCase();
+              if (currentWallet && pl !== currentWallet && pl !== routerLower) continue;
+              const wagerEv = args.wager||args[1];
+              const winEv = !!(args.win||args[2]);
+              const mainEv = Number(args.main||args[3]);
+              const finalSumEv = Number(args.finalSum||args[4]);
+              const chanceEv = Number(args.chance||args[5]);
+              const iterationsEv = Number(args.iterations||args[6]);
+              try { await onHazardPlayed(player, wagerEv, winEv, mainEv, finalSumEv, chanceEv, iterationsEv); } catch {}
+              break;
+            }
+          } catch {}
+        }
+      } catch {}
+    }
 
     if (hazardEnableTimer) { clearTimeout(hazardEnableTimer); }
     hazardEnableTimer = setTimeout(() => { try { rollBtn.disabled = false; } catch {} }, 12000);
