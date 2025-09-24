@@ -91,9 +91,10 @@ connect();
 // Wallet connect (isolated): gate seating until wallet connected
 connectBtn?.addEventListener('click', async () => {
   try {
-    if (!window.ethereum || !window.ethers) { setStatus('No wallet provider found'); return; }
-    await window.ethereum.request({ method: 'eth_requestAccounts' });
-    const provider = new window.ethers.providers.Web3Provider(window.ethereum, 'any');
+    const injected = (function(){ try { const pref=(sessionStorage.getItem('walletProvider')||'').toLowerCase(); if(pref==='phantom') return (window.phantom&&window.phantom.ethereum)||window.__walletProvider; if(pref==='metamask') return window.ethereum||window.__walletProvider; return window.__walletProvider||window.ethereum||(window.phantom&&window.phantom.ethereum)||null; } catch { return window.__walletProvider||window.ethereum||(window.phantom&&window.phantom.ethereum)||null; } })();
+    if (!injected || !window.ethers) { setStatus('No wallet provider found'); return; }
+    await injected.request({ method: 'eth_requestAccounts' });
+    const provider = new window.ethers.providers.Web3Provider(injected, 'any');
     const signer = provider.getSigner();
     const addr = await signer.getAddress();
     myAddr = String(addr||'').toLowerCase();

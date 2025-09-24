@@ -489,8 +489,9 @@ returnBtn?.addEventListener('click', () => { window.location.href = '/index.html
 // Resolve address (if connected previously via Tavern) for display/identity
 (async () => {
   try {
-    if (window.ethereum) {
-      const provider = new ethers.providers.Web3Provider(window.ethereum, 'any');
+    const injected = (function(){ try { const pref=(sessionStorage.getItem('walletProvider')||'').toLowerCase(); if(pref==='phantom') return (window.phantom&&window.phantom.ethereum)||window.__walletProvider; if(pref==='metamask') return window.ethereum||window.__walletProvider; return window.__walletProvider||window.ethereum||(window.phantom&&window.phantom.ethereum)||null; } catch { return window.__walletProvider||window.ethereum||(window.phantom&&window.phantom.ethereum)||null; } })();
+    if (injected) {
+      const provider = new ethers.providers.Web3Provider(injected, 'any');
       const accounts = await provider.listAccounts();
       if (accounts && accounts.length) myAddr = accounts[0];
       // Auto-connect if previously authorized on this domain (session only)
@@ -502,7 +503,7 @@ returnBtn?.addEventListener('click', () => { window.location.href = '/index.html
           shouldReconnect = true;
         }
         if ((!accounts || !accounts.length) && shouldReconnect) {
-          await window.ethereum.request({ method: 'eth_requestAccounts' });
+          await injected.request({ method: 'eth_requestAccounts' });
           const acc2 = await provider.listAccounts();
           if (acc2 && acc2.length) myAddr = acc2[0];
         }
@@ -513,9 +514,9 @@ returnBtn?.addEventListener('click', () => { window.location.href = '/index.html
       try { await resolveFaroAddress(); } catch {}
       try {
         // React to network/account changes by refreshing address
-        if (window.ethereum?.on) {
-          window.ethereum.on('chainChanged', async () => { try { await resolveFaroAddress(); } catch {} });
-          window.ethereum.on('accountsChanged', async (accs) => {
+        if (injected && typeof injected.on === 'function') {
+          injected.on('chainChanged', async () => { try { await resolveFaroAddress(); } catch {} });
+          injected.on('accountsChanged', async (accs) => {
             try {
               myAddr = (accs && accs[0]) ? accs[0] : null;
               // Refresh seat UI to enable/disable Sit button when wallet connects/disconnects

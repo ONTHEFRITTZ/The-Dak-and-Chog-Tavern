@@ -581,17 +581,18 @@ async function connect(){
 // Attempt to connect wallet automatically; prompt only if none authorized
 async function ensureWallet(promptIfNeeded) {
   try {
-    if (!window.ethereum || !window.ethers) { setStatus('No wallet provider'); return; }
-    const accounts = await window.ethereum.request({ method:'eth_accounts' });
+    const injected = (function(){ try { const pref=(sessionStorage.getItem('walletProvider')||'').toLowerCase(); if(pref==='phantom') return (window.phantom&&window.phantom.ethereum)||window.__walletProvider; if(pref==='metamask') return window.ethereum||window.__walletProvider; return window.__walletProvider||window.ethereum||(window.phantom&&window.phantom.ethereum)||null; } catch { return window.__walletProvider||window.ethereum||(window.phantom&&window.phantom.ethereum)||null; } })();
+    if (!injected || !window.ethers) { setStatus('No wallet provider'); return; }
+    const accounts = await injected.request({ method:'eth_accounts' });
     let addr = (Array.isArray(accounts) && accounts[0]) ? accounts[0] : null;
     if (!addr && promptIfNeeded) {
       try {
-        const req = await window.ethereum.request({ method:'eth_requestAccounts' });
+        const req = await injected.request({ method:'eth_requestAccounts' });
         addr = (Array.isArray(req) && req[0]) ? req[0] : null;
       } catch(_) {}
     }
     if (addr) {
-      const provider = new window.ethers.providers.Web3Provider(window.ethereum,'any');
+      const provider = new window.ethers.providers.Web3Provider(injected,'any');
       const signer = provider.getSigner();
       const got = await signer.getAddress();
       myAddr = String(got||addr||'').toLowerCase();
@@ -657,8 +658,9 @@ try {
         clearInterval(t); return;
       }
       // One more passive check via eth_accounts without prompting
-      if (window.ethereum && window.ethers) {
-        const accounts = await window.ethereum.request({ method:'eth_accounts' });
+      const injected = (function(){ try { const pref=(sessionStorage.getItem('walletProvider')||'').toLowerCase(); if(pref==='phantom') return (window.phantom&&window.phantom.ethereum)||window.__walletProvider; if(pref==='metamask') return window.ethereum||window.__walletProvider; return window.__walletProvider||window.ethereum||(window.phantom&&window.phantom.ethereum)||null; } catch { return window.__walletProvider||window.ethereum||(window.phantom&&window.phantom.ethereum)||null; } })();
+      if (injected && window.ethers) {
+        const accounts = await injected.request({ method:'eth_accounts' });
         const a = (Array.isArray(accounts) && accounts[0]) ? accounts[0] : null;
         if (a) {
           myAddr = String(a).toLowerCase();

@@ -41,11 +41,21 @@ async function rtEnsure() {
   return rt.conn;
 }
 
+function injectedProvider(){
+  try {
+    const pref = (sessionStorage.getItem('walletProvider')||'').toLowerCase();
+    if (pref === 'phantom') return (window.phantom && window.phantom.ethereum) || window.__walletProvider;
+    if (pref === 'metamask') return window.ethereum || window.__walletProvider;
+    return window.__walletProvider || window.ethereum || (window.phantom && window.phantom.ethereum) || null;
+  } catch { return window.__walletProvider || window.ethereum || (window.phantom && window.phantom.ethereum) || null; }
+}
+
 export async function signMessage(message) {
-  if (!window.ethereum) throw new Error('No wallet');
-  const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+  const injected = injectedProvider();
+  if (!injected) throw new Error('No wallet');
+  const accounts = await injected.request({ method: 'eth_requestAccounts' });
   const addr = accounts[0];
-  const sig = await window.ethereum.request({ method: 'personal_sign', params: [message, addr] });
+  const sig = await injected.request({ method: 'personal_sign', params: [message, addr] });
   return { addr, sig };
 }
 
@@ -135,8 +145,10 @@ export async function profileLoad() {
 
 export async function readStats(addrOpt) {
   await rtEnsure();
-  const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-  const addr = (addrOpt || accounts[0] || '').toLowerCase();
+  const injected = injectedProvider();
+  if (!injected) throw new Error('No wallet');
+  const accounts = await injected.request({ method: 'eth_accounts' });
+  const addr = (addrOpt || (accounts && accounts[0]) || '').toLowerCase();
   return new Promise((resolve) => {
     const handle = (raw) => {
       try {
