@@ -30,17 +30,16 @@
   <link rel="preload" as="image" href="../../assets/images/table.png" type="image/png">
   <link rel="preload" as="image" href="../../assets/images/games-room.png" type="image/png">
   <style>
-    /* Full-viewport layout; no banner; keep content fully visible */
+    /* Full-viewport layout; dead-center the table and seats */
     body.game {
-      --banner-h: 0px;           /* no top banner on this page */
-      --panel-top: 72px;         /* safe area for inline wallet panel */
+      --banner-h: 0px; /* no top banner on this page */
       display:flex;
       flex-direction:column;
       align-items:center;
-      justify-content:flex-start; /* anchor from top */
+      justify-content:center; /* hard lock to vertical center */
       min-height: 100vh;
-      padding-top: var(--panel-top);
-      overflow: hidden;           /* avoid accidental page scroll */
+      height: 100vh;
+      overflow: hidden; /* avoid accidental page scroll */
     }
     body {
       /* Force image to span full viewport width; crop vertically if needed */
@@ -52,19 +51,18 @@
     /* Logo sizing and glow consistent with Faro; left aligned inside header */
     .game-logo { display:block; width:auto; height:auto; max-width: clamp(180px, 26vw, 320px); margin: 32px 0 16px 12px; filter: drop-shadow(0 0 18px rgba(255,244,233,0.45)) drop-shadow(0 4px 12px rgba(0,0,0,0.25)); pointer-events:none; user-select:none; }
     .tavern { padding-top: 0; }
-    /* Slightly smaller canvas so table + seats fit fully in viewport */
+    /* Canvas sized to stay centered and fully visible */
     .table-canvas {
       position:relative;
       width: min(92vw, 860px);
-      /* Fit fully below wallet panel; keep a little breathing room */
-      height: min(88vw, 560px, calc(100vh - var(--panel-top) - 24px));
+      height: min(88vw, 560px, 80vh);
       margin: 0 auto;
     }
     @media (max-height: 720px) {
-      .table-canvas { height: min(88vw, 520px, calc(100vh - var(--panel-top) - 24px)); }
+      .table-canvas { height: min(88vw, 520px, 76vh); }
     }
     @media (max-height: 640px) {
-      .table-canvas { height: min(88vw, 480px, calc(100vh - var(--panel-top) - 24px)); }
+      .table-canvas { height: min(88vw, 480px, 72vh); }
       .seat { width:100px; height:120px; }
     }
     /* Make the table itself pop without filling the container: remove color fill and add a soft backglow */
