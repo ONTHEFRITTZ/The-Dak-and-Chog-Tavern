@@ -489,5 +489,7 @@ export { signer, provider, userAddress };
 export { ethers };
 // Also expose on window for non-module consumers
 try { window.ethers = ethers; } catch {}
+// Expose connect for landing so the click handler can trigger wallet prompt immediately (user gesture)
+try { window.tavernConnectWallet = connectWallet; } catch {}
 
 

@@ -51,6 +51,15 @@
     (async()=>{ try{ const b=await fetch('/assets/build.json',{cache:'no-store'}).then(r=>r.ok?r.json():null).catch(()=>null); const tag=(b&&b.commit)?String(b.commit).slice(0,12):Date.now(); window.__BUILD_TAG=tag; const wl=document.createElement('script'); wl.src=`./js/WhitelistABI.js?v=${tag}`; document.head.appendChild(wl);}catch{}})();
   </script>
   <script type="module">
+    (async()=>{
+      try{
+        const tag = (window.__BUILD_TAG ? String(window.__BUILD_TAG) : String(Date.now()));
+        // Preload tavern module so connectWallet is ready synchronously in click handler
+        await import(`./js/tavern.js?v=${encodeURIComponent(tag)}`);
+      }catch(e){ /* ignore; pick() will report errors */ }
+    })();
+  </script>
+  <script type="module">
     (function(){
       const btn = document.getElementById('enter-tavern');
       const chooser = document.getElementById('wallet-choice');
@@ -82,25 +91,27 @@
       }
       async function pick(key){
         try { status.textContent = 'Connecting...'; } catch {}
-        let hintTimer = setTimeout(()=>{ try { status.textContent = 'If no wallet prompt appears, click the extension icon to continue.'; } catch {} }, 2500);
         try {
           sessionStorage.setItem('walletProvider', key);
           try { window.__preferredWalletKey = key; } catch {}
           try { localStorage.removeItem('walletProvider'); } catch {}
         } catch {}
         try {
-          const tag = (window.__BUILD_TAG ? String(window.__BUILD_TAG) : String(Date.now()));
-          const mod = await import(`./js/tavern.js?v=${encodeURIComponent(tag)}`);
           try {
-            await mod.connectWallet(key);
-            try { clearTimeout(hintTimer); } catch {}
+            if (window.tavernConnectWallet) {
+              await window.tavernConnectWallet(key);
+            } else {
+              // Fallback dynamic import if module wasn’t ready
+              const tag = (window.__BUILD_TAG ? String(window.__BUILD_TAG) : String(Date.now()));
+              const mod = await import(`./js/tavern.js?v=${encodeURIComponent(tag)}`);
+              await mod.connectWallet(key);
+            }
             if (sessionStorage.getItem('walletSigned') === 'true') {
               window.location.href = 'index.html';
             } else {
               status.textContent = 'Signature required to enter. Please try again.';
             }
           } catch (e) {
-            try { clearTimeout(hintTimer); } catch {}
             status.textContent = 'Login canceled. Please try again.';
           }
         } catch(e){ try { status.textContent = 'Failed to connect: ' + (e?.message||''); } catch {} }
