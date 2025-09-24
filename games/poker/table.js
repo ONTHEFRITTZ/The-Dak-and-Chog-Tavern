@@ -198,7 +198,48 @@ function holeRanksKey(cards2){
     return r.join('-');
   } catch { return null; }
 }
-function makeCardImg(code, opts){ opts = opts||{}; const hole=!!opts.hole, flip = opts.flip!==false, win = !!opts.win; const img=document.createElement('img'); img.alt=String(code||''); img.src = (code==='BACK')? cardBackSrc() : cardSrc(code); img.className='card' + (hole?' card--hole':'') + (flip?' card--flip':'') + (win?' card--win':''); if (flip) requestAnimationFrame(function(){ img.classList.add('card--show'); }); return img; }
+function makeCardImg(code, opts){
+  opts = opts||{};
+  const hole=!!opts.hole, flip = opts.flip!==false, win = !!opts.win;
+  const img=document.createElement('img');
+  img.alt=String(code||'');
+  try { img.loading = 'eager'; } catch {}
+  try { img.fetchPriority = 'high'; } catch {}
+  try { img.decoding = 'async'; } catch {}
+  img.src = (code==='BACK')? cardBackSrc() : cardSrc(code);
+  img.className='card' + (hole?' card--hole':'') + (flip?' card--flip':'') + (win?' card--win':'');
+  if (flip) requestAnimationFrame(function(){ img.classList.add('card--show'); });
+  return img;
+}
+
+// Preload full deck once to eliminate racey image loading during heads-up play
+let __deckPreloaded = false;
+function preloadDeckImages(){
+  if (__deckPreloaded) return; __deckPreloaded = true;
+  try {
+    const ranks = ['A','2','3','4','5','6','7','8','9','T','J','Q','K'];
+    const suits = ['S','H','D','C'];
+    const codes = [];
+    for (let s of suits) for (let r of ranks) codes.push(r + s);
+    codes.push('BACK');
+    const head = document.head || document.getElementsByTagName('head')[0];
+    for (const c of codes) {
+      try {
+        const href = (c==='BACK') ? cardBackSrc() : cardSrc(c);
+        // Link-preload for browsers that prioritize head hints
+        try {
+          const link = document.createElement('link');
+          link.rel = 'preload'; link.as = 'image'; link.href = href;
+          head && head.appendChild(link);
+        } catch {}
+        // Image object to warm the cache regardless of head parsing timing
+        const im = new Image();
+        try { im.decoding = 'async'; } catch {}
+        im.src = href;
+      } catch {}
+    }
+  } catch {}
+}
 
 function renderTable(t){
   if (!t || t.id !== currentTableId) return;
@@ -611,6 +652,7 @@ async function ensureWallet(promptIfNeeded) {
 }
 
 connect();
+try { preloadDeckImages(); } catch {}
 // If Tavern already connected, pick it up without re-prompting
 try {
   if (window.userAddress && String(window.userAddress)) {
