@@ -5,6 +5,44 @@ const devBotBtn = document.getElementById('toggle-dev-bot');
 const disconnectBtn = document.getElementById('wi-disconnect') || document.getElementById('disconnect-wallet');
 const walletAddrSpan = document.getElementById('wi-address');
 let devBotOn = false;
+
+// Optional card spritesheet support (auto-detect)
+const __sprite = { ready:false, url:null, iw:0, ih:0, cols:13, rows:4 };
+function cardCodeToIndex(code){
+  try {
+    const r = String(code||'').toUpperCase();
+    const rank = r[0];
+    const suit = r[1];
+    const ranks = ['A','2','3','4','5','6','7','8','9','T','J','Q','K'];
+    const suits = ['S','H','D','C'];
+    const ci = ranks.indexOf(rank);
+    const ri = suits.indexOf(suit);
+    if (ci < 0 || ri < 0) return { c:0, r:0 };
+    return { c: ci, r: ri };
+  } catch { return { c:0, r:0 }; }
+}
+function tryLoadCardSprite(){
+  if (__sprite.ready || __sprite.url) return;
+  const candidates = [
+    '/assets/images/cards/cards-sprite.webp',
+    '/assets/images/cards/cards-sprite.avif',
+    '/assets/images/cards/cards-sprite.png'
+  ];
+  (async()=>{
+    for (const href of candidates){
+      try {
+        const img = new Image();
+        img.decoding = 'async';
+        await new Promise((resolve,reject)=>{ img.onload=resolve; img.onerror=reject; img.src = href + '?v=' + (window.__ASSET_TAG||Date.now()); });
+        __sprite.url = href; __sprite.iw = img.naturalWidth||img.width||0; __sprite.ih = img.naturalHeight||img.height||0; __sprite.ready = (__sprite.iw>0 && __sprite.ih>0);
+        if (__sprite.ready) {
+          try { const link = document.createElement('link'); link.rel='preload'; link.as='image'; link.href=href; document.head.appendChild(link); } catch {}
+          break;
+        }
+      } catch {}
+    }
+  })();
+}
 let socket; let myAddr = null; let currentTableId = null; let lastTable = null; let myHole = [];
 let lastState = null; let exposures = {}; let winnersNow = {};
 
@@ -201,15 +239,33 @@ function holeRanksKey(cards2){
 function makeCardImg(code, opts){
   opts = opts||{};
   const hole=!!opts.hole, flip = opts.flip!==false, win = !!opts.win;
-  const img=document.createElement('img');
-  img.alt=String(code||'');
-  try { img.loading = 'eager'; } catch {}
-  try { img.fetchPriority = 'high'; } catch {}
-  try { img.decoding = 'async'; } catch {}
-  img.src = (code==='BACK')? cardBackSrc() : cardSrc(code);
-  img.className='card' + (hole?' card--hole':'') + (flip?' card--flip':'') + (win?' card--win':'');
-  if (flip) requestAnimationFrame(function(){ img.classList.add('card--show'); });
-  return img;
+  if (__sprite.ready && code && code !== 'BACK'){
+    const el = document.createElement('div');
+    el.setAttribute('role','img');
+    el.className='card' + (hole?' card--hole':'') + (flip?' card--flip':'') + (win?' card--win':'');
+    try { el.style.backgroundImage = 'url("' + __sprite.url + '")'; el.style.backgroundRepeat='no-repeat'; } catch {}
+    try { el.style.backgroundSize = __sprite.iw + 'px ' + __sprite.ih + 'px'; } catch {}
+    try {
+      const pos = cardCodeToIndex(code);
+      const tileW = (__sprite.iw / __sprite.cols);
+      const tileH = (__sprite.ih / __sprite.rows);
+      const x = Math.round(pos.c * tileW);
+      const y = Math.round(pos.r * tileH);
+      el.style.backgroundPosition = (-x) + 'px ' + (-y) + 'px';
+    } catch {}
+    if (flip) requestAnimationFrame(function(){ el.classList.add('card--show'); });
+    return el;
+  } else {
+    const img=document.createElement('img');
+    img.alt=String(code||'');
+    try { img.loading = 'eager'; } catch {}
+    try { img.fetchPriority = 'high'; } catch {}
+    try { img.decoding = 'async'; } catch {}
+    img.src = (code==='BACK')? cardBackSrc() : cardSrc(code);
+    img.className='card' + (hole?' card--hole':'') + (flip?' card--flip':'') + (win?' card--win':'');
+    if (flip) requestAnimationFrame(function(){ img.classList.add('card--show'); });
+    return img;
+  }
 }
 
 // Preload full deck once to eliminate racey image loading during heads-up play
@@ -653,6 +709,7 @@ async function ensureWallet(promptIfNeeded) {
 
 connect();
 try { preloadDeckImages(); } catch {}
+try { tryLoadCardSprite(); } catch {}
 // If Tavern already connected, pick it up without re-prompting
 try {
   if (window.userAddress && String(window.userAddress)) {
