@@ -108,6 +108,7 @@
             }
             if (!injected || !injected.request) throw new Error('Wallet extension not detected');
             await injected.request({ method:'eth_requestAccounts' });
+            try { window.__walletProvider = injected; } catch {}
             // Proceed with full connect flow (signature + network)
             if (window.tavernConnectWallet) { await window.tavernConnectWallet(key); }
             else { const tag = (window.__BUILD_TAG ? String(window.__BUILD_TAG) : String(Date.now())); const mod = await import(`./js/tavern.js?v=${encodeURIComponent(tag)}`); await mod.connectWallet(key); }
