@@ -82,6 +82,7 @@
       }
       async function pick(key){
         try { status.textContent = 'Connecting...'; } catch {}
+        let hintTimer = setTimeout(()=>{ try { status.textContent = 'If no wallet prompt appears, click the extension icon to continue.'; } catch {} }, 2500);
         try {
           sessionStorage.setItem('walletProvider', key);
           try { window.__preferredWalletKey = key; } catch {}
@@ -92,12 +93,14 @@
           const mod = await import(`./js/tavern.js?v=${encodeURIComponent(tag)}`);
           try {
             await mod.connectWallet(key);
+            try { clearTimeout(hintTimer); } catch {}
             if (sessionStorage.getItem('walletSigned') === 'true') {
               window.location.href = 'index.html';
             } else {
               status.textContent = 'Signature required to enter. Please try again.';
             }
           } catch (e) {
+            try { clearTimeout(hintTimer); } catch {}
             status.textContent = 'Login canceled. Please try again.';
           }
         } catch(e){ try { status.textContent = 'Failed to connect: ' + (e?.message||''); } catch {} }

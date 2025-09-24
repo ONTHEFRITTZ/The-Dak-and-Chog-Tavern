@@ -235,6 +235,15 @@ export async function connectWallet(explicitProviderKey) {
 
   try {
     await injected.request({ method: 'eth_requestAccounts' });
+    try {
+      // MetaMask sometimes returns immediately but accounts are still empty until permission is granted
+      let acc = await injected.request({ method: 'eth_accounts' }).catch(()=>[]);
+      if (!Array.isArray(acc) || !acc.length) {
+        try { await injected.request({ method: 'wallet_requestPermissions', params: [{ eth_accounts: {} }] }); } catch {}
+        acc = await injected.request({ method: 'eth_accounts' }).catch(()=>[]);
+        if (!Array.isArray(acc) || !acc.length) throw new Error('Wallet authorization required');
+      }
+    } catch {}
     provider = new ethers.providers.Web3Provider(injected, 'any');
     signer = provider.getSigner();
     userAddress = await signer.getAddress();
