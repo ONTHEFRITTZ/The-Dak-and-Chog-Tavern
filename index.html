@@ -37,8 +37,10 @@
 </head>
 <body class="home">
   <script>(function(){
-    // Gate by live provider auth, not storage flags
+    // Gate by signed-in status + live provider auth
     try {
+      var signed = sessionStorage.getItem('walletSigned') === 'true';
+      if (!signed) { location.replace('/landing.html'); return; }
       var pref = (sessionStorage.getItem('walletProvider')||'').toLowerCase();
       var injected = (pref==='phantom') ? (window.phantom&&window.phantom.ethereum) : (pref==='metamask' ? window.ethereum : (window.__walletProvider||window.ethereum||(window.phantom&&window.phantom.ethereum)));
       if (!injected || !injected.request) { location.replace('/landing.html'); return; }
@@ -264,7 +266,8 @@
     for (var i=0;i<links.length;i++){
       links[i].addEventListener('click', function(e){
         try {
-          if (!injected || !injected.request) { e.preventDefault(); alert('Connect wallet in Tavern first'); return; }
+          var signed = sessionStorage.getItem('walletSigned')==='true';
+          if (!signed || !injected || !injected.request) { e.preventDefault(); alert('Connect wallet in Tavern first'); return; }
           injected.request({ method:'eth_accounts' }).then(function(acc){ var ok = Array.isArray(acc) && acc.length>0; if(!ok){ e.preventDefault(); alert('Connect wallet in Tavern first'); } });
         } catch(_){ e.preventDefault(); alert('Connect wallet in Tavern first'); }
       });

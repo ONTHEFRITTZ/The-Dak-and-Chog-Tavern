@@ -8,6 +8,7 @@
   <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
+  <script>(function(){try{var signed=sessionStorage.getItem('walletSigned')==='true'; if(!signed){ location.replace('/landing.html'); return;} var pref=(sessionStorage.getItem('walletProvider')||'').toLowerCase(); var injected=(pref==='phantom')? (window.phantom&&window.phantom.ethereum) : (pref==='metamask'? window.ethereum : (window.__walletProvider||window.ethereum||(window.phantom&&window.phantom.ethereum))); if(!injected||!injected.request){ location.replace('/landing.html'); return;} injected.request({method:'eth_accounts'}).then(function(a){ if(!(Array.isArray(a)&&a.length)) location.replace('/landing.html'); }).catch(function(){ location.replace('/landing.html'); }); }catch(e){ location.replace('/landing.html'); }})();</script>
   <!-- Opt-out/reload on bfcache restores across browsers -->
   <script>(function(){try{
     window.addEventListener('unload', function(){}); // disables bfcache in many browsers
@@ -166,8 +167,10 @@
         </div>
 
         <div class="hz-dice-row">
-          <img id="dice1" alt="die 1" width="140" height="140" loading="eager">
-          <img id="dice2" alt="die 2" width="140" height="140" loading="eager">
+          <img id="dice1" alt="die 1" width="140" height="140" loading="eager"
+               style="width:140px!important;height:140px!important;min-width:140px!important;min-height:140px!important;max-width:140px!important;max-height:140px!important;flex:0 0 auto!important;display:block!important;object-fit:cover!important;">
+          <img id="dice2" alt="die 2" width="140" height="140" loading="eager"
+               style="width:140px!important;height:140px!important;min-width:140px!important;min-height:140px!important;max-width:140px!important;max-height:140px!important;flex:0 0 auto!important;display:block!important;object-fit:cover!important;">
         </div>
 
         <div style="text-align:center; margin-bottom:12px;">

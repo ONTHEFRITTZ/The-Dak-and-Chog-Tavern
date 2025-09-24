@@ -245,11 +245,19 @@ export async function connectWallet(explicitProviderKey) {
     } catch {}
     // Ensure Monad Testnet is selected
     try { const ok = await ensureMonadNetwork(provider); if (!ok) { try { showToast && showToast('Please switch to Monad Testnet', 'error'); } catch {} } } catch {}
-    // Force a lightweight sign to confirm login on selection
+    // Require a signature to confirm login. If user cancels, treat as not connected.
     try {
       const msg = `Dak & Chog Tavern login @ ${new Date().toISOString()}`;
       await injected.request({ method: 'personal_sign', params: [msg, userAddress] });
-    } catch {}
+      try { sessionStorage.setItem('walletSigned','true'); } catch {}
+    } catch (e) {
+      try { sessionStorage.removeItem('walletSigned'); } catch {}
+      // Clear any partial state and abort
+      rememberWalletProvider('');
+      try { window.__walletProvider = undefined; } catch {}
+      provider = undefined; signer = undefined; userAddress = undefined;
+      throw e;
+    }
     try { window.userAddress = userAddress; window.dispatchEvent(new CustomEvent('wallet:connected', { detail: { address: userAddress } })); } catch {}
 
     // Update top banner controls
@@ -423,11 +431,12 @@ async function bootConnect() {
                 rememberWalletProvider('');
                 try { window.__walletProvider = undefined; } catch {}
                 provider = undefined; signer = undefined; userAddress = undefined;
+                try { sessionStorage.removeItem('walletSigned'); } catch {}
                 location.replace('/landing.html');
               }
             } catch {}
           });
-          try { base.on('disconnect', () => { try { location.replace('/landing.html'); } catch {} }); } catch {}
+          try { base.on('disconnect', () => { try { sessionStorage.removeItem('walletSigned'); } catch {} try { location.replace('/landing.html'); } catch {} }); } catch {}
         }
       } catch {}
     } catch {}

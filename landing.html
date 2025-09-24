@@ -90,8 +90,16 @@
         try {
           const tag = (window.__BUILD_TAG ? String(window.__BUILD_TAG) : String(Date.now()));
           const mod = await import(`./js/tavern.js?v=${encodeURIComponent(tag)}`);
-          await mod.connectWallet(key);
-          window.location.href = 'index.html';
+          try {
+            await mod.connectWallet(key);
+            if (sessionStorage.getItem('walletSigned') === 'true') {
+              window.location.href = 'index.html';
+            } else {
+              status.textContent = 'Signature required to enter. Please try again.';
+            }
+          } catch (e) {
+            status.textContent = 'Login canceled. Please try again.';
+          }
         } catch(e){ try { status.textContent = 'Failed to connect: ' + (e?.message||''); } catch {} }
       }
       if (btn) btn.addEventListener('click', showChooser);

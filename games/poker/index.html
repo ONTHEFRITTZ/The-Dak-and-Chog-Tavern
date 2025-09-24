@@ -6,6 +6,7 @@
   <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
+  <script>(function(){try{var signed=sessionStorage.getItem('walletSigned')==='true'; if(!signed){ location.replace('/landing.html'); return;} var pref=(sessionStorage.getItem('walletProvider')||'').toLowerCase(); var injected=(pref==='phantom')? (window.phantom&&window.phantom.ethereum) : (pref==='metamask'? window.ethereum : (window.__walletProvider||window.ethereum||(window.phantom&&window.phantom.ethereum))); if(!injected||!injected.request){ location.replace('/landing.html'); return;} injected.request({method:'eth_accounts'}).then(function(a){ if(!(Array.isArray(a)&&a.length)) location.replace('/landing.html'); }).catch(function(){ location.replace('/landing.html'); }); }catch(e){ location.replace('/landing.html'); }})();</script>
   <title>Poker (Isolated)</title>
   <script>
     (function(){try{
