@@ -98,9 +98,15 @@
         } catch {}
         try {
           try {
-            // Trigger wallet prompt immediately within this click handler
-            var injected = (key==='metamask') ? (window.ethereum) : (window.phantom && window.phantom.ethereum);
-            if (!injected || !injected.request) { throw new Error('Wallet extension not detected'); }
+            // Trigger wallet prompt immediately within this click handler using the exact provider
+            var injected;
+            if (key==='metamask') {
+              var eth = window.ethereum;
+              injected = (eth && eth.isMetaMask) ? eth : (Array.isArray(eth && eth.providers) ? eth.providers.find(p=>p && p.isMetaMask) : undefined);
+            } else if (key==='phantom') {
+              injected = (window.phantom && window.phantom.ethereum) || undefined;
+            }
+            if (!injected || !injected.request) throw new Error('Wallet extension not detected');
             await injected.request({ method:'eth_requestAccounts' });
             // Proceed with full connect flow (signature + network)
             if (window.tavernConnectWallet) { await window.tavernConnectWallet(key); }

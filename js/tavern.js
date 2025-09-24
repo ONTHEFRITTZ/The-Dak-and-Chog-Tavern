@@ -66,26 +66,29 @@ function getPreferredWalletKey(){
   return window.__preferredWalletKey || '';
 }
 
+function getMetaMaskProvider(){
+  try {
+    const eth = window.ethereum;
+    if (!eth) return undefined;
+    if (eth.isMetaMask) return eth;
+    if (Array.isArray(eth.providers)) {
+      const mm = eth.providers.find(p => p && p.isMetaMask);
+      if (mm) return mm;
+    }
+  } catch {}
+  return undefined;
+}
+function getPhantomEvmProvider(){
+  try { return (window.phantom && window.phantom.ethereum) || undefined; } catch { return undefined; }
+}
 function resolveInjectedEvmProvider(explicit){
   try {
-    let key = explicit || getPreferredWalletKey();
-    if (key) {
-      if (key === 'phantom') {
-        const p = window?.phantom?.ethereum;
-        if (p) return p;
-        return undefined;
-      }
-      if (key === 'metamask') {
-        const meta = window?.ethereum;
-        if (meta) return meta;
-        return undefined;
-      }
-    }
-    // No stored preference; fall back to whichever provider is present (MetaMask first)
-    if (window?.ethereum && !window?.phantom?.ethereum) return window.ethereum;
-    if (window?.phantom?.ethereum && !window?.ethereum) return window.phantom.ethereum;
-    if (window?.ethereum) return window.ethereum;
-    if (window?.phantom?.ethereum) return window.phantom.ethereum;
+    let key = (explicit || getPreferredWalletKey() || '').toLowerCase();
+    if (key === 'metamask') return getMetaMaskProvider();
+    if (key === 'phantom') return getPhantomEvmProvider();
+    // No stored preference; prefer MetaMask if present, else Phantom EVM
+    const mm = getMetaMaskProvider(); if (mm) return mm;
+    const ph = getPhantomEvmProvider(); if (ph) return ph;
   } catch {}
   return undefined;
 }

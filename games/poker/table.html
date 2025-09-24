@@ -102,8 +102,9 @@
           gap:6px;
           padding:8px;
         }/* Card visuals */
-    .card { display:block; width:72px; height:auto; border-radius:8px; box-shadow:0 3px 8px rgba(0,0,0,0.25); transform-style:preserve-3d; backface-visibility:hidden; }
-    .card--hole { width:60px; border-radius:6px; box-shadow:0 2px 6px rgba(0,0,0,0.25); }
+    /* Card visuals (works for both <img> and sprite-backed <div>) */
+    .card { display:block; width:72px; height:104px; border-radius:8px; box-shadow:0 3px 8px rgba(0,0,0,0.25); transform-style:preserve-3d; backface-visibility:hidden; background-repeat:no-repeat; }
+    .card--hole { width:60px; height:87px; border-radius:6px; box-shadow:0 2px 6px rgba(0,0,0,0.25); }
     .card--flip { transform:rotateY(90deg); transition: transform 260ms ease, box-shadow 200ms ease; }
     .card--flip.card--show { transform:rotateY(0deg); }
     .card--win { box-shadow:0 0 0 2px #ffd166, 0 4px 14px rgba(0,0,0,0.25); transform: translateY(-6px); }
