@@ -1,4 +1,4 @@
-// Minimal client for multiplayer table (hybrid: on-chain bets to Faro contract)
+﻿// Minimal client for multiplayer table (hybrid: on-chain bets to Faro contract)
 import { getAddressFor } from '../../js/config.js';
 import { signer as walletSigner, provider as walletProvider } from '../../js/tavern.js';
 const __isLocalHost = ['localhost','127.0.0.1'].includes(location.hostname);
@@ -394,9 +394,9 @@ async function connect() {
   });
   socket.on('connect_error', (err) => {
     log('Connection error: ' + (err?.message || 'unknown'));
-    showLobby('Lobby server unavailable. Retrying…');
+    showLobby('Lobby server unavailable. Retryingâ€¦');
   });
-  socket.on('reconnect_error', () => { showLobby('Reconnecting to lobby…'); });
+  socket.on('reconnect_error', () => { showLobby('Reconnecting to lobbyâ€¦'); });
   socket.on('reconnect_failed', () => { showLobby('Unable to reach lobby. Please retry.'); });
   socket.on('lobby:list', (list) => { renderLobby(Array.isArray(list)?list:[]); });
   socket.on('table:update', (table) => { renderTable(table); });
@@ -419,7 +419,7 @@ async function connect() {
       const myTxt = mine ? (mine.delta>0 ? ` You won +${mine.delta}` : (mine.delta<0 ? ` You lost ${mine.delta}` : ' Push')) : '';
       const label = `Bank ${name(bank)} vs Player ${name(player)}${m.doublet?' (doublet)':''}`;
       const who = winners.length ? ` Winners: ${winners.join(', ')}` : '';
-      centerReadout.textContent = `${label}${who}${myTxt ? ' —'+myTxt : ''}`;
+      centerReadout.textContent = `${label}${who}${myTxt ? ' â€”'+myTxt : ''}`;
     } catch {}
   });
   socket.on('chat', (m) => { log(`${m.from}: ${m.text}`); });
@@ -559,12 +559,8 @@ async function placeOnchainBet(rankNum, ethAmount, copper) {
   const ethersRef = window.ethers;
   let abi = window.FaroV3ABI || window.FaroABI; // prefer V3 with copper
   const c = new ethersRef.Contract(faroAddr, abi, onchainSigner);
-  log(`Submitting on-chain bet ${ethAmount} MON on ${rankNum}${copper ? ' (copper)' : ''}…`);
-  const tx = window.FaroV3ABI
-    ? await c.playFaro(rankNum, copper, { value: ethersRef.utils.parseEther(String(ethAmount)) })
-    : await c.playFaro(rankNum, { value: ethersRef.utils.parseEther(String(ethAmount)) });
-  log(`Tx sent: ${tx.hash.slice(0,10)}… waiting…`);
-  const rc = await tx.wait();
+  log(`Submitting on-chain bet ${ethAmount} MON on ${rankNum}${copper ? ' (copper)' : ''}â€¦`);
+  try {\n    const use = (window.Bundler ? await window.Bundler.detectBundler(onchainProvider && onchainProvider.provider) : { available:false });\n    if (use && use.available) {\n      const ethersRef = window.ethers;\n      const iface = new ethersRef.utils.Interface((window.FaroV3ABI||window.FaroABI)||[]);\n      const data = (window.FaroV3ABI) ? iface.encodeFunctionData('playFaro',[rankNum, !!copper]) : iface.encodeFunctionData('playFaro',[rankNum]);\n      const from = await onchainSigner.getAddress();\n      const network = await onchainProvider.getNetwork().catch(()=>({chainId:undefined}));\n      await window.Bundler.walletSendCalls({ provider: use.provider, from, chainId: network.chainId, calls: [{ to: faroAddr, data, value: ethersRef.utils.hexlify(ethersRef.utils.parseEther(String(ethAmount))) }] });\n    } else {\n      const tx = window.FaroV3ABI\n        ? await c.playFaro(rankNum, copper, { value: ethersRef.utils.parseEther(String(ethAmount)) })\n        : await c.playFaro(rankNum, { value: ethersRef.utils.parseEther(String(ethAmount)) });\n      const rc = await tx.wait();\n      try {\n        const ev = rc.events?.find(e => e.event === 'FaroPlayed');\n        if (ev && ev.args) {\n          const win = !!ev.args.win; const push = !!ev.args.push;\n          const bank = Number(ev.args.bankRank); const player = Number(ev.args.playerRank);\n          log(push ? Push. bank=, player= : (win ? You won! bank=, player= : You lost. bank=, player=));\n        } else {\n          log('Confirmed on-chain. Check explorer for details.');\n        }\n      } catch {}\n    }\n  }
   try {
     const ev = rc.events?.find(e => e.event === 'FaroPlayed');
     if (ev && ev.args) {
@@ -576,5 +572,6 @@ async function placeOnchainBet(rankNum, ethAmount, copper) {
     }
   } catch {}
 }
+
 
 

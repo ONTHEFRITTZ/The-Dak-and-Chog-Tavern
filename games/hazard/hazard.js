@@ -1,8 +1,8 @@
-// games/hazard/hazard.js
+﻿// games/hazard/hazard.js
 // UI wired to MonHazard contract (HazardPlayed event) using ethers v5 UMD
 import { getAddressFor, detectChainId, renderTavernBanner, showToast } from '../../js/config.js';
 import { attachProvider } from '../../js/contract-utils.js';
-import { provider as walletProvider, signer as walletSigner } from '../../js/tavern.js';
+import { provider as walletProvider, signer as walletSigner } from '../../js/tavern.js';\nimport { detectBundler, walletSendCalls } from '../../js/bundler.js';
 
 let tavernAddress; // contract used for sends (Hazard router preferred)
 let unifiedAddr;   // unified Tavern address (emits HazardPlayed)
@@ -140,17 +140,17 @@ function explainOutcome(main, finalSum, chance, win) {
   chance = Number(chance);
 
   if (chance === 0) {
-    if (finalSum === main) return `Immediate win — rolled your main (${main}).`;
-    if (finalSum === 2 || finalSum === 3) return `Immediate loss — rolled ${finalSum}.`;
+    if (finalSum === main) return `Immediate win â€” rolled your main (${main}).`;
+    if (finalSum === 2 || finalSum === 3) return `Immediate loss â€” rolled ${finalSum}.`;
     if (finalSum === 11 || finalSum === 12) {
-      if (main === 7) return `Immediate loss — rolled ${finalSum} and main was 7.`;
-      if (main === 5 || main === 9) return `Immediate win — rolled ${finalSum} (special for main ${main}).`;
-      return `Immediate loss — rolled ${finalSum}.`;
+      if (main === 7) return `Immediate loss â€” rolled ${finalSum} and main was 7.`;
+      if (main === 5 || main === 9) return `Immediate win â€” rolled ${finalSum} (special for main ${main}).`;
+      return `Immediate loss â€” rolled ${finalSum}.`;
     }
     return `Point established at ${finalSum}. Game continues until point or main resolves.`;
   } else {
     if (finalSum === chance) return `Won by hitting the chance/point (${chance}).`;
-    if (finalSum === main) return `Lost — rolled your main (${main}) before hitting the point (${chance}).`;
+    if (finalSum === main) return `Lost â€” rolled your main (${main}) before hitting the point (${chance}).`;
     return `Resolved with roll ${finalSum}.`;
   }
 }
@@ -449,9 +449,7 @@ try {
       gasLimit = ethers.BigNumber.from(800000);      // robust fallback
     }
 
-    const tx = await contract.playHazard(selectedMain, { value: wager, gasLimit });
-    statusEl.textContent = 'Dice rolling on-chain...';
-    const receipt = await tx.wait();
+    const use = await detectBundler(provider);\n    if (use && use.available) {\n      const iface = new ethers.utils.Interface(window.TavernABI || []);\n      const data = iface.encodeFunctionData('playHazard', [selectedMain]);\n      const from = await signer.getAddress();\n      const chainId = await provider.getNetwork().then(n=>n.chainId).catch(()=>undefined);\n      await walletSendCalls({ provider: use.provider, from, chainId, calls: [{ to: tavernAddress, data, value: ethers.utils.hexlify(wager) }] });\n      statusEl.textContent = 'Waiting for result...';\n    } else {\n      const tx = await contract.playHazard(selectedMain, { value: wager, gasLimit });\n      statusEl.textContent = 'Dice rolling on-chain...';\n      const receipt = await tx.wait();\n      statusEl.textContent = 'Waiting for result...';\n      // parse below\n    }
     statusEl.textContent = 'Waiting for result...';
 
     // Fallback: parse receipt for HazardPlayed to update UI even if socket event is delayed or missed
@@ -510,3 +508,4 @@ try {
 
   returnBtn?.addEventListener('click', () => { window.location.href = '/index.html'; });
 });
+
