@@ -245,6 +245,11 @@ export async function connectWallet(explicitProviderKey) {
     } catch {}
     // Ensure Monad Testnet is selected
     try { const ok = await ensureMonadNetwork(provider); if (!ok) { try { showToast && showToast('Please switch to Monad Testnet', 'error'); } catch {} } } catch {}
+    // Force a lightweight sign to confirm login on selection
+    try {
+      const msg = `Dak & Chog Tavern login @ ${new Date().toISOString()}`;
+      await injected.request({ method: 'personal_sign', params: [msg, userAddress] });
+    } catch {}
     try { window.userAddress = userAddress; window.dispatchEvent(new CustomEvent('wallet:connected', { detail: { address: userAddress } })); } catch {}
 
     // Update top banner controls
@@ -276,7 +281,6 @@ export async function connectWallet(explicitProviderKey) {
       const key = explicitProviderKey || (injected === (window?.phantom?.ethereum) ? 'phantom' : 'metamask');
       rememberWalletProvider(key);
     } catch {}
-    markWalletConnected(true);
     // Announce presence to realtime server (best-effort)
     try {
       if (!window.io) {
@@ -384,18 +388,7 @@ async function bootConnect() {
   // Defer banner rendering until after silentConnect so the correct provider/network is used
   let autoConnected = false;
   autoConnected = await silentConnect();
-  if (!autoConnected) {
-    try {
-      let remembered = false;
-      if (sessionStorage.getItem('walletConnected') === 'true') {
-        remembered = true;
-      } else if (localStorage.getItem('walletConnected') === 'true') {
-        markWalletConnected(true);
-        remembered = true;
-      }
-      if (remembered) autoConnected = await silentConnect();
-    } catch {}
-  }
+  // No storage-based reconnect; rely solely on provider authorization
   if (!autoConnected) {
     ensureAdminLink(false);
     try {
@@ -424,6 +417,17 @@ async function bootConnect() {
               renderTavernBanner({ contractKey: 'tavern', address: addr, chainId: cid, wallet: userAddress, labelOverride: 'Address' });
             } catch {}
           });
+          base.on('accountsChanged', (accs=[]) => {
+            try {
+              if (!accs || !accs.length) {
+                rememberWalletProvider('');
+                try { window.__walletProvider = undefined; } catch {}
+                provider = undefined; signer = undefined; userAddress = undefined;
+                location.replace('/landing.html');
+              }
+            } catch {}
+          });
+          try { base.on('disconnect', () => { try { location.replace('/landing.html'); } catch {} }); } catch {}
         }
       } catch {}
     } catch {}

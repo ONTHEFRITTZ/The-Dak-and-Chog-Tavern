@@ -91,10 +91,6 @@
           const tag = (window.__BUILD_TAG ? String(window.__BUILD_TAG) : String(Date.now()));
           const mod = await import(`./js/tavern.js?v=${encodeURIComponent(tag)}`);
           await mod.connectWallet(key);
-          try {
-            sessionStorage.setItem('walletConnected','true');
-            try { localStorage.removeItem('walletConnected'); } catch {}
-          } catch {}
           window.location.href = 'index.html';
         } catch(e){ try { status.textContent = 'Failed to connect: ' + (e?.message||''); } catch {} }
       }
