@@ -243,14 +243,24 @@ export async function connectWallet(explicitProviderKey) {
       const key = (injected === (window?.phantom?.ethereum)) ? 'phantom' : 'metamask';
       rememberWalletProvider(key);
     } catch {}
-    // Ensure Monad Testnet is selected
-    try { const ok = await ensureMonadNetwork(provider); if (!ok) { try { showToast && showToast('Please switch to Monad Testnet', 'error'); } catch {} } } catch {}
     // Require a signature to confirm login. If user cancels, treat as not connected.
-    try {
+    // Try multiple method/param orders for compatibility across wallets (MetaMask vs Phantom).
+    async function forceLoginSignature() {
       const msg = `Dak & Chog Tavern login @ ${new Date().toISOString()}`;
-      await injected.request({ method: 'personal_sign', params: [msg, userAddress] });
-      try { sessionStorage.setItem('walletSigned','true'); } catch {}
-    } catch (e) {
+      const hex = '0x' + Array.from(new TextEncoder().encode(msg)).map(b=>b.toString(16).padStart(2,'0')).join('');
+      const attempts = [
+        { method: 'personal_sign', params: [msg, userAddress] },
+        { method: 'personal_sign', params: [userAddress, msg] },
+        { method: 'eth_personalSign', params: [hex, userAddress] },
+        { method: 'eth_personalSign', params: [userAddress, hex] },
+      ];
+      let lastErr;
+      for (const a of attempts) {
+        try { await injected.request(a); return true; } catch (e) { lastErr = e; }
+      }
+      throw lastErr || new Error('Signature rejected');
+    }
+    try { await forceLoginSignature(); try { sessionStorage.setItem('walletSigned','true'); } catch {} } catch (e) {
       try { sessionStorage.removeItem('walletSigned'); } catch {}
       // Clear any partial state and abort
       rememberWalletProvider('');
@@ -258,6 +268,8 @@ export async function connectWallet(explicitProviderKey) {
       provider = undefined; signer = undefined; userAddress = undefined;
       throw e;
     }
+    // Ensure Monad Testnet is selected AFTER signature so MetaMask doesn't stall the initial login UX
+    try { const ok = await ensureMonadNetwork(provider); if (!ok) { try { showToast && showToast('Please switch to Monad Testnet', 'error'); } catch {} } } catch {}
     try { window.userAddress = userAddress; window.dispatchEvent(new CustomEvent('wallet:connected', { detail: { address: userAddress } })); } catch {}
 
     // Update top banner controls
