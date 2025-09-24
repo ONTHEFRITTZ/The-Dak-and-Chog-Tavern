@@ -40,7 +40,7 @@ async function init() {
   // Prefer the site-selected wallet (MetaMask or Phantom EVM) from tavern.js
   provider = walletProvider || (window.ethereum ? new ethers.providers.Web3Provider(window.ethereum, 'any') : undefined);
   signer = walletSigner || (provider ? provider.getSigner() : undefined);
-  if (!provider || !signer) { alert('No EVM wallet detected. Connect on the landing page.'); return; }
+  if (!provider || !signer) { try { if (window.tavernConnectWallet) { window.tavernConnectWallet(); await new Promise((resolve)=>{ const once=(ev)=>{ try{ window.removeEventListener('wallet:connected', once); }catch{} resolve(); }; try{ window.addEventListener('wallet:connected', once, { once:true }); }catch{} setTimeout(resolve, 5000); }); } } catch {} provider = walletProvider || (window.ethereum ? new ethers.providers.Web3Provider(window.ethereum, 'any') : undefined); signer = walletSigner || (provider ? provider.getSigner() : undefined); if (!provider || !signer) { try { statusEl.innerText = 'Connect wallet on landing page'; } catch{} return; }
   try { attachProvider(provider); } catch {}
   userAddress = await signer.getAddress();
   // Prefer dedicated Shell contract; fall back to Tavern

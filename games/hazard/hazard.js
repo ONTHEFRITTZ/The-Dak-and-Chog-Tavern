@@ -355,6 +355,11 @@ try {
   // Roll button handler (guard element)
   rollBtn?.addEventListener('click', async () => {
   // Guard: prevent re-clicks during tx or cooldown
+  if (!provider || !signer) {
+    try { if (window.tavernConnectWallet) { window.tavernConnectWallet(); } } catch {}
+    try { await new Promise((resolve)=>{ const once=(ev)=>{ try{ window.removeEventListener('wallet:connected', once); }catch{} resolve(); }; try{ window.addEventListener('wallet:connected', once, { once:true }); }catch{} setTimeout(resolve, 5000); }); } catch {}
+    try { if (walletProvider) provider = walletProvider; if (walletSigner) signer = walletSigner; else if (provider && provider.getSigner) signer = provider.getSigner(); } catch {}
+  }
   const now = Date.now();
   if (inFlight || now < cooldownUntil) {
     try { statusEl.textContent = 'Please wait... resolving previous roll.'; } catch {}

@@ -1,5 +1,5 @@
 // Minimal client for multiplayer table (hybrid: on-chain bets to Faro contract)
-import { getAddressFor } from '../../js/config.js';
+import { getAddressFor, detectChainId, renderTavernBanner } from '../../js/config.js';
 import { signer as walletSigner, provider as walletProvider } from '../../js/tavern.js';
 import { detectBundler, walletSendCalls } from '../../js/bundler.js';
 const __isLocalHost = ['localhost','127.0.0.1'].includes(location.hostname);
@@ -90,6 +90,15 @@ try { positionSeatsRing(); window.addEventListener('resize', positionSeatsRing);
 // --- Inline wallet panel sync (no prompts) ---
 try {
   // Adopt Tavern-connected wallet if present
+try {
+  (async () => {
+    try {
+      const cid = await detectChainId(onchainProvider || walletProvider);
+      const addr = await getAddressFor('faro', onchainProvider || walletProvider);
+      if (addr && cid != null) { renderTavernBanner({ contractKey: 'faro', address: addr, chainId: cid, wallet: myAddr || undefined }); }
+    } catch {}
+  })();
+} catch {}
   if (window.userAddress && String(window.userAddress)) {
     const a = String(window.userAddress).toLowerCase();
     try { if (walletAddrSpan) walletAddrSpan.textContent = short(a); } catch{}

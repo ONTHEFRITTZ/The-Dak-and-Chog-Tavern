@@ -143,6 +143,11 @@ async function ensureWallet() {
 
 flipBtn.addEventListener('click', async () => {
   const ethers = window.ethers;
+  if (!provider || !signer || !wallet) {
+    try { if (window.tavernConnectWallet) { window.tavernConnectWallet(); } } catch {}
+    try { await new Promise((resolve)=>{ const once=(ev)=>{ try{ window.removeEventListener('wallet:connected', once); }catch{} resolve(); }; try{ window.addEventListener('wallet:connected', once, { once:true }); }catch{} setTimeout(resolve, 5000); }); } catch {}
+    try { const ethersRef = window.ethers; if (window.ethereum) { const pv = new ethersRef.providers.Web3Provider(window.ethereum, 'any'); provider = provider || pv; signer = signer || pv.getSigner(); wallet = wallet || await signer.getAddress(); } } catch {}
+  }
   const bet = Number(betInput.value || 0);
   if (!provider || !signer || !wallet) { statusEl.textContent = 'Connect wallet first.'; return; }
   if (!coinContract || !(activeCoinAbi || window.TavernABI)) { statusEl.textContent = 'DakChog contract not configured for this network.'; return; }

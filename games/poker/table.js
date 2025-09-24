@@ -1,4 +1,9 @@
-const statusEl = document.getElementById('status');
+// Ensure Socket.IO client is available
+try {
+  if (!window.io) {
+    await new Promise((resolve)=>{ const s=document.createElement('script'); s.src='https://cdn.socket.io/4.7.5/socket.io.min.js'; s.onload=resolve; s.onerror=resolve; document.head.appendChild(s); });
+  }
+} catch {}const statusEl = document.getElementById('status');
 const seatEls = Array.from(document.querySelectorAll('.seat'));
 const connectBtn = document.getElementById('connect-wallet');
 const devBotBtn = document.getElementById('toggle-dev-bot');
@@ -300,7 +305,7 @@ function renderTable(t){
     const label = document.createElement('div'); label.className='addr'; label.textContent = 'Seat ' + idx; el.appendChild(label);
     const info = document.createElement('div'); info.className='addr';
     if (s) {
-      info.textContent = short(s.addr||s.id) + (typeof s.chips==='number' ? ' ï¿½ ' + s.chips + 'c' : ''); el.appendChild(info);
+      info.textContent = short(s.addr||s.id) + (typeof s.chips==='number' ? ' Ã¯Â¿Â½ ' + s.chips + 'c' : ''); el.appendChild(info);
       const addrLower = String(s.addr||'').toLowerCase();
       if (myAddr && addrLower===String(myAddr).toLowerCase()){
         const btns = document.createElement('div'); btns.className='btns';
@@ -557,7 +562,7 @@ async function connect(){
           btnWrap.appendChild(mk('Call '+need, function(){ socket.emit('poker:act', { action:'call' }); }));
           btnWrap.appendChild(mk('Raise +'+minRaise+'+', function(){ const v = Math.max(minRaise, Number(amountInput && amountInput.value || 0) | 0); socket.emit('poker:act', { action:'raise', amount: v }); }));
         }
-        if (infoText) infoText.textContent = 'To call: ' + need + ' ï¿½ MinRaise: ' + minRaise + ' ï¿½ Stack: ' + Number(me && me.stack || 0);
+        if (infoText) infoText.textContent = 'To call: ' + need + ' Ã¯Â¿Â½ MinRaise: ' + minRaise + ' Ã¯Â¿Â½ Stack: ' + Number(me && me.stack || 0);
       }
     }
   } catch(e){}
