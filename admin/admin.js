@@ -677,30 +677,4 @@ ppSetAddrBtn?.addEventListener('click', async () => {
 
 
 
-// Game contract overrides
-const gameHazardInput = document.getElementById('game-hazard');
-const gameShellInput = document.getElementById('game-shell');
-const gameDakchogInput = document.getElementById('game-dakchog');
-const gamesSaveBtn = document.getElementById('games-save');
-const gamesMsgEl = document.getElementById('games-msg');
-
-function loadGameOverrides(){
-  try { if (gameHazardInput) gameHazardInput.value = localStorage.getItem('contract.hazard') || ''; } catch {}
-  try { if (gameShellInput) gameShellInput.value = localStorage.getItem('contract.shell') || ''; } catch {}
-  try { if (gameDakchogInput) gameDakchogInput.value = localStorage.getItem('contract.dakchog') || ''; } catch {}
-}
-
-function saveGameOverrides(){
-  try {
-    const hz = String(gameHazardInput?.value||'').trim();
-    const sh = String(gameShellInput?.value||'').trim();
-    const dk = String(gameDakchogInput?.value||'').trim();
-    if (hz) localStorage.setItem('contract.hazard', hz); else localStorage.removeItem('contract.hazard');
-    if (sh) localStorage.setItem('contract.shell', sh); else localStorage.removeItem('contract.shell');
-    if (dk) localStorage.setItem('contract.dakchog', dk); else localStorage.removeItem('contract.dakchog');
-    if (gamesMsgEl) gamesMsgEl.textContent = 'Saved per‑game submitter addresses.';
-  } catch (e) { if (gamesMsgEl) gamesMsgEl.textContent = 'Save failed: ' + (e?.message||'error'); }
-}
-
-try { if (gamesSaveBtn) gamesSaveBtn.onclick = () => { saveGameOverrides(); }; } catch {}
-loadGameOverrides();
+// Per-game submitter UI removed: pool approval covers all games
