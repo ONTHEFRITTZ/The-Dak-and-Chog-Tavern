@@ -10,8 +10,9 @@ const DEFAULT_ADDRESSES = {
   whitelist: "",
   // Per‑game submitter contracts (optional). If empty, UIs fall back to Tavern.
   hazard:  "0xF6eA1599452bb6F35B3220307996Dc891554D911",
-  shell:   "",
-  dakchog: "0xc668DCA267aB4fb6A7A1757F51B8CB965349ef5A",`n  pokerTable: "0xE922D24A624F0F2B947c529Aa7748fB2E989C156",
+  shell:   "0xc0f0927D50da717209300FBC2B4C115662d219D6",
+  dakchog: "0xc668DCA267aB4fb6A7A1757F51B8CB965349ef5A",
+  pokerTable: "0xE922D24A624F0F2B947c529Aa7748fB2E989C156",
 };
 
 // Address book keyed by chainId (as number or string) or "default"
@@ -27,7 +28,8 @@ export const ADDRESS_BOOK = {
     hazard:  "0xF6eA1599452bb6F35B3220307996Dc891554D911", // HazardRouter
     shell:   "0xbA7270d2fCa458760107AE2BB80C104bB207068A", // ShellRouter
     dakchog: "0xc668DCA267aB4fb6A7A1757F51B8CB965349ef5A", // DakChogRouter
-    pokerTable: "0xE922D24A624F0F2B947c529Aa7748fB2E989C156",`n  },
+    pokerTable: "0xE922D24A624F0F2B947c529Aa7748fB2E989C156",
+  },
   // 1: { shell: "0x...", hazard: "0x..." },
   // 11155111: { shell: "0x...", hazard: "0x..." },
 };
