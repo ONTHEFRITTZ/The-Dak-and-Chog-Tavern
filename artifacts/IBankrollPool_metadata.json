@@ -1,6 +1,6 @@
 {
 	"compiler": {
-		"version": "0.8.24+commit.e11b9ed9"
+		"version": "0.8.30+commit.73712a01"
 	},
 	"language": "Solidity",
 	"output": {
@@ -52,7 +52,7 @@
 		"compilationTarget": {
 			"Contracts/Shell.sol": "IBankrollPool"
 		},
-		"evmVersion": "shanghai",
+		"evmVersion": "prague",
 		"libraries": {},
 		"metadata": {
 			"bytecodeHash": "ipfs"
@@ -65,11 +65,11 @@
 	},
 	"sources": {
 		"Contracts/Shell.sol": {
-			"keccak256": "0x43c85bf3856e309cb657b8162e47848649f1fbc7d2b555c54bed6d6abe96d165",
+			"keccak256": "0x4930aa3039a548a3195d410470815942a5e2fcd158fc6f52a96790c06f06a20b",
 			"license": "MIT",
 			"urls": [
-				"bzz-raw://5bea61e9f246ba585c245e2e9c91e55c810ad09b449e55454e865178a16f4fc2",
-				"dweb:/ipfs/QmbxtFtcVxf63GnB4yHvqgbUsMyFoyorbeV2jUvZR5h1CJ"
+				"bzz-raw://0538f7fe0751250afdec202dbbc3062357edb07c7b3287d6d9eb4c05cf9a706d",
+				"dweb:/ipfs/QmUC2gpshVEKajNoRMSaCYDUS7vzov5iLR2Zed1EzPLR5y"
 			]
 		}
 	},

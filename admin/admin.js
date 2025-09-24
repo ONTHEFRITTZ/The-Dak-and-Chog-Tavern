@@ -103,7 +103,7 @@ async function refresh() {
     faroAddr = await getAddressFor('faro', provider);
     poolAddr = await getAddressFor('pool', provider);
     whitelistAddr = await getAddressFor('whitelist', provider);
-    try { pokerPooledAddr = localStorage.getItem('contract.pokerTable') || ''; } catch { pokerPooledAddr = ''; }
+    try { pokerPooledAddr = await getAddressFor('pokerTable', provider); } catch { try { pokerPooledAddr = localStorage.getItem('contract.pokerTable') || ''; } catch { pokerPooledAddr = ''; } }
     tavAddrEl.textContent = tavernAddr || '-';
     faroAddrEl.textContent = faroAddr || '-';
     if (poolAddrEl) poolAddrEl.textContent = poolAddr || '-';
