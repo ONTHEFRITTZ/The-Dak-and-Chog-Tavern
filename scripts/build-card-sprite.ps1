@@ -10,7 +10,10 @@ $rankNames = @('ace','two','three','four','five','six','seven','eight','nine','t
 $rankCodes = @('A','2','3','4','5','6','7','8','9','T','J','Q','K')
 $suitNames = @('spades','hearts','diamonds','clubs') # rows S,H,D,C
 $suitCodes = @('S','H','D','C')
+<<<<<<< HEAD
 # Build map: code -> file
+=======
+>>>>>>> a19ec4c (Add final 14x4 deck spritesheet (PNG, 3.2MB) and reproducible build script)
 $files = Get-ChildItem -Recurse -File $SourceDir | Where-Object { $_.Name -like 'chog-*-of-*.png' }
 $map = @{}
 foreach ($f in $files) {
@@ -24,6 +27,7 @@ foreach ($f in $files) {
     }
   }
 }
+<<<<<<< HEAD
 # Validate full deck
 $missing = @()
 for($si=0;$si -lt $suitCodes.Count;$si++){
@@ -41,6 +45,11 @@ $tileW = $firstBmp.Width; $tileH = $firstBmp.Height
 $firstBmp.Dispose()
 $cols = $rankCodes.Count; $rows = $suitCodes.Count
 $sheetW = $cols * $tileW; $sheetH = $rows * $tileH
+=======
+$tileW = 144; $tileH = 208
+$cols = 14; $rows = $suitCodes.Count
+$sheetW = [int]($cols * $tileW); $sheetH = [int]($rows * $tileH)
+>>>>>>> a19ec4c (Add final 14x4 deck spritesheet (PNG, 3.2MB) and reproducible build script)
 $sheet = New-Object System.Drawing.Bitmap($sheetW, $sheetH, [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
 $gfx = [System.Drawing.Graphics]::FromImage($sheet)
 $gfx.Clear([System.Drawing.Color]::Transparent)
@@ -48,6 +57,7 @@ $gfx.CompositingQuality = 'HighQuality'
 $gfx.InterpolationMode = 'HighQualityBicubic'
 $gfx.SmoothingMode = 'HighQuality'
 for($si=0;$si -lt $rows;$si++){
+<<<<<<< HEAD
   for($ci=0;$ci -lt $cols;$ci++){
     $code = $rankCodes[$ci] + $suitCodes[$si]
     if ($map.ContainsKey($code)) {
@@ -57,6 +67,26 @@ for($si=0;$si -lt $rows;$si++){
       $bmp.Dispose()
     }
   }
+=======
+  for($ci=0;$ci -lt ($cols-1);$ci++){
+    $code = $rankCodes[$ci] + $suitCodes[$si]
+    if ($map.ContainsKey($code)) {
+      $src = New-Object System.Drawing.Bitmap($map[$code])
+      $x = [int]($ci * $tileW); $y = [int]($si * $tileH)
+      $dest = New-Object System.Drawing.Rectangle($x, $y, [int]$tileW, [int]$tileH)
+      $gfx.DrawImage($src, $dest)
+      $src.Dispose()
+    }
+  }
+  $backPath = Join-Path $SourceDir 'dak-and-chog-cardback.png'
+  if (Test-Path $backPath) {
+    $src = New-Object System.Drawing.Bitmap($backPath)
+    $x = [int](($cols-1) * $tileW); $y = [int]($si * $tileH)
+    $dest = New-Object System.Drawing.Rectangle($x, $y, [int]$tileW, [int]$tileH)
+    $gfx.DrawImage($src, $dest)
+    $src.Dispose()
+  }
+>>>>>>> a19ec4c (Add final 14x4 deck spritesheet (PNG, 3.2MB) and reproducible build script)
 }
 $gfx.Dispose()
 $outPath = Join-Path $OutDir $OutFile

@@ -1,4 +1,4 @@
-const statusEl = document.getElementById('status');
+﻿const statusEl = document.getElementById('status');
 const seatEls = Array.from(document.querySelectorAll('.seat'));
 const connectBtn = document.getElementById('connect-wallet');
 const devBotBtn = document.getElementById('toggle-dev-bot');
@@ -7,7 +7,7 @@ const walletAddrSpan = document.getElementById('wi-address');
 let devBotOn = false;
 
 // Optional card spritesheet support (auto-detect)
-const __sprite = { ready:false, url:null, iw:0, ih:0, cols:13, rows:4 };
+const __sprite = { ready:true, url:'/assets/images/cards/cards-sprite.png', iw: 2016, ih: 832, cols:14, rows:4, tw:144, th:208 };
 function cardCodeToIndex(code){
   try {
     const r = String(code||'').toUpperCase();
@@ -21,22 +21,7 @@ function cardCodeToIndex(code){
     return { c: ci, r: ri };
   } catch { return { c:0, r:0 }; }
 }
-function tryLoadCardSprite(){
-  if (__sprite.ready || __sprite.url) return;
-  const candidates = [
-    '/assets/images/cards/cards-sprite.webp',
-    '/assets/images/cards/cards-sprite.avif',
-    '/assets/images/cards/cards-sprite.png'
-  ];
-  (async()=>{
-    for (const href of candidates){
-      try {
-        const img = new Image();
-        img.decoding = 'async';
-        await new Promise((resolve,reject)=>{ img.onload=resolve; img.onerror=reject; img.src = href + '?v=' + (window.__ASSET_TAG||Date.now()); });
-        __sprite.url = href; __sprite.iw = img.naturalWidth||img.width||0; __sprite.ih = img.naturalHeight||img.height||0; __sprite.ready = (__sprite.iw>0 && __sprite.ih>0);
-        if (__sprite.ready) {
-          try { const link = document.createElement('link'); link.rel='preload'; link.as='image'; link.href=href; document.head.appendChild(link); } catch {}
+function tryLoadCardSprite(){ /* sprite baked in */ }
           break;
         }
       } catch {}
@@ -239,56 +224,28 @@ function holeRanksKey(cards2){
 function makeCardImg(code, opts){
   opts = opts||{};
   const hole=!!opts.hole, flip = opts.flip!==false, win = !!opts.win;
-  if (__sprite.ready && code && code !== 'BACK'){
-    const el = document.createElement('div');
-    el.setAttribute('role','img');
-    el.className='card' + (hole?' card--hole':'') + (flip?' card--flip':'') + (win?' card--win':'');
-    try { el.style.backgroundImage = 'url("' + __sprite.url + '")'; el.style.backgroundRepeat='no-repeat'; } catch {}
-    try { el.style.backgroundSize = __sprite.iw + 'px ' + __sprite.ih + 'px'; } catch {}
-    try {
-      const pos = cardCodeToIndex(code);
-      const tileW = (__sprite.iw / __sprite.cols);
-      const tileH = (__sprite.ih / __sprite.rows);
-      const x = Math.round(pos.c * tileW);
-      const y = Math.round(pos.r * tileH);
-      el.style.backgroundPosition = (-x) + 'px ' + (-y) + 'px';
-    } catch {}
-    if (flip) requestAnimationFrame(function(){ el.classList.add('card--show'); });
-    return el;
-  } else {
-    const img=document.createElement('img');
-    img.alt=String(code||'');
-    try { img.loading = 'eager'; } catch {}
-    try { img.fetchPriority = 'high'; } catch {}
-    try { img.decoding = 'async'; } catch {}
-    img.src = (code==='BACK')? cardBackSrc() : cardSrc(code);
-    img.className='card' + (hole?' card--hole':'') + (flip?' card--flip':'') + (win?' card--win':'');
-    if (flip) requestAnimationFrame(function(){ img.classList.add('card--show'); });
-    return img;
-  }
-}
-
-// Preload full deck once to eliminate racey image loading during heads-up play
-let __deckPreloaded = false;
-function preloadDeckImages(){
-  if (__deckPreloaded) return; __deckPreloaded = true;
-  try {
+  const el = document.createElement('div');
+  el.setAttribute('role','img');
+  el.className='card' + (hole?' card--hole':'') + (flip?' card--flip':'') + (win?' card--win':'');
+  el.style.backgroundImage = 'url(' + __sprite.url + ')';
+  el.style.backgroundRepeat='no-repeat';
+  el.style.backgroundSize = __sprite.iw + 'px ' + __sprite.ih + 'px';
+  const r = String(code||'').toUpperCase();
+  let col = 13; let row = 0; // BACK default
+  if (r !== 'BACK') {
     const ranks = ['A','2','3','4','5','6','7','8','9','T','J','Q','K'];
     const suits = ['S','H','D','C'];
-    const codes = [];
-    for (let s of suits) for (let r of ranks) codes.push(r + s);
-    codes.push('BACK');
-    const head = document.head || document.getElementsByTagName('head')[0];
-    for (const c of codes) {
-      try {
-        const href = (c==='BACK') ? cardBackSrc() : cardSrc(c);
-        // Link-preload for browsers that prioritize head hints
-        try {
-          const link = document.createElement('link');
-          link.rel = 'preload'; link.as = 'image'; link.href = href;
-          head && head.appendChild(link);
-        } catch {}
-        // Image object to warm the cache regardless of head parsing timing
+    const c = ranks.indexOf(r[0]);
+    const s = suits.indexOf(r[1]);
+    if (c>=0 && s>=0) { col = c; row = s; }
+  }
+  const x = Math.round(col * __sprite.tw);
+  const y = Math.round(row * __sprite.th);
+  el.style.backgroundPosition = (-x) + 'px ' + (-y) + 'px';
+  if (flip) requestAnimationFrame(function(){ el.classList.add('card--show'); });
+  return el;
+}
+}\n        // Image object to warm the cache regardless of head parsing timing
         const im = new Image();
         try { im.decoding = 'async'; } catch {}
         im.src = href;
@@ -328,7 +285,7 @@ function renderTable(t){
     const label = document.createElement('div'); label.className='addr'; label.textContent = 'Seat ' + idx; el.appendChild(label);
     const info = document.createElement('div'); info.className='addr';
     if (s) {
-      info.textContent = short(s.addr||s.id) + (typeof s.chips==='number' ? ' � ' + s.chips + 'c' : ''); el.appendChild(info);
+      info.textContent = short(s.addr||s.id) + (typeof s.chips==='number' ? ' ï¿½ ' + s.chips + 'c' : ''); el.appendChild(info);
       const addrLower = String(s.addr||'').toLowerCase();
       if (myAddr && addrLower===String(myAddr).toLowerCase()){
         const btns = document.createElement('div'); btns.className='btns';
@@ -496,7 +453,7 @@ async function connect(){
                     const seven = (Array.isArray(exp&&exp.cards)?exp.cards:[]).concat(comm);
                     if (typeof bestHandName === 'function') name = bestHandName(seven);
                   } catch {}
-                  return (amt>0?('+'.concat(String(amt))):String(amt)) + ' — ' + sh + (name?(' — ' + name):'');
+                  return (amt>0?('+'.concat(String(amt))):String(amt)) + ' â€” ' + sh + (name?(' â€” ' + name):'');
                 });
                 centerEl.innerHTML = 'Winner' + (winners.length>1?'s':'') + ':<br>' + lines.join('<br>');
                 centerEl.style.display = '';
@@ -585,7 +542,7 @@ async function connect(){
           btnWrap.appendChild(mk('Call '+need, function(){ socket.emit('poker:act', { action:'call' }); }));
           btnWrap.appendChild(mk('Raise +'+minRaise+'+', function(){ const v = Math.max(minRaise, Number(amountInput && amountInput.value || 0) | 0); socket.emit('poker:act', { action:'raise', amount: v }); }));
         }
-        if (infoText) infoText.textContent = 'To call: ' + need + ' � MinRaise: ' + minRaise + ' � Stack: ' + Number(me && me.stack || 0);
+        if (infoText) infoText.textContent = 'To call: ' + need + ' ï¿½ MinRaise: ' + minRaise + ' ï¿½ Stack: ' + Number(me && me.stack || 0);
       }
     }
   } catch(e){}
@@ -652,7 +609,7 @@ async function connect(){
             const exp = expArr.find(x=>String(x.addr||'').toLowerCase()===a.toLowerCase());
             const seven = (Array.isArray(exp&&exp.cards)?exp.cards:[]).concat(comm);
             const name = bestHandName(seven);
-            return (amt>0?('+'.concat(String(amt))):String(amt)) + ' — ' + sh + ' — ' + name;
+            return (amt>0?('+'.concat(String(amt))):String(amt)) + ' â€” ' + sh + ' â€” ' + name;
           });
           centerEl.innerHTML = 'Winner' + (winners.length>1?'s':'') + ':<br>' + lines.join('<br>');
           centerEl.style.display = '';
@@ -708,7 +665,6 @@ async function ensureWallet(promptIfNeeded) {
 }
 
 connect();
-try { preloadDeckImages(); } catch {}
 try { tryLoadCardSprite(); } catch {}
 // If Tavern already connected, pick it up without re-prompting
 try {
@@ -772,6 +728,7 @@ try {
     if (++tries > 10) { try { clearInterval(t); } catch{} }
   }, 800);
 } catch {}
+
 
 
 
