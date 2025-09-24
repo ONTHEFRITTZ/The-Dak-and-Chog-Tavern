@@ -1,6 +1,6 @@
 {
 	"compiler": {
-		"version": "0.8.30+commit.73712a01"
+		"version": "0.8.24+commit.e11b9ed9"
 	},
 	"language": "Solidity",
 	"output": {
@@ -50,9 +50,9 @@
 	},
 	"settings": {
 		"compilationTarget": {
-			"Contracts/Faro.sol": "IBankrollPool"
+			"Contracts/Shell.sol": "IBankrollPool"
 		},
-		"evmVersion": "prague",
+		"evmVersion": "shanghai",
 		"libraries": {},
 		"metadata": {
 			"bytecodeHash": "ipfs"
@@ -64,12 +64,12 @@
 		"remappings": []
 	},
 	"sources": {
-		"Contracts/Faro.sol": {
-			"keccak256": "0x6c121e3cd79d3c84cd4c9239130ae2ad448cab1ca4426702f48deca99429acf0",
+		"Contracts/Shell.sol": {
+			"keccak256": "0x43c85bf3856e309cb657b8162e47848649f1fbc7d2b555c54bed6d6abe96d165",
 			"license": "MIT",
 			"urls": [
-				"bzz-raw://1c7681a4f21aee04bf8b54485c667c8341156fdb3e41c9ea1458788149074962",
-				"dweb:/ipfs/QmUVvPPxZXxs7YHGAvNc8jzCKvmkamZRjGp5FPRR681PS5"
+				"bzz-raw://5bea61e9f246ba585c245e2e9c91e55c810ad09b449e55454e865178a16f4fc2",
+				"dweb:/ipfs/QmbxtFtcVxf63GnB4yHvqgbUsMyFoyorbeV2jUvZR5h1CJ"
 			]
 		}
 	},

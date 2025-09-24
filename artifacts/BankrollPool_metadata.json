@@ -292,11 +292,11 @@
 	},
 	"sources": {
 		"Contracts/BankrollPool.sol": {
-			"keccak256": "0x19fadd5c86b87f42ada62986a55e8cd9c1940fbbed45f8c49948bdd85a44c66d",
+			"keccak256": "0xe660349d854a0a63e056511f0ece760557b62eba6b20b961cbee513799db2c13",
 			"license": "MIT",
 			"urls": [
-				"bzz-raw://2cb11d0335e0bd62f52ae21d971ae6f5d76d52138dc9f651bd5a1673772b5efc",
-				"dweb:/ipfs/QmPk4JmbcpfCFND9sr6rXr6UCM2J6o6jQgf4PgTGXjF5iG"
+				"bzz-raw://cc9fcdfb70582bb6d86f55646a668c628ceb0c2b67333cbfe1c867e76c0222f7",
+				"dweb:/ipfs/QmTQybrqcPFdqf8sZBSSsNehiPzFwEQFi3TXvDiSmoQBeD"
 			]
 		}
 	},
