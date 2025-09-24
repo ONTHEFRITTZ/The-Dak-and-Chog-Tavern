@@ -5,13 +5,13 @@
 // Base defaults (used when no chain-specific mapping exists)
 const DEFAULT_ADDRESSES = {
   tavern: "0x2C2bD86a776B89EF8CBFA3888BaE43DF8427fF40",
-  faro:   "0x934305e0F4b92eb318aBe0A8f701510d3BdF1d8f",
-  pool:   "",
+  faro:   "0xd6214180671d4A18BC56568A75cF774dEC249F46",
+  pool:   "0xa80646Ab9d469E62ECc7Fe6b6B1d4De1fd64a845",
   whitelist: "",
   // Per‑game submitter contracts (optional). If empty, UIs fall back to Tavern.
-  hazard:  "",
+  hazard:  "0xF6eA1599452bb6F35B3220307996Dc891554D911",
   shell:   "",
-  dakchog: "",
+  dakchog: "0xc668DCA267aB4fb6A7A1757F51B8CB965349ef5A",
 };
 
 // Address book keyed by chainId (as number or string) or "default"
@@ -21,12 +21,12 @@ export const ADDRESS_BOOK = {
   10143: { // Monad Testnet
     // Use the deployed V4 Faro address consistently across environments
     tavern: "0xc91A9A1FC428a3fd6EB6030242c23A352810Ddb9",
-    faro:   "0xA020F34b536ED7341bFD9F01BD73d3F569B84Fd4",
-    pool:   "0x78F62d85244621493b5c3961bBaD4069Ab979C86",
+    faro:   "0xd6214180671d4A18BC56568A75cF774dEC249F46",
+    pool:   "0xa80646Ab9d469E62ECc7Fe6b6B1d4De1fd64a845",
     whitelist: "0xB5e34B3C6c66aE92FC2999413eeb0D7d51122eA3",
-    hazard:  "0xE0368d4e5bE42f46B991e7e075EA601Ee25aD69F", // HazardRouter
+    hazard:  "0xF6eA1599452bb6F35B3220307996Dc891554D911", // HazardRouter
     shell:   "0xbA7270d2fCa458760107AE2BB80C104bB207068A", // ShellRouter
-    dakchog: "0x8BA35Eca0fe68787b275C6ed065675829843Adf5", // DakChogRouter
+    dakchog: "0xc668DCA267aB4fb6A7A1757F51B8CB965349ef5A", // DakChogRouter
     // shell/hazard can fall back to defaults unless specified later
   },
   // 1: { shell: "0x...", hazard: "0x..." },
