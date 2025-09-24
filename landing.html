@@ -98,14 +98,13 @@
         } catch {}
         try {
           try {
-            if (window.tavernConnectWallet) {
-              await window.tavernConnectWallet(key);
-            } else {
-              // Fallback dynamic import if module wasn’t ready
-              const tag = (window.__BUILD_TAG ? String(window.__BUILD_TAG) : String(Date.now()));
-              const mod = await import(`./js/tavern.js?v=${encodeURIComponent(tag)}`);
-              await mod.connectWallet(key);
-            }
+            // Trigger wallet prompt immediately within this click handler
+            var injected = (key==='metamask') ? (window.ethereum) : (window.phantom && window.phantom.ethereum);
+            if (!injected || !injected.request) { throw new Error('Wallet extension not detected'); }
+            await injected.request({ method:'eth_requestAccounts' });
+            // Proceed with full connect flow (signature + network)
+            if (window.tavernConnectWallet) { await window.tavernConnectWallet(key); }
+            else { const tag = (window.__BUILD_TAG ? String(window.__BUILD_TAG) : String(Date.now())); const mod = await import(`./js/tavern.js?v=${encodeURIComponent(tag)}`); await mod.connectWallet(key); }
             if (sessionStorage.getItem('walletSigned') === 'true') {
               window.location.href = 'index.html';
             } else {

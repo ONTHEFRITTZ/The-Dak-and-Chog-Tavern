@@ -229,7 +229,6 @@ function setConnectButtonAsConnect() {
 
 // Connect Wallet
 export async function connectWallet(explicitProviderKey) {
-  await ensureConfig();
   const injected = resolveInjectedEvmProvider(explicitProviderKey);
   if (!injected) return alert('No EVM wallet detected (MetaMask or Phantom).');
 
@@ -277,6 +276,8 @@ export async function connectWallet(explicitProviderKey) {
       provider = undefined; signer = undefined; userAddress = undefined;
       throw e;
     }
+    // Load config now that wallet interaction is complete (won't break user gesture)
+    try { await ensureConfig(); } catch {}
     // Ensure Monad Testnet is selected AFTER signature so MetaMask doesn't stall the initial login UX
     try { const ok = await ensureMonadNetwork(provider); if (!ok) { try { showToast && showToast('Please switch to Monad Testnet', 'error'); } catch {} } } catch {}
     try { window.userAddress = userAddress; window.dispatchEvent(new CustomEvent('wallet:connected', { detail: { address: userAddress } })); } catch {}
@@ -289,6 +290,7 @@ export async function connectWallet(explicitProviderKey) {
 
     // Update banner with resolved network and unified contract address
     try {
+      await ensureConfig();
       const chainId = await detectChainId(provider);
       const tavernAddress = await getAddressFor('tavern', provider);
       renderTavernBanner({ contractKey: 'tavern', address: tavernAddress, chainId, wallet: userAddress, labelOverride: 'Address' });
@@ -432,6 +434,7 @@ async function bootConnect() {
   } else {
     // Already connected: render banner and listen for chain changes
     try {
+      await ensureConfig();
       const chainId = await detectChainId(provider);
       const tavernAddress = await getAddressFor('tavern', provider);
       renderTavernBanner({ contractKey: 'tavern', address: tavernAddress, chainId, wallet: userAddress, labelOverride: 'Address' });
