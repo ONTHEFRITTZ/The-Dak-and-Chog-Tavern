@@ -1,6 +1,7 @@
 // Dak & Chog coin flip (frontend scaffolding styled like other games)
 import { renderTavernBanner, detectChainId, getAddressFor } from '../../js/config.js';
 import '../../js/TavernABI.js';
+import '../../js/DakChogABI.js';
 
 const RULES_VERSION = 'v2';
 const statusEl = document.getElementById('dc-status');
@@ -27,10 +28,14 @@ try {
   if (statusEl) mo.observe(statusEl, { childList: true, characterData: true, subtree: true });
 } catch {}
 
-let provider, signer, wallet, tavern;
+let provider, signer, wallet, coinContract;
 let unifiedAddr = null;  // unified Tavern address (emits CoinPlayed)
 let unifiedLower = null; // lowercase for log filtering
 let sendAddr = null; // resolved contract used for sends (DakChogRouter preferred)
+let dakchogAddr = null; // dedicated DakChog contract when deployed
+let eventSourceAddr = null; // emits CoinPlayed events (dedicated or Tavern)
+let eventSourceLower = null;
+let activeCoinAbi = null;
 let choice = 'dak';
 // No rules gating
 
@@ -85,23 +90,28 @@ function setCoin(side) {
 }
 
 async function resolveDakChogContract() {
-  // Prefer per-game router; fall back to unified Tavern. Ensure we target a CONTRACT (has bytecode).
   const ethers = window.ethers;
   try {
     const router = await getAddressFor('dakchog', provider);
     const unified = await getAddressFor('tavern', provider);
     let target = router || unified || null;
-    // If router provided, verify it is a contract; otherwise fall back to unified
     if (router) {
       try { const code = await provider.getCode(router); if (!code || code === '0x') target = unified || null; } catch { target = unified || null; }
     }
-    // Verify final target is a contract
     if (target) {
       const code = await provider.getCode(target).catch(()=> '0x');
-      if (!code || code === '0x') { return { addr: null, label: null }; }
-      return { addr: target, label: (target?.toLowerCase() === router?.toLowerCase()) ? 'DakChog' : 'Tavern' };
+      if (!code || code === '0x') { dakchogAddr = null; eventSourceAddr = null; eventSourceLower = null; activeCoinAbi = window.TavernABI || null; return { addr: null, label: null }; }
+      dakchogAddr = router && target && router.toLowerCase() === target.toLowerCase() ? router : null;
+      eventSourceAddr = target;
+      eventSourceLower = String(target || '').toLowerCase();
+      activeCoinAbi = dakchogAddr && window.DakChogABI ? window.DakChogABI : window.TavernABI;
+      return { addr: target, label: dakchogAddr ? 'DakChog' : 'Tavern' };
     }
   } catch {}
+  dakchogAddr = null;
+  eventSourceAddr = null;
+  eventSourceLower = null;
+  activeCoinAbi = window.TavernABI || null;
   return { addr: null, label: null };
 }
 
@@ -120,11 +130,12 @@ async function ensureWallet() {
       unifiedAddr = await getAddressFor('tavern', provider);
       unifiedLower = String(unifiedAddr||'').toLowerCase();
       const labelOverride = resolved.label || 'Tavern';
-      renderTavernBanner({ contractKey: 'tavern', address: sendAddr || unifiedAddr || '', chainId, wallet, labelOverride });
-      if (sendAddr && window.TavernABI) {
-        tavern = new ethers.Contract(sendAddr, window.TavernABI, signer);
+      const bannerKey = dakchogAddr ? 'dakchog' : 'tavern';
+      renderTavernBanner({ contractKey: bannerKey, address: sendAddr || unifiedAddr || '', chainId, wallet, labelOverride });
+      if (sendAddr && (activeCoinAbi || window.TavernABI)) {
+        coinContract = new ethers.Contract(sendAddr, activeCoinAbi || window.TavernABI, signer);
       } else {
-        tavern = null;
+        coinContract = null;
       }
     } catch {}
   } catch {}
@@ -134,7 +145,7 @@ flipBtn.addEventListener('click', async () => {
   const ethers = window.ethers;
   const bet = Number(betInput.value || 0);
   if (!provider || !signer || !wallet) { statusEl.textContent = 'Connect wallet first.'; return; }
-  if (!tavern || !window.TavernABI) { statusEl.textContent = 'Tavern/DakChog contract not configured for this network.'; return; }
+  if (!coinContract || !(activeCoinAbi || window.TavernABI)) { statusEl.textContent = 'DakChog contract not configured for this network.'; return; }
   if (!(bet > 0)) { statusEl.textContent = 'Enter a valid bet amount.'; return; }
 
   // Animate coin continuously while tx is pending
@@ -146,30 +157,40 @@ flipBtn.addEventListener('click', async () => {
 
     // Max bet guard (if contract exposes it)
     try {
-      const maxBet = await tavern.maxBet().catch(()=>null);
+      const maxBet = await coinContract.maxBet().catch(()=>null);
       if (maxBet && maxBet.toString() !== '0') {
-        if (betWei.gt(maxBet)) { statusEl.textContent = 'Bet exceeds maxBet for the Tavern.'; return; }
+        if (betWei.gt(maxBet)) { statusEl.textContent = 'Bet exceeds maxBet for this game.'; return; }
       }
     } catch {}
     // Bankroll must cover net outflow. If a pool is configured, require 2x wager there; else require at least the wager at the Tavern.
     try {
       let ok = false;
-      const addr = await getAddressFor('tavern', provider);
-      const tav = new ethers.Contract(addr, window.TavernABI, provider);
-      let poolAddr = undefined; try { poolAddr = await tav.pool(); } catch {}
+      let poolAddr;
+      if (coinContract && coinContract.pool) {
+        try { poolAddr = await coinContract.pool(); } catch {}
+      }
       if (poolAddr && poolAddr !== ethers.constants.AddressZero && window.PoolABI) {
-        try { const pool = new ethers.Contract(poolAddr, window.PoolABI, provider); const bal = await pool.balance(); if (bal.gte(betWei.mul(2))) ok = true; } catch {}
+        try {
+          const pool = new ethers.Contract(poolAddr, window.PoolABI, provider);
+          const bal = await pool.balance();
+          if (bal.gte(betWei.mul(2))) ok = true;
+        } catch {}
       } else {
-        const bank = await provider.getBalance(addr); if (bank && bank.gte(betWei)) ok = true;
+        const balanceAddr = sendAddr || await getAddressFor('tavern', provider);
+        if (balanceAddr) {
+          const bank = await provider.getBalance(balanceAddr);
+          if (bank && bank.gte(betWei)) ok = true;
+        }
       }
       if (!ok) { statusEl.textContent = 'Bankroll too low for this bet. Try a smaller amount.'; return; }
+    } catch {}
     } catch {}
 
     // Static call to surface revert reasons; ensure target is a contract
     try {
       const code = await provider.getCode(sendAddr).catch(()=> '0x');
       if (!code || code === '0x') { statusEl.textContent = 'Configured address is not a contract.'; return; }
-      await tavern.callStatic.playCoin(betOnChog, { value: betWei });
+      await coinContract.callStatic.playCoin(betOnChog, { value: betWei });
     }
     catch (pre) {
       const msg = pre?.error?.message || pre?.data?.message || pre?.reason || pre?.message || 'Reverted';
@@ -180,7 +201,7 @@ flipBtn.addEventListener('click', async () => {
     }
 
     statusEl.textContent = 'Submitting transaction…';
-    const tx = await tavern.playCoin(betOnChog, { value: betWei, gasLimit: 120000 });
+    const tx = await coinContract.playCoin(betOnChog, { value: betWei, gasLimit: 120000 });
     statusEl.textContent = `Tx sent: ${tx.hash.slice(0,10)}… waiting confirmation…`;
     const rc = await tx.wait();
     // Parse CoinPlayed event if present (direct decode)
@@ -192,10 +213,10 @@ flipBtn.addEventListener('click', async () => {
     // Fallback: parse receipt logs from unified Tavern address
     if (resultChog === null) {
       try {
-        const iface = new ethers.utils.Interface(window.TavernABI || []);
+        const iface = new ethers.utils.Interface(activeCoinAbi || window.TavernABI || []);
         const routerLower = String(sendAddr||'').toLowerCase();
         for (const log of (rc && rc.logs) || []){
-          if (unifiedLower && String(log.address||'').toLowerCase() !== unifiedLower) continue;
+          if (eventSourceLower && String(log.address||'').toLowerCase() !== eventSourceLower) continue;
           try {
             const parsed = iface.parseLog(log);
             if (parsed && parsed.name === 'CoinPlayed'){

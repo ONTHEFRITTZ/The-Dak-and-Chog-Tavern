@@ -30,4 +30,44 @@ export async function walletSendCalls({ provider, from, chainId, calls }) {
   }
 }
 
-try { window.Bundler = { detectBundler, walletSendCalls }; } catch {}
+try { window.Bundler = { detectBundler, walletSendCalls, extractTxHash, waitForTransactionReceipt }; } catch {}
+
+export function extractTxHash(result) {
+  if (!result) return null;
+  if (typeof result === 'string' && result.startsWith('0x') && result.length >= 66) return result;
+  if (Array.isArray(result)) {
+    for (const item of result) {
+      const hash = extractTxHash(item);
+      if (hash) return hash;
+    }
+    return null;
+  }
+  if (typeof result === 'object') {
+    if (typeof result.hash === 'string' && result.hash.startsWith('0x')) return result.hash;
+    if (typeof result.txHash === 'string' && result.txHash.startsWith('0x')) return result.txHash;
+    if (typeof result.transactionHash === 'string' && result.transactionHash.startsWith('0x')) return result.transactionHash;
+    if (result.result != null) return extractTxHash(result.result);
+  }
+  return null;
+}
+
+function unwrapProvider(providerLike) {
+  if (!providerLike) return undefined;
+  if (providerLike.provider) return providerLike.provider;
+  return providerLike;
+}
+
+export async function waitForTransactionReceipt(providerLike, hash, timeoutMs = 120000, confirmations = 1) {
+  if (!hash) return null;
+  const provider = unwrapProvider(providerLike) || unwrapProvider(resolveInjected());
+  if (!provider || typeof provider.waitForTransaction !== 'function') {
+    if (!provider || typeof provider.getTransactionReceipt !== 'function') return null;
+    try { return await provider.getTransactionReceipt(hash); } catch { return null; }
+  }
+  try {
+    const receipt = await provider.waitForTransaction(hash, confirmations, timeoutMs);
+    return receipt || null;
+  } catch (err) {
+    try { return await provider.getTransactionReceipt(hash); } catch { return null; }
+  }
+}
