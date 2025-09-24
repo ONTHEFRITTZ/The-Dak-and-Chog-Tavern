@@ -8,7 +8,7 @@ const DEFAULT_ADDRESSES = {
   faro:   "0xd6214180671d4A18BC56568A75cF774dEC249F46",
   pool:   "0xa80646Ab9d469E62ECc7Fe6b6B1d4De1fd64a845",
   whitelist: "",
-  // Per‑game submitter contracts (optional). If empty, UIs fall back to Tavern.
+  // Optional per-game overrides; fallback to Tavern when empty
   hazard:  "0xF6eA1599452bb6F35B3220307996Dc891554D911",
   shell:   "0xc0f0927D50da717209300FBC2B4C115662d219D6",
   dakchog: "0xc668DCA267aB4fb6A7A1757F51B8CB965349ef5A",
@@ -20,20 +20,18 @@ const DEFAULT_ADDRESSES = {
 export const ADDRESS_BOOK = {
   default: { ...DEFAULT_ADDRESSES },
   10143: { // Monad Testnet
-    // Use the deployed V4 Faro address consistently across environments
     tavern: "0xc91A9A1FC428a3fd6EB6030242c23A352810Ddb9",
     faro:   "0xd6214180671d4A18BC56568A75cF774dEC249F46",
     pool:   "0xa80646Ab9d469E62ECc7Fe6b6B1d4De1fd64a845",
     whitelist: "0xB5e34B3C6c66aE92FC2999413eeb0D7d51122eA3",
-    hazard:  "0xF6eA1599452bb6F35B3220307996Dc891554D911", // HazardRouter
-    shell:   "0xbA7270d2fCa458760107AE2BB80C104bB207068A", // ShellRouter
-    dakchog: "0xc668DCA267aB4fb6A7A1757F51B8CB965349ef5A", // DakChogRouter
+    hazard:  "0xF6eA1599452bb6F35B3220307996Dc891554D911",
+    shell:   "0xc0f0927D50da717209300FBC2B4C115662d219D6",
+    dakchog: "0xc668DCA267aB4fb6A7A1757F51B8CB965349ef5A",
     pokerTable: "0xE922D24A624F0F2B947c529Aa7748fB2E989C156",
   },
   // 1: { shell: "0x...", hazard: "0x..." },
   // 11155111: { shell: "0x...", hazard: "0x..." },
 };
-
 export const TAVERN_ADDRESS = DEFAULT_ADDRESSES.tavern;
 
 export const CONTRACTS = { ...DEFAULT_ADDRESSES };

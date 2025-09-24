@@ -68,6 +68,9 @@ const ppSetAddrBtn = document.getElementById('pokerpooled-set-addr');
 const ppMsgEl = document.getElementById('pokerpooled-msg');
 
 let provider, signer, wallet;
+try {
+  ['contract.hazard','contract.shell','contract.dakchog'].forEach(k => localStorage.removeItem(k));
+} catch {}
 let walletEventsRegistered = false;
 let topButtonsBound = false;
 let tavernAddr = null, faroAddr = null, poolAddr = null;
