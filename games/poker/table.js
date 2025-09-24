@@ -6,8 +6,8 @@ const disconnectBtn = document.getElementById('wi-disconnect') || document.getEl
 const walletAddrSpan = document.getElementById('wi-address');
 let devBotOn = false;
 
-// Optional card spritesheet support (auto-detect)
-const __sprite = { ready:true, url:'/assets/images/cards/cards-sprite.png', iw: 2016, ih: 832, cols:14, rows:4, tw:144, th:208 };
+// Final card spritesheet support (auto-detect WebP/AVIF/PNG)
+const __sprite = { ready:false, url:null, iw:2016, ih:832, cols:14, rows:4, tw:144, th:208 };
 function cardCodeToIndex(code){
   try {
     const r = String(code||'').toUpperCase();
@@ -21,7 +21,22 @@ function cardCodeToIndex(code){
     return { c: ci, r: ri };
   } catch { return { c:0, r:0 }; }
 }
-function tryLoadCardSprite(){ /* sprite baked in */ }
+function tryLoadCardSprite(){
+  if (__sprite.ready || __sprite.url) return;
+  const base = '/assets/images/cards/cards-sprite';
+  const candidates = [base + '.webp', base + '.avif', base + '.png'];
+  (async()=>{
+    for (const href of candidates){
+      try {
+        const img = new Image();
+        img.decoding = 'async';
+        await new Promise((resolve,reject)=>{ img.onload=resolve; img.onerror=reject; img.src = href + '?v=' + (window.__ASSET_TAG||Date.now()); });
+        __sprite.url = href; __sprite.ready = true; break;
+      } catch {}
+    }
+    if (!__sprite.ready) { __sprite.url = base + '.png'; __sprite.ready = true; }
+  })();
+}
           break;
         }
       } catch {}
@@ -227,7 +242,7 @@ function makeCardImg(code, opts){
   const el = document.createElement('div');
   el.setAttribute('role','img');
   el.className='card' + (hole?' card--hole':'') + (flip?' card--flip':'') + (win?' card--win':'');
-  el.style.backgroundImage = 'url(' + __sprite.url + ')';
+  el.style.backgroundImage = 'url(' + (__sprite.url || '/assets/images/cards/cards-sprite.png') + ')';
   el.style.backgroundRepeat='no-repeat';
   el.style.backgroundSize = __sprite.iw + 'px ' + __sprite.ih + 'px';
   const r = String(code||'').toUpperCase();

@@ -7,14 +7,7 @@ import { provider as walletProvider, signer as walletSigner } from '../../js/tav
 let tavernAddress; // contract used for sends (Hazard router preferred)
 let unifiedAddr;   // unified Tavern address (emits HazardPlayed)
 let unifiedLower;  // lowercase of unified Tavern address for log filtering
-const diceImages = [
-  '../../assets/images/dice/standard/dice1.png',
-  '../../assets/images/dice/standard/dice2.png',
-  '../../assets/images/dice/standard/dice3.png',
-  '../../assets/images/dice/standard/dice4.png',
-  '../../assets/images/dice/standard/dice5.png',
-  '../../assets/images/dice/standard/dice6.png'
-];
+const diceSprite = (function(){\n  const base='../../assets/images/dice/standard/dice-sprite';\n  const candidates=[base+'.webp', base+'.avif', base+'.png', base+'.png.png'];\n  for (const u of candidates){ try { return u; } catch {} }\n  return base + '.png';\n})();
 
 let provider, signer, contract;
 let inFlight = false;          // prevent overlapping plays
@@ -49,8 +42,7 @@ try {
   if (savedMain) selectedMain = Number(savedMain);
 } catch {}
 // Dice init: show a default face via image src
-try { if (dice1El && !dice1El.getAttribute('src')) dice1El.src = diceImages[0]; } catch {}
-try { if (dice2El && !dice2El.getAttribute('src')) dice2El.src = diceImages[0]; } catch {}
+try { if (dice1El) { dice1El.style.backgroundImage = 'url(' + diceSprite + ')'; } } catch {}\ntry { if (dice2El) { dice2El.style.backgroundImage = 'url(' + diceSprite + ')'; } } catch {}
 betInput.addEventListener('input', () => {
   try { localStorage.setItem('hazard.bet', betInput.value || ''); } catch {}
 });
@@ -67,7 +59,7 @@ function splitSumToDice(sum) {
 }
 
 // Display dice (use images if present, else Unicode dice or numbers)
-function setDiceFaces(d1, d2, opts){
+function setDiceFaces(d1, d2, opts){\n  opts = opts || {};\n  if (diceLock && !opts.force) return;\n  try { if (dice1El) { dice1El.style.backgroundImage = 'url(' + diceSprite + ')'; } } catch {}\n  try { if (dice2El) { dice2El.style.backgroundImage = 'url(' + diceSprite + ')'; } } catch {}\n  // sprite layout: 6 columns x 1 row, 140x140 tiles\n  const tw = 140, th = 140;\n  const col1 = Math.max(1,Math.min(6,Number(d1))) - 1;\n  const col2 = Math.max(1,Math.min(6,Number(d2))) - 1;\n  try { dice1El.style.backgroundPosition = (-col1*tw) + 'px 0px'; } catch {}\n  try { dice2El.style.backgroundPosition = (-col2*tw) + 'px 0px'; } catch {}\n}{
   opts = opts || {};
   if (diceLock && !opts.force) return;
   const imgPathsExist = !!diceImages[0];
@@ -508,4 +500,5 @@ try {
 
   returnBtn?.addEventListener('click', () => { window.location.href = '/index.html'; });
 });
+
 
