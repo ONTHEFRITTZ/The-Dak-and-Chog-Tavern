@@ -27,12 +27,7 @@ const betInput = document.getElementById('bet');
 const returnBtn = document.getElementById('return');
 const rollsList = document.getElementById('rolls');
 const mainButtons = document.querySelectorAll('.main-select button');
-const rulesOverlay = document.getElementById('rules-overlay');
-const rulesAck = document.getElementById('rules-ack');
-const openRulesBtn = document.getElementById('open-rules');
-let hazardAck = true; // rules gate removed
-const RULES_VERSION = 'v2';
-// rules ack key no longer used
+// Rules ACK removed across site
 
 // Persist and restore basic UI state (bet + main)
 try {

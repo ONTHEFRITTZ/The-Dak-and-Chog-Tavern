@@ -9,10 +9,7 @@ const statusEl = document.getElementById('shell-result') || document.getElementB
 const playsEl = document.getElementById('plays');
 const returnBtn = document.getElementById('return');
 const betInput = document.getElementById('bet');
-const rulesOverlay = document.getElementById('rules-overlay');
-const rulesAck = document.getElementById('rules-ack');
-const openRulesBtn = document.getElementById('open-rules');
-let shellAck = true; // rules gate removed
+// Rules ACK removed across site
 
 function setShellInteractivity(enabled) {
   try {
@@ -134,10 +131,4 @@ try {
 } catch {}
 
 // Show rules modal at load and block interactions until ack (per load)
-const onReady = (fn) => { if (document.readyState === 'loading') { window.addEventListener('DOMContentLoaded', fn, { once: true }); } else { fn(); } };
-onReady(() => {
-  shellAck = true;
-  try { if (rulesOverlay) rulesOverlay.style.display = 'none'; } catch {}
-  // Disable Rules button if present
-  try { if (openRulesBtn) openRulesBtn.style.display = 'none'; } catch {}
-});
+// No rules overlay or gating

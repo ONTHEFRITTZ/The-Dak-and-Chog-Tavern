@@ -111,7 +111,7 @@
   </head>
 
   <script>(function(){try{var ok=sessionStorage.getItem('walletConnected')==='true';if(!ok) location.replace('/landing.html');}catch(e){location.replace('/landing.html');}})();</script>
-  <div id="rules-overlay" style="position:fixed; inset:0; background:rgba(0,0,0,0.6); display:none; align-items:center; justify-content:center; z-index:20000;">
+  <div id="removed-overlay" style="position:fixed; inset:0; background:rgba(0,0,0,0.6); display:none; align-items:center; justify-content:center; z-index:20000;">
     <div style="background: var(--panel-bg-soft); border:1px solid rgba(255,255,255,0.12); border-radius:14px; padding:22px; width:min(92vw, 820px); max-height:90vh; overflow:auto; text-align:left; color:#f4e6d3; box-shadow:0 24px 60px rgba(0,0,0,0.55);">
       <h2 style="margin-top:0;">Hazard Rules</h2>
       <ul>
@@ -123,7 +123,7 @@
         <li>Otherwise, the total becomes the chance; roll until chance or main resolves.</li>
         <li>Payout on win attempts to pay 2x wager (requires bankroll).</li>
       </ul>
-      <button id="rules-ack" style="margin-top:8px;">I have read and understand</button>
+      <button id="removed-ack" style="margin-top:8px;">I have read and understand</button>
     </div>
   </div>
   <div class="top-banner" role="region" aria-label="Wallet and status">
@@ -141,9 +141,7 @@
     <span id="wi-address">-</span>
     <button id="wi-disconnect" style="display:none;">Disconnect</button>
   </div>
-  <div class="game-header">
-    <button id="open-rules" class="rules-btn">Rules</button>
-  </div>
+  <!-- Removed per-page Rules button/header -->
   <div class="tavern" style="max-width:1280px; width:95%; margin:6px auto 24px; position:relative;">
     <h1 class="visually-hidden">Hazard</h1>
     <div class="hazard-layout">

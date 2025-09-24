@@ -9,9 +9,7 @@ const betInput = document.getElementById('bet');
 const flipBtn = document.getElementById('flip');
 const chooseDak = document.getElementById('choose-dak');
 const chooseChog = document.getElementById('choose-chog');
-const rulesOverlay = document.getElementById('rules-overlay');
-const rulesAck = document.getElementById('rules-ack');
-const openRulesBtn = document.getElementById('open-rules');
+// Rules ACK removed across site
 const returnBtn = document.getElementById('return');
 
 // Normalize any mojibake in status messages (e.g., bad ellipses/dashes)
@@ -34,7 +32,7 @@ let unifiedAddr = null;  // unified Tavern address (emits CoinPlayed)
 let unifiedLower = null; // lowercase for log filtering
 let sendAddr = null; // resolved contract used for sends (DakChogRouter preferred)
 let choice = 'dak';
-let rulesOK = true; // rules gate removed
+// No rules gating
 
 const IMG_DAK = '../../assets/images/coin-dak.png';
 const IMG_CHOG = '../../assets/images/coin-chog.png';
@@ -71,7 +69,7 @@ function stopCoinAnim(finalSide) {
   if (finalSide === 'dak' || finalSide === 'chog') setCoin(finalSide);
 }
 
-function rulesFresh(key) { try { const t = Number(localStorage.getItem(key) || 0); return Date.now() - t < 86400000; } catch { return false; } }
+// Rules ACK helpers removed
 
 function setChoice(side) {
   choice = side === 'chog' ? 'chog' : 'dak';
@@ -133,7 +131,6 @@ async function ensureWallet() {
 }
 
 flipBtn.addEventListener('click', async () => {
-  if (!rulesOK) { try { rulesOverlay.style.display = 'flex'; } catch {}; return; }
   const ethers = window.ethers;
   const bet = Number(betInput.value || 0);
   if (!provider || !signer || !wallet) { statusEl.textContent = 'Connect wallet first.'; return; }

@@ -7,11 +7,7 @@ const statusEl = document.getElementById('status');
 // Inline wallet elements (match Poker UI)
 const disconnectBtn = document.getElementById('wi-disconnect') || document.getElementById('disconnect-wallet');
 const walletAddrSpan = document.getElementById('wi-address');
-const rulesOverlay = document.getElementById('rules-overlay');
-const rulesAck = document.getElementById('rules-ack');
-const openRulesBtn = document.getElementById('open-rules');
-let faroAck = true; // rules gate removed
-const RULES_VERSION = 'v2';
+// Rules ACK removed across site
 const logEl = document.getElementById('log');
 const tableInput = document.getElementById('table-id');
 const joinBtn = document.getElementById('join-table');
@@ -208,13 +204,7 @@ async function ensureIdentity() {
   return false;
 }
 
-// Match ACK behavior used by other games (e.g., Hazard)
-const onReady = (fn) => { if (document.readyState === 'loading') { window.addEventListener('DOMContentLoaded', fn, { once: true }); } else { fn(); } };
-onReady(() => {
-  faroAck = true;
-  try { if (rulesOverlay) rulesOverlay.style.display = 'none'; } catch {}
-  try { if (openRulesBtn) openRulesBtn.style.display = 'none'; } catch {}
-});
+// Rules ACK removed: no overlay or gating
 
 // Lobby rendering is disabled on the game page
 function renderLobby() { try { lobbyPanel.style.display = 'none'; } catch {} }

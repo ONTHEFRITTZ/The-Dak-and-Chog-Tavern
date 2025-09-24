@@ -107,8 +107,7 @@
     <button id="wi-disconnect" style="display:none;">Disconnect</button>
   </div>
   <script>(function(){try{var ok=sessionStorage.getItem('walletConnected')==='true';if(!ok) location.replace('/landing.html');}catch(e){location.replace('/landing.html');}})();</script>
-  <!-- Rules overlay (24h gating, versioned) -->
-  <div id="rules-overlay" style="position:fixed; inset:0; background:rgba(0,0,0,0.6); display:none; align-items:center; justify-content:center; z-index:20000;">
+  <div id="removed-overlay" style="position:fixed; inset:0; background:rgba(0,0,0,0.6); display:none; align-items:center; justify-content:center; z-index:20000;">
     <div style="background: var(--panel-bg-soft); border:1px solid rgba(255,255,255,0.12); border-radius:14px; padding:22px; width:min(92vw, 820px); max-height:90vh; overflow:auto; text-align:left; color:#f4e6d3; box-shadow:0 24px 60px rgba(0,0,0,0.55);">
       <h2 style="margin-top:0;">Dak & Chog Rules</h2>
       <ul>
@@ -118,13 +117,13 @@
         <li>If your choice matches the result, you win 2x wager (bankroll permitting).</li>
         <li>Otherwise you lose your wager. Gas fees apply to each play.</li>
       </ul>
-      <button id="rules-ack" style="margin-top:8px;">I have read and understand</button>
+      <button id="removed-ack" style="margin-top:8px;">I have read and understand</button>
     </div>
   </div>
 
   
   <div class="game-header">
-    <button id="open-rules" class="rules-btn">Rules</button>
+    <!-- Removed per-page Rules button -->
   </div>
   <div class="tavern" style="position:relative; width:min(92vw, 660px); margin:0 auto;">
     <h1 class="visually-hidden">Dak &amp; Chog</h1>
