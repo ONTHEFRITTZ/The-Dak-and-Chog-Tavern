@@ -1,5 +1,5 @@
 // shell.js
-// Uses the unified Tavern contract ABI (window.TavernABI)
+// Uses Shell pooled contract if provided; falls back to Tavern
 import { getAddressFor, detectChainId, renderTavernBanner, showToast } from '../../js/config.js';
 import { attachProvider } from '../../js/contract-utils.js';
 import { provider as walletProvider, signer as walletSigner } from '../../js/tavern.js';
@@ -20,7 +20,20 @@ function setShellInteractivity(enabled) {
 let provider;
 let signer;
 let userAddress;
-let tavernAddress;
+let tavernAddress; // send target (shell or tavern)
+let sendAbi;       // ABI chosen per target
+
+async function ensureShellAbi() {
+  if (window.ShellABI) return true;
+  const candidates = ['/js/ShellABI.js','../../js/ShellABI.js'];
+  for (const src of candidates) {
+    try {
+      await new Promise((resolve)=>{ const s=document.createElement('script'); s.src=src; s.onload=()=>resolve(true); s.onerror=()=>resolve(false); document.head.appendChild(s); });
+      if (window.ShellABI) return true;
+    } catch {}
+  }
+  return !!window.ShellABI;
+}
 
 async function init() {
   // Prefer the site-selected wallet (MetaMask or Phantom EVM) from tavern.js
@@ -29,8 +42,12 @@ async function init() {
   if (!provider || !signer) { alert('No EVM wallet detected. Connect on the landing page.'); return; }
   try { attachProvider(provider); } catch {}
   userAddress = await signer.getAddress();
-  // Prefer dedicated Shell submitter contract; fall back to Tavern
-  tavernAddress = await getAddressFor('shell', provider) || await getAddressFor('tavern', provider);
+  // Prefer dedicated Shell contract; fall back to Tavern
+  const shellAddr = await getAddressFor('shell', provider);
+  const tavAddr   = await getAddressFor('tavern', provider);
+  tavernAddress = shellAddr || tavAddr;
+  if (shellAddr) { await ensureShellAbi(); sendAbi = window.ShellABI || window.TavernABI; }
+  else { sendAbi = window.TavernABI; }
   try {
     const chainId = await detectChainId(provider);
     const unifiedAddress = await getAddressFor('tavern', provider);
@@ -49,7 +66,7 @@ shellElements.forEach((shell) => {
       let betAmount = parseFloat(betInput.value);
       if (isNaN(betAmount) || betAmount < 0.001) betAmount = 0.001;
 
-      const contract = new ethers.Contract(tavernAddress, window.TavernABI, signer);
+      const contract = new ethers.Contract(tavernAddress, sendAbi, signer);
 
       statusEl.innerText = 'Playing...';
       try { showToast('Playing…', 'info'); } catch {}
@@ -62,7 +79,7 @@ shellElements.forEach((shell) => {
       const receipt = await tx.wait();
 
       // Parse the Played event from the receipt
-      const iface = new ethers.utils.Interface(window.TavernABI);
+      const iface = new ethers.utils.Interface(sendAbi || window.TavernABI || []);
       let playedEvent;
       for (const log of receipt.logs) {
         try {
