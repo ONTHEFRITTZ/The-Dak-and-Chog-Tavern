@@ -70,7 +70,7 @@ const ppMsgEl = document.getElementById('pokerpooled-msg');
 let provider, signer, wallet;
 try {
   ['contract.hazard','contract.shell','contract.dakchog'].forEach(k => localStorage.removeItem(k));
-} catch {}
+} catch (e) {}
 let walletEventsRegistered = false;
 let topButtonsBound = false;
 let tavernAddr = null, faroAddr = null, poolAddr = null;
@@ -119,8 +119,8 @@ async function refresh() {
     if (ppOverrideInput) ppOverrideInput.placeholder = pokerPooledAddr || '';
     renderTavernBanner({ contractKey: 'tavern', address: tavernAddr, chainId, wallet });
     
-      try { const wb = document.getElementById('wallet-banner'); if (wb) wb.remove(); } catch {}
-      try { const nb = document.getElementById('nb-disconnect'); if (nb) nb.remove(); } catch {}
+      try { const wb = document.getElementById('wallet-banner'); if (wb) wb.remove(); } catch (e) {}
+      try { const nb = document.getElementById('nb-disconnect'); if (nb) nb.remove(); } catch (e) {}
 
     if (tavernAddr && window.TavernABI && signer) {
       tavern = new window.ethers.Contract(tavernAddr, window.TavernABI, signer);
@@ -135,7 +135,7 @@ async function refresh() {
         if (tavOwnerMatchEl) {
           const match = isTavOwnerNow();
           tavOwnerMatchEl.textContent = match ? 'Yes' : 'No';
-          try { tavOwnerMatchEl.style.color = match ? '#006400' : '#8b0000'; } catch {}
+          try { tavOwnerMatchEl.style.color = match ? '#006400' : '#8b0000'; } catch (e) {}
     }
     // Bind PokerTablePool if available
     try {
@@ -143,7 +143,7 @@ async function refresh() {
         pokerPooled = new window.ethers.Contract(pokerPooledAddr, window.PokerTablePoolABI, signer);
       } else { pokerPooled = null; }
     } catch { pokerPooled = null; }
-  } catch {}
+  } catch (e) {}
 }
     if (faroAddr && window.FaroABI && signer) {
       faro = new window.ethers.Contract(faroAddr, window.FaroABI, signer);
@@ -156,14 +156,14 @@ async function refresh() {
         faroMaxBetInput.placeholder = fmtEth(maxBet);
         const fee = await faro.feeBps();
         faroFeeInput.placeholder = String(fee);
-        try { const feesAcc = await faro.feesAccrued(); if (faroFeesEl) faroFeesEl.textContent = fmtEth(feesAcc) + ' MON'; } catch {}
+        try { const feesAcc = await faro.feesAccrued(); if (faroFeesEl) faroFeesEl.textContent = fmtEth(feesAcc) + ' MON'; } catch (e) {}
         try { const p = await faro.pool(); if (faroPoolEl) faroPoolEl.textContent = p; } catch { if (faroPoolEl) faroPoolEl.textContent = '(n/a)'; }
         if (faroOwnerMatchEl) {
           const match = isFaroOwnerNow();
           faroOwnerMatchEl.textContent = match ? 'Yes' : 'No';
-          try { faroOwnerMatchEl.style.color = match ? '#006400' : '#8b0000'; } catch {}
+          try { faroOwnerMatchEl.style.color = match ? '#006400' : '#8b0000'; } catch (e) {}
         }
-      } catch {}
+      } catch (e) {}
     }
 
     if (poolAddr && window.PoolABI && signer) {
@@ -173,8 +173,8 @@ async function refresh() {
         if (poolOwnerEl) poolOwnerEl.textContent = pOwner;
         const pBal = await pool.balance();
         if (poolBalEl) poolBalEl.textContent = fmtEth(pBal) + ' MON';
-        try { if (poolAmtInput) poolAmtInput.placeholder = fmtEth(pBal); } catch {}
-      } catch {}
+        try { if (poolAmtInput) poolAmtInput.placeholder = fmtEth(pBal); } catch (e) {}
+      } catch (e) {}
     }
 
     const isTavOwner = wallet && tavernOwner && wallet.toLowerCase() === tavernOwner.toLowerCase();
@@ -192,7 +192,7 @@ async function refresh() {
   [rtPauseBtn, rtResumeBtn, document.getElementById('rt-restart')].forEach(el => { if (el) el.classList.toggle('readonly', !isOwner); });
   // Always show realtime connection/health, even for non-owners
   ensureIo();
-  } catch {}
+  } catch (e) {}
 }
 
 // (MGID registration UI removed per request)
@@ -237,7 +237,7 @@ async function applyWalletFromAccounts(accounts, { refreshAfter = true } = {}) {
   try {
     provider = new window.ethers.providers.Web3Provider(window.ethereum, 'any');
     signer = provider.getSigner();
-    wallet = accounts[0];    try { if (poolToInput && !poolToInput.value) poolToInput.value = wallet; } catch {}
+    wallet = accounts[0];    try { if (poolToInput && !poolToInput.value) poolToInput.value = wallet; } catch (e) {}
     updateWalletButtons();
     if (refreshAfter) await refresh();
   } catch (err) {
@@ -319,7 +319,7 @@ wlSetAddrBtn?.addEventListener('click', async () => {
   try {
     const v = (wlOverrideInput?.value||'').trim();
     if (!v || v.length !== 42 || !v.startsWith('0x')) { wlMsgEl.textContent = 'Enter a valid address'; return; }
-    try { localStorage.setItem('contract.whitelist', v); } catch {}
+    try { localStorage.setItem('contract.whitelist', v); } catch (e) {}
     whitelistAddr = v; if (wlAddrEl) wlAddrEl.textContent = v;
     wlMsgEl.textContent = 'Whitelist address set (local override).';
   } catch { wlMsgEl.textContent = 'Failed to set override.'; }
@@ -381,15 +381,15 @@ async function refreshHealth() {
         buildEl.textContent = 'unavailable';
       }
     } catch {
-      try { if (buildEl) buildEl.textContent = 'unavailable'; } catch {}
+      try { if (buildEl) buildEl.textContent = 'unavailable'; } catch (e) {}
     }
 
     if (markerEl) markerEl.textContent = await fetchPlain('/assets/deploy_check.txt');
     if (whoEl) whoEl.textContent = await fetchPlain('/__whoami.txt');
-  } catch {}
+  } catch (e) {}
 }
 document.getElementById('health-refresh')?.addEventListener('click', refreshHealth);
-window.addEventListener('DOMContentLoaded', () => { try { refreshHealth(); } catch {} });
+window.addEventListener('DOMContentLoaded', () => { try { refreshHealth(); } catch (e) {} });
 
 // Set pool on Tavern (owner only)
 tavSetPoolBtn?.addEventListener('click', async () => {
@@ -428,7 +428,7 @@ function ensureIo() {
         const m = map[state] || map.disconnected;
         connEl.textContent = m.text;
         connEl.style.color = m.color;
-      } catch {}
+      } catch (e) {}
     }
     function setHealth(ok){
       try {
@@ -445,27 +445,27 @@ function ensureIo() {
           healthEl.textContent = `no reply (${ago}s)`;
           healthEl.style.color = '#8b0000';
         }
-      } catch {}
+      } catch (e) {}
     }
     ioSocket.on('connect', async () => {
       setConn('connected');
-      try { ioSocket.emit('identify', { addr: wallet }); } catch {}
+      try { ioSocket.emit('identify', { addr: wallet }); } catch (e) {}
       // Kick off periodic health pings
-      try { if (healthTimer) clearInterval(healthTimer); } catch {}
+      try { if (healthTimer) clearInterval(healthTimer); } catch (e) {}
       setHealth(false);
-      healthTimer = setInterval(() => { try { ioSocket.emit('health'); setHealth(false); } catch {} }, 15000);
+      healthTimer = setInterval(() => { try { ioSocket.emit('health'); setHealth(false); } catch (e) {} }, 15000);
     });
     ioSocket.on('reconnect_attempt', () => setConn('reconnecting'));
     ioSocket.on('reconnect', () => setConn('connected'));
     ioSocket.on('disconnect', () => setConn('disconnected'));
     ioSocket.on('connect_error', () => setConn('error'));
-    ioSocket.on('health', (m) => { try { lastHealthAt = Date.now(); setHealth(true); } catch {} });
+    ioSocket.on('health', (m) => { try { lastHealthAt = Date.now(); setHealth(true); } catch (e) {} });
     function updState(m){
       try {
         document.getElementById('rt-status').textContent = m?.paused ? 'paused' : 'running';
         if (typeof m?.rakeBps === 'number') document.getElementById('rt-rake').textContent = String(m.rakeBps);
         if (typeof m?.feesAccrued === 'number') document.getElementById('rt-fees').textContent = String(m.feesAccrued);
-      } catch{}
+      } catch (e) {}
     }
     ioSocket.on('rt:state', updState);
     ioSocket.on('rt:paused', updState);
@@ -488,23 +488,23 @@ function ensureIo() {
           });
           presenceListEl.textContent = rows.length ? rows.join('\n') : 'No users online';
         }
-      } catch {}
+      } catch (e) {}
     }
     ioSocket.on('admin:presence', (m)=>renderPresence(m));
-    setInterval(() => { try { ioSocket.emit('admin:presence:get'); } catch {} }, 5000);
-  } catch {}
+    setInterval(() => { try { ioSocket.emit('admin:presence:get'); } catch (e) {} }, 5000);
+  } catch (e) {}
 }
 
-document.getElementById('rt-pause')?.addEventListener('click', ()=>{ try { if (ioSocket) ioSocket.emit('admin:pause', { paused: true }); } catch {} });
-document.getElementById('rt-resume')?.addEventListener('click', ()=>{ try { if (ioSocket) ioSocket.emit('admin:pause', { paused: false }); } catch {} });
-document.getElementById('rt-rake-set')?.addEventListener('click', ()=>{ try { const bps = parseInt(String(document.getElementById('rt-rake-input').value||'').trim(),10); if (ioSocket && bps>=0 && bps<=1000) ioSocket.emit('admin:setRake', { bps }); } catch {} });
-document.getElementById('rt-fees-reset')?.addEventListener('click', ()=>{ try { if (ioSocket) ioSocket.emit('admin:resetFees'); } catch {} });
+document.getElementById('rt-pause')?.addEventListener('click', ()=>{ try { if (ioSocket) ioSocket.emit('admin:pause', { paused: true }); } catch (e) {} });
+document.getElementById('rt-resume')?.addEventListener('click', ()=>{ try { if (ioSocket) ioSocket.emit('admin:pause', { paused: false }); } catch (e) {} });
+document.getElementById('rt-rake-set')?.addEventListener('click', ()=>{ try { const bps = parseInt(String(document.getElementById('rt-rake-input').value||'').trim(),10); if (ioSocket && bps>=0 && bps<=1000) ioSocket.emit('admin:setRake', { bps }); } catch (e) {} });
+document.getElementById('rt-fees-reset')?.addEventListener('click', ()=>{ try { if (ioSocket) ioSocket.emit('admin:resetFees'); } catch (e) {} });
 document.getElementById('rt-restart')?.addEventListener('click', ()=>{
   try {
     if (!ioSocket) return;
     const ok = window.confirm('Restart backend now? Players may briefly disconnect.');
     if (ok) ioSocket.emit('admin:restart');
-  } catch {}
+  } catch (e) {}
 });
 
 // Actions - Tavern
@@ -592,17 +592,17 @@ tavSetAddrBtn?.addEventListener('click', async () => {
   try {
     const v = String(tavOverrideInput.value||'').trim();
     if (!v || !/^0x[0-9a-fA-F]{40}$/.test(v)) { statusEl.textContent = 'Enter a valid address'; return; }
-    try { localStorage.setItem('contract.tavern', v); } catch {}
+    try { localStorage.setItem('contract.tavern', v); } catch (e) {}
     await refresh();
-  } catch {}
+  } catch (e) {}
 });
 faroSetAddrBtn?.addEventListener('click', async () => {
   try {
     const v = String(faroOverrideInput.value||'').trim();
     if (!v || !/^0x[0-9a-fA-F]{40}$/.test(v)) { statusEl.textContent = 'Enter a valid address'; return; }
-    try { localStorage.setItem('contract.faro', v); } catch {}
+    try { localStorage.setItem('contract.faro', v); } catch (e) {}
     await refresh();
-  } catch {}
+  } catch (e) {}
 });
 
 // Pool address override
@@ -610,9 +610,9 @@ poolSetAddrBtn?.addEventListener('click', async () => {
   try {
     const v = String(poolOverrideInput.value||'').trim();
     if (!v || !/^0x[0-9a-fA-F]{40}$/.test(v)) { statusEl.textContent = 'Enter a valid address'; return; }
-    try { localStorage.setItem('contract.pool', v); } catch {}
+    try { localStorage.setItem('contract.pool', v); } catch (e) {}
     await refresh();
-  } catch {}
+  } catch (e) {}
 });
 
 // Pool actions
@@ -671,7 +671,7 @@ ppSetAddrBtn?.addEventListener('click', async () => {
   try {
     const v = String(ppOverrideInput?.value||'').trim();
     if (!/^0x[0-9a-fA-F]{40}$/.test(v)) { if (ppMsgEl) ppMsgEl.textContent='Enter a valid address'; return; }
-    try { localStorage.setItem('contract.pokerTable', v); } catch {}
+    try { localStorage.setItem('contract.pokerTable', v); } catch (e) {}
     if (ppAddrEl) ppAddrEl.textContent = v; if (ppMsgEl) ppMsgEl.textContent='Poker table address set.';
     await refresh();
   } catch (e) { if (ppMsgEl) ppMsgEl.textContent = e?.data?.message||e?.message||'Failed'; }
