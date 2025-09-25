@@ -41,7 +41,7 @@
             </div>
           </div>
         </div>
-        <div id="wc-status" style="margin-top:8px; font-size:12px;"></div>
+        <div id="wc-status" style="margin-top:8px; font-size:12px;"></div>\r\n        <div id="react-wallet-root"></div>
       </div>
     </section>
   </main>
@@ -88,46 +88,7 @@
           }
         } catch {}
       }
-      function pick(key){
-  try { status.textContent = "Connecting..."; } catch {}
-  try {
-    // Use EIP-6963 discovered providers when available; map to existing buttons
-    let providerOverride = null;
-    try {
-      const discovered = (window.__EIP6963 && window.__EIP6963.discovered) ? window.__EIP6963.discovered : [];
-      if (Array.isArray(discovered) && discovered.length) {
-        const lowered = String(key||'').toLowerCase();
-        if (lowered === 'metamask') {
-          const hit = discovered.find(d => String(d?.info?.name||'').toLowerCase().includes('metamask')) || discovered.find(d => d?.provider?.isMetaMask);
-          if (hit) providerOverride = hit.provider;
-        } else if (lowered === 'phantom') {
-          const hit = discovered.find(d => String(d?.info?.name||'').toLowerCase().includes('phantom'));
-          if (hit) providerOverride = hit.provider;
-        }
-      }
-      if (!providerOverride) {
-        if (key === 'metamask') {
-          const eth = window.ethereum; if (eth?.isMetaMask) providerOverride = eth; else if (Array.isArray(eth?.providers)) providerOverride = eth.providers.find(p=>p&&p.isMetaMask)||null; else providerOverride = eth||null;
-        } else if (key === 'phantom') {
-          providerOverride = (window.phantom && window.phantom.ethereum) || null;
-        }
-      }
-    } catch {}
-
-    const fn = window.tavernConnectWallet;
-    if (typeof fn !== 'function') { status.textContent = 'Loader not ready. Reload and try again.'; return; }
-    Promise.resolve(fn(key, providerOverride||undefined)).then(function(){
-      try {
-        if (sessionStorage.getItem('walletSigned') === 'true') {
-          const next = 'index.html?nav=' + encodeURIComponent(String(Date.now()));
-          window.location.replace(next);
-        } else {
-          status.textContent = 'Signature required to enter. Please try again.';
-        }
-      } catch(_) {}
-    }).catch(function(e){ try { status.textContent = (e && e.message) ? e.message : 'Failed to connect'; } catch(_){} });
-  } catch(e){ try { status.textContent = 'Failed to connect'; } catch {} }
-} else {
+       else {
                 status.textContent = 'Signature required to enter. Please try again.';
               }
             } catch(_) {}
@@ -136,8 +97,8 @@
       }
       
 if (btn) btn.addEventListener('click', showChooser);
-      if (mm) mm.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); pick('metamask'); });
-      if (ph) ph.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); pick('phantom'); });
+       e.stopPropagation(); pick('metamask'); });
+       e.stopPropagation(); pick('phantom'); });
       window.addEventListener('keydown', (e) => { if (e.key === 'Enter') { try { btn?.click(); } catch {} } });
       // No automatic prompts; user must click to pick a wallet
       // Defensive: remove any stray network banner if injected by cached scripts
@@ -146,6 +107,7 @@ if (btn) btn.addEventListener('click', showChooser);
   </script>
 </body>
 </html>
+
 
 
 
