@@ -186,6 +186,139 @@ function bestHandName(cards7){
   if (pairs>=1) return 'One Pair';
   return 'High Card';
 }
+// Poker hand evaluator (Texas Hold'em 7-card to best 5-card)
+// Returns strength vector and which hole/community cards are used
+function evalBestHand(hole2, board5){
+  try {
+    const codes = (Array.isArray(hole2)? hole2:[]).slice(0,2).concat((Array.isArray(board5)? board5:[]).slice(0,5));
+    const parsed = codes.map(codeToRankSuit);
+    if (parsed.some(x=>!x)) return null;
+    // Build rank counts and suit buckets with original indices
+    const byRank = new Map();
+    const bySuit = { s:[], h:[], d:[], c:[] };
+    parsed.forEach((c, idx) => {
+      const arr = byRank.get(c.r) || [];
+      arr.push(idx); byRank.set(c.r, arr);
+      bySuit[c.s].push(idx);
+    });
+    const ranksDesc = Array.from(byRank.keys()).sort((a,b)=>b-a);
+    const takeKickers = (excludeIdxs, n) => {
+      const set = new Set(excludeIdxs);
+      const res = [];
+      for (const r of ranksDesc){
+        for (const idx of (byRank.get(r)||[]).sort((a,b)=>a-b)){
+          if (set.has(idx)) continue; res.push([r, idx]); if (res.length>=n) return res; }
+      }
+      return res;
+    };
+    // Straight/straight-flush helpers
+    function findStraightIdxs(idxs){
+      // idxs: indices subset to consider; map to ranks with lowest duplicates kept
+      const items = Array.from(new Set(idxs.map(i => [parsed[i].r, i].toString()))).map(s => { const [r,i] = s.split(','); return { r: Number(r), i: Number(i) }; });
+      // handle wheel A-2-3-4-5
+      const withAceLow = items.slice();
+      items.forEach(it => { if (it.r === 14) withAceLow.push({ r:1, i: it.i }); });
+      const uniques = Array.from(new Map(withAceLow.map(it => [it.r+'_'+it.i, it])).values()).sort((a,b)=> b.r - a.r || a.i - b.i);
+      let run = [uniques[0]];
+      for (let k=1;k<uniques.length;k++){
+        if (uniques[k].r === uniques[k-1].r - 1) { run.push(uniques[k]); if (run.length>=5) break; }
+        else if (uniques[k].r !== uniques[k-1].r) { run = [uniques[k]]; }
+      }
+      if (run.length>=5){
+        // choose top 5; map rank 1 back to 14 when wheel
+        const five = run.slice(0,5).map(it => ({ r: it.r===1?14:it.r, i: it.i }));
+        return five;
+      }
+      return null;
+    }
+    // 1) Straight Flush
+    for (const s of ['s','h','d','c']){
+      if (bySuit[s].length>=5){
+        const st = findStraightIdxs(bySuit[s]);
+        if (st){
+          const used = st.map(x=>x.i);
+          const ranks = st.map(x=>x.r).sort((a,b)=>b-a);
+          return { cat:8, vec:[8].concat(ranks), usedHole: used.filter(i=>i<2), usedBoard: used.filter(i=>i>=2).map(i=>i-2) };
+        }
+      }
+    }
+    // 2) Four of a Kind
+    for (const r of ranksDesc){
+      const arr = byRank.get(r)||[];
+      if (arr.length===4){
+        const kick = takeKickers(arr,1)[0];
+        const used = arr.concat(kick? [kick[1]]:[]);
+        return { cat:7, vec:[7, r, (kick?kick[0]:0)], usedHole: used.filter(i=>i<2), usedBoard: used.filter(i=>i>=2).map(i=>i-2) };
+      }
+    }
+    // 3) Full House
+    const tripsRanks = ranksDesc.filter(r => (byRank.get(r)||[]).length===3);
+    const pairRanks = ranksDesc.filter(r => (byRank.get(r)||[]).length>=2 && tripsRanks.indexOf(r)===-1);
+    if (tripsRanks.length>=1 && (pairRanks.length>=1 || tripsRanks.length>=2)){
+      const tr = tripsRanks[0];
+      const pr = pairRanks.length? pairRanks[0] : tripsRanks[1];
+      const used = (byRank.get(tr)||[]).slice(0,3).concat((byRank.get(pr)||[]).slice(0,2));
+      return { cat:6, vec:[6, tr, pr], usedHole: used.filter(i=>i<2), usedBoard: used.filter(i=>i>=2).map(i=>i-2) };
+    }
+    // 4) Flush
+    for (const s of ['s','h','d','c']){
+      if (bySuit[s].length>=5){
+        const picks = bySuit[s]
+          .map(i => [parsed[i].r, i])
+          .sort((a,b)=> b[0]-a[0] || a[1]-b[1])
+          .slice(0,5);
+        const used = picks.map(p=>p[1]);
+        const ranks = picks.map(p=>p[0]);
+        return { cat:5, vec:[5].concat(ranks), usedHole: used.filter(i=>i<2), usedBoard: used.filter(i=>i>=2).map(i=>i-2) };
+      }
+    }
+    // 5) Straight
+    const stAll = findStraightIdxs(parsed.map((_,i)=>i));
+    if (stAll){
+      const used = stAll.map(x=>x.i);
+      const ranks = stAll.map(x=>x.r).sort((a,b)=>b-a);
+      return { cat:4, vec:[4].concat(ranks), usedHole: used.filter(i=>i<2), usedBoard: used.filter(i=>i>=2).map(i=>i-2) };
+    }
+    // 6) Three of a kind
+    if (tripsRanks.length>=1){
+      const tr = tripsRanks[0];
+      const used3 = (byRank.get(tr)||[]).slice(0,3);
+      const kick = takeKickers(used3,2);
+      const used = used3.concat(kick.map(x=>x[1]));
+      return { cat:3, vec:[3, tr].concat(kick.map(x=>x[0])), usedHole: used.filter(i=>i<2), usedBoard: used.filter(i=>i>=2).map(i=>i-2) };
+    }
+    // 7) Two Pair
+    const pairRs = ranksDesc.filter(r => (byRank.get(r)||[]).length===2);
+    if (pairRs.length>=2){
+      const p1 = pairRs[0], p2 = pairRs[1];
+      const used4 = (byRank.get(p1)||[]).slice(0,2).concat((byRank.get(p2)||[]).slice(0,2));
+      const kick = takeKickers(used4,1)[0];
+      const used = used4.concat(kick? [kick[1]]:[]);
+      return { cat:2, vec:[2, p1, p2, (kick?kick[0]:0)], usedHole: used.filter(i=>i<2), usedBoard: used.filter(i=>i>=2).map(i=>i-2) };
+    }
+    // 8) One Pair
+    if (pairRs.length>=1){
+      const p = pairRs[0];
+      const used2 = (byRank.get(p)||[]).slice(0,2);
+      const kick = takeKickers(used2,3);
+      const used = used2.concat(kick.map(x=>x[1]));
+      return { cat:1, vec:[1, p].concat(kick.map(x=>x[0])), usedHole: used.filter(i=>i<2), usedBoard: used.filter(i=>i>=2).map(i=>i-2) };
+    }
+    // 9) High card
+    const top5 = takeKickers([],5);
+    const used = top5.map(x=>x[1]);
+    return { cat:0, vec:[0].concat(top5.map(x=>x[0])), usedHole: used.filter(i=>i<2), usedBoard: used.filter(i=>i>=2).map(i=>i-2) };
+  } catch { return null; }
+}
+function compareHands(a, b){
+  const va = a && a.vec || []; const vb = b && b.vec || [];
+  const len = Math.max(va.length, vb.length);
+  for (let i=0;i<len;i++){
+    const ai = va[i]||0, bi = vb[i]||0;
+    if (ai!==bi) return ai>bi?1:-1;
+  }
+  return 0;
+}
 function shortAddr(a){ return (a && a.length>10) ? (a.slice(0,6)+'...'+a.slice(-4)) : (a||''); }
 
 // Winner-split sanity per site rule: split ONLY if all winners have identical hole card ranks
@@ -513,22 +646,45 @@ async function connect(){
     // Build exposures map and enforce site split rule
     let expArr = [];
     try { const arr = Array.isArray(m && m.exposures) ? m.exposures : []; exposures = {}; expArr = arr; arr.forEach(function(e){ const a = String((e && e.addr) || '').toLowerCase(); const cards = Array.isArray(e && e.cards) ? e.cards : []; if (a && cards.length===2) exposures[a] = cards; }); } catch(e){}
+    // Recompute winners locally to guard against server errors
     let filteredWinners = winnersRaw;
     try {
-      if (winnersRaw.length > 1) {
-        const keys = winnersRaw.map(function(w){ const a=String((w && w.addr)||'').toLowerCase(); const exp = expArr.find(x=>String(x.addr||'').toLowerCase()===a); return holeRanksKey(exp && exp.cards); }).filter(Boolean);
-        if (keys.length === winnersRaw.length) {
-          const allSame = keys.every(k => k === keys[0]);
-          if (!allSame) {
-            // Keep the top-amount winner from server payload for display/badges
-            let top = winnersRaw[0];
-            for (let i=1;i<winnersRaw.length;i++){ if (Number(winnersRaw[i].amount||0) > Number(top.amount||0)) top = winnersRaw[i]; }
-            filteredWinners = [ top ];
-          }
+      const comm = Array.isArray(m && m.community) ? m.community : [];
+      const evals = expArr.map(function(e){ const addr=String((e&&e.addr)||''); const hole=Array.isArray(e&&e.cards)? e.cards:[]; const ev = evalBestHand(hole, comm); return { addr, hole, ev }; }).filter(x=>x && x.addr && x.ev);
+      if (evals.length){
+        // Find best
+        let best = evals[0].ev; let bestAddrs=[evals[0].addr];
+        for (let i=1;i<evals.length;i++){
+          const cmp = compareHands(evals[i].ev, best);
+          if (cmp>0){ best = evals[i].ev; bestAddrs=[evals[i].addr]; }
+          else if (cmp===0){ bestAddrs.push(evals[i].addr); }
         }
+        // Build winners set
+        const set = new Set(bestAddrs.map(a=>String(a).toLowerCase()));
+        filteredWinners = winnersRaw.filter(w => set.has(String((w&&w.addr)||'').toLowerCase()));
+        if (!filteredWinners.length){
+          // Fabricate winners list with zero amounts if server payload was wrong
+          filteredWinners = bestAddrs.map(a => ({ addr:a, amount:0 }));
+        }
+        // Replace usedBoard highlight from our evaluation (union of winners)
+        try {
+          usedBoard = [];
+          evals.forEach(function(e){ if (set.has(String(e.addr).toLowerCase())){ (e.ev.usedBoard||[]).forEach(function(i){ if (usedBoard.indexOf(i)===-1) usedBoard.push(i); }); } });
+        } catch(_){ }
       }
     } catch(_){ filteredWinners = winnersRaw; }
-    try { winnersNow = {}; filteredWinners.forEach(function(w){ const a=String((w && w.addr) || '').toLowerCase(); const amt = Number((w && w.amount) || 0); const usedHole = Array.isArray(w && w.usedHole) ? w.usedHole : null; if (a) winnersNow[a] = { amount: amt, usedHole: usedHole }; }); } catch(e){}
+    try {
+      winnersNow = {};
+      const comm = Array.isArray(m && m.community) ? m.community : [];
+      filteredWinners.forEach(function(w){
+        const a=String((w && w.addr) || '').toLowerCase(); const amt = Number((w && w.amount) || 0);
+        const exp = expArr.find(x=>String(x.addr||'').toLowerCase()===a);
+        const hole = Array.isArray(exp && exp.cards) ? exp.cards : [];
+        const ev = evalBestHand(hole, comm);
+        const usedHole = ev ? ev.usedHole : (Array.isArray(w && w.usedHole) ? w.usedHole : null);
+        if (a) winnersNow[a] = { amount: amt, usedHole: usedHole };
+      });
+    } catch(e){}
     if (lastTable) renderTable(lastTable);
     // Freeze visuals until player clicks Ready
     try { holdShowdown = true; } catch(_){ }
@@ -671,7 +827,6 @@ try {
     if (++tries > 10) { try { clearInterval(t); } catch{} }
   }, 800);
 } catch {}
-
 
 
 
