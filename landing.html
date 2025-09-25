@@ -91,7 +91,34 @@
   try { status.textContent = 'Connecting...'; } catch {}
   try {
     var fn = window.tavernConnectWallet;
-    if (typeof fn !== 'function') { status.textContent = 'Loader not ready. Reload and try again.'; return; }
+    if (typeof fn !== 'function') {
+  try {
+    // Fallback: perform connection + signature directly using the selected provider
+    var injected = (key==='phantom') ? (window.phantom&&window.phantom.ethereum) : (function(){ var eth=window.ethereum; if(!eth) return null; if(eth.isMetaMask) return eth; if(Array.isArray(eth.providers)) return eth.providers.find(function(p){return p&&p.isMetaMask;})||null; return eth; })();
+    if (!injected || !injected.request) { status.textContent = 'Wallet not detected.'; return; }
+    injected.request({ method:'eth_requestAccounts' }).then(function(acc){
+      try {
+        if (!Array.isArray(acc) || !acc.length) { status.textContent='No account'; return; }
+        var ethers = window.ethers; if (!ethers || !ethers.providers) { status.textContent='Wallet libs not ready.'; return; }
+        var provider = new ethers.providers.Web3Provider(injected, 'any');
+        var signer = provider.getSigner();
+        signer.getAddress().then(async function(addr){
+          try {
+            var ts=Date.now();
+            var nonce=(Math.random().toString(36).slice(2)+Math.random().toString(36).slice(2)).slice(0,24);
+            var msg=`Dak & Chog Tavern\n\nSign-In: ${nonce}\nTime: ${new Date(ts).toISOString()}\nAddress: ${addr}\nWallet: ${key}`;
+            var sig = await signer.signMessage(msg);
+            var rec = ethers.utils.verifyMessage(msg, sig);
+            if (!rec || String(rec).toLowerCase() !== String(addr).toLowerCase()) { status.textContent='Signature verification failed'; return; }
+            try { sessionStorage.setItem('walletSigned','true'); sessionStorage.setItem('walletProvider', String(key)); sessionStorage.setItem('walletSig', sig); sessionStorage.setItem('walletMsg', msg); } catch{}
+            var next='index.html?nav='+encodeURIComponent(String(Date.now())); window.location.replace(next);
+          } catch(e){ status.textContent = (e&&e.message)? e.message : 'Signature required to enter'; }
+        }).catch(function(){ status.textContent='Failed to read address'; });
+      } catch(_) { status.textContent='Connect failed'; }
+    }).catch(function(){ status.textContent='Login canceled. Please try again.'; });
+  } catch(_) { status.textContent='Loader not ready. Reload and try again.'; }
+  return;
+}
     // Do not await imports or other async work before requesting accounts; keep click context
     Promise.resolve(fn(key)).then(function(){
       try {
@@ -116,6 +143,7 @@
   </script>
 </body>
 </html>
+
 
 
 
