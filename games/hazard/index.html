@@ -4,9 +4,31 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Hazard - Dak & Chog Tavern</title>
-  <!-- Ensure CSS comes before JS to avoid FOUC -->
-  <link rel="stylesheet" href="../../css/style.css">
+  <!-- Strong no-cache hints (best-effort on static hosting) -->
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <script>(function(){try{var signed=sessionStorage.getItem('walletSigned')==='true'; if(!signed){ location.replace('/landing.html'); return;} var pref=(sessionStorage.getItem('walletProvider')||'').toLowerCase(); var injected=(pref==='phantom')? (window.phantom&&window.phantom.ethereum) : (pref==='metamask'? window.ethereum : (window.__walletProvider||window.ethereum||(window.phantom&&window.phantom.ethereum))); if(!injected||!injected.request){ location.replace('/landing.html'); return;} injected.request({method:'eth_accounts'}).then(function(a){ if(!(Array.isArray(a)&&a.length)) location.replace('/landing.html'); }).catch(function(){ location.replace('/landing.html'); }); }catch(e){ location.replace('/landing.html'); }})();</script>
+  <!-- Opt-out/reload on bfcache restores across browsers -->
+  <script>(function(){try{
+    window.addEventListener('unload', function(){}); // disables bfcache in many browsers
+    window.addEventListener('pageshow', function(e){ if (e && e.persisted) { location.reload(); } });
+    var nav = (performance && performance.getEntriesByType) ? performance.getEntriesByType('navigation') : null;
+    if (nav && nav[0] && nav[0].type === 'back_forward') { location.reload(); }
+  }catch(e){}})();</script>
+  <!-- Load CSS with build tag to bust cache on updates -->
+  <script>
+    (async()=>{
+      try{
+        const b = await fetch('/assets/build.json', { cache:'no-store' }).then(r=>r.ok?r.json():null).catch(()=>null);
+        const tag = (b && b.commit) ? String(b.commit).slice(0,12) : Date.now();
+        window.__BUILD_TAG = tag;
+        const css = document.createElement('link'); css.rel='stylesheet'; css.href = `../../css/style.css?v=${encodeURIComponent(tag)}`; document.head.appendChild(css);
+      }catch(e){ console.error('hazard css loader failed', e); }
+    })();
+  </script>
   <script src="../../js/TavernABI.js"></script>
+  <script src="../../js/HazardABI.js"></script>
   <script src="../../js/PoolABI.js"></script>
 
   <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
@@ -20,27 +42,32 @@
   <script type="module" src="../../js/tavern.js"></script>
   <script type="module" src="../../js/state.js"></script>
 
-  <style>
-    /* Stack logo above container; avoid side-by-side with body flex */
+        <style>
     body.game { display:flex; flex-direction:column; align-items:center; justify-content:flex-start; }
-    .dice-row { display:flex; justify-content:center; gap:16px; margin:18px 0; }
-    .dice {
-      width:clamp(84px, 12vw, 140px); height:clamp(84px, 12vw, 140px);
-      display:flex; align-items:center; justify-content:center;
-      font-size:clamp(36px, 6vw, 56px); border-radius:12px; background: rgba(255,255,255,0.06);
-      box-shadow: inset 0 2px 0 rgba(255,255,255,0.03);
+    body {
+      background: url('../../assets/images/hazard-bg.webp') no-repeat center center fixed !important;
+      background-size: cover !important;
     }
-    .dice.shake { animation: shake 0.6s ease; }
-    @keyframes shake {
-      0% { transform: rotate(0deg); }
-      25% { transform: rotate(-18deg); }
-      50% { transform: rotate(18deg); }
-      75% { transform: rotate(-8deg); }
-      100% { transform: rotate(0deg); }
+    .top-banner .banner-left { gap: 12px; }
+    .game-header { width:95%; max-width:1280px; margin:0 auto 8px; display:flex; align-items:center; justify-content:space-between; gap:12px; }
+    .game-logo { display:block; width:auto; height:auto; max-width: clamp(180px, 26vw, 320px); margin:16px 0 6px 12px; filter: drop-shadow(0 0 18px rgba(255,244,233,0.45)) drop-shadow(0 4px 12px rgba(0,0,0,0.25)); pointer-events:none; user-select:none; }
+    .game-header .rules-btn { background: url('../../assets/images/nav-gem.png') no-repeat center / 100% 100%; border:none; color:#fff; font-weight:700; font-family:'Morris','Morris Alt',serif; text-shadow:0 1px 2px rgba(0,0,0,0.45); height:2.4em; padding:0 18px; cursor:pointer;  transition: transform .12s ease, box-shadow .12s ease; }
+    .game-header .rules-btn:hover { transform: translateY(-1px);  }
+    .tavern { padding: 24px; background: none !important; border: none !important; box-shadow: none !important; }
+
+    .hazard-layout { display:flex; flex-direction:column; gap:16px; align-items:center; justify-content:center; }
+    .hazard-left { display:none; }
+    .hazard-right { width:100%; max-width:820px; margin:0 auto; background: transparent; border-radius:18px; padding:20px 24px; color:#f4e6d3; }
+    @media (max-width: 900px) {
+      .hazard-layout { flex-direction:column; }
     }
 
-    .controls { display:flex; gap:12px; align-items:center; justify-content:center; margin-bottom:12px; }
-    .rules { font-size:10.4px; color:#2b1e12; text-align:left; background: rgba(255,255,255,0.06); padding:10px; border-radius:8px; margin:12px auto; width:90%; max-width:720px; }
+    .controls { display:flex; gap:12px; align-items:center; justify-content:center; flex-wrap:wrap; margin-bottom:12px; }
+    .controls label { color:#f4e6d3; text-shadow:0 1px 2px rgba(0,0,0,0.45); }
+    .controls input { border-radius:8px; border:1px solid rgba(255,255,255,0.2); background:rgba(26,14,8,0.7); color:#f4e6d3; padding:6px 10px; box-shadow: inset 0 1px 1px rgba(255,255,255,0.12); text-align:center; }
+
+    .rules { font-size:10.4px; color:#f4e6d3; text-align:left; background: rgba(26,14,8,0.72); padding:12px; border-radius:12px; margin:12px auto; width:90%; max-width:720px; border:1px solid rgba(255,255,255,0.12); box-shadow:0 0 26px rgba(255,180,60,0.22); }
+
     .main-select button {
       margin-right:6px;
       cursor:pointer;
@@ -51,69 +78,73 @@
       font-weight: 700;
       font-family: 'Morris', 'Morris Alt', serif;
       text-shadow: 0 1px 2px rgba(0,0,0,0.45);
-      height: 2.6em; /* gem height ~2.6x font */
-      padding: 0 16px; /* extend 16px beyond text on each side */
-      border-radius: 10px; /* keep hit area smooth */
+      height: 2.6em;
+      padding: 0 16px;
+      border-radius: 10px;
+      box-shadow:0 0 20px rgba(255,244,233,0.28);
     }
-    .main-select button:hover { transform: translateY(-1px); filter: drop-shadow(0 4px 10px rgba(0,0,0,0.25)); }
-    .main-select button.active {
-      color:white;
-      box-shadow:0 0 0 2px #7800cd, 0 6px 18px rgba(120,0,205,0.35);
-      transform: translateY(-1px) scale(1.05);
+    .main-select button:hover { transform: translateY(-1px); box-shadow:0 0 26px rgba(255,244,233,0.32); }
+    .main-select button.active { color:white; box-shadow:0 0 0 2px rgba(255,255,255,0.4), 0 0 26px rgba(120,0,205,0.45); transform: translateY(-1px) scale(1.05); }
+
+    #roll-dice {
+      background:#9200fa;
+      color:#fff;
+      border:none;
+      border-radius:10px;
+      box-shadow:0 0 24px rgba(255,244,233,0.28);
+      transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+      padding:10px 18px;
+      font-size:16px;
     }
-    /* Primary/Accent buttons for Hazard */
-    #roll-dice { background:#9200fa; color:#fff; border:none; border-radius:10px; box-shadow:0 6px 18px rgba(146,0,250,0.35); transition: transform .12s ease, box-shadow .12s ease, background .12s ease; }
-    #roll-dice:hover { background:#7800cd; box-shadow:0 6px 22px rgba(120,0,205,0.45); transform: translateY(-1px); }
-    #roll-dice:disabled { opacity:.65; cursor:not-allowed; transform:none; box-shadow:none; }
-    /* Decorative hovering dice anchored to corners */
-    .decor-die {
-      position:absolute;
-      /* defaults for bottom-left; overridden by corner modifiers */
-      left:0; bottom:0;
-      --tx:-42%; --ty:42%; --rot:-6deg; --par:0px;
-      /* bob tuning (defaults) */
-      --bobOffset:-6%; /* negative lifts bottom corners a bit */
-      --bobDur:3.8s;   /* subtle variation per-corner below */
-      --bobDelay:0s;
-      transform: translate(var(--tx), calc(var(--ty) + var(--par))) rotate(var(--rot));
-      width:clamp(80px, 12vw, 160px);
-      height:auto;
-      pointer-events:none; user-select:none;
-      filter: drop-shadow(0 6px 16px rgba(0,0,0,0.25));
-      z-index: 0; /* keep decor behind content */
-      animation-name: decor-bob;
-      animation-timing-function: ease-in-out;
-      animation-iteration-count: infinite;
-      animation-duration: var(--bobDur);
-      animation-delay: var(--bobDelay);
-    }
-    .decor-top-left { top:0; bottom:auto; left:0; right:auto; --tx:-42%; --ty:-42%; --rot:8deg;  --bobOffset:6%;  --bobDur:3.7s; --bobDelay:.08s; }
-    .decor-top-right { top:0; bottom:auto; right:0; left:auto; --tx:42%;  --ty:-42%; --rot:-12deg; --bobOffset:5.5%; --bobDur:3.9s; --bobDelay:.12s; }
-    .decor-bottom-right { bottom:0; top:auto; right:0; left:auto; --tx:42%;  --ty:42%;  --rot:10deg; --bobOffset:-5%; --bobDur:4.0s; --bobDelay:.05s; }
-    @keyframes decor-bob {
-      0%   { transform: translate(var(--tx), calc(var(--ty) + var(--par) + var(--bobOffset))) rotate(var(--rot)); }
-      50%  { transform: translate(var(--tx), calc(var(--ty) + var(--par) - var(--bobOffset))) rotate(calc(var(--rot) * 0.7)); }
-      100% { transform: translate(var(--tx), calc(var(--ty) + var(--par) + var(--bobOffset))) rotate(var(--rot)); }
-    }
+    #roll-dice:hover { background:#7800cd; box-shadow:0 0 30px rgba(255,244,233,0.32); transform: translateY(-1px); }
+    \#roll-dice:disabled\ \{\ opacity:\.65;\ cursor:not-allowed;\ transform:none;\ box-shadow:none;\ }\n\ \ \ \ \.hz-dice-row\ \{\ display:flex;\ justify-content:center;\ gap:16px;\ margin:18px\ 0;\ padding:12px;\ background:\ transparent;\ border-radius:14px;\ }\n\ \ \ \ \.hz-die\ \{\ width:140px;\ height:140px;\ display:block;\ border-radius:16px;\ box-shadow:\ 0\ 0\ 22px\ rgba\(255,180,60,0\.28\);\ border:1px\ solid\ rgba\(255,255,255,0\.18\);\ background-repeat:no-repeat;\ background-size:\ 840px\ 140px;\ }\n\ \ \ \ \.hz-die\.shake\ \{\ animation:\ shake\ 0\.6s\ ease;\ }
+
+    /* Hazard-specific dice styles - use IMG only */
+    .hz-dice-row { display:flex; justify-content:center; gap:16px; margin:18px 0; padding:12px; background: transparent; border-radius:14px; }
+    #dice1, #dice2 { width:140px !important; height:140px !important; min-width:140px !important; min-height:140px !important; max-width:none !important; max-height:none !important; display:block; object-fit:cover; border-radius:16px; box-shadow: 0 0 22px rgba(255,180,60,0.28); border:1px solid rgba(255,255,255,0.18); }
+    #dice1.shake, #dice2.shake { animation: shake 0.6s ease; }
+    @keyframes shake { 0% { transform: rotate(0deg); } 25% { transform: rotate(-18deg); } 50% { transform: rotate(18deg); } 75% { transform: rotate(-8deg); } 100% { transform: rotate(0deg); } }
+
+    .scoreboard { margin-top:18px; background: transparent; border-radius:12px; padding:12px; color:#f4e6d3; }
+    .scoreboard h3 { margin-top:0; }
+    .scoreboard ul { list-style:none; padding-left:0; margin:0; }
   </style>
-</head>
-<body class="game">
+  </head>
+
+  <script>(function(){try{var ok=sessionStorage.getItem('walletConnected')==='true';if(!ok) location.replace('/landing.html');}catch(e){location.replace('/landing.html');}})();</script>
+  <div id="removed-overlay" style="position:fixed; inset:0; background:rgba(0,0,0,0.6); display:none; align-items:center; justify-content:center; z-index:20000;">
+    <div style="background: var(--panel-bg-soft); border:1px solid rgba(255,255,255,0.12); border-radius:14px; padding:22px; width:min(92vw, 820px); max-height:90vh; overflow:auto; text-align:left; color:#f4e6d3; box-shadow:0 24px 60px rgba(0,0,0,0.55);">
+      <h2 style="margin-top:0;">Hazard Rules</h2>
+      <ul>
+        <li>Choose a main (5-9) and place your bet.</li>
+        <li>First coup reveals two cards (dice): bank card then player card.</li>
+        <li>If first total equals your main: you win immediately.</li>
+        <li>If first total is 2 or 3: you lose immediately.</li>
+        <li>If first total is 11 or 12: special main-dependent result.</li>
+        <li>Otherwise, the total becomes the chance; roll until chance or main resolves.</li>
+        <li>Payout on win attempts to pay 2x wager (requires bankroll).</li>
+      </ul>
+      <button id="removed-ack" style="margin-top:8px;">I have read and understand</button>
+    </div>
+  </div>
   <div class="top-banner" role="region" aria-label="Wallet and status">
     <div class="banner-left">
-      <button id="return" class="return-btn">Return to Tavern</button>
       <div id="status" class="banner-status"></div>
     </div>
     <div class="banner-right">
       <div class="controls">
       </div>
     </div>
-  </div>
-  <img class="game-logo" src="../../assets/images/hazard-logo.png" alt="Hazard">
-  <div class="tavern" style="max-width:1280px; width:95%; margin:12px auto 28px; position:relative;">
-    <h1 class="visually-hidden">Hazard</h1>
-    <div style="text-align:center; margin-top:6px;">
-      <button id="open-rules">Rules</button>
     </div>
+  <!-- Inline wallet panel (top-right) -->
+  <div id="wallet-inline" style="position:fixed; top:12px; right:12px; z-index:12000; display:flex; align-items:center; gap:8px; background: var(--panel-bg-soft); border:1px solid rgba(255,255,255,0.12); border-radius:12px; padding:6px 10px; color:#f4e6d3;">
+    <span id="wi-label" style="font-weight:700;">Wallet:</span>
+    <span id="wi-address">-</span>
+    <button id="wi-disconnect" style="display:none;">Disconnect</button>
+  </div>
+  <!-- Removed per-page Rules button/header -->
+  <div class="tavern" style="max-width:1280px; width:95%; margin:6px auto 24px; position:relative;">
+    <h1 class="visually-hidden">Hazard</h1>
     <div class="hazard-layout">
       <aside class="hazard-left"></aside>
 
@@ -134,40 +165,26 @@
           </div>
         </div>
 
-        <div class="dice-row">
-          <div id="dice1" class="dice">?</div>
-          <div id="dice2" class="dice">?</div>
+        <div class="hz-dice-row">
+          <div id="dice1" class="hz-die" aria-label="die 1"></div>
+          <div id="dice2" class="hz-die" aria-label="die 2"></div>
         </div>
 
         <div style="text-align:center; margin-bottom:12px;">
           <button id="roll-dice" style="padding:10px 18px; font-size:16px;">Roll Dice</button>
         </div>
-        <div id="hazard-result" style="min-height:24px; text-align:center; font-weight:700; color:#2b1e12; margin-bottom:8px;"></div>
-
-        <div id="status" style="min-height:28px; text-align:center;"></div>
-
-        <div class="scoreboard" style="margin-top:18px;">
-          <h3>Recent Rolls</h3>
-          <ul id="rolls"></ul>
+        <div class="hazard-outcome" style="background: var(--panel-bg-soft); border:1px solid rgba(255,255,255,0.08); border-radius:18px; padding:18px 22px; color:#f4e6d3; box-shadow:0 12px 32px rgba(0,0,0,0.35); max-width:520px; margin:0 auto 18px; text-align:center;">
+          <div id="hazard-result" style="min-height:26px; font-weight:700; text-shadow:0 1px 2px rgba(0,0,0,0.45); margin-bottom:10px;"></div>
+          <div id="status" style="min-height:24px; color:#f4e6d3; margin-bottom:12px;"></div>
+          <div class="scoreboard" style="background:transparent; border:none; margin-top:0; padding:0;">
+            <h3 style="margin:0 0 10px;">Recent Rolls</h3>
+            <ul id="rolls" style="list-style:none; padding:0; margin:0;"></ul>
+          </div>
         </div>
       </section>
     </div>
-
-    <img src="../../assets/images/dice/standard/dice1.png" alt="" aria-hidden="true" class="decor-die">
-    <img src="../../assets/images/dice/standard/dice2.png" alt="" aria-hidden="true" class="decor-die decor-bottom-right">
-    <img src="../../assets/images/dice/standard/dice3.png" alt="" aria-hidden="true" class="decor-die decor-top-left">
-    <img src="../../assets/images/dice/standard/dice4.png" alt="" aria-hidden="true" class="decor-die decor-top-right">
   </div>
 
-  <script>
-    // Ensure Return button navigates back to Tavern
-    (function(){
-      try {
-        var r = document.getElementById('return');
-        if (r) r.addEventListener('click', function(){ window.location.href = '/index.html'; });
-      } catch (e) {}
-    })();
-  </script>
   <script type="module">
     (async()=>{
       try{
@@ -177,9 +194,39 @@
       }catch(e){ console.error('hazard import failed', e); }
     })();
   </script>
+  <!-- Inline wallet sync for Hazard page -->
+  <script>
+    (function(){
+      function short(a){ try { return (a && a.length>10) ? (a.slice(0,6)+'...'+a.slice(-4)) : (a||''); } catch { return a||''; } }
+      try {
+        var disconnectBtn = document.getElementById('wi-disconnect');
+        var walletAddrSpan = document.getElementById('wi-address');
+        function show(addr){ try { if (walletAddrSpan) walletAddrSpan.textContent = short(String(addr||'')); } catch{} try { if (disconnectBtn) { disconnectBtn.style.display=''; disconnectBtn.onclick = function(){ try{ localStorage.removeItem('walletConnected'); sessionStorage.removeItem('walletConnected'); }catch(_){} try{ location.replace('/landing.html'); }catch(_){} }; } } catch{} }
+        if (window.userAddress && String(window.userAddress)) { show(window.userAddress); }
+        window.addEventListener('wallet:connected', function(ev){ try { var a = String((ev && ev.detail && ev.detail.address) || ''); if (a) show(a); } catch{} });
+        try {
+          if (window.ethereum && window.ethers && !(window.userAddress && String(window.userAddress))) {
+            window.ethereum.request({ method:'eth_accounts' }).then(function(acc){ var a = (acc && acc[0])? String(acc[0]) : ''; if (a) show(a); }).catch(function(){});
+          }
+        } catch{}
+      } catch{}
+    })();
+  </script>
+  <!-- Left Sidebar (collapsible) -->
+  <script>
+    (function(){
+      try {
+        var t = (window.__BUILD_TAG||Date.now());
+        var s = document.createElement('script');
+        s.type = 'module';
+        s.src = '/js/sidebar.js?v=' + encodeURIComponent(t);
+        document.body.appendChild(s);
+      } catch(e) {}
+    })();
+  </script>
   <!-- Build footer: shows Version + Commit + Built time -->
-  <div style="position:fixed; left:12px; bottom:12px; z-index:10000;">
-    <div id="footer-meta" style="font-size:12px; color:#2b1e12; opacity:.95; background:rgba(255,244,233,0.96); border:2px solid #7800cd; border-radius:10px; padding:6px 8px; display:inline-block;">
+  <div style="position:fixed; right:12px; bottom:12px; z-index:10000;">
+    <div id="footer-meta" style="font-size:12px; color:#f4e6d3; opacity:.95; background: var(--panel-bg-soft); border:1px solid rgba(255,255,255,0.12); border-radius:10px; padding:6px 8px; display:inline-block; box-shadow:0 18px 40px rgba(0,0,0,0.45);">
       Loading build info...
     </div>
   </div>
@@ -199,19 +246,12 @@
       })();
     })();
   </script>
-  <script>
-    // Parallax drift for all decorative dice
-    (function(){
-      const els = document.querySelectorAll('.decor-die');
-      if (!els.length) return;
-      const onScroll = () => {
-        const y = Math.max(0, window.scrollY) * 0.06; // gentle drift
-        els.forEach(el => el.style.setProperty('--par', y + 'px'));
-      };
-      window.addEventListener('scroll', onScroll, { passive: true });
-      onScroll();
-    })();
-  </script>
 </body>
 </html>
+
+
+
+
+
+
 
