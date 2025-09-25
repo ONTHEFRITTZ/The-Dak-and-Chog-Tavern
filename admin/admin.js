@@ -79,6 +79,7 @@ let tavern, faro, pool;
 let tavernOwner = null, faroOwner = null;
 let ioSocket = null;
 let pokerPooledAddr = null; let pokerPooled = null;
+const poolAuthListEl = document.getElementById('pool-auth-list');
 
 function fmtEth(v) {
   try { return window.ethers.utils.formatEther(v); } catch { return '0'; }
@@ -174,6 +175,56 @@ async function refresh() {
         const pBal = await pool.balance();
         if (poolBalEl) poolBalEl.textContent = fmtEth(pBal) + ' MON';
         try { if (poolAmtInput) poolAmtInput.placeholder = fmtEth(pBal); } catch {}
+
+        // Build authorized list from known game addresses
+        try {
+          const entries = [];
+          const hz = await getAddressFor('hazard', provider).catch(()=>null);
+          const sh = await getAddressFor('shell', provider).catch(()=>null);
+          const dk = await getAddressFor('dakchog', provider).catch(()=>null);
+          const fr = await getAddressFor('faro', provider).catch(()=>null);
+          const add = async (label, addr) => {
+            if (!addr) return;
+            let ok = false; try { ok = await pool.authorizedGames(addr); } catch {}
+            entries.push({ label, addr, ok });
+          };
+          await add('Hazard', hz); await add('Shell', sh); await add('DakChog', dk); await add('Faro', fr);
+          if (poolAuthListEl) {
+            if (!entries.length) {
+              poolAuthListEl.textContent = 'No known games found for this chain.';
+            } else {
+              poolAuthListEl.innerHTML = entries.map(e => {
+                const short = e.addr ? (e.addr.slice(0,6)+'...'+e.addr.slice(-4)) : '-';
+                const dot = e.ok ? '●' : '○';
+                const color = e.ok ? '#00a000' : '#a00000';
+                return `<div style="display:flex; align-items:center; gap:8px; margin:2px 0;">
+                  <span title="${e.ok ? 'authorized' : 'not authorized'}" style="color:${color}; font-weight:700;">${dot}</span>
+                  <span style="min-width:80px; display:inline-block;">${e.label}</span>
+                  <span style="opacity:.9;">${short}</span>
+                  <button class="btn" data-act="toggle-auth" data-addr="${e.addr}" data-ok="${e.ok}" style="margin-left:auto;">${e.ok?'Deauthorize':'Authorize'}</button>
+                </div>`;
+              }).join('');
+              // Bind toggle buttons (owner only)
+              Array.from(poolAuthListEl.querySelectorAll('button[data-act="toggle-auth"]')).forEach(btn => {
+                btn.onclick = async () => {
+                  try {
+                    const addr = btn.getAttribute('data-addr');
+                    const okNow = btn.getAttribute('data-ok') === 'true';
+                    const tx = await pool.setAuthorized(addr, !okNow);
+                    statusEl.textContent = (!okNow?'Authorize':'Deauthorize') + ' tx sent';
+                    await tx.wait();
+                    await refresh();
+                  } catch (e) { statusEl.textContent = e?.data?.message || e?.message || 'Failed'; }
+                };
+                // Disable when not pool owner
+                try {
+                  const isPoolOwner = wallet && pOwner && wallet.toLowerCase() === String(pOwner).toLowerCase();
+                  if (!isPoolOwner) btn.classList.add('readonly');
+                } catch {}
+              });
+            }
+          }
+        } catch {}
       } catch {}
     }
 
