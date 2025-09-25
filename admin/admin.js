@@ -50,17 +50,7 @@ const poolDeauthorizeBtn = document.getElementById('pool-deauthorize');
 const poolAuthListEl = document.getElementById('pool-auth-list');
 
 
-// Whitelist elements
-const wlAddrEl = document.getElementById('wl-address');
-const wlOverrideInput = document.getElementById('wl-override');
-const wlSetAddrBtn = document.getElementById('wl-set-addr');
-const wlOneInput = document.getElementById('wl-one');
-const wlAddBtn = document.getElementById('wl-add');
-const wlRemoveBtn = document.getElementById('wl-remove');
-const wlBulkInput = document.getElementById('wl-bulk');
-const wlBulkAddBtn = document.getElementById('wl-bulk-add');
-const wlBulkRemoveBtn = document.getElementById('wl-bulk-remove');
-const wlMsgEl = document.getElementById('wl-msg');
+// Whitelist removed
 
 // Poker (Pooled) elements
 const ppAddrEl = document.getElementById('pokerpooled-address');
@@ -75,7 +65,7 @@ try {
 let walletEventsRegistered = false;
 let topButtonsBound = false;
 let tavernAddr = null, faroAddr = null, poolAddr = null;
-let whitelistAddr = null;
+// Whitelist removed
 let tavern, faro, pool;
 let tavernOwner = null, faroOwner = null;
 let ioSocket = null;
@@ -106,17 +96,14 @@ async function refresh() {
     tavernAddr = await getAddressFor('tavern', provider);
     faroAddr = await getAddressFor('faro', provider);
     poolAddr = await getAddressFor('pool', provider);
-    whitelistAddr = await getAddressFor('whitelist', provider);
     try { pokerPooledAddr = await getAddressFor('pokerTable', provider); } catch { try { pokerPooledAddr = localStorage.getItem('contract.pokerTable') || ''; } catch { pokerPooledAddr = ''; } }
 if (tavAddrEl) tavAddrEl.textContent = tavernAddr || '-';
 if (faroAddrEl) faroAddrEl.textContent = faroAddr || '-';
     if (poolAddrEl) poolAddrEl.textContent = poolAddr || '-';
-    if (wlAddrEl) wlAddrEl.textContent = whitelistAddr || '(not set)';
     if (ppAddrEl) ppAddrEl.textContent = pokerPooledAddr || '(set below)';
     if (tavOverrideInput) tavOverrideInput.placeholder = tavernAddr || '';
     if (faroOverrideInput) faroOverrideInput.placeholder = faroAddr || '';
     if (poolOverrideInput) poolOverrideInput.placeholder = poolAddr || '';
-    if (wlOverrideInput) wlOverrideInput.placeholder = whitelistAddr || '';
     if (ppOverrideInput) ppOverrideInput.placeholder = pokerPooledAddr || '';
     renderTavernBanner({ contractKey: 'tavern', address: tavernAddr, chainId, wallet });
     
@@ -345,43 +332,7 @@ if (document.readyState === 'loading') {
 } else {
   initWalletUi();
 }
-// Whitelist handlers (owner only)
-wlSetAddrBtn?.addEventListener('click', async () => {
-  try {
-    const v = (wlOverrideInput?.value||'').trim();
-    if (!v || v.length !== 42 || !v.startsWith('0x')) { wlMsgEl.textContent = 'Enter a valid address'; return; }
-    try { localStorage.setItem('contract.whitelist', v); } catch (e) {}
-    whitelistAddr = v; if (wlAddrEl) wlAddrEl.textContent = v;
-    wlMsgEl.textContent = 'Whitelist address set (local override).';
-  } catch { wlMsgEl.textContent = 'Failed to set override.'; }
-});
-
-function parseBulk(addrs){
-  return String(addrs||'')
-    .split(/[,\n\r\t ]+/)
-    .map(s=>s.trim()).filter(s=>/^0x[0-9a-fA-F]{40}$/.test(s));
-}
-async function wlContract(){
-  if (!whitelistAddr || !window.WhitelistABI || !signer) throw new Error('Whitelist address/ABI missing or wallet not connected');
-  return new window.ethers.Contract(whitelistAddr, window.WhitelistABI, signer);
-}
-
-wlAddBtn?.addEventListener('click', async () => {
-  try { const c = await wlContract(); const a=(wlOneInput?.value||'').trim(); if(!/^0x[0-9a-fA-F]{40}$/.test(a)){ wlMsgEl.textContent='Bad address'; return; }
-    const tx = await c.add(a); wlMsgEl.textContent = `Adding... ${tx.hash.slice(0,10)}...`; await tx.wait(); wlMsgEl.textContent='Added.'; } catch(e){ wlMsgEl.textContent = e?.data?.message||e?.message||'Failed'; }
-});
-wlRemoveBtn?.addEventListener('click', async () => {
-  try { const c = await wlContract(); const a=(wlOneInput?.value||'').trim(); if(!/^0x[0-9a-fA-F]{40}$/.test(a)){ wlMsgEl.textContent='Bad address'; return; }
-    const tx = await c.remove(a); wlMsgEl.textContent = `Removing... ${tx.hash.slice(0,10)}...`; await tx.wait(); wlMsgEl.textContent='Removed.'; } catch(e){ wlMsgEl.textContent = e?.data?.message||e?.message||'Failed'; }
-});
-wlBulkAddBtn?.addEventListener('click', async () => {
-  try { const c = await wlContract(); const list=parseBulk(wlBulkInput?.value); if(!list.length){ wlMsgEl.textContent='No valid addresses'; return; }
-    const tx = await c.addMany(list); wlMsgEl.textContent = `Bulk add... ${tx.hash.slice(0,10)}...`; await tx.wait(); wlMsgEl.textContent='Bulk added.'; } catch(e){ wlMsgEl.textContent=e?.data?.message||e?.message||'Failed'; }
-});
-wlBulkRemoveBtn?.addEventListener('click', async () => {
-  try { const c = await wlContract(); const list=parseBulk(wlBulkInput?.value); if(!list.length){ wlMsgEl.textContent='No valid addresses'; return; }
-    const tx = await c.removeMany(list); wlMsgEl.textContent = `Bulk remove... ${tx.hash.slice(0,10)}...`; await tx.wait(); wlMsgEl.textContent='Bulk removed.'; } catch(e){ wlMsgEl.textContent=e?.data?.message||e?.message||'Failed'; }
-});
+// Whitelist removed
 // Site Health: build.json, deploy marker, whoami
 async function refreshHealth() {
   try {

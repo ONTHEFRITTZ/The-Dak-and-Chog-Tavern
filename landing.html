@@ -47,9 +47,7 @@
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
-  <script>
-    (async()=>{ try{ const b=await fetch('/assets/build.json',{cache:'no-store'}).then(r=>r.ok?r.json():null).catch(()=>null); const tag=(b&&b.commit)?String(b.commit).slice(0,12):Date.now(); window.__BUILD_TAG=tag; const wl=document.createElement('script'); wl.src=`./js/WhitelistABI.js?v=${tag}`; document.head.appendChild(wl);}catch{}})();
-  </script>
+  <!-- Whitelist removed: no ABI preload needed -->
   <script type="module">
     (async()=>{
       try{

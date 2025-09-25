@@ -7,7 +7,6 @@ const DEFAULT_ADDRESSES = {
   tavern: "", // router removed; games use dedicated addresses
   faro:   "0xd6214180671d4A18BC56568A75cF774dEC249F46",
   pool:   "0x78F62d85244621493b5c3961bBaD4069Ab979C86",
-  whitelist: "",
   // Optional per-game overrides; fallback to dedicated addresses (no Tavern fallback)
   hazard:  "0xF6eA1599452bb6F35B3220307996Dc891554D911",
   shell:   "0xc0f0927D50da717209300FBC2B4C115662d219D6",
@@ -23,7 +22,6 @@ export const ADDRESS_BOOK = {
     tavern: "", // router removed on testnet too
     faro:   "0xd6214180671d4A18BC56568A75cF774dEC249F46",
     pool:   "0x78F62d85244621493b5c3961bBaD4069Ab979C86",
-    whitelist: "0xB5e34B3C6c66aE92FC2999413eeb0D7d51122eA3",
     hazard:  "0xF6eA1599452bb6F35B3220307996Dc891554D911",
     shell:   "0xc0f0927D50da717209300FBC2B4C115662d219D6",
     dakchog: "0xc668DCA267aB4fb6A7A1757F51B8CB965349ef5A",
