@@ -18,6 +18,7 @@
         window.__BUILD_TAG = tag;
         const css = document.createElement('link'); css.rel='stylesheet'; css.href = `../../css/style.css?v=${tag}`; document.head.appendChild(css);
         const abi = document.createElement('script'); abi.src = `../../js/FaroV3ABI.js?v=${tag}`; document.head.appendChild(abi);
+        const poolAbi = document.createElement('script'); poolAbi.src = `../../js/PoolABI.js?v=${tag}`; document.head.appendChild(poolAbi);
         const s1 = document.createElement('script'); s1.type='module'; s1.src = `../../js/tavern.js?v=${tag}`; document.head.appendChild(s1);
         const s2 = document.createElement('script'); s2.type='module'; s2.src = `../../js/state.js?v=${tag}`; document.head.appendChild(s2);
       }catch(e){ console.error('head loader failed', e); }
