@@ -114,21 +114,6 @@ const displayDice = (d1,d2)=> setDiceFaces(d1,d2);
 
 // Animate dice visually
 function animateDice() {
-
-// Start/stop continuous dice spin until final on-chain result is known
-function startDiceSpin() {
-  try { dice1El.classList.add("shake"); dice2El.classList.add("shake"); } catch {}
-  if (diceSpinTimer) return;
-  diceSpinTimer = setInterval(() => {
-    const r1 = Math.floor(Math.random() * 6) + 1;
-    const r2 = Math.floor(Math.random() * 6) + 1;
-    setDiceFaces(r1, r2);
-  }, 120);
-}
-function stopDiceSpin() {
-  if (diceSpinTimer) { clearInterval(diceSpinTimer); diceSpinTimer = null; }
-  try { dice1El.classList.remove("shake"); dice2El.classList.remove("shake"); } catch {}
-}
   const el1 = dice1El, el2 = dice2El;
   el1.classList.add('shake');
   el2.classList.add('shake');
@@ -153,17 +138,17 @@ function explainOutcome(main, finalSum, chance, win) {
   chance = Number(chance);
 
   if (chance === 0) {
-    if (finalSum === main) return `Immediate win â€” rolled your main (${main}).`;
-    if (finalSum === 2 || finalSum === 3) return `Immediate loss â€” rolled ${finalSum}.`;
+    if (finalSum === main) return `Immediate win — rolled your main (${main}).`;
+    if (finalSum === 2 || finalSum === 3) return `Immediate loss — rolled ${finalSum}.`;
     if (finalSum === 11 || finalSum === 12) {
-      if (main === 7) return `Immediate loss â€” rolled ${finalSum} and main was 7.`;
-      if (main === 5 || main === 9) return `Immediate win â€” rolled ${finalSum} (special for main ${main}).`;
-      return `Immediate loss â€” rolled ${finalSum}.`;
+      if (main === 7) return `Immediate loss — rolled ${finalSum} and main was 7.`;
+      if (main === 5 || main === 9) return `Immediate win — rolled ${finalSum} (special for main ${main}).`;
+      return `Immediate loss — rolled ${finalSum}.`;
     }
     return `Point established at ${finalSum}. Game continues until point or main resolves.`;
   } else {
     if (finalSum === chance) return `Won by hitting the chance/point (${chance}).`;
-    if (finalSum === main) return `Lost â€” rolled your main (${main}) before hitting the point (${chance}).`;
+    if (finalSum === main) return `Lost — rolled your main (${main}) before hitting the point (${chance}).`;
     return `Resolved with roll ${finalSum}.`;
   }
 }
@@ -192,7 +177,59 @@ mainButtons.forEach(btn => {
 
 // Initialize provider/signers and attach handlers
 const onReady = (fn) => { if (document.readyState === 'loading') { window.addEventListener('DOMContentLoaded', fn, { once: true }); } else { fn(); } };
-onReady// Hardened: no auto owner mutations; expects correct on-chain wiring.
+onReady(async () => {
+  hazardAck = true;
+  try { if (rulesOverlay) rulesOverlay.style.display = 'none'; } catch {}
+  try { if (openRulesBtn) openRulesBtn.style.display = 'none'; } catch {}
+  try { ensureDiceSize(); setDiceFaces(1,1,{ force:true }); } catch {}
+
+  // Accept either storage flag, but still try provider init even if missing
+  let walletFlag = undefined;
+  try { walletFlag = localStorage.getItem('walletConnected') || sessionStorage.getItem('walletConnected'); } catch {}
+  if (!window.ethereum) {
+    statusEl.textContent = 'MetaMask not detected.';
+    rollBtn.disabled = true;
+    return;
+  }
+
+  try {
+    provider = new ethers.providers.Web3Provider(window.ethereum, 'any');
+    signer = provider.getSigner();
+    try { attachProvider(provider); } catch {}
+    let walletAddress = null;
+    try { walletAddress = await signer.getAddress(); } catch {}
+    if (walletAddress) { currentWallet = walletAddress.toLowerCase(); }
+    try { if (walletAddress && walletFlag !== 'true') localStorage.setItem('walletConnected','true'); } catch {}
+    const hazardAddr = await getAddressFor('hazard', provider);
+    const tavernFallback = await getAddressFor('tavern', provider);
+    tavernAddress = hazardAddr || tavernFallback;
+    const hazardAbi = (hazardAddr && window.HazardABI) ? window.HazardABI : window.TavernABI;
+    contract = new ethers.Contract(tavernAddress, hazardAbi, signer);
+try {
+const chainId = await detectChainId(provider);
+const bannerKey = hazardAddr ? 'hazard' : 'tavern';
+renderTavernBanner({ contractKey: bannerKey, address: tavernAddress, chainId, wallet: walletAddress || undefined });
+} catch {}
+
+    // Verify Pool wiring (authorized + not paused) when available
+    try {
+      let poolAddr = ethers.constants.AddressZero;
+      try { poolAddr = await contract.pool(); } catch {}
+      if (poolAddr && poolAddr !== ethers.constants.AddressZero && window.PoolABI) {
+        const pool = new ethers.Contract(poolAddr, window.PoolABI, provider);
+        try {
+          const authorized = await pool.authorizedGames(tavernAddress);
+          if (!authorized) {
+            statusEl.textContent = 'Hazard not authorized in Pool. Contact admin.';
+            rollBtn.disabled = true;
+          }
+        } catch {}
+        try {
+          const paused = await pool.paused();
+          if (paused) { statusEl.textContent = 'Pool is paused. Try again later.'; rollBtn.disabled = true; }
+        } catch {}
+      }
+    } catch {}
     // If no authorized account and flag not set, keep UI disabled until user connects
     if (!walletAddress && walletFlag !== 'true') {
       statusEl.textContent = 'Connect wallet on the Tavern first.';
@@ -212,10 +249,6 @@ onReady// Hardened: no auto owner mutations; expects correct on-chain wiring.
     if (!currentWallet || player.toLowerCase() !== currentWallet) return;
 
     const [d1, d2] = splitSumToDice(Number(finalSum));
-    // Force-update dice to the authoritative game result and lock until next roll
-    setDiceFaces(d1, d2, { force:true });
-    try { stopDiceSpin(); } catch {}
-    diceLock = true;
     // Force-update dice to the authoritative game result and lock until next roll
     setDiceFaces(d1, d2, { force:true });
     diceLock = true;
@@ -335,10 +368,7 @@ window.addEventListener('beforeunload', () => { try { contract.off('HazardPlayed
 
   let hasPool = false;
   try {
-    let poolAddr = await contract.pool().catch(() => ethers.constants.AddressZero);
-    if (!poolAddr || poolAddr === ethers.constants.AddressZero) {
-      try { poolAddr = await getAddressFor('pool', provider); } catch {}
-    }
+    const poolAddr = await contract.pool();
     hasPool = !!(poolAddr && poolAddr !== ethers.constants.AddressZero);
     let ok = false;
     if (hasPool) {
@@ -366,7 +396,8 @@ window.addEventListener('beforeunload', () => { try { contract.off('HazardPlayed
   try { showToast('Rolling dice...', 'info'); } catch {}
   rollBtn.disabled = true;
 
-    diceLock = false; startDiceSpin();
+  try { if (typeof animationsEnabled === 'undefined') { animationsEnabled = true; } } catch { var animationsEnabled = true; }
+  if (animationsEnabled) animateDice();
 
   try {
     // Always do a static preflight to surface revert reasons before sending
