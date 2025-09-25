@@ -39,6 +39,8 @@ const betConfirmBtn = document.getElementById('bet-confirm');
 let stagedBets = [];     // [{ rank: 1..13, amountEth: number, copper: bool }]
 let myPendingBets = [];  // queued for on-chain when Ready
 let centerLockUntil = 0; // keep results visible briefly after a coup
+let onchainSigner = null; let onchainProvider = null; let faroAddr = null;
+let socket; let myAddr = null; let currentTable = null; let mySeatId = null; let myIsOwner = false;
 
 function rankLabel(n){ return ({1:'A',11:'J',12:'Q',13:'K'}[n] || String(n)); }
 function rankNumber(l){ const map={A:1,J:11,Q:12,K:13}; return map[l] || Number(l); }
@@ -90,7 +92,6 @@ try { positionSeatsRing(); window.addEventListener('resize', positionSeatsRing);
 // --- Inline wallet panel sync (no prompts) ---
 try {
   // Adopt Tavern-connected wallet if present
-try {
   (async () => {
     try {
       const cid = await detectChainId(onchainProvider || walletProvider);
@@ -98,7 +99,6 @@ try {
       if (addr && cid != null) { renderTavernBanner({ contractKey: 'faro', address: addr, chainId: cid, wallet: myAddr || undefined }); }
     } catch {}
   })();
-} catch {}
   if (window.userAddress && String(window.userAddress)) {
     const a = String(window.userAddress).toLowerCase();
     try { if (walletAddrSpan) walletAddrSpan.textContent = short(a); } catch{}
@@ -166,8 +166,6 @@ function renderBetRows(){
   }catch(e){}
 }
 
-let socket; let myAddr = null; let currentTable = null; let mySeatId = null; let myIsOwner = false;
-let onchainSigner = null; let onchainProvider = null; let faroAddr = null;
 
 function short(v) { return v && v.length > 10 ? `${v.slice(0,6)}...${v.slice(-4)}` : (v || ''); }
 function log(msg) { try { logEl.textContent = `[${new Date().toLocaleTimeString()}] ${msg}\n` + (logEl.textContent || ''); } catch {} }

@@ -354,147 +354,156 @@ try {
 
   // Roll button handler (guard element)
   rollBtn?.addEventListener('click', async () => {
-  // Guard: prevent re-clicks during tx or cooldown
-  if (!provider || !signer) {
-    try { if (window.tavernConnectWallet) { window.tavernConnectWallet(); } } catch {}
-    try { await new Promise((resolve)=>{ const once=(ev)=>{ try{ window.removeEventListener('wallet:connected', once); }catch{} resolve(); }; try{ window.addEventListener('wallet:connected', once, { once:true }); }catch{} setTimeout(resolve, 5000); }); } catch {}
-    try { if (walletProvider) provider = walletProvider; if (walletSigner) signer = walletSigner; else if (provider && provider.getSigner) signer = provider.getSigner(); } catch {}
-  }
-  const now = Date.now();
-  if (inFlight || now < cooldownUntil) {
-    try { statusEl.textContent = 'Please wait... resolving previous roll.'; } catch {}
-    return;
-  }
-  // Allow animation for the new roll and clear any prior result lock
-  diceLock = false;
-  inFlight = true;
-  if (!hazardAck) { try { rulesOverlay.style.display = 'flex'; } catch {}; return; }
-  if (!signer || !contract) {
-    alert('Connect wallet on the Tavern first.');
-    inFlight = false;
-    return;
-  }
-
-  if (!currentWallet) {
-    try {
-      const addr = await signer.getAddress();
-      currentWallet = addr ? addr.toLowerCase() : null;
-    } catch {
-      statusEl.textContent = 'Connect wallet on the Tavern first.';
+    // Guard: prevent re-clicks during tx or cooldown
+    if (!provider || !signer) {
+      try { if (window.tavernConnectWallet) { window.tavernConnectWallet(); } } catch {}
+      try {
+        await new Promise((resolve) => {
+          const once = (ev) => { try { window.removeEventListener('wallet:connected', once); } catch {} resolve(); };
+          try { window.addEventListener('wallet:connected', once, { once: true }); } catch {}
+          setTimeout(resolve, 5000);
+        });
+      } catch {}
+      try {
+        if (walletProvider) provider = walletProvider;
+        if (walletSigner) signer = walletSigner;
+        else if (provider && provider.getSigner) signer = provider.getSigner();
+      } catch {}
+    }
+    const now = Date.now();
+    if (inFlight || now < cooldownUntil) {
+      try { statusEl.textContent = 'Please wait... resolving previous roll.'; } catch {}
+      return;
+    }
+    // Allow animation for the new roll and clear any prior result lock
+    diceLock = false;
+    inFlight = true;
+    if (!hazardAck) { try { rulesOverlay.style.display = 'flex'; } catch {}; return; }
+    if (!signer || !contract) {
+      alert('Connect wallet on the Tavern first.');
       inFlight = false;
       return;
     }
-  }
 
-  const bet = betInput.value;
-  if (!bet || Number(bet) <= 0) {
-    statusEl.textContent = 'Enter a valid bet amount.';
-    inFlight = false;
-    return;
-  }
-  if (!Number.isInteger(selectedMain) || selectedMain < 5 || selectedMain > 9) {
-    statusEl.textContent = 'Choose a main between 5 and 9.';
-    inFlight = false;
-    return;
-  }
-
-  let wager;
-  try {
-    wager = ethers.utils.parseEther(bet);
-  } catch {
-    statusEl.textContent = 'Enter a valid bet amount.';
-    inFlight = false;
-    return;
-  }
-
-  let hasPool = false;
-  try {
-    const poolAddr = await contract.pool();
-    hasPool = !!(poolAddr && poolAddr !== ethers.constants.AddressZero);
-    let ok = false;
-    let coverageVerified = false;
-    let coverageOk = true;
-    if (hasPool) {
+    if (!currentWallet) {
       try {
-        const pool = new ethers.Contract(poolAddr, window.PoolABI, provider);
-        const bal = await pool.balance();
-        coverageVerified = true;
-        coverageOk = bal.gte(wager.mul(2));
-      } catch (poolErr) {
-        console.warn('Pool balance check skipped', poolErr);
-      }
-    } else {
-      try {
-        const bank = await provider.getBalance(tavernAddress);
-        coverageVerified = true;
-        coverageOk = bank.gte(wager.mul(2));
-      } catch (bankErr) {
-        console.warn('Bankroll check skipped', bankErr);
+        const addr = await signer.getAddress();
+        currentWallet = addr ? addr.toLowerCase() : null;
+      } catch {
+        statusEl.textContent = 'Connect wallet on the Tavern first.';
+        inFlight = false;
+        return;
       }
     }
-    if (coverageVerified && !coverageOk) {
-      statusEl.textContent = 'Bankroll too low for this bet (needs 2x cover). Try a smaller amount.';
-      stopDiceAnim();
-      rollBtn.disabled = false;
+    const bet = betInput.value;
+    if (!bet || Number(bet) <= 0) {
+      statusEl.textContent = 'Enter a valid bet amount.';
       inFlight = false;
       return;
     }
-    if (!coverageVerified) {
-      console.warn('Coverage check not verified; continuing with on-chain attempt');
-    }
-  } catch (err) {
-    console.warn('Bankroll check error', err);
-  }
-
-  statusEl.textContent = 'Rolling dice... sending transaction...';
-  try { showToast('Rolling dice...', 'info'); } catch {}
-  rollBtn.disabled = true;
-
-  try { if (typeof animationsEnabled === 'undefined') { animationsEnabled = true; } } catch { var animationsEnabled = true; }
-  if (animationsEnabled) startDiceAnim();
-
-  try {
-    // Always do a static preflight to surface revert reasons before sending
-    try {
-      await contract.callStatic.playHazard(selectedMain, { value: wager });
-    } catch (pre) {
-      const msg = pre?.error?.message || pre?.data?.message || pre?.reason || pre?.message || 'Reverted';
-      statusEl.textContent = 'Rejected: ' + msg;
-      rollBtn.disabled = false;
+    if (!Number.isInteger(selectedMain) || selectedMain < 5 || selectedMain > 9) {
+      statusEl.textContent = 'Choose a main between 5 and 9.';
       inFlight = false;
       return;
     }
-
-    let gasLimit;
+  
+    let wager;
     try {
-      const est = await contract.estimateGas.playHazard(selectedMain, { value: wager });
-      const min = ethers.BigNumber.from(600000);
-      const max = ethers.BigNumber.from(1200000);
-      let padded = est.mul(160).div(100);
-      if (padded.lt(min)) padded = min;
-      if (padded.gt(max)) padded = max;
-      gasLimit = padded;
+      wager = ethers.utils.parseEther(bet);
     } catch {
-      gasLimit = ethers.BigNumber.from(800000);
+      statusEl.textContent = 'Enter a valid bet amount.';
+      inFlight = false;
+      return;
     }
-
-    let receipt = null;
-    let txHash = null;
-    let playedEvent;
-    let usedBundler = false;
-    const bundler = await detectBundler((provider && provider.provider) || provider);
-    if (bundler && bundler.available) {
+  
+    let hasPool = false;
+    try {
+      const poolAddr = await contract.pool();
+      hasPool = !!(poolAddr && poolAddr !== ethers.constants.AddressZero);
+      let ok = false;
+      let coverageVerified = false;
+      let coverageOk = true;
+      if (hasPool) {
+        try {
+          const pool = new ethers.Contract(poolAddr, window.PoolABI, provider);
+          const bal = await pool.balance();
+          coverageVerified = true;
+          coverageOk = bal.gte(wager.mul(2));
+        } catch (poolErr) {
+          console.warn('Pool balance check skipped', poolErr);
+        }
+      } else {
+        try {
+          const bank = await provider.getBalance(tavernAddress);
+          coverageVerified = true;
+          coverageOk = bank.gte(wager.mul(2));
+        } catch (bankErr) {
+          console.warn('Bankroll check skipped', bankErr);
+        }
+      }
+      if (coverageVerified && !coverageOk) {
+        statusEl.textContent = 'Bankroll too low for this bet (needs 2x cover). Try a smaller amount.';
+        stopDiceAnim();
+        rollBtn.disabled = false;
+        inFlight = false;
+        return;
+      }
+      if (!coverageVerified) {
+        console.warn('Coverage check not verified; continuing with on-chain attempt');
+      }
+    } catch (err) {
+      console.warn('Bankroll check error', err);
+    }
+  
+    statusEl.textContent = 'Rolling dice... sending transaction...';
+    try { showToast('Rolling dice...', 'info'); } catch {}
+    rollBtn.disabled = true;
+  
+    try { if (typeof animationsEnabled === 'undefined') { animationsEnabled = true; } } catch { var animationsEnabled = true; }
+    if (animationsEnabled) startDiceAnim();
+  
+    try {
+      // Always do a static preflight to surface revert reasons before sending
       try {
-        const iface = new ethers.utils.Interface(activeHazardAbi || window.TavernABI || []);
-        const data = iface.encodeFunctionData('playHazard', [selectedMain]);
-        const from = await signer.getAddress();
-        const net = await provider.getNetwork().catch(() => ({ chainId: undefined }));
-        const hexValue = ethers.utils.hexlify(wager);
-        const result = await walletSendCalls({
-          provider: bundler.provider,
-          from,
-          chainId: net?.chainId,
-          calls: [{ to: tavernAddress, data, value: hexValue }]
+        await contract.callStatic.playHazard(selectedMain, { value: wager });
+      } catch (pre) {
+        const msg = pre?.error?.message || pre?.data?.message || pre?.reason || pre?.message || 'Reverted';
+        statusEl.textContent = 'Rejected: ' + msg;
+        rollBtn.disabled = false;
+        inFlight = false;
+        return;
+      }
+  
+      let gasLimit;
+      try {
+        const est = await contract.estimateGas.playHazard(selectedMain, { value: wager });
+        const min = ethers.BigNumber.from(600000);
+        const max = ethers.BigNumber.from(1200000);
+        let padded = est.mul(160).div(100);
+        if (padded.lt(min)) padded = min;
+        if (padded.gt(max)) padded = max;
+        gasLimit = padded;
+      } catch {
+        gasLimit = ethers.BigNumber.from(800000);
+      }
+  
+      let receipt = null;
+      let txHash = null;
+      let playedEvent;
+      let usedBundler = false;
+      const bundler = await detectBundler((provider && provider.provider) || provider);
+      if (bundler && bundler.available) {
+        try {
+          const iface = new ethers.utils.Interface(activeHazardAbi || window.TavernABI || []);
+          const data = iface.encodeFunctionData('playHazard', [selectedMain]);
+          const from = await signer.getAddress();
+          const net = await provider.getNetwork().catch(() => ({ chainId: undefined }));
+          const hexValue = ethers.utils.hexlify(wager);
+          const result = await walletSendCalls({
+            provider: bundler.provider,
+            from,
+            chainId: net?.chainId,
+            calls: [{ to: tavernAddress, data, value: hexValue }]
         });
         txHash = extractTxHash(result);
         usedBundler = true;
@@ -598,5 +607,4 @@ try {
 
   returnBtn?.addEventListener('click', () => { window.location.href = '/index.html'; });
 });
-
 

@@ -1,4 +1,5 @@
 // Dak & Chog coin flip (frontend scaffolding styled like other games)
+import { provider as walletProvider, signer as walletSigner } from '../../js/tavern.js';
 import { renderTavernBanner, detectChainId, getAddressFor } from '../../js/config.js';
 import '../../js/TavernABI.js';
 import '../../js/DakChogABI.js';
@@ -19,8 +20,7 @@ try {
     try {
       const t = statusEl?.textContent || '';
       if (!t) return;
-      let u = t.replace(/�\?�/g, '…')
-               .replace(/�\?"/g, ' — ');
+      const u = t.replace(/[^\x20-\x7E]/g, '');
       if (u !== t) statusEl.textContent = u;
     } catch {}
   }
@@ -116,37 +116,50 @@ async function resolveDakChogContract() {
 }
 
 async function ensureWallet() {
-  if (!window.ethereum) return;
   try {
-    const ethers = window.ethers;
-    provider = new ethers.providers.Web3Provider(window.ethereum, 'any');
-    signer = provider.getSigner();
-    wallet = await signer.getAddress();
-    try {
-      const chainId = await detectChainId(provider);
-      const resolved = await resolveDakChogContract();
-      sendAddr = resolved.addr;
-      // Resolve unified Tavern for event/log filtering
-      unifiedAddr = await getAddressFor('tavern', provider);
-      unifiedLower = String(unifiedAddr||'').toLowerCase();
-      const labelOverride = resolved.label || 'Tavern';
-      const bannerKey = dakchogAddr ? 'dakchog' : 'tavern';
-      renderTavernBanner({ contractKey: bannerKey, address: sendAddr || unifiedAddr || '', chainId, wallet, labelOverride });
-      if (sendAddr && (activeCoinAbi || window.TavernABI)) {
-        coinContract = new ethers.Contract(sendAddr, activeCoinAbi || window.TavernABI, signer);
-      } else {
-        coinContract = null;
-      }
-    } catch {}
-  } catch {}
+    const ethersRef = window.ethers;
+    if (!ethersRef) { return false; }
+    provider = walletProvider || (window.ethereum ? new ethersRef.providers.Web3Provider(window.ethereum, 'any') : undefined);
+    signer = walletSigner || (provider && provider.getSigner ? provider.getSigner() : undefined);
+    wallet = await (signer && signer.getAddress ? signer.getAddress().catch(() => null) : Promise.resolve(null));
+    if (!provider || !signer || !wallet) {
+      coinContract = null;
+      return false;
+    }
+    const chainId = await detectChainId(provider);
+    const resolved = await resolveDakChogContract();
+    sendAddr = resolved.addr;
+    unifiedAddr = await getAddressFor('tavern', provider);
+    unifiedLower = String(unifiedAddr||'').toLowerCase();
+    const labelOverride = resolved.label || 'Tavern';
+    const bannerKey = dakchogAddr ? 'dakchog' : 'tavern';
+    renderTavernBanner({ contractKey: bannerKey, address: sendAddr || unifiedAddr || '', chainId, wallet, labelOverride });
+    if (sendAddr && (activeCoinAbi || window.TavernABI)) {
+      const abi = activeCoinAbi || window.TavernABI;
+      coinContract = new ethersRef.Contract(sendAddr, abi, signer);
+    } else {
+      coinContract = null;
+    }
+    return true;
+  } catch (err) {
+    console.error('ensureWallet failed', err);
+    return false;
+  }
 }
+
 
 flipBtn.addEventListener('click', async () => {
   const ethers = window.ethers;
   if (!provider || !signer || !wallet) {
     try { if (window.tavernConnectWallet) { window.tavernConnectWallet(); } } catch {}
-    try { await new Promise((resolve)=>{ const once=(ev)=>{ try{ window.removeEventListener('wallet:connected', once); }catch{} resolve(); }; try{ window.addEventListener('wallet:connected', once, { once:true }); }catch{} setTimeout(resolve, 5000); }); } catch {}
-    try { const ethersRef = window.ethers; if (window.ethereum) { const pv = new ethersRef.providers.Web3Provider(window.ethereum, 'any'); provider = provider || pv; signer = signer || pv.getSigner(); wallet = wallet || await signer.getAddress(); } } catch {}
+    try {
+      await new Promise((resolve) => {
+        const once = (ev) => { try { window.removeEventListener('wallet:connected', once); } catch {} resolve(); };
+        try { window.addEventListener('wallet:connected', once, { once: true }); } catch {}
+        setTimeout(resolve, 5000);
+      });
+    } catch {}
+    try { await ensureWallet(); } catch {}
   }
   const bet = Number(betInput.value || 0);
   if (!provider || !signer || !wallet) { statusEl.textContent = 'Connect wallet first.'; return; }
@@ -155,7 +168,7 @@ flipBtn.addEventListener('click', async () => {
 
   // Animate coin continuously while tx is pending
   startCoinAnim();
-  statusEl.textContent = 'Checking conditions…';
+  statusEl.textContent = 'Checking conditions...';
   try {
     const betOnChog = (choice === 'chog');
     const betWei = ethers.utils.parseEther(String(bet));
@@ -205,9 +218,9 @@ flipBtn.addEventListener('click', async () => {
       return;
     }
 
-    statusEl.textContent = 'Submitting transaction…';
+    statusEl.textContent = 'Submitting transaction...';
     const tx = await coinContract.playCoin(betOnChog, { value: betWei, gasLimit: 120000 });
-    statusEl.textContent = `Tx sent: ${tx.hash.slice(0,10)}… waiting confirmation…`;
+    statusEl.textContent = `Tx sent: ${tx.hash.slice(0,10)}... waiting confirmation...`;
     const rc = await tx.wait();
     // Parse CoinPlayed event if present (direct decode)
     let resultChog = null, won = null;
@@ -240,9 +253,9 @@ flipBtn.addEventListener('click', async () => {
     if (resultChog !== null) {
       // Stop animation and update the coin immediately with the authoritative result
       stopCoinAnim(resultChog ? 'chog' : 'dak');
-      statusEl.textContent = won ? `On-chain: ${resultChog ? 'CHOG' : 'DAK'} — you won!` : `On-chain: ${resultChog ? 'CHOG' : 'DAK'} — you lost.`;
+      statusEl.textContent = won ? `On-chain: ${resultChog ? 'CHOG' : 'DAK'} - you won!` : `On-chain: ${resultChog ? 'CHOG' : 'DAK'} - you lost.`;
     } else {
-      statusEl.textContent = 'Confirmed. Awaiting result event…';
+      statusEl.textContent = 'Confirmed. Awaiting result event...';
     }
   } catch (e) {
     console.error(e);
@@ -265,3 +278,7 @@ onReady(async () => {
   try { if (openRulesBtn) openRulesBtn.style.display = 'none'; } catch {}
   await ensureWallet();
 });
+
+try { window.addEventListener('wallet:connected', () => { ensureWallet().catch(()=>{}); }); } catch {}
+try { window.addEventListener('storage', async (ev) => { if (ev.key === 'walletConnected' && ev.newValue === 'true') { try { await ensureWallet(); } catch {} } }); } catch {}
+
