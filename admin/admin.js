@@ -47,6 +47,7 @@ const poolWithdrawBtn = document.getElementById('pool-withdraw');
 const poolAuthInput = document.getElementById('pool-auth');
 const poolAuthorizeBtn = document.getElementById('pool-authorize');
 const poolDeauthorizeBtn = document.getElementById('pool-deauthorize');
+const poolAuthListEl = document.getElementById('pool-auth-list');
 
 
 // Whitelist elements
@@ -166,14 +167,44 @@ if (faroAddrEl) faroAddrEl.textContent = faroAddr || '-';
       } catch (e) {}
     }
 
-    if (poolAddr && window.PoolABI && signer) {
-      pool = new window.ethers.Contract(poolAddr, window.PoolABI, signer);
+    if (poolAddr && window.PoolABI && (signer || provider)) {
+      const rw = signer || provider;
+      pool = new window.ethers.Contract(poolAddr, window.PoolABI, rw);
       try {
         const pOwner = await pool.owner();
         if (poolOwnerEl) poolOwnerEl.textContent = pOwner;
         const pBal = await pool.balance();
         if (poolBalEl) poolBalEl.textContent = fmtEth(pBal) + ' MON';
         try { if (poolAmtInput) poolAmtInput.placeholder = fmtEth(pBal); } catch (e) {}
+
+        // Render authorized games list (Hazard, Shell, DakChog, Faro, Poker)
+        try {
+          if (poolAuthListEl) {
+            const entries = [];
+            const chainIdNow = await detectChainId(provider);
+            const labels = [
+              ['hazard','Hazard'],
+              ['shell','Shell'],
+              ['dakchog','DakChog'],
+              ['faro','Faro'],
+              ['pokerTable','Poker'],
+            ];
+            for (const [key,label] of labels) {
+              let addr = '';
+              try { addr = await getAddressFor(key, provider); } catch {}
+              if (!addr) { try { addr = localStorage.getItem(`contract.${key}`)||''; } catch {}
+              }
+              if (!addr) continue;
+              let allowed = null;
+              try { allowed = await pool.authorizedGames(addr); } catch {}
+              const short = (v) => (v && v.length > 10 ? `${v.slice(0,6)}...${v.slice(-4)}` : (v||'-'));
+              const color = allowed ? '#006400' : '#8b0000';
+              const status = allowed === null ? 'unknown' : (allowed ? 'AUTHORIZED' : 'not authorized');
+              entries.push(`<div><strong>${label}</strong>: <span title="${addr}">${short(addr)}</span> — <span style="color:${color}">${status}</span></div>`);
+            }
+            poolAuthListEl.innerHTML = entries.length ? entries.join('') : '<div>(no known games on this chain)</div>';
+          }
+        } catch (e) {}
       } catch (e) {}
     }
 
