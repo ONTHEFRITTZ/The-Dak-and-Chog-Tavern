@@ -87,39 +87,24 @@
           }
         } catch {}
       }
-      async function pick(key){
-        try { status.textContent = 'Connecting...'; } catch {}
-        try {
-          sessionStorage.setItem('walletProvider', key);
-          try { window.__preferredWalletKey = key; } catch {}
-          try { localStorage.removeItem('walletProvider'); } catch {}
-        } catch {}
-        try {
-          try {
-            // Trigger wallet prompt immediately within this click handler using the exact provider
-            var injected;
-            if (key==='metamask') {
-              var eth = window.ethereum;
-              injected = (eth && eth.isMetaMask) ? eth : (Array.isArray(eth && eth.providers) ? eth.providers.find(p=>p && p.isMetaMask) : undefined);
-            } else if (key==='phantom') {
-              injected = (window.phantom && window.phantom.ethereum) || undefined;
-            }
-            if (!injected || !injected.request) throw new Error('Wallet extension not detected');
-            await injected.request({ method:'eth_requestAccounts' });
-            try { window.__walletProvider = injected; } catch {}
-            // Proceed with full connect flow (signature + network)
-            if (window.tavernConnectWallet) { await window.tavernConnectWallet(key); }
-            else { const tag = (window.__BUILD_TAG ? String(window.__BUILD_TAG) : String(Date.now())); const mod = await import(`./js/tavern.js?v=${encodeURIComponent(tag)}`); await mod.connectWallet(key); }
-            if (sessionStorage.getItem('walletSigned') === 'true') {
-              window.location.href = 'index.html';
-            } else {
-              status.textContent = 'Signature required to enter. Please try again.';
-            }
-          } catch (e) {
-            status.textContent = 'Login canceled. Please try again.';
-          }
-        } catch(e){ try { status.textContent = 'Failed to connect: ' + (e?.message||''); } catch {} }
-      }
+      function pick(key){
+  try { status.textContent = 'Connecting...'; } catch {}
+  try {
+    var fn = window.tavernConnectWallet;
+    if (typeof fn !== 'function') { status.textContent = 'Loader not ready. Reload and try again.'; return; }
+    // Do not await imports or other async work before requesting accounts; keep click context
+    Promise.resolve(fn(key)).then(function(){
+      try {
+        if (sessionStorage.getItem('walletSigned') === 'true') {
+          var next = 'index.html?nav=' + encodeURIComponent(String(Date.now()));
+          window.location.replace(next);
+        } else {
+          status.textContent = 'Signature required to enter. Please try again.';
+        }
+      } catch(_) {}
+    }).catch(function(e){ try { status.textContent = (e && e.message) ? e.message : 'Failed to connect'; } catch(_){} });
+  } catch(e){ try { status.textContent = 'Failed to connect'; } catch {} }
+}
       if (btn) btn.addEventListener('click', showChooser);
       if (mm) mm.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); pick('metamask'); });
       if (ph) ph.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); pick('phantom'); });
@@ -131,6 +116,7 @@
   </script>
 </body>
 </html>
+
 
 
 

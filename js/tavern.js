@@ -126,7 +126,6 @@ function setConnectButtonAsConnect() {
 
 // Connect Wallet
 export async function connectWallet(key) {
-  await ensureConfig();
   const pickInjected = (k)=>{ try { if(k==='phantom'){ return (window.phantom&&window.phantom.ethereum)||null; } const eth=window.ethereum; if(!eth) return null; if(eth.isMetaMask) return eth; if(Array.isArray(eth.providers)) return eth.providers.find(p=>p&&p.isMetaMask)||null; return eth||null; } catch { return null } }; const injected = pickInjected(key); if(!injected) return alert('Wallet not detected. Please install the selected wallet.');
 
   try {
@@ -146,9 +145,7 @@ try {
   try { sessionStorage.setItem('walletSigned','true'); sessionStorage.setItem('walletProvider', String(key||'injected')); sessionStorage.setItem('walletSig', sig); sessionStorage.setItem('walletMsg', msg); } catch {}
 } catch (e) {
   throw new Error('Signature required to enter');
-}    try { sessionStorage.setItem('walletSigned','true'); } catch {}
-
-    // Update top banner controls
+}    try { sessionStorage.setItem('walletSigned','true'); } catch {}\r\n    await ensureConfig();\r\n\r\n    // Update top banner controls
     setConnectButtonAsDisconnect();
     hideInlineConnectIfBannerPresent();
     try { statusEl.innerText = ''; } catch {}
@@ -229,6 +226,7 @@ export { ethers };
 try { window.ethers = ethers; } catch {}
 // Expose connect for landing so the click handler can trigger wallet prompt immediately
 try { window.tavernConnectWallet = connectWallet; } catch {}
+
 
 
 
