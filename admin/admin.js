@@ -567,19 +567,7 @@ faroResumeBtn?.addEventListener('click', async () => {
   } catch (e) { statusEl.textContent = e?.data?.message || e?.message || 'Failed'; }
 });
 
-window.addEventListener('load', async () => {
-  // Ensure Live Users section stays at the absolute bottom of the admin content
-  try {
-    const grid = document.querySelector('.tavern .grid');
-    const presenceCard = document.getElementById('presence-card');
-    if (grid && presenceCard && presenceCard.parentElement !== grid) {
-      grid.appendChild(presenceCard);
-    }
-    // Stretch full width within the column grid
-    try { if (presenceCard) presenceCard.style.alignSelf = 'stretch'; } catch {}
-  } catch (e) {}
-  await refresh();
-});
+window.addEventListener('load', async () => { try { await refresh(); } catch (e) {} });
 
 // Address override handlers (persist to localStorage and refresh)
 tavSetAddrBtn?.addEventListener('click', async () => {
