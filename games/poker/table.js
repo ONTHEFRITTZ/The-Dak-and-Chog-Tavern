@@ -502,10 +502,10 @@ async function connect(){
         btnWrap.appendChild(mk('Fold', function(){ socket.emit('poker:act', { action:'fold' }); }));
         if (need <= 0) {
           btnWrap.appendChild(mk('Check', function(){ socket.emit('poker:act', { action:'check' }); }));
-          btnWrap.appendChild(mk('Bet', async function(){ const v = Math.max(1, Number(amountInput && amountInput.value || 0) | 0); socket.emit('poker:act', { action:'bet', amount: v }); try { const mySeat = (Array.isArray(lastTable&&lastTable.seats)? lastTable.seats.findIndex(s=> s && ((s.addr&&String(s.addr).toLowerCase()===String(myAddr).toLowerCase()) || (socket && s.socketId===socket.id))) : -1); if (mySeat>=0) await contributeOnChain(mySeat, v); } catch {} }));
+          btnWrap.appendChild(mk('Bet', function(){ const v = Math.max(1, Number(amountInput && amountInput.value || 0) | 0); socket.emit('poker:act', { action:'bet', amount: v }); }));
         } else {
-          btnWrap.appendChild(mk('Call '+need, async function(){ socket.emit('poker:act', { action:'call' }); try { const mySeat = (Array.isArray(lastTable&&lastTable.seats)? lastTable.seats.findIndex(s=> s && ((s.addr&&String(s.addr).toLowerCase()===String(myAddr).toLowerCase()) || (socket && s.socketId===socket.id))) : -1); if (mySeat>=0) await contributeOnChain(mySeat, need); } catch {} }));
-          btnWrap.appendChild(mk('Raise +'+minRaise+'+', async function(){ const v = Math.max(minRaise, Number(amountInput && amountInput.value || 0) | 0); socket.emit('poker:act', { action:'raise', amount: v }); try { const mySeat = (Array.isArray(lastTable&&lastTable.seats)? lastTable.seats.findIndex(s=> s && ((s.addr&&String(s.addr).toLowerCase()===String(myAddr).toLowerCase()) || (socket && s.socketId===socket.id))) : -1); if (mySeat>=0) await contributeOnChain(mySeat, need+v); } catch {} }));
+          btnWrap.appendChild(mk('Call '+need, function(){ socket.emit('poker:act', { action:'call' }); }));
+          btnWrap.appendChild(mk('Raise +'+minRaise+'+', function(){ const v = Math.max(minRaise, Number(amountInput && amountInput.value || 0) | 0); socket.emit('poker:act', { action:'raise', amount: v }); }));
         }
         if (infoText) infoText.textContent = 'To call: ' + need + ' � MinRaise: ' + minRaise + ' � Stack: ' + Number(me && me.stack || 0);
       }

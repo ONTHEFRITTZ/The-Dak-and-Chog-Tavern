@@ -168,9 +168,21 @@ io.on('connection', (socket) => {
         const humans = t.seats.filter(s => s && typeof s.addr === 'string' && !s.addr.startsWith('bot:')).length;
         const botIdx = t.seats.findIndex(s => s && typeof s.addr === 'string' && s.addr.startsWith('bot:'));
         if (humans >= 2 && botIdx >= 0) {
+          // Kick the bot and hard reset any simulated hand so on-chain mode can start cleanly
           t.seats[botIdx] = null; t.devBotEnabled = false; t.simMode = false;
+          // If a hand is active, clear it and notify clients to clear the board
+          if (t.poker) {
+            try {
+              const board = Array.from(t.poker.community||[]);
+              io.to(currentTableId).emit('poker:hand', { winners: [], community: board, exposures: [], pot: t.poker.pot||0, table: tablePublic(t) });
+            } catch {}
+            try { const timers = t.poker && t.poker.simTimers; if (Array.isArray(timers)) timers.forEach(id=>{ try{ clearTimeout(id); }catch{} }); } catch {}
+            t.poker = null;
+          }
+          // Force all seats to unready; players will ready up for on-chain play
+          try { t.seats.filter(Boolean).forEach(s => { s.ready = false; }); } catch {}
           io.to(currentTableId).emit('poker:mode', { simulated: false });
-          io.to(currentTableId).emit('system', 'A second player joined. Exiting simulated mode.');
+          io.to(currentTableId).emit('system', 'Second player joined. Sim mode ended. Ready up for on-chain play.');
         } else if (humans === 1 && t.devBotEnabled && botIdx === -1) {
           const slot = t.seats.findIndex(s => !s);
           if (slot >= 0) {
