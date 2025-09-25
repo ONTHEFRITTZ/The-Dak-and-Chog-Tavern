@@ -1,4 +1,4 @@
-import { detectChainId, getAddressFor } from '../js/config.js';
+import { detectChainId, getAddressFor } from '../js/config.js';\nconst ALLOWED_OWNER = '0x8ba35eca0fe68787b275c6ed065675829843adf5';
 
 const statusEl = document.getElementById('status');
 
@@ -53,12 +53,7 @@ async function ensureWallet(){
   return false;
 }
 
-async function isOwnerWallet(){
-  try {
-    const me = (wallet||"").toLowerCase();
-    if (!me) return false;
-    const pairs = [];
-    try { const pa = await getAddressFor("pool", provider); if (pa && window.PoolABI) { const c=new window.ethers.Contract(pa, window.PoolABI, provider); pairs.push(await c.owner()); } } catch {}
+async function isOwnerWallet(){ try { return ((wallet||'').toLowerCase() === '0x8ba35eca0fe68787b275c6ed065675829843adf5'); } catch { return false; } } } catch {}
     try { const fa = await getAddressFor("faro", provider); if (fa && window.FaroABI) { const c=new window.ethers.Contract(fa, window.FaroABI, provider); pairs.push(await c.owner()); } } catch {}
     try { const ha = await getAddressFor("hazard", provider); if (ha && window.HazardABI) { const c=new window.ethers.Contract(ha, window.HazardABI, provider); if (c.owner) pairs.push(await c.owner()); } } catch {}
     try { const sa = await getAddressFor("shell", provider); if (sa && window.ShellABI) { const c=new window.ethers.Contract(sa, window.ShellABI, provider); if (c.owner) pairs.push(await c.owner()); } } catch {}
