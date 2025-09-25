@@ -65,6 +65,8 @@
       box-shadow:none;
     }
     .coin.flip { animation: flip 0.8s ease; }
+    /* Continuous spin until on-chain result is known */
+    .coin.spin { animation: flip 0.6s linear infinite; }
     /* Include edge-on orientations so JS can swap the face seamlessly at 90deg and 270deg */
     @keyframes flip {
       0%   { transform: rotateY(0deg); }

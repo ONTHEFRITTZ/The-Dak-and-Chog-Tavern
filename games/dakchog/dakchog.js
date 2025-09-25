@@ -109,8 +109,8 @@ flipBtn.addEventListener('click', async () => {
   if (!coinContract || !coinTargetAddress) { statusEl.textContent = 'Coin contract not configured.'; return; }
   if (!(bet > 0)) { statusEl.textContent = 'Enter a valid bet amount.'; return; }
 
-  // Animate coin while tx is pending
-  try { coinEl.classList.remove('flip'); void coinEl.offsetWidth; coinEl.classList.add('flip'); } catch {}
+  // Start continuous spin while tx is pending until chain confirms result
+  try { coinEl.classList.remove('flip'); coinEl.classList.add('spin'); } catch {}
   statusEl.textContent = 'Checking conditions...';
   try {
     const betOnChog = (choice === 'chog');
@@ -167,9 +167,14 @@ flipBtn.addEventListener('click', async () => {
     if (ev && ev.args) {
       const resultChog = !!ev.args.resultChog;
       const won = !!ev.args.won;
-      setTimeout(() => { setCoin(resultChog ? 'chog' : 'dak'); }, 380);
-      statusEl.textContent = won ? `On-chain: ${resultChog ? 'CHOG' : 'DAK'} – you won!` : `On-chain: ${resultChog ? 'CHOG' : 'DAK'} – you lost.`;
+      // Stop spin and land on final on-chain result
+      try { coinEl.classList.remove('spin'); } catch {}
+      try { setCoin(resultChog ? 'chog' : 'dak'); } catch {}
+      // Optional: one final flip for flair
+      try { void coinEl.offsetWidth; coinEl.classList.add('flip'); setTimeout(()=>coinEl.classList.remove('flip'), 900); } catch {}
+      statusEl.textContent = won ? `On-chain: ${resultChog ? 'CHOG' : 'DAK'} — you won!` : `On-chain: ${resultChog ? 'CHOG' : 'DAK'} — you lost.`;
     } else {
+      try { coinEl.classList.remove('spin'); } catch {}
       // Fallback: query past logs or just show confirmed
       statusEl.textContent = 'Confirmed. Check wallet or explorer for result.';
     }
@@ -177,6 +182,7 @@ flipBtn.addEventListener('click', async () => {
     console.error(e);
     const msg = e?.error?.message || e?.data?.message || e?.reason || e?.message || 'Transaction failed.';
     statusEl.textContent = msg;
+    try { coinEl.classList.remove('spin'); } catch {}
   }
 });
 
