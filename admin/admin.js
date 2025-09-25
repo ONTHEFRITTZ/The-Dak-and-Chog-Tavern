@@ -170,7 +170,7 @@ try {
     // Enable/disable owner-only controls
     [tavSetMaxBetBtn, tavSetPoolBtn].forEach(el => { if (el) el.classList.toggle('readonly', !isTavOwner); });
     [faroSetMaxBetBtn, faroSetFeeBtn, faroSetPoolBtn, faroPauseBtn, faroResumeBtn].forEach(el => { if (el) el.classList.toggle('readonly', !isFaroOwner); });
-    document.getElementById('owner-note').textContent = (isTavOwner || isFaroOwner || isPoolOwner) ? 'Owner controls enabled.' : 'Connect the owner wallet. Controls are disabled for non-owners.';
+    document.getElementById('owner-note').textContent = (isPoolOwner) ? 'Owner controls enabled.' : 'Connect the pool owner wallet. Controls are disabled for non-owners.';
 
   // Realtime controls rely on Tavern owner
   const rtPauseBtn = document.getElementById('rt-pause');
