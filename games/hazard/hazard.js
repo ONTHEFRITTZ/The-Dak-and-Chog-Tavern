@@ -135,18 +135,18 @@ function explainOutcome(main, finalSum, chance, win) {
   chance = Number(chance);
 
   if (chance === 0) {
-    if (finalSum === main) return `Immediate win — rolled your main (${main}).`;
-    if (finalSum === 2 || finalSum === 3) return `Immediate loss — rolled ${finalSum}.`;
+    if (finalSum === main) return `Come-out: WIN — rolled your main (${main}).`;
+    if (finalSum === 2 || finalSum === 3) return `Come-out: LOSS — rolled ${finalSum}.`;
     if (finalSum === 11 || finalSum === 12) {
-      if (main === 7) return `Immediate loss — rolled ${finalSum} and main was 7.`;
-      if (main === 5 || main === 9) return `Immediate win — rolled ${finalSum} (special for main ${main}).`;
-      return `Immediate loss — rolled ${finalSum}.`;
+      if (main === 7) return `Come-out: LOSS — rolled ${finalSum} and main was 7.`;
+      if (main === 5 || main === 9) return `Come-out: WIN — rolled ${finalSum} (special for main ${main}).`;
+      return `Come-out: LOSS — rolled ${finalSum}.`;
     }
-    return `Point established at ${finalSum}. Game continues until point or main resolves.`;
+    return `Come-out: point established at ${finalSum}. Keep rolling: hit point ${finalSum} before main ${main} to WIN.`;
   } else {
-    if (finalSum === chance) return `Won by hitting the chance/point (${chance}).`;
-    if (finalSum === main) return `Lost — rolled your main (${main}) before hitting the point (${chance}).`;
-    return `Resolved with roll ${finalSum}.`;
+    if (finalSum === chance) return `Point phase (point=${chance}): WIN — hit the point.`;
+    if (finalSum === main) return `Point phase (point=${chance}): LOSS — rolled your main (${main}) before the point.`;
+    return `Point phase (point=${chance}): rolling... (${finalSum}).`;
   }
 }
 
@@ -255,9 +255,9 @@ renderTavernBanner({ contractKey: bannerKey, address: tavernAddress, chainId, wa
     const payoutEth = win ? ethers.utils.formatEther(wager.mul(2)) : '0';
     const explanation = explainOutcome(Number(main), Number(finalSum), Number(chance), win);
     const rolledMsg = 'Rolled ' + Number(finalSum) + '. ';
-    statusEl.textContent = win
-      ? ('You won ' + payoutEth + ' MON! ' + rolledMsg + explanation)
-      : ('You lost. ' + rolledMsg + explanation);
+    statusEl.textContent = (win
+      ? ('You won ' + payoutEth + ' MON! ')
+      : ('You lost. ')) + rolledMsg + explanation;
     try { showToast(win ? 'You won ' + payoutEth + ' MON' : 'You lost', win ? 'success' : 'info'); } catch {}
 
     if (rollsList) {
