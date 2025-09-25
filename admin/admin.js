@@ -568,11 +568,15 @@ faroResumeBtn?.addEventListener('click', async () => {
 });
 
 window.addEventListener('load', async () => {
-  // Ensure Live Users section stays at the bottom
+  // Ensure Live Users section stays at the absolute bottom of the admin content
   try {
-    const tavernEl = document.querySelector('.tavern');
+    const grid = document.querySelector('.tavern .grid');
     const presenceCard = document.getElementById('presence-card');
-    if (tavernEl && presenceCard) tavernEl.appendChild(presenceCard);
+    if (grid && presenceCard && presenceCard.parentElement !== grid) {
+      grid.appendChild(presenceCard);
+    }
+    // Stretch full width within the column grid
+    try { if (presenceCard) presenceCard.style.alignSelf = 'stretch'; } catch {}
   } catch (e) {}
   await refresh();
 });
