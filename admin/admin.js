@@ -1,5 +1,4 @@
 import { detectChainId, getAddressFor, renderTavernBanner } from '../js/config.js';
-const ALLOWED_OWNER = '0x8ba35eca0fe68787b275c6ed065675829843adf5';
 
 const statusEl = document.getElementById('status');
 
@@ -238,8 +237,7 @@ async function applyWalletFromAccounts(accounts, { refreshAfter = true } = {}) {
   try {
     provider = new window.ethers.providers.Web3Provider(window.ethereum, 'any');
     signer = provider.getSigner();
-    
-    try { if (String(wallet||'').toLowerCase() !== ALLOWED_OWNER) { statusEl.textContent = 'Restricted: owner only'; setTimeout(()=>{ try { location.replace('/index.html'); } catch {} }, 300); return; } } catch {}
+    wallet = accounts[0];    try { if (poolToInput && !poolToInput.value) poolToInput.value = wallet; } catch {}
     updateWalletButtons();
     if (refreshAfter) await refresh();
   } catch (err) {
@@ -255,9 +253,15 @@ async function applyWalletFromAccounts(accounts, { refreshAfter = true } = {}) {
 async function restoreWalletIfAvailable() {
   if (!window.ethereum?.request) { updateWalletButtons(); return; }
   try {
-    let accounts = await window.ethereum.request({ method: 'eth_accounts' });
-    if (!Array.isArray(accounts) || !accounts.length) { try { const req = await window.ethereum.request({ method: 'eth_requestAccounts' }); await applyWalletFromAccounts(req); return; } catch {} wallet=null; signer=null; provider=undefined; statusEl.textContent='Disconnected'; updateWalletButtons(); return; }
-    await applyWalletFromAccounts(accounts);
+    const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+    if (Array.isArray(accounts) && accounts.length) {
+      await applyWalletFromAccounts(accounts);
+    } else {
+      wallet = null;
+      signer = null;
+      provider = undefined;
+      statusEl.textContent = 'Disconnected';
+      updateWalletButtons();
     }
   } catch (err) {
     console.warn('Restore wallet failed', err);
@@ -294,7 +298,7 @@ function bindTopButtons() {
 function registerWalletEvents() {
   if (!window.ethereum?.on || walletEventsRegistered) return;
   window.ethereum.on('accountsChanged', handleAccountsChanged);
-  window.ethereum.on('disconnect', handleEthereumDisconnect); try { window.ethereum.on('chainChanged', async ()=>{ try { await restoreWalletIfAvailable(); await refresh(); } catch {} }); } catch {}
+  window.ethereum.on('disconnect', handleEthereumDisconnect);
   walletEventsRegistered = true;
 }
 
@@ -477,7 +481,7 @@ function ensureIo() {
         if (Array.isArray(m.online) && guestOnlineEl) guestOnlineEl.textContent = String(m.online.length);
         if (presenceListEl && Array.isArray(m.online)) {
           const rows = m.online.map(u => {
-            const addr = u.addrMask || (u.addrHash ? u.addrHash.slice(0,10)+'â€¦' : '-');
+            const addr = u.addrMask || (u.addrHash ? u.addrHash.slice(0,10)+'…' : '-');
             const loc = u.tableId ? `${u.tableId}${(typeof u.seatId==='number')?(' #'+u.seatId):''}` : (u.path || '-');
             const ago = Math.max(0, Math.round((Date.now() - Number(u.last||0))/1000));
             return `${addr}  @ ${loc}  (${ago}s ago)`;
