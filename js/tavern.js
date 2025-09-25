@@ -135,8 +135,18 @@ export async function connectWallet(key) {
     signer = provider.getSigner();
     userAddress = await signer.getAddress();
     try { window.userAddress = userAddress; window.dispatchEvent(new CustomEvent('wallet:connected', { detail: { address: userAddress } })); } catch {}
-    // Mark signed-in for landing redirect compatibility
-    try { sessionStorage.setItem('walletSigned','true'); } catch {}
+// Force a fresh sign-in signature on landing
+try {
+  const ts = Date.now();
+  const nonce = (Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2)).slice(0, 24);
+  const msg = Dak & Chog Tavern\n\nSign-In: \nTime: \nAddress: \nWallet: ;
+  const sig = await signer.signMessage(msg);
+  const rec = ethers.utils.verifyMessage(msg, sig);
+  if (!rec || String(rec).toLowerCase() !== String(userAddress).toLowerCase()) throw new Error('Signature verification failed');
+  try { sessionStorage.setItem('walletSigned','true'); sessionStorage.setItem('walletProvider', String(key||'injected')); sessionStorage.setItem('walletSig', sig); sessionStorage.setItem('walletMsg', msg); } catch {}
+} catch (e) {
+  throw new Error('Signature required to enter');
+}    try { sessionStorage.setItem('walletSigned','true'); } catch {}
 
     // Update top banner controls
     setConnectButtonAsDisconnect();
@@ -219,6 +229,7 @@ export { ethers };
 try { window.ethers = ethers; } catch {}
 // Expose connect for landing so the click handler can trigger wallet prompt immediately
 try { window.tavernConnectWallet = connectWallet; } catch {}
+
 
 
 
