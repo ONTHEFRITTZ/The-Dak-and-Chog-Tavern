@@ -1,4 +1,6 @@
-import { detectChainId, getAddressFor } from '../js/config.js';\nconst ALLOWED_OWNER = '0x8ba35eca0fe68787b275c6ed065675829843adf5';
+import { detectChainId, getAddressFor } from '../js/config.js';
+// Optional fallback allowlist; prefer on-chain owner checks.
+const ALLOWED_OWNER = '0x8ba35eca0fe68787b275c6ed065675829843adf5';
 
 const statusEl = document.getElementById('status');
 
@@ -53,12 +55,36 @@ async function ensureWallet(){
   return false;
 }
 
-async function isOwnerWallet(){ try { return ((wallet||'').toLowerCase() === '0x8ba35eca0fe68787b275c6ed065675829843adf5'); } catch { return false; } } } catch {}
-    try { const fa = await getAddressFor("faro", provider); if (fa && window.FaroABI) { const c=new window.ethers.Contract(fa, window.FaroABI, provider); pairs.push(await c.owner()); } } catch {}
-    try { const ha = await getAddressFor("hazard", provider); if (ha && window.HazardABI) { const c=new window.ethers.Contract(ha, window.HazardABI, provider); if (c.owner) pairs.push(await c.owner()); } } catch {}
-    try { const sa = await getAddressFor("shell", provider); if (sa && window.ShellABI) { const c=new window.ethers.Contract(sa, window.ShellABI, provider); if (c.owner) pairs.push(await c.owner()); } } catch {}
-    const owners = pairs.filter(Boolean).map(a=>String(a).toLowerCase());
-    return owners.includes(me);
+// Owner gating: prefer Pool.owner() on current chain; fallback to owners of known games; last resort allowlist
+async function isOwnerWallet(){
+  try {
+    const me = String(wallet || '').toLowerCase();
+    if (!me) return false;
+
+    // 1) Prefer Pool owner
+    try {
+      const pa = await getAddressFor('pool', provider);
+      if (pa && window.PoolABI) {
+        const pc = new window.ethers.Contract(pa, window.PoolABI, provider);
+        const po = String(await pc.owner()).toLowerCase();
+        if (po === me) return true;
+      }
+    } catch {}
+
+    // 2) Fallback: owners of known deployed games
+    try {
+      const pairs = [];
+      try { const fa = await getAddressFor('faro', provider);   if (fa && window.FaroABI)   { const c = new window.ethers.Contract(fa,   window.FaroABI,   provider); if (c.owner) pairs.push(await c.owner()); } } catch {}
+      try { const ha = await getAddressFor('hazard', provider); if (ha && window.HazardABI) { const c = new window.ethers.Contract(ha,   window.HazardABI, provider); if (c.owner) pairs.push(await c.owner()); } } catch {}
+      try { const sa = await getAddressFor('shell', provider);  if (sa && window.ShellABI)  { const c = new window.ethers.Contract(sa,   window.ShellABI,  provider); if (c.owner) pairs.push(await c.owner()); } } catch {}
+      const owners = pairs.filter(Boolean).map(a => String(a).toLowerCase());
+      if (owners.includes(me)) return true;
+    } catch {}
+
+    // 3) Last resort: fallback allowlist constant (optional)
+    if (ALLOWED_OWNER && me === String(ALLOWED_OWNER).toLowerCase()) return true;
+
+    return false;
   } catch { return false; }
 }
 

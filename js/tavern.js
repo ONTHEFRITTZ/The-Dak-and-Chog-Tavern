@@ -24,6 +24,8 @@ import { profileLoad } from './profile.js';
 let provider;
 let signer;
 let userAddress;
+// Owner allowlist fallback (in addition to on-chain Pool owner)
+const OWNER_WALLET_ALLOWLIST = [ '0x8ba35eca0fe68787b275c6ed065675829843adf5' ];
 
 // DOM Elements
 const connectButton = document.getElementById('connect-wallet');
@@ -146,12 +148,16 @@ export async function connectWallet() {
       const chainId = await detectChainId(provider);
       const tavernAddress = await getAddressFor('tavern', provider);
       renderTavernBanner({ contractKey: 'tavern', address: tavernAddress, chainId, wallet: userAddress, labelOverride: 'Address' });
-      // Owner-only admin link (visible only if signer is contract owner)
+      // Owner-only admin link: show if wallet is Pool owner on current chain, or allowlisted
       try {
-        if (tavernAddress && window.TavernABI) {
-          const c = new ethers.Contract(tavernAddress, window.TavernABI, signer);
-          const owner = await c.owner();
-          ensureAdminLink(owner && owner.toLowerCase() === userAddress.toLowerCase());
+        const poolAddr = await getAddressFor('pool', provider);
+        if (poolAddr && window.PoolABI) {
+          const pool = new ethers.Contract(poolAddr, window.PoolABI, signer);
+          const owner = await pool.owner();
+          const me = String(userAddress||'').toLowerCase();
+          const isPoolOwner = owner && String(owner).toLowerCase() === me;
+          const isAllowlisted = OWNER_WALLET_ALLOWLIST.includes(me);
+          ensureAdminLink(!!(isPoolOwner || isAllowlisted));
         } else {
           ensureAdminLink(false);
         }
@@ -203,11 +209,16 @@ async function silentConnect() {
       const chainId = await detectChainId(provider);
       const tavernAddress = await getAddressFor('tavern', provider);
       renderTavernBanner({ contractKey: 'tavern', address: tavernAddress, chainId, wallet: userAddress, labelOverride: 'Address' });
+      // Owner-only admin link: show if wallet is Pool owner on current chain, or allowlisted
       try {
-        if (tavernAddress && window.TavernABI) {
-          const c = new ethers.Contract(tavernAddress, window.TavernABI, signer);
-          const owner = await c.owner();
-          ensureAdminLink(owner && owner.toLowerCase() === userAddress.toLowerCase());
+        const poolAddr = await getAddressFor('pool', provider);
+        if (poolAddr && window.PoolABI) {
+          const pool = new ethers.Contract(poolAddr, window.PoolABI, signer);
+          const owner = await pool.owner();
+          const me = String(userAddress||'').toLowerCase();
+          const isPoolOwner = owner && String(owner).toLowerCase() === me;
+          const isAllowlisted = OWNER_WALLET_ALLOWLIST.includes(me);
+          ensureAdminLink(!!(isPoolOwner || isAllowlisted));
         } else {
           ensureAdminLink(false);
         }
@@ -297,4 +308,3 @@ export { ethers };
 try { window.ethers = ethers; } catch {}
 // Expose connect for landing so the click handler can trigger wallet prompt immediately
 try { window.tavernConnectWallet = connectWallet; } catch {}
-
