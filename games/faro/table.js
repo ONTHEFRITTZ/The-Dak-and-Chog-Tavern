@@ -39,6 +39,17 @@ let stagedBets = [];     // [{ rank: 1..13, amountEth: number, copper: bool }]
 let myPendingBets = [];  // queued for on-chain when Ready
 let centerLockUntil = 0; // keep results visible briefly after a coup
 
+// Center message helper that respects result lock window
+function setCenter(text, forceOverride = false) {
+  try {
+    const now = Date.now();
+    if (!centerReadout) return;
+    if (forceOverride || now >= centerLockUntil) {
+      centerReadout.textContent = String(text || '');
+    }
+  } catch {}
+}
+
 function rankLabel(n){ return ({1:'A',11:'J',12:'Q',13:'K'}[n] || String(n)); }
 function rankNumber(l){ const map={A:1,J:11,Q:12,K:13}; return map[l] || Number(l); }
 function allRanks(){ return [1,2,3,4,5,6,7,8,9,10,11,12,13]; }
@@ -312,13 +323,13 @@ function renderTable(table) {
     const now = Date.now();
     if (now >= centerLockUntil) {
       if (!table.started) {
-        centerReadout.textContent = 'Place your bet';
+        setCenter('Place your bet');
       } else if (!allReady) {
         const myBetPlaced = Number(meSeat?.betTotal||0) > 0;
-        if (meSeat && !meSeat.ready) centerReadout.textContent = myBetPlaced ? 'Click Ready to lock your bet' : 'Place your bet';
-        else centerReadout.textContent = 'Waiting for players to Ready...';
+        if (meSeat && !meSeat.ready) setCenter(myBetPlaced ? 'Click Ready to lock your bet' : 'Place your bet');
+        else setCenter('Waiting for players to Ready...');
       } else {
-        centerReadout.textContent = 'All players ready';
+        setCenter('All players ready');
       }
     }
     // Toggle Clear Bets visibility: only during placing bets stage for my seat
@@ -414,6 +425,8 @@ async function connect() {
       const myTxt = mine ? (mine.delta>0 ? ` You won +${mine.delta}` : (mine.delta<0 ? ` You lost ${mine.delta}` : ' Push')) : '';
       const label = `Bank ${name(bank)} vs Player ${name(player)}${m.doublet?' (doublet)':''}`;
       const who = winners.length ? ` Winners: ${winners.join(', ')}` : '';
+      // Ensure result banner persists during lock window
+      try { setCenter(`${label}${who}${myTxt ? ' -'+myTxt : ''}`, true); } catch {}
       centerReadout.textContent = `${label}${who}${myTxt ? ' —'+myTxt : ''}`;
     } catch {}
   });
