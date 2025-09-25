@@ -1,6 +1,6 @@
 // Shared contract addresses for the Tavern and games
 // - Supports per-chain mapping with a sensible default
-// - Allows runtime overrides via URL params or localStorage
+// - Hardened: no runtime overrides via URL or localStorage
 
 // Base defaults (used when no chain-specific mapping exists)
 const DEFAULT_ADDRESSES = {
@@ -36,31 +36,11 @@ export const TAVERN_ADDRESS = DEFAULT_ADDRESSES.tavern;
 
 export const CONTRACTS = { ...DEFAULT_ADDRESSES };
 
-function getUrlOverride(key) {
-  try {
-    const url = new URL(window.location.href);
-    const val = url.searchParams.get(`contract.${key}`);
-    return val && /^0x[0-9a-fA-F]{40}$/.test(val) ? val : null;
-  } catch {
-    return null;
-  }
-}
-
-function getLocalOverride(key) {
-  try {
-    const val = localStorage.getItem(`contract.${key}`);
-    return val && /^0x[0-9a-fA-F]{40}$/.test(val) ? val : null;
-  } catch {
-    return null;
-  }
-}
-
 export function getAddress(contractKey, chainId) {
-  const override = getUrlOverride(contractKey) || getLocalOverride(contractKey);
-  if (override) return override;
   const idKey = chainId != null ? String(chainId) : null;
-  const byChain = (idKey && ADDRESS_BOOK[idKey]) || ADDRESS_BOOK.default;
-  return byChain?.[contractKey] || DEFAULT_ADDRESSES[contractKey];
+  const byChain = (idKey && ADDRESS_BOOK[idKey]);
+  if (!byChain) return undefined; // do not fall back silently
+  return byChain[contractKey];
 }
 
 export async function detectChainId(provider) {

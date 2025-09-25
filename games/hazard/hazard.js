@@ -192,77 +192,7 @@ mainButtons.forEach(btn => {
 
 // Initialize provider/signers and attach handlers
 const onReady = (fn) => { if (document.readyState === 'loading') { window.addEventListener('DOMContentLoaded', fn, { once: true }); } else { fn(); } };
-onReady(async () => {
-  hazardAck = true;
-  try { if (rulesOverlay) rulesOverlay.style.display = 'none'; } catch {}
-  try { if (openRulesBtn) openRulesBtn.style.display = 'none'; } catch {}
-  try { ensureDiceSize(); setDiceFaces(1,1,{ force:true }); } catch {}
-
-  // Accept either storage flag, but still try provider init even if missing
-  let walletFlag = undefined;
-  try { walletFlag = localStorage.getItem('walletConnected') || sessionStorage.getItem('walletConnected'); } catch {}
-  if (!window.ethereum) {
-    statusEl.textContent = 'MetaMask not detected.';
-    rollBtn.disabled = true;
-    return;
-  }
-
-  try {
-    provider = new ethers.providers.Web3Provider(window.ethereum, 'any');
-    signer = provider.getSigner();
-    try { attachProvider(provider); } catch {}
-    let walletAddress = null;
-    try { walletAddress = await signer.getAddress(); } catch {}
-    if (walletAddress) { currentWallet = walletAddress.toLowerCase(); }
-    try { if (walletAddress && walletFlag !== 'true') localStorage.setItem('walletConnected','true'); } catch {}
-    try { localStorage.removeItem('contract.hazard'); localStorage.removeItem('contract.tavern'); } catch {}
-    const hazardAddr = await getAddressFor('hazard', provider);
-    const tavernFallback = await getAddressFor('tavern', provider);
-    tavernAddress = hazardAddr || tavernFallback;
-    const hazardAbi = (hazardAddr && window.HazardABI) ? window.HazardABI : window.TavernABI;
-    contract = new ethers.Contract(tavernAddress, hazardAbi, signer);
-    try {
-      const chainId = await detectChainId(provider);
-      const bannerKey = hazardAddr ? 'hazard' : 'tavern';
-      renderTavernBanner({ contractKey: bannerKey, address: tavernAddress, chainId, wallet: walletAddress || undefined });
-    } catch {}
-
-    // Attempt automatic pool self-heal: set Hazard.pool to configured Pool and authorize, when owner wallets are connected
-    (async () => {
-      try {
-        const configuredPool = await getAddressFor('pool', provider).catch(() => null);
-        let currentPool = await contract.pool().catch(() => ethers.constants.AddressZero);
-        const signerAddr = (await signer.getAddress()).toLowerCase();
-
-        // If Hazard points to the wrong pool and we are the Hazard owner, fix it
-        if (configuredPool && currentPool && String(currentPool).toLowerCase() !== String(configuredPool).toLowerCase()) {
-          try {
-            const hzOwner = (await contract.owner()).toLowerCase();
-            if (hzOwner === signerAddr) {
-              statusEl.textContent = 'Updating Hazard poolâ€¦';
-              await (await contract.setPool(configuredPool)).wait();
-              currentPool = configuredPool;
-              try { showToast('Hazard pool updated', 'success'); } catch {}
-            }
-          } catch {}
-        }
-
-        // If we are Pool owner, ensure unpaused and authorized
-        if (currentPool && currentPool !== ethers.constants.AddressZero && window.PoolABI) {
-          try {
-            const pool = new ethers.Contract(currentPool, window.PoolABI, signer);
-            const poolOwner = (await pool.owner()).toLowerCase();
-            if (poolOwner === signerAddr) {
-              try { if (await pool.paused()) { await (await pool.pause(false)).wait(); } } catch {}
-              try {
-                const authorized = await pool.authorizedGames(contract.address).catch(() => false);
-                if (!authorized) { await (await pool.setAuthorized(contract.address, true)).wait(); try { showToast('Authorized Hazard in Pool', 'success'); } catch {} }
-              } catch {}
-            }
-          } catch {}
-        }
-      } catch {}
-    })();
+onReady// Hardened: no auto owner mutations; expects correct on-chain wiring.
     // If no authorized account and flag not set, keep UI disabled until user connects
     if (!walletAddress && walletFlag !== 'true') {
       statusEl.textContent = 'Connect wallet on the Tavern first.';
