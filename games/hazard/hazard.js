@@ -114,6 +114,21 @@ const displayDice = (d1,d2)=> setDiceFaces(d1,d2);
 
 // Animate dice visually
 function animateDice() {
+
+// Start/stop continuous dice spin until final on-chain result is known
+function startDiceSpin() {
+  try { dice1El.classList.add("shake"); dice2El.classList.add("shake"); } catch {}
+  if (diceSpinTimer) return;
+  diceSpinTimer = setInterval(() => {
+    const r1 = Math.floor(Math.random() * 6) + 1;
+    const r2 = Math.floor(Math.random() * 6) + 1;
+    setDiceFaces(r1, r2);
+  }, 120);
+}
+function stopDiceSpin() {
+  if (diceSpinTimer) { clearInterval(diceSpinTimer); diceSpinTimer = null; }
+  try { dice1El.classList.remove("shake"); dice2El.classList.remove("shake"); } catch {}
+}
   const el1 = dice1El, el2 = dice2El;
   el1.classList.add('shake');
   el2.classList.add('shake');
@@ -138,17 +153,17 @@ function explainOutcome(main, finalSum, chance, win) {
   chance = Number(chance);
 
   if (chance === 0) {
-    if (finalSum === main) return `Immediate win — rolled your main (${main}).`;
-    if (finalSum === 2 || finalSum === 3) return `Immediate loss — rolled ${finalSum}.`;
+    if (finalSum === main) return `Immediate win â€” rolled your main (${main}).`;
+    if (finalSum === 2 || finalSum === 3) return `Immediate loss â€” rolled ${finalSum}.`;
     if (finalSum === 11 || finalSum === 12) {
-      if (main === 7) return `Immediate loss — rolled ${finalSum} and main was 7.`;
-      if (main === 5 || main === 9) return `Immediate win — rolled ${finalSum} (special for main ${main}).`;
-      return `Immediate loss — rolled ${finalSum}.`;
+      if (main === 7) return `Immediate loss â€” rolled ${finalSum} and main was 7.`;
+      if (main === 5 || main === 9) return `Immediate win â€” rolled ${finalSum} (special for main ${main}).`;
+      return `Immediate loss â€” rolled ${finalSum}.`;
     }
     return `Point established at ${finalSum}. Game continues until point or main resolves.`;
   } else {
     if (finalSum === chance) return `Won by hitting the chance/point (${chance}).`;
-    if (finalSum === main) return `Lost — rolled your main (${main}) before hitting the point (${chance}).`;
+    if (finalSum === main) return `Lost â€” rolled your main (${main}) before hitting the point (${chance}).`;
     return `Resolved with roll ${finalSum}.`;
   }
 }
@@ -200,6 +215,7 @@ onReady(async () => {
     try { walletAddress = await signer.getAddress(); } catch {}
     if (walletAddress) { currentWallet = walletAddress.toLowerCase(); }
     try { if (walletAddress && walletFlag !== 'true') localStorage.setItem('walletConnected','true'); } catch {}
+    try { localStorage.removeItem('contract.hazard'); localStorage.removeItem('contract.tavern'); } catch {}
     const hazardAddr = await getAddressFor('hazard', provider);
     const tavernFallback = await getAddressFor('tavern', provider);
     tavernAddress = hazardAddr || tavernFallback;
@@ -223,7 +239,7 @@ onReady(async () => {
           try {
             const hzOwner = (await contract.owner()).toLowerCase();
             if (hzOwner === signerAddr) {
-              statusEl.textContent = 'Updating Hazard pool…';
+              statusEl.textContent = 'Updating Hazard poolâ€¦';
               await (await contract.setPool(configuredPool)).wait();
               currentPool = configuredPool;
               try { showToast('Hazard pool updated', 'success'); } catch {}
@@ -266,6 +282,10 @@ onReady(async () => {
     if (!currentWallet || player.toLowerCase() !== currentWallet) return;
 
     const [d1, d2] = splitSumToDice(Number(finalSum));
+    // Force-update dice to the authoritative game result and lock until next roll
+    setDiceFaces(d1, d2, { force:true });
+    try { stopDiceSpin(); } catch {}
+    diceLock = true;
     // Force-update dice to the authoritative game result and lock until next roll
     setDiceFaces(d1, d2, { force:true });
     diceLock = true;
@@ -416,8 +436,7 @@ window.addEventListener('beforeunload', () => { try { contract.off('HazardPlayed
   try { showToast('Rolling dice...', 'info'); } catch {}
   rollBtn.disabled = true;
 
-  try { if (typeof animationsEnabled === 'undefined') { animationsEnabled = true; } } catch { var animationsEnabled = true; }
-  if (animationsEnabled) animateDice();
+    diceLock = false; startDiceSpin();
 
   try {
     // Always do a static preflight to surface revert reasons before sending
