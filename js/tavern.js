@@ -132,6 +132,8 @@ export async function connectWallet() {
     signer = provider.getSigner();
     userAddress = await signer.getAddress();
     try { window.userAddress = userAddress; window.dispatchEvent(new CustomEvent('wallet:connected', { detail: { address: userAddress } })); } catch {}
+    // Mark signed-in for landing redirect compatibility
+    try { sessionStorage.setItem('walletSigned','true'); } catch {}
 
     // Update top banner controls
     setConnectButtonAsDisconnect();
@@ -293,5 +295,6 @@ export { signer, provider, userAddress };
 export { ethers };
 // Also expose on window for non-module consumers
 try { window.ethers = ethers; } catch {}
-
+// Expose connect for landing so the click handler can trigger wallet prompt immediately
+try { window.tavernConnectWallet = connectWallet; } catch {}
 
