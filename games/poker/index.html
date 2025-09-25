@@ -39,7 +39,7 @@
   </style>
 </head>
 
-<script>(function(){try{var ok=sessionStorage.getItem('walletConnected')==='true';if(!ok) location.replace('/landing.html');}catch(e){location.replace('/landing.html');}})();</script>
+<script>(function(){try{var ok=(sessionStorage.getItem('walletConnected')==='true')||(localStorage.getItem('walletConnected')==='true'); if(!ok){ location.replace('/landing.html'); } else { try{ sessionStorage.setItem('walletConnected','true'); }catch(e){} }}catch(e){location.replace('/landing.html');}})();</script>
 <body class="game">
   <div class="top-banner" role="region" aria-label="Wallet and status">
     <div class="banner-left">

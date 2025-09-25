@@ -107,7 +107,7 @@
     <span id="wi-address">-</span>
     <button id="wi-disconnect" style="display:none;">Disconnect</button>
   </div>
-  <script>(function(){try{var ok=sessionStorage.getItem('walletConnected')==='true';if(!ok) location.replace('/landing.html');}catch(e){location.replace('/landing.html');}})();</script>
+  <script>(function(){try{var ok=(sessionStorage.getItem('walletConnected')==='true')||(localStorage.getItem('walletConnected')==='true'); if(!ok){ location.replace('/landing.html'); } else { try{ sessionStorage.setItem('walletConnected','true'); }catch(e){} }}catch(e){location.replace('/landing.html');}})();</script>
   <div id="removed-overlay" style="position:fixed; inset:0; background:rgba(0,0,0,0.6); display:none; align-items:center; justify-content:center; z-index:20000;">
     <div style="background: var(--panel-bg-soft); border:1px solid rgba(255,255,255,0.12); border-radius:14px; padding:22px; width:min(92vw, 820px); max-height:90vh; overflow:auto; text-align:left; color:#f4e6d3; box-shadow:0 24px 60px rgba(0,0,0,0.55);">
       <h2 style="margin-top:0;">Dak & Chog Rules</h2>

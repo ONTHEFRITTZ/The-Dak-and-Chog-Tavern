@@ -49,7 +49,7 @@
 </head>
 <body class="game lobby-page">
 
-  <script>(function(){try{var ok=sessionStorage.getItem('walletConnected')==='true';if(!ok) location.replace('/landing.html');}catch(e){location.replace('/landing.html');}})();</script>
+  <script>(function(){try{var ok=(sessionStorage.getItem('walletConnected')==='true')||(localStorage.getItem('walletConnected')==='true'); if(!ok){ location.replace('/landing.html'); } else { try{ sessionStorage.setItem('walletConnected','true'); }catch(e){} }}catch(e){location.replace('/landing.html');}})();</script>
   
   <!-- Top banner (match Poker isolated layout) -->
   <div class="top-banner" role="region" aria-label="Wallet and status">
