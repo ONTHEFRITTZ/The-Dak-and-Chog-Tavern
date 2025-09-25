@@ -6,6 +6,7 @@ const disconnectBtn = document.getElementById('wi-disconnect') || document.getEl
 const walletAddrSpan = document.getElementById('wi-address');
 let devBotOn = false;
 let socket; let myAddr = null; let currentTableId = null; let lastTable = null; let myHole = [];
+let hp = null; let hpSmallBlind = null; let onChain = false; let joinedSeat = new Set();
 let lastState = null; let exposures = {}; let winnersNow = {};
 
 // Disable Dev Bot toggle until wallet connects
@@ -42,6 +43,23 @@ function positionSeatsRing(){
   } catch {}
 }
 positionSeatsRing();
+
+async function ensureHp(){
+  try {
+    if (!window.HoldemPokerABI || !window.ethers) return false;
+    const mod = await import('../../js/config.js');
+    const provider = new window.ethers.providers.Web3Provider(window.ethereum,'any');
+    const signer = provider.getSigner();
+    const addr = await mod.getAddressFor('pokerTable', provider);
+    if (!addr) return false;
+    hp = new window.ethers.Contract(addr, window.HoldemPokerABI, signer);
+    hpSmallBlind = await hp.smallBlind().catch(()=>null);
+    return true;
+  } catch { return false; }
+}
+function chipsToWei(n){ try { if (!hpSmallBlind) return null; return hpSmallBlind.mul(Math.max(0, Number(n)|0)); } catch { return null; } }
+async function joinSeatOnChain(seatId){ try { if (!onChain || !hp) return; if (joinedSeat.has(seatId)) return; await hp.joinSeat(seatId); joinedSeat.add(seatId); } catch {} }
+async function contributeOnChain(seatId, chips){ try { if (!onChain || !hp) return; const val = chipsToWei(chips); if (!val) return; await joinSeatOnChain(seatId); await hp.contribute(seatId, { value: val }); } catch (e) { console.warn('contribute failed', e); } }
 
 // Build shared UI elements (action bar, community/burn strips) once
 function ensureActionBar(){
@@ -344,6 +362,7 @@ async function connect(){
       }
     } catch(e){}
   });
+  socket.on('poker:mode', function(m){ try { onChain = !m?.simulated; if (onChain) { ensureHp(); } } catch {} });
   // After joining, request current poker state as well
   try { socket.emit('poker:get'); } catch(e){}
   socket.on('poker:cards', function(m){ try { const tid = String((m && m.tableId) || ''); if (tid && tid !== currentTableId) return; const hole = Array.isArray(m && m.hole) ? m.hole : []; if (hole.length === 2) { myHole = hole; if (lastTable) renderTable(lastTable); } } catch(e){} });
@@ -483,10 +502,10 @@ async function connect(){
         btnWrap.appendChild(mk('Fold', function(){ socket.emit('poker:act', { action:'fold' }); }));
         if (need <= 0) {
           btnWrap.appendChild(mk('Check', function(){ socket.emit('poker:act', { action:'check' }); }));
-          btnWrap.appendChild(mk('Bet', function(){ const v = Math.max(1, Number(amountInput && amountInput.value || 0) | 0); socket.emit('poker:act', { action:'bet', amount: v }); }));
+          btnWrap.appendChild(mk('Bet', async function(){ const v = Math.max(1, Number(amountInput && amountInput.value || 0) | 0); socket.emit('poker:act', { action:'bet', amount: v }); try { const mySeat = (Array.isArray(lastTable&&lastTable.seats)? lastTable.seats.findIndex(s=> s && ((s.addr&&String(s.addr).toLowerCase()===String(myAddr).toLowerCase()) || (socket && s.socketId===socket.id))) : -1); if (mySeat>=0) await contributeOnChain(mySeat, v); } catch {} }));
         } else {
-          btnWrap.appendChild(mk('Call '+need, function(){ socket.emit('poker:act', { action:'call' }); }));
-          btnWrap.appendChild(mk('Raise +'+minRaise+'+', function(){ const v = Math.max(minRaise, Number(amountInput && amountInput.value || 0) | 0); socket.emit('poker:act', { action:'raise', amount: v }); }));
+          btnWrap.appendChild(mk('Call '+need, async function(){ socket.emit('poker:act', { action:'call' }); try { const mySeat = (Array.isArray(lastTable&&lastTable.seats)? lastTable.seats.findIndex(s=> s && ((s.addr&&String(s.addr).toLowerCase()===String(myAddr).toLowerCase()) || (socket && s.socketId===socket.id))) : -1); if (mySeat>=0) await contributeOnChain(mySeat, need); } catch {} }));
+          btnWrap.appendChild(mk('Raise +'+minRaise+'+', async function(){ const v = Math.max(minRaise, Number(amountInput && amountInput.value || 0) | 0); socket.emit('poker:act', { action:'raise', amount: v }); try { const mySeat = (Array.isArray(lastTable&&lastTable.seats)? lastTable.seats.findIndex(s=> s && ((s.addr&&String(s.addr).toLowerCase()===String(myAddr).toLowerCase()) || (socket && s.socketId===socket.id))) : -1); if (mySeat>=0) await contributeOnChain(mySeat, need+v); } catch {} }));
         }
         if (infoText) infoText.textContent = 'To call: ' + need + ' � MinRaise: ' + minRaise + ' � Stack: ' + Number(me && me.stack || 0);
       }

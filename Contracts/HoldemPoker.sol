@@ -1,25 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-/// @notice Minimal interface of BankrollPool used by pooled poker
-interface IBankrollPoolPay {
-    function pay(address payable to, uint256 amount) external;
-    function balance() external view returns (uint256);
-}
-
-/// @title HoldemPoker - Cash-game table with pooled custody (BankrollPool)
-/// @notice Single poker contract. All deposits are forwarded to the shared pool. This contract tracks
-///         per-seat balances and uses the pool to pay withdrawals. Hand lifecycle is owner-orchestrated
-///         by the off-chain engine.
+/// @title HoldemPoker - Cash-game table without pre-funding
+/// @notice Players contribute native coin directly per action (no separate buy-in).
+///         Once contributed during a hand, funds are locked into the pot and cannot
+///         be reclaimed if the player leaves mid-hand (treated as a fold).
+///         The off-chain engine (table owner) orchestrates begin/settle.
 contract HoldemPoker {
     // --- Ownership + reentrancy ---
     address public owner;
     modifier onlyOwner() { require(msg.sender == owner, "not owner"); _; }
     uint256 private _locked = 1; modifier nonReentrant() { require(_locked==1, "reentrant"); _locked=2; _; _locked=1; }
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
-
-    // --- Pool ---
-    IBankrollPoolPay public immutable pool;
 
     // --- Table params ---
     uint8 public constant MAX_SEATS = 6;
@@ -28,7 +20,7 @@ contract HoldemPoker {
     uint256 public bigBlind;
     bool public paused;
 
-    struct Seat { address player; uint256 balance; }
+    struct Seat { address player; }
     Seat[MAX_SEATS] public seats;
 
     // --- Hand/session state ---
@@ -45,15 +37,13 @@ contract HoldemPoker {
     event BlindsUpdated(uint256 sb, uint256 bb);
     event SeatTaken(address indexed player, uint8 indexed seat, uint256 amount);
     event SeatLeft(address indexed player, uint8 indexed seat, uint256 returnedAmount);
-    event Deposited(address indexed player, uint8 indexed seat, uint256 amount);
-    event Withdrawn(address indexed player, uint8 indexed seat, uint256 amount);
+    event Joined(address indexed player, uint8 indexed seat);
+    event LeftDuringHand(address indexed player, uint8 indexed seat);
     event HandStarted(uint256 indexed handId, uint8 dealer, uint8 sb, uint8 bb);
     event Contributed(uint256 indexed handId, uint8 indexed seat, uint256 amount);
     event HandSettled(uint256 indexed handId, address[] winners, uint256[] payouts, uint256 rake);
 
-    constructor(address poolAddr) {
-        require(poolAddr != address(0), "pool");
-        pool = IBankrollPoolPay(poolAddr);
+    constructor(address /*poolAddrIgnored*/ ) {
         owner = msg.sender;
         // Sensible defaults; owner may adjust later
         rakeBps = 100;                 // 1%
@@ -69,56 +59,32 @@ contract HoldemPoker {
     function setBlinds(uint256 _sb, uint256 _bb) external onlyOwner { smallBlind=_sb; bigBlind=_bb; emit BlindsUpdated(_sb,_bb); }
     function pause(bool p) external onlyOwner { paused=p; emit Paused(p); }
 
-    // --- Player funding (custodied in pool) ---
-    function seat(uint8 seatId) external payable nonReentrant {
+    // --- Seat control (no pre-fund) ---
+    function joinSeat(uint8 seatId) external nonReentrant {
         require(!paused, "paused");
         require(seatId < MAX_SEATS, "seat");
         Seat storage s = seats[seatId];
         require(s.player == address(0) || s.player == msg.sender, "taken");
         if (s.player == address(0)) s.player = msg.sender;
-        if (msg.value > 0) {
-            s.balance += msg.value;
-            // forward deposit into pool
-            (bool ok,) = payable(address(pool)).call{ value: msg.value }("");
-            require(ok, "pool deposit failed");
-        }
-        emit SeatTaken(msg.sender, seatId, msg.value);
+        emit Joined(msg.sender, seatId);
     }
-
-    function deposit(uint8 seatId) external payable nonReentrant {
-        require(!paused, "paused");
-        require(seatId < MAX_SEATS, "seat");
-        Seat storage s = seats[seatId];
-        require(s.player == msg.sender && s.player != address(0), "owner");
-        require(msg.value > 0, "value");
-        s.balance += msg.value;
-        (bool ok,) = payable(address(pool)).call{ value: msg.value }("");
-        require(ok, "pool deposit failed");
-        emit Deposited(msg.sender, seatId, msg.value);
-    }
-
-    function withdraw(uint8 seatId, uint256 amount) external nonReentrant {
-        require(!paused, "paused");
-        require(seatId < MAX_SEATS, "seat");
-        Seat storage s = seats[seatId];
-        require(s.player == msg.sender, "owner");
-        require(!inHand, "in hand");
-        require(s.balance >= amount, "funds");
-        s.balance -= amount;
-        // pool must authorize this contract; otherwise pay() will revert
-        pool.pay(payable(msg.sender), amount);
-        emit Withdrawn(msg.sender, seatId, amount);
-    }
-
     function unseat(uint8 seatId) external nonReentrant {
         require(seatId < MAX_SEATS, "seat");
         Seat storage s = seats[seatId];
         require(s.player == msg.sender || msg.sender == owner, "perm");
         require(!inHand, "in hand");
-        uint256 amt = s.balance; address pl = s.player;
-        s.balance = 0; s.player = address(0);
-        if (amt > 0) { pool.pay(payable(pl), amt); }
-        emit SeatLeft(pl, seatId, amt);
+        address pl = s.player; s.player = address(0);
+        emit SeatLeft(pl, seatId, 0);
+    }
+
+    /// @notice Leave during an active hand, forfeiting any contributed funds.
+    function leaveDuringHand(uint8 seatId) external nonReentrant {
+        require(inHand, "no hand");
+        require(seatId < MAX_SEATS, "seat");
+        Seat storage s = seats[seatId];
+        require(s.player == msg.sender, "owner");
+        s.player = address(0);
+        emit LeftDuringHand(msg.sender, seatId);
     }
 
     // --- Hand lifecycle (off-chain engine drives sequencing) ---
@@ -126,19 +92,18 @@ contract HoldemPoker {
         require(!inHand, "active");
         require(dealer < MAX_SEATS && sb < MAX_SEATS && bb < MAX_SEATS, "pos");
         handId = nextHandId; inHand = true; dealerSeat = dealer; sbSeat = sb; bbSeat = bb; pot = 0;
-        // post blinds from seat balances into logical pot
-        if (seats[sb].player != address(0) && seats[sb].balance >= smallBlind) { seats[sb].balance -= smallBlind; pot += smallBlind; }
-        if (seats[bb].player != address(0) && seats[bb].balance >= bigBlind) { seats[bb].balance -= bigBlind; pot += bigBlind; }
+        // Blinds are posted by players via contribute(), not auto-debited here.
         emit HandStarted(handId, dealer, sb, bb);
     }
 
-    function contribute(uint8 seatId, uint256 amount) external onlyOwner {
+    /// @notice Player contributes native coin to the current hand.
+    function contribute(uint8 seatId) external payable nonReentrant {
         require(inHand, "no hand");
         require(seatId < MAX_SEATS, "seat");
-        Seat storage s = seats[seatId];
-        require(s.player != address(0) && s.balance >= amount, "funds");
-        s.balance -= amount; pot += amount;
-        emit Contributed(handId, seatId, amount);
+        require(msg.value > 0, "value");
+        require(seats[seatId].player == msg.sender, "seat owner");
+        pot += msg.value;
+        emit Contributed(handId, seatId, msg.value);
     }
 
     /// @notice Settle the hand, crediting payouts to winners' seat balances. Rake is kept in-contract (implicitly in pool treasury).
@@ -150,11 +115,16 @@ contract HoldemPoker {
         uint256 rake = rakeOverride;
         if (rake == 0 && rakeBps > 0) { rake = (pot * uint256(rakeBps)) / 10000; }
         require(total + rake <= pot, "exceeds pot");
-        // credit payouts to winners' seat balances
+        // pay rake to owner if any, then pay winners directly
+        if (rake > 0) {
+            (bool rOk, ) = payable(owner).call{ value: rake }("");
+            require(rOk, "rake xfer");
+        }
         for (uint256 i=0;i<winners.length;i++) {
-            address w = winners[i]; uint256 amt = payouts[i];
+            uint256 amt = payouts[i];
             if (amt == 0) continue;
-            for (uint8 s=0;s<MAX_SEATS;s++) { if (seats[s].player == w) { seats[s].balance += amt; break; } }
+            (bool ok,) = payable(winners[i]).call{ value: amt }("");
+            require(ok, "pay fail");
         }
         inHand = false; pot = 0;
         emit HandSettled(handId, winners, payouts, rake);
