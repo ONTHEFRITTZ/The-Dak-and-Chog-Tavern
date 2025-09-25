@@ -22,6 +22,7 @@ let diceSpinTimer = null;      // continuous spin timer until on-chain result
 let selectedMain = 7;
 let currentWallet = null;
 let hazardEnableTimer = null;
+let lastClickAt = 0;          // debounce rapid duplicate clicks
 
 // DOM
 const statusEl = document.getElementById('hazard-result') || document.getElementById('status');
@@ -322,11 +323,13 @@ window.addEventListener('beforeunload', () => { try { contract.off('HazardPlayed
   rollBtn?.addEventListener('click', async () => {
   // Guard: prevent re-clicks during tx or cooldown
   const now = Date.now();
-  if (inFlight || now < cooldownUntil) {
+  if (inFlight || now < cooldownUntil || (now - lastClickAt) < 500) {
     try { statusEl.textContent = 'Please wait... resolving previous roll.'; } catch {}
     return;
   }
   inFlight = true;
+  lastClickAt = now;
+  try { rollBtn.disabled = true; } catch {}
   if (!hazardAck) { try { rulesOverlay.style.display = 'flex'; } catch {}; return; }
   if (!signer || !contract) {
     alert('Connect wallet on the Tavern first.');
@@ -394,7 +397,7 @@ window.addEventListener('beforeunload', () => { try { contract.off('HazardPlayed
 
   statusEl.textContent = 'Rolling dice... sending transaction...';
   try { showToast('Rolling dice...', 'info'); } catch {}
-  rollBtn.disabled = true;
+  // Already disabled above
   // Start continuous spin and unlock faces for this round
   try { diceLock = false; } catch {}
   startDiceSpin();
