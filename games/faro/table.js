@@ -46,7 +46,8 @@ function elevateCenterBanner() {
     if (!el) return;
     // Bring to top visually
     el.style.position = 'absolute';
-    el.style.zIndex = '25000';
+    // Keep below bet modal (z-index 21000) so it never covers it
+    el.style.zIndex = '20000';
     el.style.pointerEvents = 'none';
     // Re-append as last child of canvas to ensure it paints last
     const canvas = document.querySelector('.table-canvas');
