@@ -11,7 +11,7 @@ const DEFAULT_ADDRESSES = {
   hazard:  "0xF6eA1599452bb6F35B3220307996Dc891554D911",
   shell:   "0xc0f0927D50da717209300FBC2B4C115662d219D6",
   dakchog: "0xc668DCA267aB4fb6A7A1757F51B8CB965349ef5A",
-  pokerTable: "0xE922D24A624F0F2B947c529Aa7748fB2E989C156",
+  pokerTable: "0x3352060b4fBcAC18499390643703957E28e128fd",
 };
 
 // Address book keyed by chainId (as number or string) or "default"
@@ -25,7 +25,7 @@ export const ADDRESS_BOOK = {
     hazard:  "0xF6eA1599452bb6F35B3220307996Dc891554D911",
     shell:   "0xc0f0927D50da717209300FBC2B4C115662d219D6",
     dakchog: "0xc668DCA267aB4fb6A7A1757F51B8CB965349ef5A",
-    pokerTable: "0xE922D24A624F0F2B947c529Aa7748fB2E989C156",
+    pokerTable: "0x3352060b4fBcAC18499390643703957E28e128fd",
   },
   // 1: { shell: "0x...", hazard: "0x..." },
   // 11155111: { shell: "0x...", hazard: "0x..." },
