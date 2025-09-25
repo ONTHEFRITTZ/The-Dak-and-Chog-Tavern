@@ -62,8 +62,36 @@ shellElements.forEach((shell) => {
       statusEl.innerText = 'Playing...';
       try { showToast('Playing...', 'info'); } catch {}
 
+      // Prepare wager once
+      const betWei = ethers.utils.parseEther(betAmount.toString());
+
+      // Bankroll coverage: prefer Pool.balance() if contract exposes pool()
+      try {
+        let ok = false;
+        let poolAddr;
+        try { poolAddr = await contract.pool(); } catch {}
+        if (poolAddr && poolAddr !== ethers.constants.AddressZero && window.PoolABI) {
+          const pool = new ethers.Contract(poolAddr, window.PoolABI, provider);
+          const bal = await pool.balance();
+          if (bal.gte(betWei.mul(2))) ok = true;
+        } else {
+          const bank = await provider.getBalance(tavernAddress);
+          if (bank && bank.gte(betWei.mul(2))) ok = true;
+        }
+        if (!ok) { statusEl.innerText = 'Bankroll too low for this bet (needs 2x cover). Try a smaller amount.'; return; }
+      } catch {}
+
+      // Preflight static call to surface revert reasons (authorization, paused, maxBet, etc.)
+      try {
+        await contract.callStatic.playShell(guess, { value: betWei });
+      } catch (pre) {
+        const msg = pre?.error?.message || pre?.data?.message || pre?.reason || pre?.message || 'Reverted';
+        statusEl.innerText = 'Rejected: ' + msg;
+        return;
+      }
+
       const tx = await contract.playShell(guess, {
-        value: ethers.utils.parseEther(betAmount.toString()),
+        value: betWei,
         gasLimit: 200000, // manual gas limit
       });
 
