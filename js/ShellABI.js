@@ -1,6 +1,15 @@
 // Minimal ABI for Shell pooled contract
 window.ShellABI = [
+  // Core gameplay
   { "inputs": [ {"internalType":"uint8","name":"guess","type":"uint8"} ], "name":"playShell", "outputs": [], "stateMutability":"payable", "type":"function" },
+
+  // Views
+  { "inputs": [], "name": "pool",  "outputs": [{"internalType":"address","name":"","type":"address"}], "stateMutability":"view", "type":"function" },
+  { "inputs": [], "name": "owner", "outputs": [{"internalType":"address","name":"","type":"address"}], "stateMutability":"view", "type":"function" },
+
+  // Admin (owner only)
+  { "inputs": [{"internalType":"address","name":"poolAddr","type":"address"}], "name":"setPool", "outputs": [], "stateMutability":"nonpayable", "type":"function" },
+
   { "anonymous": false, "inputs": [
       {"indexed":true,  "internalType":"address","name":"player","type":"address"},
       {"indexed":false, "internalType":"uint256","name":"wager","type":"uint256"},
@@ -10,4 +19,3 @@ window.ShellABI = [
       {"indexed":false, "internalType":"uint8","name":"guess","type":"uint8"}
     ], "name":"ShellPlayed", "type":"event" }
 ];
-

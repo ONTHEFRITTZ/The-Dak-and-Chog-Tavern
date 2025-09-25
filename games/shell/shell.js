@@ -43,6 +43,38 @@ async function init() {
     const bannerKey = shellAddr ? 'shell' : 'tavern';
     renderTavernBanner({ contractKey: bannerKey, address: tavernAddress, chainId, wallet: userAddress });
   } catch {}
+
+  // Self-heal: If signer is Shell owner, update pool; if signer is Pool owner, unpause + authorize Shell.
+  try {
+    const configuredPool = await getAddressFor('pool', provider).catch(() => null);
+    const abi = activeShellAbi || window.ShellABI || window.TavernABI;
+    const c = new ethers.Contract(tavernAddress, abi, signer);
+    let currentPool = await (c.pool ? c.pool().catch(() => ethers.constants.AddressZero) : Promise.resolve(ethers.constants.AddressZero));
+    const signerAddr = (await signer.getAddress()).toLowerCase();
+    if (configuredPool && currentPool && String(currentPool).toLowerCase() !== String(configuredPool).toLowerCase()) {
+      try {
+        const owner = (await c.owner()).toLowerCase();
+        if (owner === signerAddr && c.setPool) {
+          await (await c.setPool(configuredPool)).wait();
+          currentPool = configuredPool;
+          try { showToast('Shell pool updated', 'success'); } catch {}
+        }
+      } catch {}
+    }
+    if (currentPool && currentPool !== ethers.constants.AddressZero && window.PoolABI) {
+      try {
+        const pool = new ethers.Contract(currentPool, window.PoolABI, signer);
+        const poolOwner = (await pool.owner()).toLowerCase();
+        if (poolOwner === signerAddr) {
+          try { if (await pool.paused()) { await (await pool.pause(false)).wait(); } } catch {}
+          try {
+            const authorized = await pool.authorizedGames(tavernAddress).catch(() => false);
+            if (!authorized) { await (await pool.setAuthorized(tavernAddress, true)).wait(); try { showToast('Authorized Shell in Pool', 'success'); } catch {} }
+          } catch {}
+        }
+      } catch {}
+    }
+  } catch {}
 }
 
 shellElements.forEach((shell) => {

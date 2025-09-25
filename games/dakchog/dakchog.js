@@ -61,18 +61,41 @@ async function ensureWallet() {
     provider = new ethers.providers.Web3Provider(window.ethereum, 'any');
     signer = provider.getSigner();
     wallet = await signer.getAddress();
+  try {
+    const chainId = await detectChainId(provider);
+    const dedicatedAddr = await getAddressFor('dakchog', provider);
+    const tavernAddr = await getAddressFor('tavern', provider);
+    coinTargetAddress = dedicatedAddr || tavernAddr || null;
+    coinAbi = (dedicatedAddr && window.DakChogABI) ? window.DakChogABI : window.TavernABI;
+    const bannerKey = dedicatedAddr ? 'dakchog' : 'tavern';
+    renderTavernBanner({ contractKey: bannerKey, address: coinTargetAddress, chainId, wallet });
+    if (coinTargetAddress && coinAbi) {
+      coinContract = new ethers.Contract(coinTargetAddress, coinAbi, signer);
+    } else {
+      coinContract = undefined;
+    }
+  } catch {}
+
+    // Self-heal: If signer is DakChog owner, update pool; if signer is Pool owner, unpause + authorize DakChog.
     try {
-      const chainId = await detectChainId(provider);
-      const dedicatedAddr = await getAddressFor('dakchog', provider);
-      const tavernAddr = await getAddressFor('tavern', provider);
-      coinTargetAddress = dedicatedAddr || tavernAddr || null;
-      coinAbi = (dedicatedAddr && window.DakChogABI) ? window.DakChogABI : window.TavernABI;
-      const bannerKey = dedicatedAddr ? 'dakchog' : 'tavern';
-      renderTavernBanner({ contractKey: bannerKey, address: coinTargetAddress, chainId, wallet });
-      if (coinTargetAddress && coinAbi) {
-        coinContract = new ethers.Contract(coinTargetAddress, coinAbi, signer);
-      } else {
-        coinContract = undefined;
+      const configuredPool = await getAddressFor('pool', provider).catch(() => null);
+      const c = coinContract;
+      if (c) {
+        let currentPool = await (c.pool ? c.pool().catch(() => ethers.constants.AddressZero) : Promise.resolve(ethers.constants.AddressZero));
+        const signerAddr = (await signer.getAddress()).toLowerCase();
+        if (configuredPool && currentPool && String(currentPool).toLowerCase() !== String(configuredPool).toLowerCase()) {
+          try { const owner = (await c.owner()).toLowerCase(); if (owner === signerAddr && c.setPool) { await (await c.setPool(configuredPool)).wait(); currentPool = configuredPool; try { showToast('DakChog pool updated','success'); } catch {} } } catch {}
+        }
+        if (currentPool && currentPool !== ethers.constants.AddressZero && window.PoolABI) {
+          try {
+            const pool = new ethers.Contract(currentPool, window.PoolABI, signer);
+            const poolOwner = (await pool.owner()).toLowerCase();
+            if (poolOwner === signerAddr) {
+              try { if (await pool.paused()) { await (await pool.pause(false)).wait(); } } catch {}
+              try { const authorized = await pool.authorizedGames(coinTargetAddress).catch(() => false); if (!authorized) { await (await pool.setAuthorized(coinTargetAddress, true)).wait(); try { showToast('Authorized DakChog in Pool','success'); } catch {} } } catch {}
+            }
+          } catch {}
+        }
       }
     } catch {}
   } catch {}
