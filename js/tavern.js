@@ -1,7 +1,7 @@
 import { ethers } from 'https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.esm.min.js';
 // Defer loading of config.js with a version tag to avoid stale cache
 let cfgLoaded = false;
-let getAddressFor, detectChainId, getAddress, renderTavernBanner, CONTRACTS, showToast, switchToChain, RPC_ENDPOINTS;
+let getAddressFor, detectChainId, getAddress, renderTavernBanner, CONTRACTS, showToast;
 async function ensureConfig() {
   if (cfgLoaded) return;
   try {
@@ -13,8 +13,6 @@ async function ensureConfig() {
     renderTavernBanner = mod.renderTavernBanner;
     CONTRACTS = mod.CONTRACTS;
     showToast = mod.showToast;
-    switchToChain = mod.switchToChain;
-    RPC_ENDPOINTS = mod.RPC_ENDPOINTS;
     cfgLoaded = true;
   } catch (e) {
     console.error('Failed to load config.js', e);
@@ -26,109 +24,6 @@ import { profileLoad } from './profile.js';
 let provider;
 let signer;
 let userAddress;
-
-function rememberWalletProvider(key){
-  try {
-    if (key) {
-      sessionStorage.setItem('walletProvider', key);
-      window.__preferredWalletKey = key;
-    } else {
-      sessionStorage.removeItem('walletProvider');
-    }
-  } catch {}
-  try { localStorage.removeItem('walletProvider'); } catch {}
-}
-
-function markWalletConnected(flag) {
-  try {
-    if (flag) {
-      sessionStorage.setItem('walletConnected', 'true');
-    } else {
-      sessionStorage.removeItem('walletConnected');
-    }
-  } catch {}
-  try { localStorage.removeItem('walletConnected'); } catch {}
-}
-
-function getPreferredWalletKey(){
-  try {
-    const sessionChoice = sessionStorage.getItem('walletProvider');
-    if (sessionChoice) {
-      window.__preferredWalletKey = sessionChoice;
-      return sessionChoice;
-    }
-    const legacy = localStorage.getItem('walletProvider');
-    if (legacy) {
-      rememberWalletProvider(legacy);
-      return legacy;
-    }
-  } catch {}
-  return window.__preferredWalletKey || '';
-}
-
-function getMetaMaskProvider(){
-  try {
-    const eth = window.ethereum;
-    if (!eth) return undefined;
-    if (eth.isMetaMask) return eth;
-    if (Array.isArray(eth.providers)) {
-      const mm = eth.providers.find(p => p && p.isMetaMask);
-      if (mm) return mm;
-    }
-  } catch {}
-  return undefined;
-}
-function getPhantomEvmProvider(){
-  try { return (window.phantom && window.phantom.ethereum) || undefined; } catch { return undefined; }
-}
-function resolveInjectedEvmProvider(explicit){
-  try {
-    let key = (explicit || getPreferredWalletKey() || '').toLowerCase();
-    if (key === 'metamask') return getMetaMaskProvider();
-    if (key === 'phantom') return getPhantomEvmProvider();
-    // No stored preference; prefer MetaMask if present, else Phantom EVM
-    const mm = getMetaMaskProvider(); if (mm) return mm;
-    const ph = getPhantomEvmProvider(); if (ph) return ph;
-  } catch {}
-  return undefined;
-}
-
-// Ensure wallet is on Monad Testnet (chainId 10143)
-async function ensureMonadNetwork(curProvider){
-  try {
-    const chainId = await detectChainId(curProvider);
-    if (Number(chainId) === 10143) return true;
-    // Attempt switch on the selected injected provider only; if chain unknown (4902), add it first
-    const hex = '0x' + Number(10143).toString(16);
-    const injected = (curProvider && curProvider.provider) || (window?.__walletProvider) || (window?.phantom?.ethereum) || window?.ethereum;
-    if (!injected || typeof injected.request !== 'function') return false;
-    try {
-      await injected.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: hex }] });
-      return true;
-    } catch (e) {
-      const code = e && (e.code ?? e?.data?.originalError?.code);
-      if (code === 4902 || /unrecognized|not added/i.test(String(e.message||''))) {
-        try {
-          let rpc = (RPC_ENDPOINTS && RPC_ENDPOINTS[10143]) || '';
-          if (rpc.startsWith('wss://')) rpc = 'https://' + rpc.slice(6);
-          if (rpc.startsWith('ws://')) rpc = 'http://' + rpc.slice(5);
-          if (!rpc) rpc = 'https://monad-testnet.drpc.org';
-          const params = [{
-            chainId: hex,
-            chainName: 'Monad Testnet',
-            nativeCurrency: { name: 'MON', symbol: 'MON', decimals: 18 },
-            rpcUrls: [rpc],
-            blockExplorerUrls: ['https://testnet.monadexplorer.com']
-          }];
-          await injected.request({ method: 'wallet_addEthereumChain', params });
-          await injected.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: hex }] });
-          return true;
-        } catch {}
-      }
-    }
-  } catch {}
-  return false;
-}
 
 // DOM Elements
 const connectButton = document.getElementById('connect-wallet');
@@ -210,12 +105,8 @@ function setConnectButtonAsDisconnect() {
     connectButton.style.display = '';
     connectButton.textContent = 'Disconnect';
     connectButton.onclick = () => {
-      markWalletConnected(false);
-      rememberWalletProvider('');
-      try { window.__walletProvider = undefined; } catch {}
-      provider = undefined;
-      signer = undefined;
-      userAddress = undefined;
+      try { localStorage.removeItem('walletConnected'); } catch {}
+      try { sessionStorage.removeItem('walletConnected'); } catch {}
       try { location.replace('/landing.html'); } catch { location.href='/landing.html'; }
     };
   } catch {}
@@ -231,58 +122,15 @@ function setConnectButtonAsConnect() {
 }
 
 // Connect Wallet
-export async function connectWallet(explicitProviderKey) {
-  const injected = resolveInjectedEvmProvider(explicitProviderKey);
-  if (!injected) return alert('No EVM wallet detected (MetaMask or Phantom).');
+export async function connectWallet() {
+  await ensureConfig();
+  if (!window.ethereum) return alert('MetaMask not detected.');
 
   try {
-    await injected.request({ method: 'eth_requestAccounts' });
-    try {
-      // MetaMask sometimes returns immediately but accounts are still empty until permission is granted
-      let acc = await injected.request({ method: 'eth_accounts' }).catch(()=>[]);
-      if (!Array.isArray(acc) || !acc.length) {
-        try { await injected.request({ method: 'wallet_requestPermissions', params: [{ eth_accounts: {} }] }); } catch {}
-        acc = await injected.request({ method: 'eth_accounts' }).catch(()=>[]);
-        if (!Array.isArray(acc) || !acc.length) throw new Error('Wallet authorization required');
-      }
-    } catch {}
-    provider = new ethers.providers.Web3Provider(injected, 'any');
+    await ethereum.request({ method: 'eth_requestAccounts' });
+    provider = new ethers.providers.Web3Provider(window.ethereum, 'any');
     signer = provider.getSigner();
     userAddress = await signer.getAddress();
-    try { window.__walletProvider = injected; } catch {}
-    try {
-      const key = (injected === (window?.phantom?.ethereum)) ? 'phantom' : 'metamask';
-      rememberWalletProvider(key);
-    } catch {}
-    // Require a signature to confirm login. If user cancels, treat as not connected.
-    // Try multiple method/param orders for compatibility across wallets (MetaMask vs Phantom).
-    async function forceLoginSignature() {
-      const msg = `Dak & Chog Tavern login @ ${new Date().toISOString()}`;
-      const hex = '0x' + Array.from(new TextEncoder().encode(msg)).map(b=>b.toString(16).padStart(2,'0')).join('');
-      const attempts = [
-        { method: 'personal_sign', params: [msg, userAddress] },
-        { method: 'personal_sign', params: [userAddress, msg] },
-        { method: 'eth_personalSign', params: [hex, userAddress] },
-        { method: 'eth_personalSign', params: [userAddress, hex] },
-      ];
-      let lastErr;
-      for (const a of attempts) {
-        try { await injected.request(a); return true; } catch (e) { lastErr = e; }
-      }
-      throw lastErr || new Error('Signature rejected');
-    }
-    try { await forceLoginSignature(); try { sessionStorage.setItem('walletSigned','true'); } catch {} } catch (e) {
-      try { sessionStorage.removeItem('walletSigned'); } catch {}
-      // Clear any partial state and abort
-      rememberWalletProvider('');
-      try { window.__walletProvider = undefined; } catch {}
-      provider = undefined; signer = undefined; userAddress = undefined;
-      throw e;
-    }
-    // Load config now that wallet interaction is complete (won't break user gesture)
-    try { await ensureConfig(); } catch {}
-    // Ensure Monad Testnet is selected AFTER signature so MetaMask doesn't stall the initial login UX
-    try { const ok = await ensureMonadNetwork(provider); if (!ok) { try { showToast && showToast('Please switch to Monad Testnet', 'error'); } catch {} } } catch {}
     try { window.userAddress = userAddress; window.dispatchEvent(new CustomEvent('wallet:connected', { detail: { address: userAddress } })); } catch {}
 
     // Update top banner controls
@@ -293,7 +141,6 @@ export async function connectWallet(explicitProviderKey) {
 
     // Update banner with resolved network and unified contract address
     try {
-      await ensureConfig();
       const chainId = await detectChainId(provider);
       const tavernAddress = await getAddressFor('tavern', provider);
       renderTavernBanner({ contractKey: 'tavern', address: tavernAddress, chainId, wallet: userAddress, labelOverride: 'Address' });
@@ -311,10 +158,7 @@ export async function connectWallet(explicitProviderKey) {
       }
     } catch {}
 
-    try {
-      const key = explicitProviderKey || (injected === (window?.phantom?.ethereum) ? 'phantom' : 'metamask');
-      rememberWalletProvider(key);
-    } catch {}
+    try { localStorage.setItem('walletConnected', 'true'); } catch {}
     // Announce presence to realtime server (best-effort)
     try {
       if (!window.io) {
@@ -342,46 +186,32 @@ export async function connectWallet(explicitProviderKey) {
 // Silent connect (no user prompt): use existing authorization if present
 async function silentConnect() {
   await ensureConfig();
-  const injected = resolveInjectedEvmProvider();
-  if (!injected) return false;
+  if (!window.ethereum) return false;
   try {
-    provider = new ethers.providers.Web3Provider(injected, 'any');
-    // Prefer direct EIP-1193 call for broader wallet compatibility (e.g., Phantom EVM)
-    let accounts = [];
-    try { accounts = await injected.request({ method: 'eth_accounts' }); } catch {}
-    if (!accounts || !accounts.length) {
-      // Fallback to ethers provider method if needed
-      try { accounts = await provider.listAccounts(); } catch {}
-    }
+    provider = new ethers.providers.Web3Provider(window.ethereum, 'any');
+    const accounts = await provider.listAccounts();
     if (!accounts || !accounts.length) return false;
     signer = provider.getSigner();
     userAddress = accounts[0];
-    try { window.__walletProvider = injected; } catch {}
-    try { await ensureMonadNetwork(provider); } catch {}
     try { window.userAddress = userAddress; window.dispatchEvent(new CustomEvent('wallet:connected', { detail: { address: userAddress } })); } catch {}
     setConnectButtonAsDisconnect();
     hideInlineConnectIfBannerPresent();
     try { statusEl.innerText = ''; } catch {}
     try {
-      const onLanding = (function(){ try { const p=String(location.pathname||'').toLowerCase(); return p.includes('/landing') || p.endsWith('landing.html'); } catch { return false; } })();
-      if (!onLanding) {
-        const chainId = await detectChainId(provider);
-        const tavernAddress = await getAddressFor('tavern', provider);
-        renderTavernBanner({ contractKey: 'tavern', address: tavernAddress, chainId, wallet: userAddress, labelOverride: 'Address' });
-        try {
-          if (tavernAddress && window.TavernABI) {
-            const c = new ethers.Contract(tavernAddress, window.TavernABI, signer);
-            const owner = await c.owner();
-            ensureAdminLink(owner && owner.toLowerCase() === userAddress.toLowerCase());
-          } else {
-            ensureAdminLink(false);
-          }
-        } catch { ensureAdminLink(false); }
-      } else {
-        try { const nb = document.getElementById('network-banner'); if (nb) nb.remove(); } catch {}
-      }
+      const chainId = await detectChainId(provider);
+      const tavernAddress = await getAddressFor('tavern', provider);
+      renderTavernBanner({ contractKey: 'tavern', address: tavernAddress, chainId, wallet: userAddress, labelOverride: 'Address' });
+      try {
+        if (tavernAddress && window.TavernABI) {
+          const c = new ethers.Contract(tavernAddress, window.TavernABI, signer);
+          const owner = await c.owner();
+          ensureAdminLink(owner && owner.toLowerCase() === userAddress.toLowerCase());
+        } else {
+          ensureAdminLink(false);
+        }
+      } catch { ensureAdminLink(false); }
     } catch {}
-    markWalletConnected(true);
+    try { localStorage.setItem('walletConnected', 'true'); } catch {}
     // Announce presence (best-effort)
     try {
       if (!window.io) {
@@ -410,19 +240,20 @@ async function silentConnect() {
 // Auto-connect if previously connected (silent when possible)
 async function bootConnect() {
   await ensureConfig();
-  // Do not render network/contract banner or auto-connect on the landing page
   try {
-    const path = String(location.pathname || '').toLowerCase();
-    const isLanding = path.includes('/landing') || path.endsWith('landing.html');
-    if (isLanding) {
-      try { setConnectButtonAsConnect(); } catch {}
-      return;
-    }
+    const chainId = await detectChainId(undefined);
+    const address = getAddress('tavern', chainId);
+    renderTavernBanner({ contractKey: 'tavern', address, chainId, labelOverride: 'Address' });
+    hideInlineConnectIfBannerPresent();
   } catch {}
-  // Defer banner rendering until after silentConnect so the correct provider/network is used
   let autoConnected = false;
   autoConnected = await silentConnect();
-  // No storage-based reconnect; rely solely on provider authorization
+  if (!autoConnected) {
+    try {
+      const remembered = (localStorage.getItem('walletConnected') === 'true') || (sessionStorage.getItem('walletConnected') === 'true');
+      if (remembered) autoConnected = await silentConnect();
+    } catch {}
+  }
   if (!autoConnected) {
     ensureAdminLink(false);
     try {
@@ -433,39 +264,6 @@ async function bootConnect() {
       } else {
         setConnectButtonAsConnect();
       }
-    } catch {}
-  } else {
-    // Already connected: render banner and listen for chain changes
-    try {
-      await ensureConfig();
-      const chainId = await detectChainId(provider);
-      const tavernAddress = await getAddressFor('tavern', provider);
-      renderTavernBanner({ contractKey: 'tavern', address: tavernAddress, chainId, wallet: userAddress, labelOverride: 'Address' });
-      hideInlineConnectIfBannerPresent();
-      try {
-        const base = provider && provider.provider;
-        if (base && base.on) {
-          base.on('chainChanged', async () => {
-            try {
-              const cid = await detectChainId(provider);
-              const addr = await getAddressFor('tavern', provider);
-              renderTavernBanner({ contractKey: 'tavern', address: addr, chainId: cid, wallet: userAddress, labelOverride: 'Address' });
-            } catch {}
-          });
-          base.on('accountsChanged', (accs=[]) => {
-            try {
-              if (!accs || !accs.length) {
-                rememberWalletProvider('');
-                try { window.__walletProvider = undefined; } catch {}
-                provider = undefined; signer = undefined; userAddress = undefined;
-                try { sessionStorage.removeItem('walletSigned'); } catch {}
-                location.replace('/landing.html');
-              }
-            } catch {}
-          });
-          try { base.on('disconnect', () => { try { sessionStorage.removeItem('walletSigned'); } catch {} try { location.replace('/landing.html'); } catch {} }); } catch {}
-        }
-      } catch {}
     } catch {}
   }
 }
@@ -495,7 +293,5 @@ export { signer, provider, userAddress };
 export { ethers };
 // Also expose on window for non-module consumers
 try { window.ethers = ethers; } catch {}
-// Expose connect for landing so the click handler can trigger wallet prompt immediately (user gesture)
-try { window.tavernConnectWallet = connectWallet; } catch {}
 
 

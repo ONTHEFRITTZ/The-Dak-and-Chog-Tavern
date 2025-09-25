@@ -1,16 +1,17 @@
 // shell.js
-// Uses Shell pooled contract if provided; falls back to Tavern
+// Uses the unified Tavern contract ABI (window.TavernABI)
 import { getAddressFor, detectChainId, renderTavernBanner, showToast } from '../../js/config.js';
 import { attachProvider } from '../../js/contract-utils.js';
-import { provider as walletProvider, signer as walletSigner } from '../../js/tavern.js';
-import { detectBundler, walletSendCalls, extractTxHash, waitForTransactionReceipt } from '../../js/bundler.js';
 
 const shellElements = document.querySelectorAll('.shell');
 const statusEl = document.getElementById('shell-result') || document.getElementById('status');
 const playsEl = document.getElementById('plays');
 const returnBtn = document.getElementById('return');
 const betInput = document.getElementById('bet');
-// Rules ACK removed across site
+const rulesOverlay = document.getElementById('rules-overlay');
+const rulesAck = document.getElementById('rules-ack');
+const openRulesBtn = document.getElementById('open-rules');
+let shellAck = true; // rules gate removed
 
 function setShellInteractivity(enabled) {
   try {
@@ -21,58 +22,22 @@ function setShellInteractivity(enabled) {
 let provider;
 let signer;
 let userAddress;
-let tavernAddress; // send target (shell or tavern)
-let sendAbi;       // ABI chosen per target
-
-async function ensureShellAbi() {
-  if (window.ShellABI) return true;
-  const candidates = ['/js/ShellABI.js','../../js/ShellABI.js'];
-  for (const src of candidates) {
-    try {
-      await new Promise((resolve)=>{ const s=document.createElement('script'); s.src=src; s.onload=()=>resolve(true); s.onerror=()=>resolve(false); document.head.appendChild(s); });
-      if (window.ShellABI) return true;
-    } catch {}
-  }
-  return !!window.ShellABI;
-}
+let tavernAddress;
 
 async function init() {
-  // Prefer the site-selected wallet (MetaMask or Phantom EVM) from tavern.js
-  provider = walletProvider || (window.ethereum ? new ethers.providers.Web3Provider(window.ethereum, 'any') : undefined);
-  signer = walletSigner || (provider ? provider.getSigner() : undefined);
-  if (!provider || !signer) {
-    try {
-      if (window.tavernConnectWallet) {
-        window.tavernConnectWallet();
-        await new Promise((resolve) => {
-          const once = (ev) => {
-            try { window.removeEventListener('wallet:connected', once); } catch {}
-            resolve();
-          };
-          try { window.addEventListener('wallet:connected', once, { once: true }); } catch {}
-          setTimeout(resolve, 5000);
-        });
-      }
-    } catch {}
-    provider = walletProvider || (window.ethereum ? new ethers.providers.Web3Provider(window.ethereum, 'any') : undefined);
-    signer = walletSigner || (provider ? provider.getSigner() : undefined);
-    if (!provider || !signer) {
-      try { statusEl.innerText = 'Connect wallet on landing page'; } catch {}
-      return;
-    }
+  if (!window.ethereum) {
+    alert('MetaMask not detected.');
+    return;
   }
+  provider = new ethers.providers.Web3Provider(window.ethereum, 'any');
+  signer = provider.getSigner();
   try { attachProvider(provider); } catch {}
   userAddress = await signer.getAddress();
-  // Prefer dedicated Shell contract; fall back to Tavern
-  const shellAddr = await getAddressFor('shell', provider);
-  const tavAddr   = await getAddressFor('tavern', provider);
-  tavernAddress = shellAddr || tavAddr;
-  if (shellAddr) { await ensureShellAbi(); sendAbi = window.ShellABI || window.TavernABI; }
-  else { sendAbi = window.TavernABI; }
+  tavernAddress = await getAddressFor('tavern', provider);
   try {
     const chainId = await detectChainId(provider);
-    const bannerKey = shellAddr ? 'shell' : 'tavern';
-    renderTavernBanner({ contractKey: bannerKey, address: tavernAddress, chainId, wallet: userAddress });
+    const unifiedAddress = await getAddressFor('tavern', provider);
+    renderTavernBanner({ contractKey: 'tavern', address: unifiedAddress, chainId, wallet: userAddress });
   } catch {}
 }
 
@@ -87,76 +52,30 @@ shellElements.forEach((shell) => {
       let betAmount = parseFloat(betInput.value);
       if (isNaN(betAmount) || betAmount < 0.001) betAmount = 0.001;
 
-      const contract = new ethers.Contract(tavernAddress, sendAbi, signer);
+      const contract = new ethers.Contract(tavernAddress, window.TavernABI, signer);
 
-      const betWei = ethers.utils.parseEther(betAmount.toString());
       statusEl.innerText = 'Playing...';
-      try { showToast('Playing...', 'info'); } catch {}
+      try { showToast('Playing…', 'info'); } catch {}
 
-      let receipt = null;
-      let txHash = null;
+      const tx = await contract.playShell(guess, {
+        value: ethers.utils.parseEther(betAmount.toString()),
+        gasLimit: 200000, // manual gas limit
+      });
+
+      const receipt = await tx.wait();
+
+      // Parse the Played event from the receipt
+      const iface = new ethers.utils.Interface(window.TavernABI);
       let playedEvent;
-      let usedBundler = false;
-      const iface = new ethers.utils.Interface(sendAbi || window.ShellABI || window.TavernABI || []);
-      const bundler = await detectBundler((provider && provider.provider) || provider);
-      if (bundler && bundler.available) {
+      for (const log of receipt.logs) {
         try {
-          const data = iface.encodeFunctionData('playShell', [guess]);
-          const from = await signer.getAddress();
-          const net = await provider.getNetwork().catch(() => ({ chainId: undefined }));
-          const result = await walletSendCalls({
-            provider: bundler.provider,
-            from,
-            chainId: net?.chainId,
-            calls: [{ to: tavernAddress, data, value: ethers.utils.hexlify(betWei) }]
-          });
-          txHash = extractTxHash(result);
-          usedBundler = true;
-          statusEl.innerText = txHash ? 'Waiting for confirmation...' : 'Waiting for result...';
-          if (txHash) {
-            receipt = await waitForTransactionReceipt(provider, txHash).catch(() => null);
+          const parsed = iface.parseLog(log);
+          if (parsed.name === 'ShellPlayed') {
+            playedEvent = parsed.args;
+            break;
           }
-        } catch (bundlerErr) {
-          console.warn('Shell bundler send failed; using direct transaction', bundlerErr);
-          usedBundler = false;
-        }
-      }
-
-      if (!usedBundler) {
-        const tx = await contract.playShell(guess, { value: betWei, gasLimit: 200000 });
-        txHash = tx.hash;
-        statusEl.innerText = 'Dice rolling on-chain...';
-        receipt = await tx.wait();
-        statusEl.innerText = 'Waiting for result...';
-      }
-
-      if (!receipt && txHash) {
-        receipt = await waitForTransactionReceipt(provider, txHash).catch(() => null);
-      }
-
-      if (receipt) {
-        try {
-          for (const log of (receipt.logs || [])) {
-            try {
-              const parsed = iface.parseLog(log);
-              if (parsed && parsed.name === 'ShellPlayed') {
-                playedEvent = parsed.args;
-                break;
-              }
-            } catch {}
-          }
-        } catch {}
-      }
-
-      if (!playedEvent && txHash && contract.filters?.ShellPlayed) {
-        try {
-          const filter = contract.filters.ShellPlayed(userAddress || null);
-          const events = await contract.queryFilter(filter, receipt?.blockNumber, receipt?.blockNumber);
-          if (events && events.length) {
-            playedEvent = events[events.length - 1].args;
-          }
-        } catch (queryErr) {
-          console.warn('Shell queryFilter fallback failed', queryErr);
+        } catch (e) {
+          // Ignore logs that don't match
         }
       }
 
@@ -167,6 +86,7 @@ shellElements.forEach((shell) => {
       }
 
       const { guess: guessEvent, won, winningCup } = playedEvent;
+
       const displayGuess = Number(guessEvent) + 1;
       const displayWin = Number(winningCup) + 1;
       const resultText = won
@@ -176,12 +96,9 @@ shellElements.forEach((shell) => {
 
       statusEl.innerText = resultText;
 
-      if (playsEl) {
-        const li = document.createElement('li');
-        li.innerText = resultText;
-        playsEl.prepend(li);
-        while (playsEl.children.length > 10) { playsEl.removeChild(playsEl.lastElementChild); }
-      }
+      const li = document.createElement('li');
+      li.innerText = resultText;
+      playsEl.prepend(li);
 
     } catch (err) {
       console.error(err);
@@ -217,4 +134,10 @@ try {
 } catch {}
 
 // Show rules modal at load and block interactions until ack (per load)
-// No rules overlay or gating
+const onReady = (fn) => { if (document.readyState === 'loading') { window.addEventListener('DOMContentLoaded', fn, { once: true }); } else { fn(); } };
+onReady(() => {
+  shellAck = true;
+  try { if (rulesOverlay) rulesOverlay.style.display = 'none'; } catch {}
+  // Disable Rules button if present
+  try { if (openRulesBtn) openRulesBtn.style.display = 'none'; } catch {}
+});

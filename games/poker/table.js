@@ -1,16 +1,3 @@
-// Ensure Socket.IO client is available before establishing a connection
-const socketIoReady = (() => {
-  if (window.io) return Promise.resolve();
-  return new Promise((resolve) => {
-    const s = document.createElement('script');
-    s.src = 'https://cdn.socket.io/4.7.5/socket.io.min.js';
-    s.onload = () => resolve();
-    s.onerror = () => resolve();
-    document.head.appendChild(s);
-  });
-})();
-socketIoReady.catch(() => {});
-
 const statusEl = document.getElementById('status');
 const seatEls = Array.from(document.querySelectorAll('.seat'));
 const connectBtn = document.getElementById('connect-wallet');
@@ -18,44 +5,6 @@ const devBotBtn = document.getElementById('toggle-dev-bot');
 const disconnectBtn = document.getElementById('wi-disconnect') || document.getElementById('disconnect-wallet');
 const walletAddrSpan = document.getElementById('wi-address');
 let devBotOn = false;
-
-// Final card spritesheet support (auto-detect WebP/AVIF/PNG)
-const __sprite = { ready:false, url:null, iw:2016, ih:832, cols:14, rows:4, tw:144, th:208 };
-function cardCodeToIndex(code){
-  try {
-    const r = String(code||'').toUpperCase();
-    const rank = r[0];
-    const suit = r[1];
-    const ranks = ['A','2','3','4','5','6','7','8','9','T','J','Q','K'];
-    const suits = ['S','H','D','C'];
-    const ci = ranks.indexOf(rank);
-    const ri = suits.indexOf(suit);
-    if (ci < 0 || ri < 0) return { c:0, r:0 };
-    return { c: ci, r: ri };
-  } catch { return { c:0, r:0 }; }
-}
-function tryLoadCardSprite(){
-  if (__sprite.ready || __sprite.url) return;
-  const base = '/assets/images/cards/cards-sprite';
-  const candidates = [base + '.webp', base + '.avif', base + '.png'];
-  (async()=>{
-    for (const href of candidates){
-      try {
-        const img = new Image();
-        img.decoding = 'async';
-        await new Promise((resolve,reject)=>{ img.onload=resolve; img.onerror=reject; img.src = href + '?v=' + (window.__ASSET_TAG||Date.now()); });
-        __sprite.url = href; __sprite.ready = true; break;
-      } catch {}
-    }
-    if (!__sprite.ready) { __sprite.url = base + '.png'; __sprite.ready = true; }
-  })();
-}
-          break;
-        }
-      } catch {}
-    }
-  })();
-}
 let socket; let myAddr = null; let currentTableId = null; let lastTable = null; let myHole = [];
 let lastState = null; let exposures = {}; let winnersNow = {};
 
@@ -249,38 +198,7 @@ function holeRanksKey(cards2){
     return r.join('-');
   } catch { return null; }
 }
-function makeCardImg(code, opts){
-  opts = opts||{};
-  const hole=!!opts.hole, flip = opts.flip!==false, win = !!opts.win;
-  const el = document.createElement('div');
-  el.setAttribute('role','img');
-  el.className='card' + (hole?' card--hole':'') + (flip?' card--flip':'') + (win?' card--win':'');
-  el.style.backgroundImage = 'url(' + (__sprite.url || '/assets/images/cards/cards-sprite.png') + ')';
-  el.style.backgroundRepeat='no-repeat';
-  el.style.backgroundSize = __sprite.iw + 'px ' + __sprite.ih + 'px';
-  const r = String(code||'').toUpperCase();
-  let col = 13; let row = 0; // BACK default
-  if (r !== 'BACK') {
-    const ranks = ['A','2','3','4','5','6','7','8','9','T','J','Q','K'];
-    const suits = ['S','H','D','C'];
-    const c = ranks.indexOf(r[0]);
-    const s = suits.indexOf(r[1]);
-    if (c>=0 && s>=0) { col = c; row = s; }
-  }
-  const x = Math.round(col * __sprite.tw);
-  const y = Math.round(row * __sprite.th);
-  el.style.backgroundPosition = (-x) + 'px ' + (-y) + 'px';
-  if (flip) requestAnimationFrame(function(){ el.classList.add('card--show'); });
-  return el;
-}
-}\n        // Image object to warm the cache regardless of head parsing timing
-        const im = new Image();
-        try { im.decoding = 'async'; } catch {}
-        im.src = href;
-      } catch {}
-    }
-  } catch {}
-}
+function makeCardImg(code, opts){ opts = opts||{}; const hole=!!opts.hole, flip = opts.flip!==false, win = !!opts.win; const img=document.createElement('img'); img.alt=String(code||''); img.src = (code==='BACK')? cardBackSrc() : cardSrc(code); img.className='card' + (hole?' card--hole':'') + (flip?' card--flip':'') + (win?' card--win':''); if (flip) requestAnimationFrame(function(){ img.classList.add('card--show'); }); return img; }
 
 function renderTable(t){
   if (!t || t.id !== currentTableId) return;
@@ -313,7 +231,7 @@ function renderTable(t){
     const label = document.createElement('div'); label.className='addr'; label.textContent = 'Seat ' + idx; el.appendChild(label);
     const info = document.createElement('div'); info.className='addr';
     if (s) {
-      info.textContent = short(s.addr||s.id) + (typeof s.chips==='number' ? ' - ' + s.chips + 'c' : ''); el.appendChild(info);
+      info.textContent = short(s.addr||s.id) + (typeof s.chips==='number' ? ' � ' + s.chips + 'c' : ''); el.appendChild(info);
       const addrLower = String(s.addr||'').toLowerCase();
       if (myAddr && addrLower===String(myAddr).toLowerCase()){
         const btns = document.createElement('div'); btns.className='btns';
@@ -374,21 +292,7 @@ function renderTable(t){
 
 function parseTableId(){ try { const u=new URL(window.location.href); return u.searchParams.get('table') || 'poker-1'; } catch(e) { return 'poker-1'; } }
 
-async function ensureSocketIOClient() {
-  try {
-    if (window.io) return;
-    await new Promise((resolve) => {
-      const s = document.createElement('script');
-      s.src = 'https://cdn.socket.io/4.7.5/socket.io.min.js';
-      s.onload = resolve;
-      s.onerror = resolve;
-      document.head.appendChild(s);
-    });
-  } catch {}
-}
-
 async function connect(){
-  await ensureSocketIOClient();
   currentTableId = parseTableId();
   try { socket = io(window.location.origin, { path: '/poker.io/', transports:['polling','websocket'], upgrade:true, reconnection:true, reconnectionAttempts:10, reconnectionDelay:800, forceNew:true }); try { window.socket = socket; } catch(e){} }
   catch (e) { setStatus('Socket.IO not available'); return; }
@@ -495,7 +399,7 @@ async function connect(){
                     const seven = (Array.isArray(exp&&exp.cards)?exp.cards:[]).concat(comm);
                     if (typeof bestHandName === 'function') name = bestHandName(seven);
                   } catch {}
-                  return (amt>0?('+'.concat(String(amt))):String(amt)) + ' - ' + sh + (name?(' - ' + name):'');
+                  return (amt>0?('+'.concat(String(amt))):String(amt)) + ' — ' + sh + (name?(' — ' + name):'');
                 });
                 centerEl.innerHTML = 'Winner' + (winners.length>1?'s':'') + ':<br>' + lines.join('<br>');
                 centerEl.style.display = '';
@@ -584,7 +488,7 @@ async function connect(){
           btnWrap.appendChild(mk('Call '+need, function(){ socket.emit('poker:act', { action:'call' }); }));
           btnWrap.appendChild(mk('Raise +'+minRaise+'+', function(){ const v = Math.max(minRaise, Number(amountInput && amountInput.value || 0) | 0); socket.emit('poker:act', { action:'raise', amount: v }); }));
         }
-        if (infoText) infoText.textContent = 'To call: ' + need + ' - MinRaise: ' + minRaise + ' - Stack: ' + Number(me && me.stack || 0);
+        if (infoText) infoText.textContent = 'To call: ' + need + ' � MinRaise: ' + minRaise + ' � Stack: ' + Number(me && me.stack || 0);
       }
     }
   } catch(e){}
@@ -651,7 +555,7 @@ async function connect(){
             const exp = expArr.find(x=>String(x.addr||'').toLowerCase()===a.toLowerCase());
             const seven = (Array.isArray(exp&&exp.cards)?exp.cards:[]).concat(comm);
             const name = bestHandName(seven);
-            return (amt>0?('+'.concat(String(amt))):String(amt)) + ' - ' + sh + ' - ' + name;
+            return (amt>0?('+'.concat(String(amt))):String(amt)) + ' — ' + sh + ' — ' + name;
           });
           centerEl.innerHTML = 'Winner' + (winners.length>1?'s':'') + ':<br>' + lines.join('<br>');
           centerEl.style.display = '';
@@ -677,18 +581,17 @@ async function connect(){
 // Attempt to connect wallet automatically; prompt only if none authorized
 async function ensureWallet(promptIfNeeded) {
   try {
-    const injected = (function(){ try { const pref=(sessionStorage.getItem('walletProvider')||'').toLowerCase(); if(pref==='phantom') return (window.phantom&&window.phantom.ethereum)||window.__walletProvider; if(pref==='metamask') return window.ethereum||window.__walletProvider; return window.__walletProvider||window.ethereum||(window.phantom&&window.phantom.ethereum)||null; } catch { return window.__walletProvider||window.ethereum||(window.phantom&&window.phantom.ethereum)||null; } })();
-    if (!injected || !window.ethers) { setStatus('No wallet provider'); return; }
-    const accounts = await injected.request({ method:'eth_accounts' });
+    if (!window.ethereum || !window.ethers) { setStatus('No wallet provider'); return; }
+    const accounts = await window.ethereum.request({ method:'eth_accounts' });
     let addr = (Array.isArray(accounts) && accounts[0]) ? accounts[0] : null;
     if (!addr && promptIfNeeded) {
       try {
-        const req = await injected.request({ method:'eth_requestAccounts' });
+        const req = await window.ethereum.request({ method:'eth_requestAccounts' });
         addr = (Array.isArray(req) && req[0]) ? req[0] : null;
       } catch(_) {}
     }
     if (addr) {
-      const provider = new window.ethers.providers.Web3Provider(injected,'any');
+      const provider = new window.ethers.providers.Web3Provider(window.ethereum,'any');
       const signer = provider.getSigner();
       const got = await signer.getAddress();
       myAddr = String(got||addr||'').toLowerCase();
@@ -706,11 +609,7 @@ async function ensureWallet(promptIfNeeded) {
   } catch(e) { setStatus('Wallet connect failed'); }
 }
 
-socketIoReady.then(() => {
-  if (window.io) { connect(); }
-  else { setStatus('Socket.io failed to load'); }
-});
-try { tryLoadCardSprite(); } catch {}
+connect();
 // If Tavern already connected, pick it up without re-prompting
 try {
   if (window.userAddress && String(window.userAddress)) {
@@ -758,9 +657,8 @@ try {
         clearInterval(t); return;
       }
       // One more passive check via eth_accounts without prompting
-      const injected = (function(){ try { const pref=(sessionStorage.getItem('walletProvider')||'').toLowerCase(); if(pref==='phantom') return (window.phantom&&window.phantom.ethereum)||window.__walletProvider; if(pref==='metamask') return window.ethereum||window.__walletProvider; return window.__walletProvider||window.ethereum||(window.phantom&&window.phantom.ethereum)||null; } catch { return window.__walletProvider||window.ethereum||(window.phantom&&window.phantom.ethereum)||null; } })();
-      if (injected && window.ethers) {
-        const accounts = await injected.request({ method:'eth_accounts' });
+      if (window.ethereum && window.ethers) {
+        const accounts = await window.ethereum.request({ method:'eth_accounts' });
         const a = (Array.isArray(accounts) && accounts[0]) ? accounts[0] : null;
         if (a) {
           myAddr = String(a).toLowerCase();
@@ -773,6 +671,8 @@ try {
     if (++tries > 10) { try { clearInterval(t); } catch{} }
   }, 800);
 } catch {}
+
+
 
 
 

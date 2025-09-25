@@ -1,7 +1,6 @@
 // Minimal client for multiplayer table (hybrid: on-chain bets to Faro contract)
-import { getAddressFor, detectChainId, renderTavernBanner } from '../../js/config.js';
+import { getAddressFor } from '../../js/config.js';
 import { signer as walletSigner, provider as walletProvider } from '../../js/tavern.js';
-import { detectBundler, walletSendCalls } from '../../js/bundler.js';
 const __isLocalHost = ['localhost','127.0.0.1'].includes(location.hostname);
 
 const statusEl = document.getElementById('status');
@@ -39,8 +38,6 @@ const betConfirmBtn = document.getElementById('bet-confirm');
 let stagedBets = [];     // [{ rank: 1..13, amountEth: number, copper: bool }]
 let myPendingBets = [];  // queued for on-chain when Ready
 let centerLockUntil = 0; // keep results visible briefly after a coup
-let onchainSigner = null; let onchainProvider = null; let faroAddr = null;
-let socket; let myAddr = null; let currentTable = null; let mySeatId = null; let myIsOwner = false;
 
 function rankLabel(n){ return ({1:'A',11:'J',12:'Q',13:'K'}[n] || String(n)); }
 function rankNumber(l){ const map={A:1,J:11,Q:12,K:13}; return map[l] || Number(l); }
@@ -92,13 +89,6 @@ try { positionSeatsRing(); window.addEventListener('resize', positionSeatsRing);
 // --- Inline wallet panel sync (no prompts) ---
 try {
   // Adopt Tavern-connected wallet if present
-  (async () => {
-    try {
-      const cid = await detectChainId(onchainProvider || walletProvider);
-      const addr = await getAddressFor('faro', onchainProvider || walletProvider);
-      if (addr && cid != null) { renderTavernBanner({ contractKey: 'faro', address: addr, chainId: cid, wallet: myAddr || undefined }); }
-    } catch {}
-  })();
   if (window.userAddress && String(window.userAddress)) {
     const a = String(window.userAddress).toLowerCase();
     try { if (walletAddrSpan) walletAddrSpan.textContent = short(a); } catch{}
@@ -166,6 +156,8 @@ function renderBetRows(){
   }catch(e){}
 }
 
+let socket; let myAddr = null; let currentTable = null; let mySeatId = null; let myIsOwner = false;
+let onchainSigner = null; let onchainProvider = null; let faroAddr = null;
 
 function short(v) { return v && v.length > 10 ? `${v.slice(0,6)}...${v.slice(-4)}` : (v || ''); }
 function log(msg) { try { logEl.textContent = `[${new Date().toLocaleTimeString()}] ${msg}\n` + (logEl.textContent || ''); } catch {} }
@@ -173,15 +165,10 @@ function log(msg) { try { logEl.textContent = `[${new Date().toLocaleTimeString(
 // Resolve Faro address based on current provider/network and overrides
 async function resolveFaroAddress() {
   try {
-    if (!onchainProvider) {
-      if (walletProvider) {
-        onchainProvider = walletProvider;
-        onchainSigner = walletSigner || walletProvider.getSigner();
-      } else if (window.ethereum) {
-        const provider = new ethers.providers.Web3Provider(window.ethereum, 'any');
-        onchainProvider = provider;
-        onchainSigner = provider.getSigner();
-      }
+    if (!onchainProvider && window.ethereum) {
+      const provider = new ethers.providers.Web3Provider(window.ethereum, 'any');
+      onchainProvider = provider;
+      onchainSigner = provider.getSigner();
     }
   } catch {}
   try {
@@ -402,9 +389,9 @@ async function connect() {
   });
   socket.on('connect_error', (err) => {
     log('Connection error: ' + (err?.message || 'unknown'));
-    showLobby('Lobby server unavailable. Retrying...');
+    showLobby('Lobby server unavailable. Retrying…');
   });
-  socket.on('reconnect_error', () => { showLobby('Reconnecting to lobby...'); });
+  socket.on('reconnect_error', () => { showLobby('Reconnecting to lobby…'); });
   socket.on('reconnect_failed', () => { showLobby('Unable to reach lobby. Please retry.'); });
   socket.on('lobby:list', (list) => { renderLobby(Array.isArray(list)?list:[]); });
   socket.on('table:update', (table) => { renderTable(table); });
@@ -427,7 +414,7 @@ async function connect() {
       const myTxt = mine ? (mine.delta>0 ? ` You won +${mine.delta}` : (mine.delta<0 ? ` You lost ${mine.delta}` : ' Push')) : '';
       const label = `Bank ${name(bank)} vs Player ${name(player)}${m.doublet?' (doublet)':''}`;
       const who = winners.length ? ` Winners: ${winners.join(', ')}` : '';
-      centerReadout.textContent = `${label}${who}${myTxt ? ' - '+myTxt : ''}`;
+      centerReadout.textContent = `${label}${who}${myTxt ? ' —'+myTxt : ''}`;
     } catch {}
   });
   socket.on('chat', (m) => { log(`${m.from}: ${m.text}`); });
@@ -501,15 +488,9 @@ returnBtn?.addEventListener('click', () => { window.location.href = '/index.html
       const provider = new ethers.providers.Web3Provider(window.ethereum, 'any');
       const accounts = await provider.listAccounts();
       if (accounts && accounts.length) myAddr = accounts[0];
-      // Auto-connect if previously authorized on this domain (session only)
+      // Auto-connect if previously authorized on this domain
       try {
-        let shouldReconnect = (sessionStorage.getItem('walletConnected') === 'true');
-        if (!shouldReconnect && localStorage.getItem('walletConnected') === 'true') {
-          sessionStorage.setItem('walletConnected', 'true');
-          try { localStorage.removeItem('walletConnected'); } catch {}
-          shouldReconnect = true;
-        }
-        if ((!accounts || !accounts.length) && shouldReconnect) {
+        if ((!accounts || !accounts.length) && localStorage.getItem('walletConnected') === 'true') {
           await window.ethereum.request({ method: 'eth_requestAccounts' });
           const acc2 = await provider.listAccounts();
           if (acc2 && acc2.length) myAddr = acc2[0];
@@ -546,13 +527,7 @@ async function placeOnchainBet(rankNum, ethAmount, copper) {
     const candidates = ['/js/FaroV3ABI.js','/js/FaroABI.js','../../js/FaroV3ABI.js','../../js/FaroABI.js'];
     for (const src of candidates) {
       try {
-        await new Promise((resolve) => {
-          const s = document.createElement('script');
-          s.src = src;
-          s.onload = () => resolve(true);
-          s.onerror = () => resolve(false);
-          document.head.appendChild(s);
-        });
+        await new Promise((resolve) => { const s=document.createElement('script'); s.src=src; s.onload=()=>resolve(true); s.onerror=()=>resolve(false); document.head.appendChild(s); });
         if (window.FaroV3ABI || window.FaroABI) return true;
       } catch {}
     }
@@ -570,43 +545,13 @@ async function placeOnchainBet(rankNum, ethAmount, copper) {
     return;
   }
   const ethersRef = window.ethers;
-  const abi = window.FaroV3ABI || window.FaroABI; // prefer V3 with copper
+  let abi = window.FaroV3ABI || window.FaroABI; // prefer V3 with copper
   const c = new ethersRef.Contract(faroAddr, abi, onchainSigner);
-  log(`Submitting on-chain bet ${ethAmount} MON on ${rankNum}${copper ? ' (copper)' : ''}...`);
-  const betValue = ethersRef.utils.parseEther(String(ethAmount));
-  try {
-    const bundlerSource = (onchainProvider && onchainProvider.provider) || onchainProvider || (walletProvider && walletProvider.provider) || window.ethereum;
-    const bundler = await detectBundler(bundlerSource);
-    if (bundler && bundler.available) {
-      const iface = new ethersRef.utils.Interface(Array.isArray(abi) ? abi : []);
-      const data = window.FaroV3ABI
-        ? iface.encodeFunctionData('playFaro', [rankNum, !!copper])
-        : iface.encodeFunctionData('playFaro', [rankNum]);
-      const from = await onchainSigner.getAddress();
-      let net;
-      try {
-        if (onchainProvider && typeof onchainProvider.getNetwork === 'function') {
-          net = await onchainProvider.getNetwork();
-        } else if (walletProvider && typeof walletProvider.getNetwork === 'function') {
-          net = await walletProvider.getNetwork();
-        }
-      } catch {}
-      await walletSendCalls({
-        provider: bundler.provider,
-        from,
-        chainId: net && net.chainId,
-        calls: [{ to: faroAddr, data, value: ethersRef.utils.hexlify(betValue) }]
-      });
-      log('Bundler request sent. Waiting for result...');
-      return;
-    }
-  } catch (bundlerErr) {
-    console.warn('Bundler send failed; falling back to direct transaction', bundlerErr);
-  }
+  log(`Submitting on-chain bet ${ethAmount} MON on ${rankNum}${copper ? ' (copper)' : ''}…`);
   const tx = window.FaroV3ABI
-    ? await c.playFaro(rankNum, copper, { value: betValue })
-    : await c.playFaro(rankNum, { value: betValue });
-  log(`Tx sent: ${tx.hash.slice(0,10)}... waiting...`);
+    ? await c.playFaro(rankNum, copper, { value: ethersRef.utils.parseEther(String(ethAmount)) })
+    : await c.playFaro(rankNum, { value: ethersRef.utils.parseEther(String(ethAmount)) });
+  log(`Tx sent: ${tx.hash.slice(0,10)}… waiting…`);
   const rc = await tx.wait();
   try {
     const ev = rc.events?.find(e => e.event === 'FaroPlayed');
@@ -619,7 +564,5 @@ async function placeOnchainBet(rankNum, ethAmount, copper) {
     }
   } catch {}
 }
-
-
 
 
