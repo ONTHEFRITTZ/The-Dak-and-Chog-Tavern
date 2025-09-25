@@ -165,10 +165,7 @@ export async function connectWallet(key) {
       } catch {
         ensureAdminLink(false);
       }
-    } catch {}
-
-    try { localStorage.setItem('walletConnected', 'true'); } catch {}
-    // Announce presence to realtime server (best-effort)
+    } catch {}    // Announce presence to realtime server (best-effort)
     try {
       if (!window.io) {
         await new Promise((resolve)=>{ const s=document.createElement('script'); s.src='https://cdn.socket.io/4.7.5/socket.io.min.js'; s.onload=resolve; s.onerror=resolve; document.head.appendChild(s); });
@@ -194,61 +191,8 @@ export async function connectWallet(key) {
 
 // Silent connect (no user prompt): use existing authorization if present
 async function silentConnect() {
-  await ensureConfig();
-  if (!window.ethereum) return false;
-  try {
-    provider = new ethers.providers.Web3Provider(injected, 'any');
-    const accounts = await provider.listAccounts();
-    if (!accounts || !accounts.length) return false;
-    signer = provider.getSigner();
-    userAddress = accounts[0];
-    try { window.userAddress = userAddress; window.dispatchEvent(new CustomEvent('wallet:connected', { detail: { address: userAddress } })); } catch {}
-    setConnectButtonAsDisconnect();
-    hideInlineConnectIfBannerPresent();
-    try { statusEl.innerText = ''; } catch {}
-    try {
-      const chainId = await detectChainId(provider);
-      const tavernAddress = await getAddressFor('tavern', provider);
-      renderTavernBanner({ contractKey: 'tavern', address: tavernAddress, chainId, wallet: userAddress, labelOverride: 'Address' });
-      // Owner-only admin link: show if wallet is Pool owner on current chain, or allowlisted
-      try {
-        const poolAddr = await getAddressFor('pool', provider);
-        if (poolAddr && window.PoolABI) {
-          const pool = new ethers.Contract(poolAddr, window.PoolABI, signer);
-          const owner = await pool.owner();
-          const me = String(userAddress||'').toLowerCase();
-          const isPoolOwner = owner && String(owner).toLowerCase() === me;
-          const isAllowlisted = OWNER_WALLET_ALLOWLIST.includes(me);
-          ensureAdminLink(!!(isPoolOwner || isAllowlisted));
-        } else {
-          ensureAdminLink(false);
-        }
-      } catch { ensureAdminLink(false); }
-    } catch {}
-    try { localStorage.setItem('walletConnected', 'true'); } catch {}
-    // Announce presence (best-effort)
-    try {
-      if (!window.io) {
-        await new Promise((resolve)=>{ const s=document.createElement('script'); s.src='https://cdn.socket.io/4.7.5/socket.io.min.js'; s.onload=resolve; s.onerror=resolve; document.head.appendChild(s); });
-      }
-      if (window.io) {
-        if (!window.__presenceSocket) {
-          window.__presenceSocket = window.io(window.location.origin, { path: '/socket.io' });
-          window.__presenceSocket.on('connect', ()=>{
-            try { window.__presenceSocket.emit('identify', { addr: userAddress }); } catch {}
-            try { window.__presenceSocket.emit('user:location', { path: location.pathname }); } catch {}
-          });
-        } else {
-          try { window.__presenceSocket.emit('identify', { addr: userAddress }); } catch {}
-          try { window.__presenceSocket.emit('user:location', { path: location.pathname }); } catch {}
-        }
-      }
-    } catch {}
-    // Avoid auto-loading profile on silent connect
-    return true;
-  } catch {
-    return false;
-  }
+  // Auto-connect disabled: require explicit user action
+  return false;
 }
 
 // Auto-connect if previously connected (silent when possible)
@@ -258,46 +202,12 @@ async function bootConnect() {
     const chainId = await detectChainId(undefined);
     const address = getAddress('tavern', chainId);
     renderTavernBanner({ contractKey: 'tavern', address, chainId, labelOverride: 'Address' });
-    hideInlineConnectIfBannerPresent();
   } catch {}
-  let autoConnected = false;
-  autoConnected = await silentConnect();
-  if (!autoConnected) {
-    try {
-      const remembered = (localStorage.getItem('walletConnected') === 'true') || (sessionStorage.getItem('walletConnected') === 'true');
-      if (remembered) autoConnected = await silentConnect();
-    } catch {}
-  }
-  if (!autoConnected) {
-    ensureAdminLink(false);
-    try {
-      const path = String(location.pathname||'');
-      const isTavern = path === '/' || /\/index\.html$/.test(path);
-      if (isTavern) {
-        await connectWallet();
-      } else {
-        setConnectButtonAsConnect();
-      }
-    } catch {}
-  }
+  // Auto-connect disabled: do nothing until user clicks connect from landing
+  ensureAdminLink(false);
 }
 
-// Run immediately if the module loads after window load (BFCache or async loader),
-// and also register normal load hook.
-try {
-  if (document.readyState === 'complete' || document.readyState === 'interactive') {
-    bootConnect();
-  }
-} catch {}
-window.addEventListener('load', () => { bootConnect().catch(()=>{}); });
-
-// When returning to a page via back/forward cache, silently re-check wallet
-// so the banner reflects the connected state without requiring a click.
-try {
-  window.addEventListener('pageshow', async () => {
-    try { await silentConnect(); } catch {}
-  });
-} catch {}
+// No auto-run hooks; explicit connect only via landing wallet buttons.
 
 if (connectButton) connectButton.addEventListener('click', connectWallet);
 
@@ -309,4 +219,8 @@ export { ethers };
 try { window.ethers = ethers; } catch {}
 // Expose connect for landing so the click handler can trigger wallet prompt immediately
 try { window.tavernConnectWallet = connectWallet; } catch {}
+
+
+
+
 
