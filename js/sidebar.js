@@ -92,11 +92,34 @@
     const cacheBust = () => String(window.__BUILD_TAG || Date.now());
     function withNow(u){ try { const url = new URL(u, location.href); url.searchParams.set('now', cacheBust()); return url.pathname + '?' + url.searchParams.toString(); } catch { return u; } }
 
+    function iconFor(href){
+      try {
+        if (href.includes('/games/faro/')) return '/assets/images/faro-logo.png';
+        if (href.includes('/games/poker/')) return '/assets/images/texas-holdem-logo.png';
+        if (href.includes('/games/hazard/')) return '/assets/images/hazard-logo.png';
+        if (href.includes('/games/shell/')) return '/assets/images/shell-game-logo.png';
+        if (href.includes('/games/dakchog/')) return '/assets/images/dakandchog-logo.png';
+        if (href.includes('/rules')) return '/assets/images/d-and-c.png';
+        return '/assets/images/d-and-c.png';
+      } catch { return '/assets/images/d-and-c.png'; }
+    }
+
     for (const { href, label } of links) {
       const li = document.createElement('li');
       const a = document.createElement('a');
       a.href = withNow(href);
-      a.textContent = label;
+      // Build icon + text spans so we can toggle in collapsed state
+      const ico = document.createElement('img');
+      ico.className = 'sb-ico';
+      ico.alt = label;
+      ico.src = iconFor(href);
+      ico.style.cssText = 'width:24px;height:24px;object-fit:contain;display:none;vertical-align:middle;';
+      const sp = document.createElement('span');
+      sp.className = 'sb-text';
+      sp.textContent = label;
+      sp.style.cssText = 'margin-left:8px;';
+      a.appendChild(ico);
+      a.appendChild(sp);
       // Force fresh navigation on click; avoid history-cache restores
       a.addEventListener('click', function(e){
         try {
@@ -129,6 +152,40 @@
     if (isCollapsed()) nav.classList.add('collapsed');
 
     // Maintain a CSS variable for top banner offset so it never overlaps sidebar
+    function refreshCollapsedPresentation() {
+      try {
+        const collapsed = nav.classList.contains('collapsed');
+        // Kill any CSS bullet pseudo-element by injecting an override style once
+        if (!document.getElementById('sb-no-bullets')) {
+          const st = document.createElement('style');
+          st.id = 'sb-no-bullets';
+          st.textContent = '.sidebar.collapsed .sidebar-links li a::after{ content:"" !important; }';
+          document.head.appendChild(st);
+        }
+        list.querySelectorAll('a').forEach(a => {
+          const ico = a.querySelector('img.sb-ico');
+          const txt = a.querySelector('span.sb-text');
+          if (collapsed) {
+            if (ico) ico.style.display = 'inline-block';
+            if (txt) txt.style.display = 'none';
+            a.style.textIndent = '0';
+            a.style.display = 'flex';
+            a.style.alignItems = 'center';
+            a.style.justifyContent = 'center';
+            a.style.gap = '0';
+          } else {
+            if (ico) ico.style.display = 'none';
+            if (txt) txt.style.display = '';
+            a.style.textIndent = '';
+            a.style.display = '';
+            a.style.alignItems = '';
+            a.style.justifyContent = '';
+            a.style.gap = '';
+          }
+        });
+      } catch {}
+    }
+
     function updateSidebarOffset() {
       try {
         const w = window.innerWidth || 0;
@@ -146,6 +203,7 @@
         if (tb) { tb.style.left = px; }
         // Hide/show footer inline to avoid reliance on cached CSS
         try { footer.style.display = collapsed ? 'none' : ''; } catch {}
+        refreshCollapsedPresentation();
       } catch {}
     }
     updateSidebarOffset();
