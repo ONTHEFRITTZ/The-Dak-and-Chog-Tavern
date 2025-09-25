@@ -108,54 +108,57 @@ async function refresh() {
     poolAddr = await getAddressFor('pool', provider);
     whitelistAddr = await getAddressFor('whitelist', provider);
     
-        // Build authorized list from known game addresses
-        try {
-          const entries = [];
-          const hz = await getAddressFor('hazard', provider).catch(()=>null);
-          const sh = await getAddressFor('shell', provider).catch(()=>null);
-          const dk = await getAddressFor('dakchog', provider).catch(()=>null);
-          const fr = await getAddressFor('faro', provider).catch(()=>null);
-          const add = async (label, addr) => {
-            if (!addr) return;
-            let ok = false; try { ok = await pool.authorizedGames(addr); } catch {}
-            entries.push({ label, addr, ok });
+        // Build authorized list from known game addresses (requires pool)
+try {
+  if (poolAddr && window.PoolABI && signer) {
+    const poolView = pool || new window.ethers.Contract(poolAddr, window.PoolABI, signer);
+    const entries = [];
+    const hz = await getAddressFor("hazard", provider).catch(()=>null);
+    const sh = await getAddressFor("shell", provider).catch(()=>null);
+    const dk = await getAddressFor("dakchog", provider).catch(()=>null);
+    const fr = await getAddressFor("faro", provider).catch(()=>null);
+    const pk = await getAddressFor("pokerTable", provider).catch(()=>null);
+    const add = async (label, addr) => {
+      if (!addr) return;
+      let ok = false; try { ok = await poolView.authorizedGames(addr); } catch {}
+      entries.push({ label, addr, ok });
+    };
+    await add("Hazard", hz); await add("Shell", sh); await add("DakChog", dk); await add("Faro", fr); await add("Poker", pk);
+    if (poolAuthListEl) {
+      if (!entries.length) {
+        poolAuthListEl.textContent = "No known games found for this chain.";
+      } else {
+        poolAuthListEl.innerHTML = entries.map(e => {
+          const short = e.addr ? (e.addr.slice(0,6)+"..."+e.addr.slice(-4)) : "-";
+          const badge = e.ok ? "[OK]" : "[--]";
+          const color = e.ok ? "#00a000" : "#a00000";
+          return `<div style="display:flex; align-items:center; gap:8px; margin:2px 0;">
+            <span title="${e.ok ? 'authorized' : 'not authorized'}" style="color:${color}; font-weight:700;">${badge}</span>
+            <span style="min-width:80px; display:inline-block;">${e.label}</span>
+            <span style="opacity:.9;">${short}</span>
+            <button class="btn" data-act="toggle-auth" data-addr="${e.addr}" data-ok="${e.ok}" style="margin-left:auto;">${e.ok?'Deauthorize':'Authorize'}</button>
+          </div>`;
+        }).join('');
+        Array.from(poolAuthListEl.querySelectorAll('button[data-act="toggle-auth"]')).forEach(btn => {
+          btn.onclick = async () => {
+            try {
+              const addr = btn.getAttribute('data-addr');
+              const okNow = btn.getAttribute('data-ok') === 'true';
+              const tx = await poolView.setAuthorized(addr, !okNow);
+              statusEl.textContent = (!okNow?'Authorize':'Deauthorize') + ' tx sent';
+              await tx.wait();
+              await refresh();
+            } catch (e) { statusEl.textContent = e?.data?.message || e?.message || 'Failed'; }
           };
-          await add('Hazard', hz); await add('Shell', sh); await add('DakChog', dk); await add('Faro', fr); await add('Poker', pk);
-          if (poolAuthListEl) {
-            if (!entries.length) {
-              poolAuthListEl.textContent = 'No known games found for this chain.';
-            } else {
-              poolAuthListEl.innerHTML = entries.map(e => {
-                const short = e.addr ? (e.addr.slice(0,6)+'...'+e.addr.slice(-4)) : '-';
-                const dot = e.ok ? 'ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â' : 'ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¹';
-                const color = e.ok ? '#00a000' : '#a00000';
-                return `<div style="display:flex; align-items:center; gap:8px; margin:2px 0;">
-                  <span title="${e.ok ? 'authorized' : 'not authorized'}" style="color:${color}; font-weight:700;">${dot}</span>
-                  <span style="min-width:80px; display:inline-block;">${e.label}</span>
-                  <span style="opacity:.9;">${short}</span>
-                  <button class="btn" data-act="toggle-auth" data-addr="${e.addr}" data-ok="${e.ok}" style="margin-left:auto;">${e.ok?'Deauthorize':'Authorize'}</button>
-                </div>`;
-              }).join('');
-              // Bind toggle buttons (owner only)
-              Array.from(poolAuthListEl.querySelectorAll('button[data-act="toggle-auth"]')).forEach(btn => {
-                btn.onclick = async () => {
-                  try {
-                    const addr = btn.getAttribute('data-addr');
-                    const okNow = btn.getAttribute('data-ok') === 'true';
-                    const tx = await pool.setAuthorized(addr, !okNow);
-                    statusEl.textContent = (!okNow?'Authorize':'Deauthorize') + ' tx sent';
-                    await tx.wait();
-                    await refresh();
-                  } catch (e) { statusEl.textContent = e?.data?.message || e?.message || 'Failed'; }
-                };
-                // Disable when not pool owner
-                try {
-                  const isPoolOwner = wallet && pOwner && wallet.toLowerCase() === String(pOwner).toLowerCase();
-                  if (!isPoolOwner) btn.classList.add('readonly');
-                } catch {}
-              });
-            }
-          }
+          try {
+            const isPoolOwnerNow = wallet && poolOwner && wallet.toLowerCase() === String(poolOwner).toLowerCase();
+            if (!isPoolOwnerNow) btn.classList.add('readonly');
+          } catch {}
+        });
+      }
+    }
+  }
+} catch {}
         } catch {}
       } catch {}
     }
@@ -165,8 +168,8 @@ async function refresh() {
     let isPoolOwner = false; try { if (poolAddr && window.PoolABI && signer) { if (!pool) pool = new window.ethers.Contract(poolAddr, window.PoolABI, signer); poolOwner = await pool.owner(); if (poolOwnerEl) poolOwnerEl.textContent = poolOwner; isPoolOwner = wallet && poolOwner && wallet.toLowerCase() === String(poolOwner).toLowerCase(); } } catch {}
     
     // Enable/disable owner-only controls
-    [tavSetMaxBetBtn, tavSetPoolBtn].forEach(el => { if (el) el.classList.toggle('readonly', !isTavOwner); }); });
-    [faroSetMaxBetBtn, faroSetFeeBtn, faroSetPoolBtn, faroPauseBtn, faroResumeBtn].forEach(el => { if (el) el.classList.toggle('readonly', !isFaroOwner); }); });
+    [tavSetMaxBetBtn, tavSetPoolBtn].forEach(el => { if (el) el.classList.toggle('readonly', !isTavOwner); });
+    [faroSetMaxBetBtn, faroSetFeeBtn, faroSetPoolBtn, faroPauseBtn, faroResumeBtn].forEach(el => { if (el) el.classList.toggle('readonly', !isFaroOwner); });
     document.getElementById('owner-note').textContent = (isTavOwner || isFaroOwner || isPoolOwner) ? 'Owner controls enabled.' : 'Connect the owner wallet. Controls are disabled for non-owners.';
 
   // Realtime controls rely on Tavern owner
@@ -465,7 +468,7 @@ function ensureIo() {
         if (Array.isArray(m.online) && guestOnlineEl) guestOnlineEl.textContent = String(m.online.length);
         if (presenceListEl && Array.isArray(m.online)) {
           const rows = m.online.map(u => {
-            const addr = u.addrMask || (u.addrHash ? u.addrHash.slice(0,10)+'ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦' : '-');
+            const addr = u.addrMask || (u.addrHash ? u.addrHash.slice(0,10)+'ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦' : '-');
             const loc = u.tableId ? `${u.tableId}${(typeof u.seatId==='number')?(' #'+u.seatId):''}` : (u.path || '-');
             const ago = Math.max(0, Math.round((Date.now() - Number(u.last||0))/1000));
             return `${addr}  @ ${loc}  (${ago}s ago)`;
