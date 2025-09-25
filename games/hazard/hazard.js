@@ -29,6 +29,7 @@ try {
   if (typeof window !== 'undefined') {
     window.__hazardInitDone = window.__hazardInitDone || false;
     window.__hazardEvtBound = window.__hazardEvtBound || false;
+    window.__hazardTxPending = window.__hazardTxPending || false; // hard mutex for tx send
   }
 } catch {}
 
@@ -339,7 +340,7 @@ renderTavernBanner({ contractKey: bannerKey, address: tavernAddress, chainId, wa
     rollBtn.addEventListener('click', async () => {
   // Guard: prevent re-clicks during tx or cooldown
   const now = Date.now();
-  if (inFlight || now < cooldownUntil || (now - lastClickAt) < 500) {
+  if (inFlight || now < cooldownUntil || (now - lastClickAt) < 500 || (typeof window!=='undefined' && window.__hazardTxPending)) {
     try { statusEl.textContent = 'Please wait... resolving previous roll.'; } catch {}
     return;
   }
@@ -419,6 +420,7 @@ renderTavernBanner({ contractKey: bannerKey, address: tavernAddress, chainId, wa
   startDiceSpin();
 
   try {
+    try { if (typeof window !== 'undefined') window.__hazardTxPending = true; } catch {}
     // Always do a static preflight to surface revert reasons before sending
     try {
       await contract.callStatic.playHazard(selectedMain, { value: wager });
@@ -427,6 +429,7 @@ renderTavernBanner({ contractKey: bannerKey, address: tavernAddress, chainId, wa
       statusEl.textContent = 'Rejected: ' + msg;
       rollBtn.disabled = false;
       inFlight = false;
+      try { if (typeof window !== 'undefined') window.__hazardTxPending = false; } catch {}
       return;
     }
 
@@ -488,6 +491,7 @@ renderTavernBanner({ contractKey: bannerKey, address: tavernAddress, chainId, wa
     try { rollBtn.disabled = false; } catch {}
     cooldownUntil = Date.now() + 1200;
     inFlight = false;
+    try { if (typeof window !== 'undefined') window.__hazardTxPending = false; } catch {}
   } catch (err) {
     console.error('Play error:', err);
     let reason = '';
@@ -505,6 +509,7 @@ renderTavernBanner({ contractKey: bannerKey, address: tavernAddress, chainId, wa
     try { stopDiceSpin(); } catch {}
     rollBtn.disabled = false;
     inFlight = false;
+    try { if (typeof window !== 'undefined') window.__hazardTxPending = false; } catch {}
   }
     });
   }
