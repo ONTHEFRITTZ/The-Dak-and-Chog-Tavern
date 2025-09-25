@@ -127,7 +127,7 @@ async function refresh() {
             } else {
               poolAuthListEl.innerHTML = entries.map(e => {
                 const short = e.addr ? (e.addr.slice(0,6)+'...'+e.addr.slice(-4)) : '-';
-                const dot = e.ok ? 'â—' : 'â—‹';
+                const dot = e.ok ? 'ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â' : 'ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¹';
                 const color = e.ok ? '#00a000' : '#a00000';
                 return `<div style="display:flex; align-items:center; gap:8px; margin:2px 0;">
                   <span title="${e.ok ? 'authorized' : 'not authorized'}" style="color:${color}; font-weight:700;">${dot}</span>
@@ -162,16 +162,17 @@ async function refresh() {
 
     const isTavOwner = wallet && tavernOwner && wallet.toLowerCase() === tavernOwner.toLowerCase();
     const isFaroOwner = wallet && faroOwner && wallet.toLowerCase() === faroOwner.toLowerCase();
+    let isPoolOwner = false; try { if (poolAddr && window.PoolABI && signer) { if (!pool) pool = new window.ethers.Contract(poolAddr, window.PoolABI, signer); poolOwner = await pool.owner(); if (poolOwnerEl) poolOwnerEl.textContent = poolOwner; isPoolOwner = wallet && poolOwner && wallet.toLowerCase() === String(poolOwner).toLowerCase(); } } catch {}
     
     // Enable/disable owner-only controls
-    [tavSetMaxBetBtn, tavSetPoolBtn].forEach(el => { if (el) el.classList.toggle('readonly', !isTavOwner); });
-    [faroSetMaxBetBtn, faroSetFeeBtn, faroSetPoolBtn, faroPauseBtn, faroResumeBtn].forEach(el => { if (el) el.classList.toggle('readonly', !isFaroOwner); });
-    document.getElementById('owner-note').textContent = (isTavOwner || isFaroOwner) ? 'Owner controls enabled.' : 'Connect the owner wallet. Controls are disabled for non-owners.';
+    [tavSetMaxBetBtn, tavSetPoolBtn].forEach(el => { if (el) el.classList.toggle('readonly', !isTavOwner); }); });
+    [faroSetMaxBetBtn, faroSetFeeBtn, faroSetPoolBtn, faroPauseBtn, faroResumeBtn].forEach(el => { if (el) el.classList.toggle('readonly', !isFaroOwner); }); });
+    document.getElementById('owner-note').textContent = (isTavOwner || isFaroOwner || isPoolOwner) ? 'Owner controls enabled.' : 'Connect the owner wallet. Controls are disabled for non-owners.';
 
   // Realtime controls rely on Tavern owner
   const rtPauseBtn = document.getElementById('rt-pause');
   const rtResumeBtn = document.getElementById('rt-resume');
-  const isOwner = (isTavOwner || isFaroOwner);
+  const isOwner = (isTavOwner || isFaroOwner || isPoolOwner);
   [rtPauseBtn, rtResumeBtn, document.getElementById('rt-restart')].forEach(el => { if (el) el.classList.toggle('readonly', !isOwner); });
   // Always show realtime connection/health, even for non-owners
   ensureIo();
@@ -464,7 +465,7 @@ function ensureIo() {
         if (Array.isArray(m.online) && guestOnlineEl) guestOnlineEl.textContent = String(m.online.length);
         if (presenceListEl && Array.isArray(m.online)) {
           const rows = m.online.map(u => {
-            const addr = u.addrMask || (u.addrHash ? u.addrHash.slice(0,10)+'â€¦' : '-');
+            const addr = u.addrMask || (u.addrHash ? u.addrHash.slice(0,10)+'ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦' : '-');
             const loc = u.tableId ? `${u.tableId}${(typeof u.seatId==='number')?(' #'+u.seatId):''}` : (u.path || '-');
             const ago = Math.max(0, Math.round((Date.now() - Number(u.last||0))/1000));
             return `${addr}  @ ${loc}  (${ago}s ago)`;
@@ -599,6 +600,7 @@ poolSetAddrBtn?.addEventListener('click', async () => {
 });
 
 // Pool actions
+[poolFundBtn, poolWithdrawBtn, poolAuthorizeBtn, poolDeauthorizeBtn].forEach(el => { try { el?.classList.toggle('readonly', !(wallet && poolOwner && wallet.toLowerCase()===String(poolOwner).toLowerCase())); } catch {} });
 poolFundBtn?.addEventListener('click', async () => {
   try {
     if (!signer || !poolAddr) { statusEl.textContent = 'Pool not connected'; return; }
