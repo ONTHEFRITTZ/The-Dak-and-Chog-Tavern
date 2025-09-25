@@ -182,13 +182,7 @@ onReady(async () => {
     try { walletAddress = await signer.getAddress(); } catch {}
     if (walletAddress) { currentWallet = walletAddress.toLowerCase(); }
     try { if (walletAddress && walletFlag !== 'true') localStorage.setItem('walletConnected','true'); } catch {}
-    tavernAddress = await getAddressFor('tavern', provider);
-    contract = new ethers.Contract(tavernAddress, window.TavernABI, signer);
-    try {
-      const chainId = await detectChainId(provider);
-      const tavernAddress = await getAddressFor('tavern', provider);
-      renderTavernBanner({ contractKey: 'tavern', address: tavernAddress, chainId, wallet: walletAddress || undefined });
-    } catch {}
+    const hazardAddr = await getAddressFor('hazard', provider);\n    const tavernFallback = await getAddressFor('tavern', provider);\n    tavernAddress = hazardAddr || tavernFallback;\n    const hazardAbi = (hazardAddr && window.HazardABI) ? window.HazardABI : window.TavernABI;\n    contract = new ethers.Contract(tavernAddress, hazardAbi, signer);\n    try {\n      const chainId = await detectChainId(provider);\n      const bannerKey = hazardAddr ? 'hazard' : 'tavern';\n      renderTavernBanner({ contractKey: bannerKey, address: tavernAddress, chainId, wallet: walletAddress || undefined });\n    } catch {}
     // If no authorized account and flag not set, keep UI disabled until user connects
     if (!walletAddress && walletFlag !== 'true') {
       statusEl.textContent = 'Connect wallet on the Tavern first.';
@@ -442,3 +436,4 @@ window.addEventListener('beforeunload', () => { try { contract.off('HazardPlayed
 
   returnBtn?.addEventListener('click', () => { window.location.href = '/index.html'; });
 });
+

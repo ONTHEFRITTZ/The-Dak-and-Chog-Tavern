@@ -1,6 +1,7 @@
 // Dak & Chog coin flip (frontend scaffolding styled like other games)
 import { renderTavernBanner, detectChainId, getAddressFor } from '../../js/config.js';
 import '../../js/TavernABI.js';
+import '../../js/DakChogABI.js';
 
 const RULES_VERSION = 'v2';
 const statusEl = document.getElementById('dc-status');
@@ -29,7 +30,9 @@ try {
   if (statusEl) mo.observe(statusEl, { childList: true, characterData: true, subtree: true });
 } catch {}
 
-let provider, signer, wallet, tavern;
+let provider, signer, wallet, coinContract;
+let coinTargetAddress = null;
+let coinAbi = null;
 let choice = 'dak';
 let rulesOK = true; // rules gate removed
 
@@ -60,10 +63,16 @@ async function ensureWallet() {
     wallet = await signer.getAddress();
     try {
       const chainId = await detectChainId(provider);
-      const addr = await getAddressFor('tavern', provider);
-      renderTavernBanner({ contractKey: 'tavern', address: addr, chainId, wallet });
-      if (addr && window.TavernABI) {
-        tavern = new ethers.Contract(addr, window.TavernABI, signer);
+      const dedicatedAddr = await getAddressFor('dakchog', provider);
+      const tavernAddr = await getAddressFor('tavern', provider);
+      coinTargetAddress = dedicatedAddr || tavernAddr || null;
+      coinAbi = (dedicatedAddr && window.DakChogABI) ? window.DakChogABI : window.TavernABI;
+      const bannerKey = dedicatedAddr ? 'dakchog' : 'tavern';
+      renderTavernBanner({ contractKey: bannerKey, address: coinTargetAddress, chainId, wallet });
+      if (coinTargetAddress && coinAbi) {
+        coinContract = new ethers.Contract(coinTargetAddress, coinAbi, signer);
+      } else {
+        coinContract = undefined;
       }
     } catch {}
   } catch {}
@@ -74,48 +83,60 @@ flipBtn.addEventListener('click', async () => {
   const ethers = window.ethers;
   const bet = Number(betInput.value || 0);
   if (!provider || !signer || !wallet) { statusEl.textContent = 'Connect wallet first.'; return; }
-  if (!tavern || !window.TavernABI) { statusEl.textContent = 'Tavern contract not configured.'; return; }
+  if (!coinContract || !coinTargetAddress) { statusEl.textContent = 'Coin contract not configured.'; return; }
   if (!(bet > 0)) { statusEl.textContent = 'Enter a valid bet amount.'; return; }
 
   // Animate coin while tx is pending
   try { coinEl.classList.remove('flip'); void coinEl.offsetWidth; coinEl.classList.add('flip'); } catch {}
-  statusEl.textContent = 'Checking conditions…';
+  statusEl.textContent = 'Checking conditions...';
   try {
     const betOnChog = (choice === 'chog');
     const betWei = ethers.utils.parseEther(String(bet));
 
     // Max bet guard (if contract exposes it)
     try {
-      const maxBet = await tavern.maxBet().catch(()=>null);
+      const maxBet = await coinContract.maxBet().catch(()=>null);
       if (maxBet && maxBet.toString() !== '0') {
-        if (betWei.gt(maxBet)) { statusEl.textContent = 'Bet exceeds maxBet for the Tavern.'; return; }
+        if (betWei.gt(maxBet)) { statusEl.textContent = 'Bet exceeds maxBet for this game.'; return; }
       }
     } catch {}
     // Bankroll must cover net outflow. If a pool is configured, require 2x wager there; else require at least the wager at the Tavern.
     try {
       let ok = false;
-      const addr = await getAddressFor('tavern', provider);
-      const tav = new ethers.Contract(addr, window.TavernABI, provider);
-      let poolAddr = undefined; try { poolAddr = await tav.pool(); } catch {}
+      const targetAddr = coinTargetAddress || await getAddressFor('tavern', provider);
+      const viewAbi = coinAbi || window.DakChogABI || window.TavernABI;
+      let poolAddr;
+      if (targetAddr && viewAbi) {
+        try {
+          const viewContract = new ethers.Contract(targetAddr, viewAbi, provider);
+          if (viewContract.pool) { poolAddr = await viewContract.pool(); }
+        } catch {}
+      }
       if (poolAddr && poolAddr !== ethers.constants.AddressZero && window.PoolABI) {
-        try { const pool = new ethers.Contract(poolAddr, window.PoolABI, provider); const bal = await pool.balance(); if (bal.gte(betWei.mul(2))) ok = true; } catch {}
-      } else {
-        const bank = await provider.getBalance(addr); if (bank && bank.gte(betWei)) ok = true;
+        try {
+          const pool = new ethers.Contract(poolAddr, window.PoolABI, provider);
+          const bal = await pool.balance();
+          if (bal.gte(betWei.mul(2))) ok = true;
+        } catch {}
+      } else if (targetAddr) {
+        try {
+          const bank = await provider.getBalance(targetAddr);
+          if (bank && bank.gte(betWei)) ok = true;
+        } catch {}
       }
       if (!ok) { statusEl.textContent = 'Bankroll too low for this bet. Try a smaller amount.'; return; }
     } catch {}
-
     // Static call to surface revert reasons
-    try { await tavern.callStatic.playCoin(betOnChog, { value: betWei }); }
+    try { await coinContract.callStatic.playCoin(betOnChog, { value: betWei }); }
     catch (pre) {
       const msg = pre?.error?.message || pre?.data?.message || pre?.reason || pre?.message || 'Reverted';
       statusEl.textContent = 'Rejected: ' + msg;
       return;
     }
 
-    statusEl.textContent = 'Submitting transaction…';
-    const tx = await tavern.playCoin(betOnChog, { value: betWei, gasLimit: 120000 });
-    statusEl.textContent = `Tx sent: ${tx.hash.slice(0,10)}… waiting confirmation…`;
+    statusEl.textContent = 'Submitting transaction...';
+    const tx = await coinContract.playCoin(betOnChog, { value: betWei, gasLimit: 120000 });
+    statusEl.textContent = `Tx sent: ${tx.hash.slice(0,10)}... waiting confirmation...`;
     const rc = await tx.wait();
     // Parse CoinPlayed event if present
     let ev;

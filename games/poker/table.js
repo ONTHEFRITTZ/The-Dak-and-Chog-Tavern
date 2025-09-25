@@ -294,7 +294,13 @@ function parseTableId(){ try { const u=new URL(window.location.href); return u.s
 
 async function connect(){
   currentTableId = parseTableId();
-  try { socket = io(window.location.origin, { path: '/poker.io/', transports:['polling','websocket'], upgrade:true, reconnection:true, reconnectionAttempts:10, reconnectionDelay:800, forceNew:true }); try { window.socket = socket; } catch(e){} }
+  try {
+    const isLocal = ['localhost','127.0.0.1'].includes(window.location.hostname);
+    const socketOrigin = isLocal ? ('http://' + window.location.hostname + ':3101') : window.location.origin;
+    const socketPath = isLocal ? '/socket.io' : '/poker.io/';
+    socket = io(socketOrigin, { path: socketPath, transports:['polling','websocket'], upgrade:true, reconnection:true, reconnectionAttempts:10, reconnectionDelay:800, forceNew:true });
+    try { window.socket = socket; } catch(e){}
+  }
   catch (e) { setStatus('Socket.IO not available'); return; }
 
   socket.on('connect', function(){

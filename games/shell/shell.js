@@ -23,6 +23,7 @@ let provider;
 let signer;
 let userAddress;
 let tavernAddress;
+let activeShellAbi = null;
 
 async function init() {
   if (!window.ethereum) {
@@ -33,11 +34,14 @@ async function init() {
   signer = provider.getSigner();
   try { attachProvider(provider); } catch {}
   userAddress = await signer.getAddress();
-  tavernAddress = await getAddressFor('tavern', provider);
+  const shellAddr = await getAddressFor('shell', provider);
+  const tavernFallback = await getAddressFor('tavern', provider);
+  tavernAddress = shellAddr || tavernFallback;
+  activeShellAbi = (shellAddr && window.ShellABI) ? window.ShellABI : window.TavernABI;
   try {
     const chainId = await detectChainId(provider);
-    const unifiedAddress = await getAddressFor('tavern', provider);
-    renderTavernBanner({ contractKey: 'tavern', address: unifiedAddress, chainId, wallet: userAddress });
+    const bannerKey = shellAddr ? 'shell' : 'tavern';
+    renderTavernBanner({ contractKey: bannerKey, address: tavernAddress, chainId, wallet: userAddress });
   } catch {}
 }
 
@@ -52,10 +56,11 @@ shellElements.forEach((shell) => {
       let betAmount = parseFloat(betInput.value);
       if (isNaN(betAmount) || betAmount < 0.001) betAmount = 0.001;
 
-      const contract = new ethers.Contract(tavernAddress, window.TavernABI, signer);
+      const abi = activeShellAbi || window.ShellABI || window.TavernABI;
+      const contract = new ethers.Contract(tavernAddress, abi, signer);
 
       statusEl.innerText = 'Playing...';
-      try { showToast('Playing…', 'info'); } catch {}
+      try { showToast('Playing...', 'info'); } catch {}
 
       const tx = await contract.playShell(guess, {
         value: ethers.utils.parseEther(betAmount.toString()),
@@ -65,7 +70,7 @@ shellElements.forEach((shell) => {
       const receipt = await tx.wait();
 
       // Parse the Played event from the receipt
-      const iface = new ethers.utils.Interface(window.TavernABI);
+      const iface = new ethers.utils.Interface(activeShellAbi || window.ShellABI || window.TavernABI);
       let playedEvent;
       for (const log of receipt.logs) {
         try {
