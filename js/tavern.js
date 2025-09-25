@@ -125,7 +125,7 @@ function setConnectButtonAsConnect() {
 }
 
 // Connect Wallet
-export async function connectWallet(key) {
+export async function connectWallet(key, injectedOverride) {
   const eth = window.ethereum; const injected = (function(){ try { if (!eth) return null; if (eth.isMetaMask) return eth; if (Array.isArray(eth.providers)) return eth.providers.find(p=>p&&p.isMetaMask)||null; return eth||null; } catch { return null } })(); if(!injected) return alert('Wallet not detected. Please install the selected wallet.');
 
   try {
@@ -226,6 +226,7 @@ export { ethers };
 try { window.ethers = ethers; } catch {}
 // Expose connect for landing so the click handler can trigger wallet prompt immediately
 try { window.tavernConnectWallet = connectWallet; } catch {}
+
 
 
 

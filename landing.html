@@ -125,3 +125,47 @@ if (btn) btn.addEventListener('click', showChooser);
 
 
 
+  <script type="module">
+    (async()=>{
+      try{
+        const t = (window.__BUILD_TAG?String(window.__BUILD_TAG):String(Date.now()));
+        const mw = await import(`./js/multiwallet.js?v=${t}`);
+        // Ensure wallet list container exists
+        let chooser = document.getElementById('wallet-choice');
+        if (!chooser) return;
+        let list = document.getElementById('wallet-list');
+        if (!list) { list = document.createElement('div'); list.id='wallet-list'; list.style.cssText='display:flex; gap:18px; justify-content:center; flex-wrap:wrap; margin-top:10px;'; chooser.insertBefore(list, chooser.lastElementChild); }
+        function render(){
+          try{
+            list.innerHTML='';
+            const items = mw.listWallets();
+            if (!Array.isArray(items) || !items.length) return; // keep MetaMask button present
+            for (const d of items){
+              const b=document.createElement('button'); b.type='button'; b.setAttribute('data-uuid', d.info.uuid);
+              b.title = d.info.name || 'Wallet'; b.style.cssText='padding:10px; border-radius:12px; display:flex; align-items:center; gap:8px;';
+              const img=document.createElement('img'); img.alt=d.info.name; img.width=24; img.height=24; img.src=d.info.icon||'/assets/images/logos/metamask.png';
+              const span=document.createElement('span'); span.textContent=d.info.name||'Wallet';
+              b.appendChild(img); b.appendChild(span);
+              b.addEventListener('click', async (e)=>{
+                e.preventDefault();
+                try{
+                  const provider = mw.getProviderByUuid(d.info.uuid);
+                  const fn = window.tavernConnectWallet;
+                  if (typeof fn !== 'function') return;
+                  await fn('injected', provider);
+                  if (sessionStorage.getItem('walletSigned')==='true') {
+                    window.location.replace('index.html?nav='+encodeURIComponent(String(Date.now())));
+                  }
+                }catch(err){ try{ document.getElementById('wc-status').textContent = (err&&err.message)||'Failed to connect'; }catch{} }
+              });
+              list.appendChild(b);
+            }
+          }catch{}
+        }
+        // initial render (wallets announce synchronously in most cases)
+        render();
+        // re-render after a tick in case announcements are late
+        setTimeout(render, 50);
+      }catch{}
+    })();
+  </script>
