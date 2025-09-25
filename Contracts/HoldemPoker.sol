@@ -7,18 +7,15 @@ pragma solidity ^0.8.20;
 ///         be reclaimed if the player leaves mid-hand (treated as a fold).
 ///         The off-chain engine (table owner) orchestrates begin/settle.
 contract HoldemPoker {
-    // --- Ownership + reentrancy ---
-    address public owner;
-    modifier onlyOwner() { require(msg.sender == owner, "not owner"); _; }
+    // --- Reentrancy guard only ---
     uint256 private _locked = 1; modifier nonReentrant() { require(_locked==1, "reentrant"); _locked=2; _; _locked=1; }
-    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
     // --- Table params ---
     uint8 public constant MAX_SEATS = 6;
     uint16 public rakeBps; // 1 = 0.01%
     uint256 public smallBlind;
     uint256 public bigBlind;
-    bool public paused;
+    bool public paused; // unused in v2 (always false)
 
     struct Seat { address player; }
     Seat[MAX_SEATS] public seats;
@@ -44,7 +41,6 @@ contract HoldemPoker {
     event HandSettled(uint256 indexed handId, address[] winners, uint256[] payouts, uint256 rake);
 
     constructor(address /*poolAddrIgnored*/ ) {
-        owner = msg.sender;
         // Sensible defaults; owner may adjust later
         rakeBps = 100;                 // 1%
         smallBlind = 1_000_000_000_000_000;   // 0.001 MON
@@ -53,11 +49,7 @@ contract HoldemPoker {
 
     receive() external payable {}
 
-    // --- Admin ---
-    function transferOwnership(address next) external onlyOwner { require(next != address(0), "zero"); emit OwnershipTransferred(owner, next); owner = next; }
-    function setRake(uint16 _bps) external onlyOwner { require(_bps <= 1000, "high"); rakeBps = _bps; emit RakeUpdated(_bps); }
-    function setBlinds(uint256 _sb, uint256 _bb) external onlyOwner { smallBlind=_sb; bigBlind=_bb; emit BlindsUpdated(_sb,_bb); }
-    function pause(bool p) external onlyOwner { paused=p; emit Paused(p); }
+    // --- Admin removed in v2: rake/blinds fixed at deploy; pause unused ---
 
     // --- Seat control (no pre-fund) ---
     function joinSeat(uint8 seatId) external nonReentrant {
@@ -71,7 +63,7 @@ contract HoldemPoker {
     function unseat(uint8 seatId) external nonReentrant {
         require(seatId < MAX_SEATS, "seat");
         Seat storage s = seats[seatId];
-        require(s.player == msg.sender || msg.sender == owner, "perm");
+        require(s.player == msg.sender, "perm");
         require(!inHand, "in hand");
         address pl = s.player; s.player = address(0);
         emit SeatLeft(pl, seatId, 0);
@@ -87,11 +79,11 @@ contract HoldemPoker {
         emit LeftDuringHand(msg.sender, seatId);
     }
 
-    // --- Hand lifecycle (off-chain engine drives sequencing) ---
-    function beginHand(uint256 nextHandId, uint8 dealer, uint8 sb, uint8 bb) external onlyOwner {
+    // --- Hand lifecycle (permissionless orchestrator; no special wallet) ---
+    function beginHand(uint8 dealer, uint8 sb, uint8 bb) external nonReentrant {
         require(!inHand, "active");
         require(dealer < MAX_SEATS && sb < MAX_SEATS && bb < MAX_SEATS, "pos");
-        handId = nextHandId; inHand = true; dealerSeat = dealer; sbSeat = sb; bbSeat = bb; pot = 0;
+        handId = handId + 1; inHand = true; dealerSeat = dealer; sbSeat = sb; bbSeat = bb; pot = 0;
         // Blinds are posted by players via contribute(), not auto-debited here.
         emit HandStarted(handId, dealer, sb, bb);
     }
@@ -106,20 +98,15 @@ contract HoldemPoker {
         emit Contributed(handId, seatId, msg.value);
     }
 
-    /// @notice Settle the hand, crediting payouts to winners' seat balances. Rake is kept in-contract (implicitly in pool treasury).
-    function settleHand(address[] calldata winners, uint256[] calldata payouts, uint256 rakeOverride) external onlyOwner nonReentrant {
+    /// @notice Settle the hand; permissionless. Rake retained in contract; winners paid directly.
+    function settleHand(address[] calldata winners, uint256[] calldata payouts) external nonReentrant {
         require(inHand, "no hand");
         require(winners.length == payouts.length, "len");
         uint256 total;
         for (uint256 i=0;i<payouts.length;i++){ total += payouts[i]; }
-        uint256 rake = rakeOverride;
-        if (rake == 0 && rakeBps > 0) { rake = (pot * uint256(rakeBps)) / 10000; }
+        uint256 rake = (rakeBps > 0) ? (pot * uint256(rakeBps)) / 10000 : 0;
         require(total + rake <= pot, "exceeds pot");
-        // pay rake to owner if any, then pay winners directly
-        if (rake > 0) {
-            (bool rOk, ) = payable(owner).call{ value: rake }("");
-            require(rOk, "rake xfer");
-        }
+        // note: rake stays in contract treasury for later governance use (no privileged recipient)
         for (uint256 i=0;i<winners.length;i++) {
             uint256 amt = payouts[i];
             if (amt == 0) continue;
