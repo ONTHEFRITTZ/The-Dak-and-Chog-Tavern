@@ -34,6 +34,8 @@ async function init() {
   signer = provider.getSigner();
   try { attachProvider(provider); } catch {}
   userAddress = await signer.getAddress();
+  // Clear any stale local overrides so we use canonical addresses
+  try { localStorage.removeItem('contract.shell'); localStorage.removeItem('contract.tavern'); } catch {}
   const shellAddr = await getAddressFor('shell', provider);
   const tavernFallback = await getAddressFor('tavern', provider);
   tavernAddress = shellAddr || tavernFallback;
