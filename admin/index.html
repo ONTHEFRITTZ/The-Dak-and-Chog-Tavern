@@ -21,9 +21,16 @@
     (async()=>{
       try{
         const tag = window.__BUILD_TAG || Date.now();
-        for (const src of [`../js/TavernABI.js?v=${tag}`, `../js/FaroABI.js?v=${tag}`, `../js/PoolABI.js?v=${tag}`, `../js/WhitelistABI.js?v=${tag}`, `../js/PokerTablePoolABI.js?v=${tag}`]){
-          const s=document.createElement('script'); s.src=src; document.head.appendChild(s);
-        }
+        const abis = [
+          `../js/TavernABI.js?v=${tag}`,
+          `../js/FaroABI.js?v=${tag}`,
+          `../js/PoolABI.js?v=${tag}`,
+          `../js/HazardABI.js?v=${tag}`,
+          `../js/ShellABI.js?v=${tag}`,
+          `../js/WhitelistABI.js?v=${tag}`,
+          `../js/PokerTablePoolABI.js?v=${tag}`
+        ];
+        for (const src of abis){ const s=document.createElement('script'); s.src=src; document.head.appendChild(s); }
       }catch(e){ console.error('admin abi loader failed', e); }
     })();
   </script>

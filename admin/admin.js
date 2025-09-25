@@ -53,6 +53,20 @@ async function ensureWallet(){
   return false;
 }
 
+async function isOwnerWallet(){
+  try {
+    const me = (wallet||"").toLowerCase();
+    if (!me) return false;
+    const pairs = [];
+    try { const pa = await getAddressFor("pool", provider); if (pa && window.PoolABI) { const c=new window.ethers.Contract(pa, window.PoolABI, provider); pairs.push(await c.owner()); } } catch {}
+    try { const fa = await getAddressFor("faro", provider); if (fa && window.FaroABI) { const c=new window.ethers.Contract(fa, window.FaroABI, provider); pairs.push(await c.owner()); } } catch {}
+    try { const ha = await getAddressFor("hazard", provider); if (ha && window.HazardABI) { const c=new window.ethers.Contract(ha, window.HazardABI, provider); if (c.owner) pairs.push(await c.owner()); } } catch {}
+    try { const sa = await getAddressFor("shell", provider); if (sa && window.ShellABI) { const c=new window.ethers.Contract(sa, window.ShellABI, provider); if (c.owner) pairs.push(await c.owner()); } } catch {}
+    const owners = pairs.filter(Boolean).map(a=>String(a).toLowerCase());
+    return owners.includes(me);
+  } catch { return false; }
+}
+
 async function loadPool(){
   try {
     await detectChainId(provider); // forces detection; UI stays readable regardless of network
@@ -159,6 +173,7 @@ function registerWalletEvents(){
 async function boot(){
   bindControls(); registerWalletEvents();
   try { await ensureWallet(); } catch {}
+  try { const ok = await isOwnerWallet(); if (!ok) { statusEl.textContent = "Restricted: owner only"; setTimeout(()=>{ try{ location.replace("/index.html"); }catch{} }, 300); return; } } catch {}
   try { await loadPool(); } catch {}
   try { Array.from(document.querySelectorAll('.btn')).forEach(el => el.classList.remove('readonly')); } catch {}
 }
