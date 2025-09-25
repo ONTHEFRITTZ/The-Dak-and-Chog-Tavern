@@ -22,6 +22,9 @@ let diceSpinTimer = null;      // continuous spin timer until on-chain result
 let selectedMain = 7;
 let currentWallet = null;
 let hazardEnableTimer = null;
+let lastClickAt = 0;           // debounce rapid duplicate clicks
+const handledTxs = new Set();  // deduplicate results per transaction hash
+let pendingTxHash = null;      // remember tx hash while waiting for receipt
 let lastClickAt = 0;          // debounce rapid duplicate clicks
 
 // DOM
@@ -244,9 +247,17 @@ renderTavernBanner({ contractKey: bannerKey, address: tavernAddress, chainId, wa
   }
 
   // Event listener (HazardPlayed)
-  const onHazardPlayed = async (player, wager, win, main, finalSum, chance, iterations) => {
+  const onHazardPlayed = async (player, wager, win, main, finalSum, chance, iterations, ev) => {
   try {
     if (!currentWallet || player.toLowerCase() !== currentWallet) return;
+
+    try {
+      const txh = ev && ev.transactionHash ? String(ev.transactionHash) : null;
+      if (txh) {
+        if (handledTxs.has(txh)) return; // already processed
+        handledTxs.add(txh);
+      }
+    } catch {}
 
     const [d1, d2] = splitSumToDice(Number(finalSum));
     // Force-update dice to the authoritative game result and lock until next roll
@@ -277,7 +288,13 @@ renderTavernBanner({ contractKey: bannerKey, address: tavernAddress, chainId, wa
     try { rollBtn.disabled = false; } catch {}
   }
 };
-contract.on('HazardPlayed', onHazardPlayed);
+contract.on('HazardPlayed', (...args) => {
+  try {
+    const ev = args[args.length - 1];
+    // Normalize call: ensure event object is last param
+    onHazardPlayed(args[0], args[1], args[2], args[3], args[4], args[5], args[6], ev);
+  } catch (e) { try { onHazardPlayed(args[0], args[1], args[2], args[3], args[4], args[5], args[6]); } catch {} }
+});
 window.addEventListener('beforeunload', () => { try { contract.off('HazardPlayed', onHazardPlayed); } catch {} });
 
   // If the user connects their wallet after load, enable play without reloading
@@ -428,6 +445,7 @@ window.addEventListener('beforeunload', () => { try { contract.off('HazardPlayed
     }
 
     const tx = await contract.playHazard(selectedMain, { value: wager, gasLimit });
+    try { pendingTxHash = String(tx.hash); } catch {}
     statusEl.textContent = 'Dice rolling on-chain...';
     const receipt = await tx.wait();
     statusEl.textContent = 'Waiting for result...';
@@ -454,7 +472,13 @@ window.addEventListener('beforeunload', () => { try { contract.off('HazardPlayed
             const iterationsEv = Number(args.iterations||args[6]);
             // Stop spin and apply final faces + UI via event handler
             try { stopDiceSpin(); } catch {}
-            try { await onHazardPlayed(player, wagerEv, winEv, mainEv, finalSumEv, chanceEv, iterationsEv); } catch {}
+            try {
+              const txh = receipt && receipt.transactionHash ? String(receipt.transactionHash) : pendingTxHash || null;
+              // Skip if we already processed this via live event
+              if (!txh || !handledTxs.has(txh)) {
+                await onHazardPlayed(player, wagerEv, winEv, mainEv, finalSumEv, chanceEv, iterationsEv, { transactionHash: txh });
+              }
+            } catch {}
             updatedViaReceipt = true;
             break;
           }
