@@ -1,4 +1,4 @@
-import { ethers } from 'https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.esm.min.js';
+﻿import { ethers } from 'https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.esm.min.js';
 import './bundler.js';
 // Defer loading of config.js with a version tag to avoid stale cache
 let cfgLoaded = false;
@@ -125,13 +125,13 @@ function setConnectButtonAsConnect() {
 }
 
 // Connect Wallet
-export async function connectWallet() {
+export async function connectWallet(key) {
   await ensureConfig();
-  if (!window.ethereum) return alert('MetaMask not detected.');
+  const pickInjected = (k)=>{ try { if(k==='phantom'){ return (window.phantom&&window.phantom.ethereum)||null; } const eth=window.ethereum; if(!eth) return null; if(eth.isMetaMask) return eth; if(Array.isArray(eth.providers)) return eth.providers.find(p=>p&&p.isMetaMask)||null; return eth||null; } catch { return null } }; const injected = pickInjected(key); if(!injected) return alert('Wallet not detected. Please install the selected wallet.');
 
   try {
-    await ethereum.request({ method: 'eth_requestAccounts' });
-    provider = new ethers.providers.Web3Provider(window.ethereum, 'any');
+    await injected.request({ method: 'eth_requestAccounts' });
+    provider = new ethers.providers.Web3Provider(injected, 'any');
     signer = provider.getSigner();
     userAddress = await signer.getAddress();
     try { window.userAddress = userAddress; window.dispatchEvent(new CustomEvent('wallet:connected', { detail: { address: userAddress } })); } catch {}
@@ -197,7 +197,7 @@ async function silentConnect() {
   await ensureConfig();
   if (!window.ethereum) return false;
   try {
-    provider = new ethers.providers.Web3Provider(window.ethereum, 'any');
+    provider = new ethers.providers.Web3Provider(injected, 'any');
     const accounts = await provider.listAccounts();
     if (!accounts || !accounts.length) return false;
     signer = provider.getSigner();
@@ -309,3 +309,4 @@ export { ethers };
 try { window.ethers = ethers; } catch {}
 // Expose connect for landing so the click handler can trigger wallet prompt immediately
 try { window.tavernConnectWallet = connectWallet; } catch {}
+
