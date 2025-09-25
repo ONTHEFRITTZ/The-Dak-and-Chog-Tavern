@@ -17,6 +17,7 @@ let provider, signer, contract;
 let inFlight = false;          // prevent overlapping plays
 let cooldownUntil = 0;         // brief cooldown after resolution
 let diceLock = false;          // lock dice to the last game result (until next roll)
+let diceSpinTimer = null;      // continuous spin timer until on-chain result
 let selectedMain = 7;
 let currentWallet = null;
 let hazardEnableTimer = null;
@@ -113,22 +114,18 @@ function setDiceFaces(d1, d2, opts){
 const displayDice = (d1,d2)=> setDiceFaces(d1,d2);
 
 // Animate dice visually
-function animateDice() {
-  const el1 = dice1El, el2 = dice2El;
-  el1.classList.add('shake');
-  el2.classList.add('shake');
-  let frames = 10;
-  const iv = setInterval(() => {
+function startDiceSpin() {
+  try { dice1El.classList.add('shake'); dice2El.classList.add('shake'); } catch {}
+  if (diceSpinTimer) return;
+  diceSpinTimer = setInterval(() => {
     const r1 = Math.floor(Math.random() * 6) + 1;
     const r2 = Math.floor(Math.random() * 6) + 1;
     setDiceFaces(r1, r2);
-    frames--;
-    if (frames <= 0) {
-      clearInterval(iv);
-      el1.classList.remove('shake');
-      el2.classList.remove('shake');
-    }
   }, 100);
+}
+function stopDiceSpin() {
+  if (diceSpinTimer) { clearInterval(diceSpinTimer); diceSpinTimer = null; }
+  try { dice1El.classList.remove('shake'); dice2El.classList.remove('shake'); } catch {}
 }
 
 // Outcome explanation matching contract rules
@@ -251,6 +248,7 @@ renderTavernBanner({ contractKey: bannerKey, address: tavernAddress, chainId, wa
     const [d1, d2] = splitSumToDice(Number(finalSum));
     // Force-update dice to the authoritative game result and lock until next roll
     setDiceFaces(d1, d2, { force:true });
+    try { stopDiceSpin(); } catch {}
     diceLock = true;
 
     const wagerEth = ethers.utils.formatEther(wager);
@@ -395,9 +393,9 @@ window.addEventListener('beforeunload', () => { try { contract.off('HazardPlayed
   statusEl.textContent = 'Rolling dice... sending transaction...';
   try { showToast('Rolling dice...', 'info'); } catch {}
   rollBtn.disabled = true;
-
-  try { if (typeof animationsEnabled === 'undefined') { animationsEnabled = true; } } catch { var animationsEnabled = true; }
-  if (animationsEnabled) animateDice();
+  // Start continuous spin and unlock faces for this round
+  try { diceLock = false; } catch {}
+  startDiceSpin();
 
   try {
     // Always do a static preflight to surface revert reasons before sending
@@ -448,7 +446,8 @@ window.addEventListener('beforeunload', () => { try { contract.off('HazardPlayed
             const finalSumEv = Number(args.finalSum||args[4]);
             const chanceEv = Number(args.chance||args[5]);
             const iterationsEv = Number(args.iterations||args[6]);
-            // Reuse the same handler used by the live event
+            // Stop spin and apply final faces + UI via event handler
+            try { stopDiceSpin(); } catch {}
             try { await onHazardPlayed(player, wagerEv, winEv, mainEv, finalSumEv, chanceEv, iterationsEv); } catch {}
             break;
           }
@@ -456,10 +455,10 @@ window.addEventListener('beforeunload', () => { try { contract.off('HazardPlayed
       }
     } catch {}
 
-    if (hazardEnableTimer) { clearTimeout(hazardEnableTimer); }
-    hazardEnableTimer = setTimeout(() => { try { rollBtn.disabled = false; } catch {} }, 12000);
-    // Set a short cooldown to avoid immediate re-click while network/events settle
-    cooldownUntil = Date.now() + 2500;
+    // Enable immediately after confirmed result; brief cooldown only
+    try { stopDiceSpin(); } catch {}
+    try { rollBtn.disabled = false; } catch {}
+    cooldownUntil = Date.now() + 1200;
     inFlight = false;
   } catch (err) {
     console.error('Play error:', err);
@@ -475,8 +474,8 @@ window.addEventListener('beforeunload', () => { try { contract.off('HazardPlayed
     } else {
       statusEl.textContent = 'Reverted: ' + reason;
     }
+    try { stopDiceSpin(); } catch {}
     rollBtn.disabled = false;
-    if (hazardEnableTimer) { clearTimeout(hazardEnableTimer); hazardEnableTimer = null; }
     inFlight = false;
   }
 });
