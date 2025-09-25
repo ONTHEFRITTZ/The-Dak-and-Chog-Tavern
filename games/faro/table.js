@@ -39,12 +39,30 @@ let stagedBets = [];     // [{ rank: 1..13, amountEth: number, copper: bool }]
 let myPendingBets = [];  // queued for on-chain when Ready
 let centerLockUntil = 0; // keep results visible briefly after a coup
 
+// Ensure the center banner sits visually on top and as the last child of the canvas
+function elevateCenterBanner() {
+  try {
+    const el = document.getElementById('center-readout');
+    if (!el) return;
+    // Bring to top visually
+    el.style.position = 'absolute';
+    el.style.zIndex = '25000';
+    el.style.pointerEvents = 'none';
+    // Re-append as last child of canvas to ensure it paints last
+    const canvas = document.querySelector('.table-canvas');
+    if (canvas && el.parentElement === canvas && canvas.lastElementChild !== el) {
+      canvas.appendChild(el);
+    }
+  } catch {}
+}
+
 // Center message helper that respects result lock window
 function setCenter(text, forceOverride = false) {
   try {
     const now = Date.now();
     if (!centerReadout) return;
     if (forceOverride || now >= centerLockUntil) {
+      elevateCenterBanner();
       centerReadout.textContent = String(text || '');
     }
   } catch {}
@@ -419,7 +437,7 @@ async function connect() {
     if (Array.isArray(m.results)) m.results.forEach(r => log(`${short(r.addr)}: ${r.delta >= 0 ? '+' : ''}${r.delta}`));
     // Render table first (updates seats), then override center readout with results so it isn't overwritten
     try { renderTable(m.table); } catch {}
-    try { centerLockUntil = Date.now() + 8000; } catch {}
+    try { centerLockUntil = Date.now() + 12000; } catch {}
     try {
       const mine = Array.isArray(m.results) ? m.results.find(r => r.addr && myAddr && r.addr.toLowerCase()===String(myAddr).toLowerCase()) : null;
       const myTxt = mine ? (mine.delta>0 ? ` You won +${mine.delta}` : (mine.delta<0 ? ` You lost ${mine.delta}` : ' Push')) : '';
