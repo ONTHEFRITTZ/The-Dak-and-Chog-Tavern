@@ -1,4 +1,4 @@
-// Shared contract addresses for the Tavern and games
+﻿// Shared contract addresses for the Tavern and games
 // - Supports per-chain mapping with a sensible default
 // - Hardened: no runtime overrides via URL or localStorage
 
@@ -49,7 +49,7 @@ export async function detectChainId(provider) {
     }
   } catch {}
   try {
-    const injected = (window && window.__walletProvider) || (window && window.phantom && window.phantom.ethereum) || (window && window.ethereum);
+    const injected = (window && window.__walletProvider) || (window && window.ethereum);
     if (injected && typeof injected.request === 'function') {
       const hex = await injected.request({ method: 'eth_chainId' });
       return parseInt(hex, 16);
@@ -116,7 +116,7 @@ export function explorerAddressUrl(chainId, address) {
 
 export async function switchToChain(chainIdHex) {
   try {
-    const injected = (window && window.__walletProvider) || (window && window.phantom && window.phantom.ethereum) || (window && window.ethereum);
+    const injected = (window && window.__walletProvider) || (window && window.ethereum);
     if (!injected || typeof injected.request !== 'function') throw new Error('No wallet provider');
     await injected.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: chainIdHex }] });
     return true;
@@ -386,4 +386,5 @@ export function showToast(message, type = 'info', duration = 2600) {
     }, Math.max(800, Number(duration)||2600));
   } catch {}
 }
+
 

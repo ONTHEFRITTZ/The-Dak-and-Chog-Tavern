@@ -2,7 +2,7 @@
 // Works with EIP-1193 providers (MetaMask Smart Accounts, etc.)
 
 function resolveInjected() {
-  try { return window.__walletProvider || (window.phantom && window.phantom.ethereum) || window.ethereum; } catch { return undefined; }
+  try { return window.__walletProvider || window.ethereum; } catch { return undefined; }
 }
 
 export async function detectBundler(explicitProvider) {
@@ -71,3 +71,4 @@ export async function waitForTransactionReceipt(providerLike, hash, timeoutMs = 
     try { return await provider.getTransactionReceipt(hash); } catch { return null; }
   }
 }
+

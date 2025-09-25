@@ -44,10 +44,10 @@ async function rtEnsure() {
 function injectedProvider(){
   try {
     const pref = (sessionStorage.getItem('walletProvider')||'').toLowerCase();
-    if (pref === 'phantom') return (window.phantom && window.phantom.ethereum) || window.__walletProvider;
+    
     if (pref === 'metamask') return window.ethereum || window.__walletProvider;
-    return window.__walletProvider || window.ethereum || (window.phantom && window.phantom.ethereum) || null;
-  } catch { return window.__walletProvider || window.ethereum || (window.phantom && window.phantom.ethereum) || null; }
+    return window.__walletProvider || window.ethereum ||  null;
+  } catch { return window.__walletProvider || window.ethereum ||  null; }
 }
 
 export async function signMessage(message) {
