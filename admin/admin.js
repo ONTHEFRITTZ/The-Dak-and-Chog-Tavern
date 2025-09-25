@@ -107,75 +107,7 @@ async function refresh() {
     faroAddr = await getAddressFor('faro', provider);
     poolAddr = await getAddressFor('pool', provider);
     whitelistAddr = await getAddressFor('whitelist', provider);
-    try { pokerPooledAddr = await getAddressFor('pokerTable', provider); } catch { try { pokerPooledAddr = localStorage.getItem('contract.pokerTable') || ''; } catch { pokerPooledAddr = ''; } }
-    tavAddrEl.textContent = tavernAddr || '-';
-    faroAddrEl.textContent = faroAddr || '-';
-    if (poolAddrEl) poolAddrEl.textContent = poolAddr || '-';
-    if (wlAddrEl) wlAddrEl.textContent = whitelistAddr || '(not set)';
-    if (ppAddrEl) ppAddrEl.textContent = pokerPooledAddr || '(set below)';
-    if (tavOverrideInput) tavOverrideInput.placeholder = tavernAddr || '';
-    if (faroOverrideInput) faroOverrideInput.placeholder = faroAddr || '';
-    if (poolOverrideInput) poolOverrideInput.placeholder = poolAddr || '';
-    if (wlOverrideInput) wlOverrideInput.placeholder = whitelistAddr || '';
-    if (ppOverrideInput) ppOverrideInput.placeholder = pokerPooledAddr || '';
-    renderTavernBanner({ contractKey: 'tavern', address: tavernAddr, chainId, wallet });
     
-      try { const wb = document.getElementById('wallet-banner'); if (wb) wb.remove(); } catch {}
-      try { const nb = document.getElementById('nb-disconnect'); if (nb) nb.remove(); } catch {}
-
-    if (tavernAddr && window.TavernABI && signer) {
-      tavern = new window.ethers.Contract(tavernAddr, window.TavernABI, signer);
-      try {
-        tavernOwner = await tavern.owner();
-        tavOwnerEl.textContent = tavernOwner;
-        const bal = await provider.getBalance(tavernAddr);
-        tavBalEl.textContent = fmtEth(bal) + ' MON';
-        const maxBet = await tavern.maxBet();
-        tavMaxBetInput.placeholder = fmtEth(maxBet);
-        try { const tp = await tavern.pool(); if (tavPoolEl) tavPoolEl.textContent = tp || '-'; } catch { if (tavPoolEl) tavPoolEl.textContent = '(not pooled)'; }
-        if (tavOwnerMatchEl) {
-          const match = isTavOwnerNow();
-          tavOwnerMatchEl.textContent = match ? 'Yes' : 'No';
-          try { tavOwnerMatchEl.style.color = match ? '#006400' : '#8b0000'; } catch {}
-    }
-    // Bind PokerTablePool if available
-    try {
-      if (pokerPooledAddr && window.PokerTablePoolABI && signer) {
-        pokerPooled = new window.ethers.Contract(pokerPooledAddr, window.PokerTablePoolABI, signer);
-      } else { pokerPooled = null; }
-    } catch { pokerPooled = null; }
-  } catch {}
-}
-    if (faroAddr && window.FaroABI && signer) {
-      faro = new window.ethers.Contract(faroAddr, window.FaroABI, signer);
-      try {
-        faroOwner = await faro.owner();
-        faroOwnerEl.textContent = faroOwner;
-        const bal = await provider.getBalance(faroAddr);
-        faroBalEl.textContent = fmtEth(bal) + ' MON';
-        const maxBet = await faro.maxBet();
-        faroMaxBetInput.placeholder = fmtEth(maxBet);
-        const fee = await faro.feeBps();
-        faroFeeInput.placeholder = String(fee);
-        try { const feesAcc = await faro.feesAccrued(); if (faroFeesEl) faroFeesEl.textContent = fmtEth(feesAcc) + ' MON'; } catch {}
-        try { const p = await faro.pool(); if (faroPoolEl) faroPoolEl.textContent = p; } catch { if (faroPoolEl) faroPoolEl.textContent = '(n/a)'; }
-        if (faroOwnerMatchEl) {
-          const match = isFaroOwnerNow();
-          faroOwnerMatchEl.textContent = match ? 'Yes' : 'No';
-          try { faroOwnerMatchEl.style.color = match ? '#006400' : '#8b0000'; } catch {}
-        }
-      } catch {}
-    }
-
-    if (poolAddr && window.PoolABI && signer) {
-      pool = new window.ethers.Contract(poolAddr, window.PoolABI, signer);
-      try {
-        const pOwner = await pool.owner();
-        if (poolOwnerEl) poolOwnerEl.textContent = pOwner;
-        const pBal = await pool.balance();
-        if (poolBalEl) poolBalEl.textContent = fmtEth(pBal) + ' MON';
-        try { if (poolAmtInput) poolAmtInput.placeholder = fmtEth(pBal); } catch {}
-
         // Build authorized list from known game addresses
         try {
           const entries = [];
@@ -188,14 +120,14 @@ async function refresh() {
             let ok = false; try { ok = await pool.authorizedGames(addr); } catch {}
             entries.push({ label, addr, ok });
           };
-          await add('Hazard', hz); await add('Shell', sh); await add('DakChog', dk); await add('Faro', fr);
+          await add('Hazard', hz); await add('Shell', sh); await add('DakChog', dk); await add('Faro', fr); await add('Poker', pk);
           if (poolAuthListEl) {
             if (!entries.length) {
               poolAuthListEl.textContent = 'No known games found for this chain.';
             } else {
               poolAuthListEl.innerHTML = entries.map(e => {
                 const short = e.addr ? (e.addr.slice(0,6)+'...'+e.addr.slice(-4)) : '-';
-                const dot = e.ok ? '●' : '○';
+                const dot = e.ok ? 'â—' : 'â—‹';
                 const color = e.ok ? '#00a000' : '#a00000';
                 return `<div style="display:flex; align-items:center; gap:8px; margin:2px 0;">
                   <span title="${e.ok ? 'authorized' : 'not authorized'}" style="color:${color}; font-weight:700;">${dot}</span>
@@ -532,7 +464,7 @@ function ensureIo() {
         if (Array.isArray(m.online) && guestOnlineEl) guestOnlineEl.textContent = String(m.online.length);
         if (presenceListEl && Array.isArray(m.online)) {
           const rows = m.online.map(u => {
-            const addr = u.addrMask || (u.addrHash ? u.addrHash.slice(0,10)+'…' : '-');
+            const addr = u.addrMask || (u.addrHash ? u.addrHash.slice(0,10)+'â€¦' : '-');
             const loc = u.tableId ? `${u.tableId}${(typeof u.seatId==='number')?(' #'+u.seatId):''}` : (u.path || '-');
             const ago = Math.max(0, Math.round((Date.now() - Number(u.last||0))/1000));
             return `${addr}  @ ${loc}  (${ago}s ago)`;
