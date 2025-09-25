@@ -24,6 +24,14 @@ let currentWallet = null;
 let hazardEnableTimer = null;
 let lastClickAt = 0;          // debounce rapid duplicate clicks
 
+// Global guards to prevent duplicate initialization/bindings
+try {
+  if (typeof window !== 'undefined') {
+    window.__hazardInitDone = window.__hazardInitDone || false;
+    window.__hazardEvtBound = window.__hazardEvtBound || false;
+  }
+} catch {}
+
 // DOM
 const statusEl = document.getElementById('hazard-result') || document.getElementById('status');
 const rollBtn = document.getElementById('roll-dice');
@@ -177,6 +185,8 @@ mainButtons.forEach(btn => {
 // Initialize provider/signers and attach handlers
 const onReady = (fn) => { if (document.readyState === 'loading') { window.addEventListener('DOMContentLoaded', fn, { once: true }); } else { fn(); } };
 onReady(async () => {
+  // Prevent duplicate init (e.g., bfcache restore or accidental double import)
+  try { if (window.__hazardInitDone) return; window.__hazardInitDone = true; } catch {}
   hazardAck = true;
   try { if (rulesOverlay) rulesOverlay.style.display = 'none'; } catch {}
   try { if (openRulesBtn) openRulesBtn.style.display = 'none'; } catch {}
@@ -277,8 +287,12 @@ renderTavernBanner({ contractKey: bannerKey, address: tavernAddress, chainId, wa
     try { rollBtn.disabled = false; } catch {}
   }
 };
-contract.on('HazardPlayed', onHazardPlayed);
-window.addEventListener('beforeunload', () => { try { contract.off('HazardPlayed', onHazardPlayed); } catch {} });
+  // Bind event listener only once per page lifecycle
+  if (!window.__hazardEvtBound) {
+    contract.on('HazardPlayed', onHazardPlayed);
+    window.__hazardEvtBound = true;
+    window.addEventListener('beforeunload', () => { try { contract.off('HazardPlayed', onHazardPlayed); } catch {} });
+  }
 
   // If the user connects their wallet after load, enable play without reloading
   try {
@@ -319,8 +333,10 @@ window.addEventListener('beforeunload', () => { try { contract.off('HazardPlayed
     });
   } catch {}
 
-  // Roll button handler (guard element)
-  rollBtn?.addEventListener('click', async () => {
+  // Roll button handler (bind once)
+  if (rollBtn && !rollBtn.__hazardBound) {
+    rollBtn.__hazardBound = true;
+    rollBtn.addEventListener('click', async () => {
   // Guard: prevent re-clicks during tx or cooldown
   const now = Date.now();
   if (inFlight || now < cooldownUntil || (now - lastClickAt) < 500) {
@@ -490,7 +506,8 @@ window.addEventListener('beforeunload', () => { try { contract.off('HazardPlayed
     rollBtn.disabled = false;
     inFlight = false;
   }
-});
+    });
+  }
 
   returnBtn?.addEventListener('click', () => { window.location.href = '/index.html'; });
 });
