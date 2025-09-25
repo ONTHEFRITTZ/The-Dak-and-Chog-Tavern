@@ -107,8 +107,8 @@ async function refresh() {
     poolAddr = await getAddressFor('pool', provider);
     whitelistAddr = await getAddressFor('whitelist', provider);
     try { pokerPooledAddr = await getAddressFor('pokerTable', provider); } catch { try { pokerPooledAddr = localStorage.getItem('contract.pokerTable') || ''; } catch { pokerPooledAddr = ''; } }
-    tavAddrEl.textContent = tavernAddr || '-';
-    faroAddrEl.textContent = faroAddr || '-';
+if (tavAddrEl) tavAddrEl.textContent = tavernAddr || '-';
+if (faroAddrEl) faroAddrEl.textContent = faroAddr || '-';
     if (poolAddrEl) poolAddrEl.textContent = poolAddr || '-';
     if (wlAddrEl) wlAddrEl.textContent = whitelistAddr || '(not set)';
     if (ppAddrEl) ppAddrEl.textContent = pokerPooledAddr || '(set below)';
@@ -126,11 +126,11 @@ async function refresh() {
       tavern = new window.ethers.Contract(tavernAddr, window.TavernABI, signer);
       try {
         tavernOwner = await tavern.owner();
-        tavOwnerEl.textContent = tavernOwner;
+        if (tavOwnerEl) tavOwnerEl.textContent = tavernOwner;
         const bal = await provider.getBalance(tavernAddr);
-        tavBalEl.textContent = fmtEth(bal) + ' MON';
+        if (tavBalEl) tavBalEl.textContent = fmtEth(bal) + ' MON';
         const maxBet = await tavern.maxBet();
-        tavMaxBetInput.placeholder = fmtEth(maxBet);
+        if (tavMaxBetInput) tavMaxBetInput.placeholder = fmtEth(maxBet);
         try { const tp = await tavern.pool(); if (tavPoolEl) tavPoolEl.textContent = tp || '-'; } catch { if (tavPoolEl) tavPoolEl.textContent = '(not pooled)'; }
         if (tavOwnerMatchEl) {
           const match = isTavOwnerNow();
@@ -149,13 +149,13 @@ async function refresh() {
       faro = new window.ethers.Contract(faroAddr, window.FaroABI, signer);
       try {
         faroOwner = await faro.owner();
-        faroOwnerEl.textContent = faroOwner;
+        if (faroOwnerEl) faroOwnerEl.textContent = faroOwner;
         const bal = await provider.getBalance(faroAddr);
-        faroBalEl.textContent = fmtEth(bal) + ' MON';
+        if (faroBalEl) faroBalEl.textContent = fmtEth(bal) + ' MON';
         const maxBet = await faro.maxBet();
-        faroMaxBetInput.placeholder = fmtEth(maxBet);
+        if (faroMaxBetInput) faroMaxBetInput.placeholder = fmtEth(maxBet);
         const fee = await faro.feeBps();
-        faroFeeInput.placeholder = String(fee);
+        if (faroFeeInput) faroFeeInput.placeholder = String(fee);
         try { const feesAcc = await faro.feesAccrued(); if (faroFeesEl) faroFeesEl.textContent = fmtEth(feesAcc) + ' MON'; } catch (e) {}
         try { const p = await faro.pool(); if (faroPoolEl) faroPoolEl.textContent = p; } catch { if (faroPoolEl) faroPoolEl.textContent = '(n/a)'; }
         if (faroOwnerMatchEl) {

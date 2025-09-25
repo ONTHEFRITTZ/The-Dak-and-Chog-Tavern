@@ -72,6 +72,8 @@
     .btn { padding:6px 10px; border-radius:6px; cursor:pointer; border:none; color:#f4e6d3; background: rgba(255,255,255,0.08); }
     .btn:hover { background: rgba(255,255,255,0.16); }
     .readonly { opacity:.6; }
+    /* Hide deprecated cards */
+    #tavern-card, #faro-card { display:none !important; }
   </style>
 </head>
 <body><script>(function(){try{if(sessionStorage.getItem('walletConnected')!=='true') location.replace('/landing.html');}catch(e){location.replace('/landing.html');}})();</script>
@@ -97,7 +99,7 @@
     </div>
     <p class="muted" id="owner-note">Connect the owner wallet. Controls are disabled for non-owners. This page is hidden and unlinked.</p>
 
-      </div>
+    <div class="grid">
       <div class="admin-card" id="whitelist-card">
         <h3 style="margin-top:0;">Whitelist</h3>
         <div class="muted">Address: <span id="wl-address">(set below)</span></div>
@@ -203,77 +205,7 @@
         </div>
       </div>
 
-      <div class="admin-card" id="tavern-card">
-        <h3 style="margin-top:0;">Tavern (Shell/Hazard/Coin)</h3>
-        <div class="muted">Address: <span id="tavern-address">-</span></div>
-        <div class="muted">Owner: <span id="tavern-owner">-</span></div>
-        <div class="muted">Owner Match: <span id="tavern-owner-match">No</span></div>
-        <div class="muted">Bankroll: <span id="tavern-balance">-</span></div>
-        <div class="muted">Pool (on Tavern): <span id="tavern-pool">-</span></div>
-        <div class="row" style="margin-top:8px;">
-          <div style="flex:1;">
-            <label>Max Bet (MON)</label>
-            <input id="tavern-maxbet" type="number" min="0" step="0.001" placeholder="e.g. 0.05">
-          </div>
-          <button id="tavern-set-maxbet" class="btn">Set</button>
-        </div>
-        <div class="row" style="margin-top:8px;">
-          <div style="flex:1;">
-            <label>Set Pool Address on Tavern</label>
-            <input id="tavern-pool-input" type="text" placeholder="0x... (leave blank to use Pool override above)">
-          </div>
-          <button id="tavern-set-pool" class="btn">Set Pool</button>
-        </div>
-        <div class="row" style="margin-top:8px;">
-          <div style="flex:1;">
-            <label>Override Address</label>
-            <input id="tavern-override" type="text" placeholder="0x...">
-          </div>
-          <button id="tavern-set-addr" class="btn">Use</button>
-        </div>
-      </div>
-
-      <div class="admin-card" id="faro-card">
-        <h3 style="margin-top:0;">Faro (On-chain)</h3>
-        <div class="muted">Address: <span id="faro-address">-</span></div>
-        <div class="muted">Owner: <span id="faro-owner">-</span></div>
-        <div class="muted">Owner Match: <span id="faro-owner-match">No</span></div>
-        <div class="muted">Bankroll: <span id="faro-balance">-</span></div>
-        <div class="muted">Fees Accrued: <span id="faro-fees">-</span></div>
-        <div class="muted">Pool: <span id="faro-pool">-</span></div>
-        <div class="row" style="margin-top:8px;">
-          <div style="flex:1;">
-            <label>Max Bet (MON)</label>
-            <input id="faro-maxbet" type="number" min="0" step="0.001" placeholder="e.g. 0.05">
-          </div>
-          <button id="faro-set-maxbet" class="btn">Set</button>
-        </div>
-        <div class="row" style="margin-top:8px;">
-          <div style="flex:1;">
-            <label>Rake (feeBps)</label>
-            <input id="faro-fee" type="number" min="0" max="1000" step="1" placeholder="100 = 1%">
-          </div>
-          <button id="faro-set-fee" class="btn">Set</button>
-        </div>
-        <div class="row" style="margin-top:8px;">
-          <div style="flex:1;">
-            <label>Set Pool Address</label>
-            <input id="faro-pool-input" type="text" placeholder="0x...">
-          </div>
-          <button id="faro-set-pool" class="btn">Set Pool</button>
-        </div>
-        <div class="row" style="margin-top:8px;">
-          <button id="faro-pause" class="btn danger">Pause</button>
-          <button id="faro-resume" class="btn ok">Resume</button>
-        </div>
-        <div class="row" style="margin-top:8px;">
-          <div style="flex:1;">
-            <label>Override Address</label>
-            <input id="faro-override" type="text" placeholder="0x...">
-          </div>
-          <button id="faro-set-addr" class="btn">Use</button>
-        </div>
-      </div>
+      
 
       <div class="admin-card" id="health-card">
         <h3 style="margin-top:0;">Site Health</h3>
