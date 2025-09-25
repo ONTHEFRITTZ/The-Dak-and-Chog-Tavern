@@ -97,6 +97,12 @@ function updateWalletButtons() {
   const disconnectEl = document.getElementById('disconnect-wallet');
   if (connectEl) connectEl.style.display = connected ? 'none' : '';
   if (disconnectEl) disconnectEl.style.display = connected ? '' : 'none';
+  try {
+    if (statusEl && connected) {
+      const short = (a)=> a && a.length>10 ? (a.slice(0,6)+'...'+a.slice(-4)) : (a||'');
+      statusEl.textContent = 'Connected: ' + short(String(wallet||''));
+    }
+  } catch {}
 }
 
 
@@ -240,16 +246,13 @@ async function applyWalletFromAccounts(accounts, { refreshAfter = true } = {}) {
 async function restoreWalletIfAvailable() {
   if (!window.ethereum?.request) { updateWalletButtons(); return; }
   try {
-    const accounts = await window.ethereum.request({ method: 'eth_accounts' });
-    if (Array.isArray(accounts) && accounts.length) {
-      await applyWalletFromAccounts(accounts);
-    } else {
-      wallet = null;
-      signer = null;
-      provider = undefined;
-      statusEl.textContent = 'Disconnected';
-      updateWalletButtons();
+    let accounts = await window.ethereum.request({ method: 'eth_accounts' });
+    if (!Array.isArray(accounts) || accounts.length === 0) {
+      // Proactively request accounts so admin never shows false negative
+      try { accounts = await window.ethereum.request({ method: 'eth_requestAccounts' }); } catch {}
     }
+    if (Array.isArray(accounts) && accounts.length) { await applyWalletFromAccounts(accounts); }
+    else { wallet = null; signer = null; provider = undefined; statusEl.textContent = 'Disconnected'; updateWalletButtons(); }
   } catch (err) {
     console.warn('Restore wallet failed', err);
     updateWalletButtons();
@@ -286,6 +289,7 @@ function registerWalletEvents() {
   if (!window.ethereum?.on || walletEventsRegistered) return;
   window.ethereum.on('accountsChanged', handleAccountsChanged);
   window.ethereum.on('disconnect', handleEthereumDisconnect);
+  try { window.ethereum.on('chainChanged', async () => { try { await restoreWalletIfAvailable(); await refresh(); } catch {} }); } catch {}
   walletEventsRegistered = true;
 }
 
