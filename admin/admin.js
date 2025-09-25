@@ -160,6 +160,7 @@ async function boot(){
   bindControls(); registerWalletEvents();
   try { await ensureWallet(); } catch {}
   try { await loadPool(); } catch {}
+  try { Array.from(document.querySelectorAll('.btn')).forEach(el => el.classList.remove('readonly')); } catch {}
 }
 
 if (document.readyState === 'loading') {
@@ -167,4 +168,3 @@ if (document.readyState === 'loading') {
 } else {
   boot();
 }
-
