@@ -4,6 +4,7 @@
 
 const http = require('http');
 const { Server } = require('socket.io');
+const path = require('path');
 
 const PORT = process.env.PORT || 3101;
 
@@ -46,7 +47,7 @@ function now() { return Date.now(); }
 function getTable(id) {
   if (!tables.has(id)) {
     // Default: no bot seated, dev bot disabled
-    tables.set(id, { id, seats: Array.from({length:8}, () => null), lastActive: now(), started: false, poker: null, devBotEnabled: false, simMode: false });
+    tables.set(id, { id, seats: Array.from({length:8}, () => null), lastActive: now(), started: false, poker: null, devBotEnabled: false, simMode: false, _chain:{ settledKeys:new Set() } });
   }
   return tables.get(id);
 }
@@ -68,6 +69,95 @@ function emitUpdate(t) { io.to(t.id).emit('table:update', tablePublic(t)); }
 
 // Ensure at least one poker table exists
 getTable('poker-1');
+
+// ---- Optional on-chain integration (env-gated) ----
+const ONCHAIN = {
+  enabled: (String(process.env.POKER_ONCHAIN||'').toLowerCase() === '1' || String(process.env.POKER_ONCHAIN||'').toLowerCase() === 'true'),
+  rpcUrl: process.env.POKER_RPC_URL || '',
+  privKey: process.env.POKER_PRIVATE_KEY || '',
+  tableAddr: process.env.POKER_TABLE_ADDRESS || process.env.POKER_TABLE || '',
+  ethers: null,
+  provider: null,
+  signer: null,
+  contract: null,
+  smallBlind: null,
+  ready: false,
+  error: null,
+};
+
+async function ensureOnchain() {
+  if (!ONCHAIN.enabled) return false;
+  if (!ONCHAIN.rpcUrl || !ONCHAIN.privKey || !ONCHAIN.tableAddr) {
+    ONCHAIN.error = 'Missing POKER_RPC_URL/POKER_PRIVATE_KEY/POKER_TABLE_ADDRESS';
+    return false;
+  }
+  try {
+    if (!ONCHAIN.ethers) { ONCHAIN.ethers = require('ethers'); }
+    if (!ONCHAIN.provider) { ONCHAIN.provider = new ONCHAIN.ethers.JsonRpcProvider(ONCHAIN.rpcUrl); }
+    if (!ONCHAIN.signer) { ONCHAIN.signer = new ONCHAIN.ethers.Wallet(ONCHAIN.privKey, ONCHAIN.provider); }
+    if (!ONCHAIN.contract) {
+      const meta = require(path.join(__dirname, '..', 'artifacts', 'HoldemPoker_metadata.json'));
+      const ABI = (meta && meta.output && meta.output.abi) ? meta.output.abi : [];
+      ONCHAIN.contract = new ONCHAIN.ethers.Contract(ONCHAIN.tableAddr, ABI, ONCHAIN.signer);
+    }
+    if (ONCHAIN.smallBlind == null) {
+      try { ONCHAIN.smallBlind = await ONCHAIN.contract.smallBlind(); } catch {}
+    }
+    ONCHAIN.ready = !!ONCHAIN.contract;
+    return ONCHAIN.ready;
+  } catch (e) {
+    ONCHAIN.error = (e && e.message) || String(e);
+    return false;
+  }
+}
+
+function chipsToWeiBN(chips) {
+  try {
+    if (ONCHAIN.smallBlind == null) return null;
+    // ethers v6 returns BigInt-like values; normalize via BigInt
+    const sb = BigInt(ONCHAIN.smallBlind.toString());
+    const c = BigInt(Math.max(0, Number(chips)|0));
+    return sb * c;
+  } catch { return null; }
+}
+
+async function beginHandOnChainIfNeeded(tableId, t, dealerSeat, sbSeat, bbSeat) {
+  try {
+    if (!ONCHAIN.enabled || t.simMode) return true;
+    const ok = await ensureOnchain();
+    if (!ok) { console.warn('[onchain] disabled or not ready:', ONCHAIN.error); return false; }
+    const tx = await ONCHAIN.contract.beginHand(dealerSeat, sbSeat, bbSeat);
+    await tx.wait(1);
+    return true;
+  } catch (e) {
+    console.warn('[onchain] beginHand failed', e && e.message);
+    try { io.to(tableId).emit('system', 'On-chain begin failed. Try Ready again.'); } catch {}
+    return false;
+  }
+}
+
+async function settleHandOnChainIfNeeded(tableId, t, winners, amountsChips) {
+  try {
+    if (!ONCHAIN.enabled || t.simMode) return true;
+    const ok = await ensureOnchain();
+    if (!ok) { console.warn('[onchain] disabled or not ready:', ONCHAIN.error); return false; }
+    // Deduplicate by startedAt key if available
+    const key = String(t && t.poker && t.poker.startedAt || '') || String(Date.now());
+    t._chain = t._chain || { settledKeys: new Set() };
+    if (t._chain.settledKeys.has(key)) return true;
+    const addrs = winners.map(String);
+    const pays = amountsChips.map(c => chipsToWeiBN(c)).filter(v => v != null);
+    if (pays.length !== amountsChips.length) return false;
+    const tx = await ONCHAIN.contract.settleHand(addrs, pays);
+    await tx.wait(1);
+    t._chain.settledKeys.add(key);
+    return true;
+  } catch (e) {
+    console.warn('[onchain] settleHand failed', e && e.message);
+    try { io.to(tableId).emit('system', 'On-chain settlement failed. Retrying or contact support.'); } catch {}
+    return false;
+  }
+}
 
 io.on('connection', (socket) => {
   let currentTableId = null;
@@ -467,7 +557,7 @@ function bettingRoundComplete(state) {
   return state.actors.filter(a => !a.folded && !a.allIn).every(a => a.acted && Number(a.contrib||0) === target);
 }
 
-function startPokerHand(tableId, t) {
+async function startPokerHand(tableId, t) {
   try {
     const seated = t.seats.map((s,i)=> s && ({ seatId:i, addr:s.addr })).filter(Boolean);
     if (seated.length < 2) return;
@@ -493,6 +583,13 @@ function startPokerHand(tableId, t) {
     actors.forEach(a => { a.cards = [deck.pop(), deck.pop()]; });
     let turnIndex = (bbIndex + 1) % actors.length; if (actors.length === 2) turnIndex = sbIndex;
     t.poker = { stage:'preflop', deck, community, actors, dealerIndex, sbIndex, bbIndex, dealerSeatId, pot, toCall, sb:SB, bb:BB, minRaise:BB, lastAgg:BB, turnIndex, startedAt: now() };
+    // On-chain begin (non-sim mode) before dealing
+    try {
+      if (!(t.simMode)) {
+        const ok = await beginHandOnChainIfNeeded(tableId, t, dealerSeatId, actors[sbIndex].seatId, actors[bbIndex].seatId);
+        if (!ok) { t.poker = null; return; }
+      }
+    } catch {}
     emitPokerState(tableId, t);
     // Send private hole cards to each player address room
     try {
@@ -628,6 +725,14 @@ function endPokerByShowdown(tableId, t, winnerAddrs) {
       const used = bestFiveUsed(hole, board);
       return { addr, amount: each, usedHole: used.usedHole, usedCommunity: used.usedCommunity };
     });
+    // On-chain settlement (non-sim) before broadcasting
+    try {
+      if (!t.simMode) {
+        const addrs = Array.from(winners||[]);
+        const amts = addrs.map(()=> each);
+        await settleHandOnChainIfNeeded(tableId, t, addrs, amts);
+      }
+    } catch {}
     io.to(tableId).emit('poker:hand', { winners: winnerList, community: board, pot: state.pot||0, table: tablePublic(t) });
     // Clear any sim timers
     try { const timers = t.poker && t.poker.simTimers; if (Array.isArray(timers)) timers.forEach(id=>{ try{ clearTimeout(id); }catch{} }); } catch {}
@@ -637,7 +742,7 @@ function endPokerByShowdown(tableId, t, winnerAddrs) {
   } catch {}
 }
 
-function endPokerWithSidePots(tableId, t) {
+async function endPokerWithSidePots(tableId, t) {
   try {
     const state = t.poker; if (!state) return;
     const actors = state.actors;
@@ -701,6 +806,14 @@ function endPokerWithSidePots(tableId, t) {
             for (const item of winnerList) { if (!keepAddrs.has(item.addr)) item.amount = 0; }
           }
         }
+      }
+    } catch {}
+    // On-chain settlement (non-sim) before broadcasting
+    try {
+      if (!t.simMode) {
+        const addrs = winnerList.map(w => String(w.addr));
+        const amts = winnerList.map(w => Number(w.amount||0));
+        await settleHandOnChainIfNeeded(tableId, t, addrs, amts);
       }
     } catch {}
     // Reveal surviving players' hole cards at showdown for transparency
