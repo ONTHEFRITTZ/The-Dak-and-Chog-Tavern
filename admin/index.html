@@ -1,256 +1,1 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Tavern Admin (Owner Only)</title>
-  <link rel="icon" type="image/png" href="/assets/images/dakandchog-logo.png">
-  <script>
-    (async()=>{
-      try{
-        const b = await fetch('/assets/build.json', { cache:'no-store' }).then(r=>r.ok?r.json():null).catch(()=>null);
-        const tag = (b && b.commit) ? String(b.commit).slice(0,12) : Date.now();
-        window.__BUILD_TAG = tag;
-        const css = document.createElement('link'); css.rel='stylesheet'; css.href = `../css/style.css?v=${tag}`; document.head.appendChild(css);
-      }catch(e){ console.error('admin head loader failed', e); }
-    })();
-  </script>
-  <meta name="robots" content="noindex,nofollow">
-  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
-  <script>
-    (async()=>{
-      try{
-        const tag = window.__BUILD_TAG || Date.now();
-        for (const src of [`../js/TavernABI.js?v=${tag}`, `../js/FaroABI.js?v=${tag}`, `../js/PoolABI.js?v=${tag}`, `../js/WhitelistABI.js?v=${tag}`, `../js/PokerTablePoolABI.js?v=${tag}`]){
-          const s=document.createElement('script'); s.src=src; document.head.appendChild(s);
-        }
-      }catch(e){ console.error('admin abi loader failed', e); }
-    })();
-  </script>
-  <script src="/socket.io/socket.io.js"></script>
-  <style>
-    /* Match Tavern background (force absolute path + apply to html & body) */
-    html, body {
-      background: url('/assets/images/tavern-bg.png') no-repeat center center fixed !important;
-      background-size: cover !important;
-      min-height: 100%;
-    }
-    /* Main container */
-    .tavern { width:95%; max-width:1100px; margin:120px auto 90px; padding: 24px !important; box-sizing:border-box; }
-    .admin-card {
-      background: var(--panel-bg-soft);
-      border:1px solid rgba(255,255,255,0.12);
-      border-radius:15px;
-      padding:20px;
-      color:#f4e6d3;
-      width:100%;
-      box-sizing:border-box;
-      box-shadow:0 24px 60px rgba(0,0,0,0.55);
-    }
-    .admin-card h3 { color:#f4e6d3; margin-top:0; }
-    .admin-card label { color:#f4e6d3; }
-    .grid { display:flex; flex-direction:column; gap:20px; }
-    label { display:block; margin:6px 0 2px; font-weight:600; }
-    input[type=text], input[type=number], textarea {
-      width:100%;
-      padding:6px;
-      box-sizing:border-box;
-      background: rgba(0,0,0,0.35);
-      color:#f4e6d3;
-      border:1px solid rgba(255,255,255,0.12);
-      border-radius:8px;
-    }
-    .row { display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap; }
-    .row > div { flex: 1 1 260px; min-width:220px; max-width:100%; }
-    .row .btn { flex: 0 0 auto; }
-    .muted {
-      color: rgba(244,230,211,0.78);
-      font-size:12px;
-    }
-    .danger { background:#8b0000; color:#fff; }
-    .ok { background:#006400; color:#fff; }
-    .btn { padding:6px 10px; border-radius:6px; cursor:pointer; border:none; color:#f4e6d3; background: rgba(255,255,255,0.08); }
-    .btn:hover { background: rgba(255,255,255,0.16); }
-    .readonly { opacity:.6; }
-    /* Hide deprecated cards */
-    #tavern-card, #faro-card { display:none !important; }
-  </style>
-</head>
-<body><script>(function(){try{if(sessionStorage.getItem('walletConnected')!=='true') location.replace('/landing.html');}catch(e){location.replace('/landing.html');}})();</script>
-<body class="game">
-  <div class="top-banner" role="region" aria-label="Wallet and status">
-    <div class="banner-left">
-      <button id="return" class="return-btn">Return to Tavern</button>
-      <div id="status" class="banner-status"></div>
-    </div>
-    <div class="banner-right">
-      <div class="controls">
-        <button id="connect-wallet">Connect Wallet</button>
-        <button id="disconnect-wallet" style="display:none;">Disconnect</button>
-      </div>
-    </div>
-  </div>
-
-  <div class="tavern">
-    <h1 style="margin:0 0 12px 0;">Admin (Owner Only)</h1>
-    <div class="admin-card" style="margin-bottom:12px; display:flex; align-items:center; gap:16px;">
-      <div><strong>Guests (unique wallets):</strong> <span id="guest-unique">0</span></div>
-      <div><strong>Online now:</strong> <span id="guest-online">0</span></div>
-    </div>
-    <p class="muted" id="owner-note">Connect the owner wallet. Controls are disabled for non-owners. This page is hidden and unlinked.</p>
-
-    <div class="grid">
-      <div class="admin-card" id="whitelist-card">
-        <h3 style="margin-top:0;">Whitelist</h3>
-        <div class="muted">Address: <span id="wl-address">(set below)</span></div>
-        <div class="row" style="margin-top:8px;">
-          <div style="flex:1;">
-            <label>Override Address</label>
-            <input id="wl-override" type="text" placeholder="0x...">
-          </div>
-          <button id="wl-set-addr" class="btn">Use</button>
-        </div>
-        <div class="row" style="margin-top:8px;">
-          <div style="flex:1;">
-            <label>Wallet Address</label>
-            <input id="wl-one" type="text" placeholder="0x...">
-          </div>
-          <button id="wl-add" class="btn ok">Add</button>
-          <button id="wl-remove" class="btn danger">Remove</button>
-        </div>
-        <div class="row" style="margin-top:8px;">
-          <div style="flex:1;">
-            <label>Bulk (comma or newline-separated)</label>
-            <textarea id="wl-bulk" rows="3" style="width:100%;"></textarea>
-          </div>
-          <button id="wl-bulk-add" class="btn ok">Bulk Add</button>
-          <button id="wl-bulk-remove" class="btn danger">Bulk Remove</button>
-        </div>
-        <div class="muted" id="wl-msg" style="margin-top:6px;"></div>
-      </div>
-      <div class="admin-card" id="pool-card">
-        <h3 style="margin-top:0;">Liquidity Pool</h3>
-        <div class="muted">Address: <span id="pool-address">-</span></div>
-        <div class="muted">Owner: <span id="pool-owner">-</span></div>
-        <div class="muted">Balance: <span id="pool-balance">-</span></div>
-        <div class="row" style="margin-top:8px;">
-          <div style="flex:1;">
-            <label>Override Address</label>
-            <input id="pool-override" type="text" placeholder="0x...">
-          </div>
-          <button id="pool-set-addr" class="btn">Use</button>
-        </div>
-        <div class="row" style="margin-top:6px;">
-          <div style="width:180px;">
-            <label>Fund Amount (MON)</label>
-            <input id="pool-fund-amt" type="number" min="0" step="0.001" placeholder="0.1">
-          </div>
-          <button id="pool-fund" class="btn ok">Fund</button>
-        </div>
-        <div class="row" style="margin-top:6px;">
-          <div style="flex:1;">
-            <label>Withdraw To (address)</label>
-            <input id="pool-to" type="text" placeholder="0x...">
-          </div>
-          <div style="width:180px;">
-            <label>Amount (MON)</label>
-            <input id="pool-amt" type="number" min="0" step="0.001" placeholder="0.1">
-          </div>
-          <button id="pool-withdraw" class="btn danger">Withdraw</button>
-        </div>
-        <div class="row" style="margin-top:6px;">
-          <div style="flex:1;">
-            <label>Authorize Game (address)</label>
-            <input id="pool-auth" type="text" placeholder="0x...">
-          </div>
-          <button id="pool-authorize" class="btn">Authorize</button>
-          <button id="pool-deauthorize" class="btn danger">Deauthorize</button>
-        </div>`n        <div style="margin-top:10px;">`n          <label>Authorized Games</label>`n          <div id="pool-auth-list" class="muted" style="font-family: ui-monospace, Menlo, Consolas, monospace; font-size:12px; white-space:nowrap; overflow:auto; max-height:180px; background: rgba(0,0,0,0.25); border:1px solid rgba(255,255,255,0.12); border-radius:8px; padding:8px;"></div>`n        </div>`n
-      </div>
-
-      <div class="row" style="margin-top:8px;">
-          <div style="flex:1;">
-            <label>Override Address</label>
-            <input id="pokerpooled-override" type="text" placeholder="0x...">
-          </div>
-          <button id="pokerpooled-set-addr" class="btn">Use</button>
-        </div>
-        <div class="muted" id="pokerpooled-msg" style="margin-top:6px;"></div>
-      </div>
-      <div class="admin-card" id="rt-card">
-        <h3 style="margin-top:0;">Realtime (Multiplayer)</h3>
-        <div class="row" style="margin-top:6px; align-items:center; gap:12px;">
-          <div class="muted">Status: <span id="rt-status">unknown</span></div>
-          <div class="muted">Conn: <span id="rt-conn" style="font-weight:600; color:#8b0000;">disconnected</span></div>
-          <div class="muted">Health: <span id="rt-health" style="font-weight:600; color:#8b0000;">n/a</span></div>
-          <button id="rt-pause" class="btn danger">Pause</button>
-          <button id="rt-resume" class="btn ok">Resume</button>
-          <button id="rt-restart" class="btn">Restart Backend</button>
-        </div>
-        <p class="muted" style="margin-top:6px;">Pause prevents new bets/deals on multiplayer tables. Restart will bounce the backend (pm2 brings it back up).</p>
-        <div class="row" style="margin-top:6px; align-items:center; gap:12px;">
-          <div class="muted">Rake (bps): <span id="rt-rake">-</span></div>
-          <div class="muted">Fees Accrued: <span id="rt-fees">0</span></div>
-        </div>
-        <div class="row" style="margin-top:6px;">
-          <div style="width:160px;">
-            <label>Set Rake (bps)</label>
-            <input id="rt-rake-input" type="number" min="0" max="1000" step="1" placeholder="100">
-          </div>
-          <button id="rt-rake-set" class="btn">Update</button>
-          <button id="rt-fees-reset" class="btn danger">Reset Fees</button>
-        </div>
-      </div>
-
-      
-
-      <div class="admin-card" id="health-card">
-        <h3 style="margin-top:0;">Site Health</h3>
-        <div class="muted">Build (assets/build.json): <span id="health-build">-</span></div>
-        <div class="muted">Deploy Marker: <span id="health-marker">-</span></div>
-        <div class="muted">WhoAmI: <span id="health-whoami">-</span></div>
-        <div class="row" style="margin-top:8px;">
-          <button id="health-refresh" class="btn">Refresh</button>
-        </div>
-      </div>
-    </div>
-    <!-- Live presence under other sections -->
-    <div class="admin-card" id="presence-card">
-      <h3 style="margin-top:0;">Live Users</h3>
-      <div id="presence-list" class="muted" style="font-family: ui-monospace, Menlo, Consolas, monospace; font-size:12px; white-space:nowrap; overflow:auto; max-height:320px;"></div>
-    </div>
-  </div>
-
-  <div style="position:fixed; right:12px; bottom:12px; z-index:10000;">
-    <div id="footer-meta" style="font-size:12px; color:#2b1e12; opacity:.95; background:rgba(255,244,233,0.96); border:2px solid #7800cd; border-radius:10px; padding:6px 8px; display:inline-block;">
-      Loading build info...
-    </div>
-  </div>
-
-  <script type="module">
-    (async()=>{
-      try{
-        const tag = window.__BUILD_TAG || Date.now();
-        await import(`./admin.js?v=${encodeURIComponent(tag)}`);
-      }catch(e){ console.error('admin module load failed', e); }
-    })();
-  </script>
-  <script>
-    (function(){
-      async function text(url){ try { const r = await fetch(url, { cache:'no-store' }); if (!r.ok) return null; return await r.text(); } catch { return null; } }
-      async function json(url){ try { const r = await fetch(url, { cache:'no-store' }); if (!r.ok) return null; return await r.json(); } catch { return null; } }
-      (async () => {
-        const metaEl = document.getElementById('footer-meta');
-        try {
-          const ver = (await text('/assets/version.txt')||'').trim();
-          const b = await json('/assets/build.json');
-          const c = b?.commit ? String(b.commit).slice(0, 12) : 'unknown';
-          const at = b?.builtAt || new Date().toISOString();
-          metaEl.textContent = `Version: ${ver || 'n/a'} | Commit: ${c} | Built: ${at}`;
-        } catch { metaEl.textContent = 'Version info unavailable'; }
-      })();
-    })();
-  </script>
-</body>
-</html>
-
+<!DOCTYPE html>\n<html lang="en">\n<head>\n  <meta charset="UTF-8">\n  <meta name="viewport" content="width=device-width, initial-scale=1.0">\n  <title>Tavern Admin (Owner Only)</title>\n  <link rel="icon" type="image/png" href="/assets/images/dakandchog-logo.png">\n  <script>\n    (async()=>{\n      try{\n        const b = await fetch('/assets/build.json', { cache:'no-store' }).then(r=>r.ok?r.json():null).catch(()=>null);\n        const tag = (b && b.commit) ? String(b.commit).slice(0,12) : Date.now();\n        window.__BUILD_TAG = tag;\n        const css = document.createElement('link'); css.rel='stylesheet'; css.href = `../css/style.css?v=${tag}`; document.head.appendChild(css);\n      }catch(e){ console.error('admin head loader failed', e); }\n    })();\n  </script>\n  <meta name="robots" content="noindex,nofollow">\n  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>\n  <script>\n    (async()=>{\n      try{\n        const tag = window.__BUILD_TAG || Date.now();\n        for (const src of [`../js/TavernABI.js?v=${tag}`, `../js/FaroABI.js?v=${tag}`, `../js/PoolABI.js?v=${tag}`, `../js/WhitelistABI.js?v=${tag}`, `../js/PokerTablePoolABI.js?v=${tag}`]){\n          const s=document.createElement('script'); s.src=src; document.head.appendChild(s);\n        }\n      }catch(e){ console.error('admin abi loader failed', e); }\n    })();\n  </script>\n  <script src="/socket.io/socket.io.js"></script>\n  <style>\n    /* Match Tavern background (force absolute path + apply to html & body) */\n    html, body {\n      background: url('/assets/images/tavern-bg.png') no-repeat center center fixed !important;\n      background-size: cover !important;\n      min-height: 100%;\n    }\n    /* Main container */\n    .tavern { width:95%; max-width:1100px; margin:120px auto 90px; padding: 24px !important; box-sizing:border-box; }\n    .admin-card {\n      background: var(--panel-bg-soft);\n      border:1px solid rgba(255,255,255,0.12);\n      border-radius:15px;\n      padding:20px;\n      color:#f4e6d3;\n      width:100%;\n      box-sizing:border-box;\n      box-shadow:0 24px 60px rgba(0,0,0,0.55);\n    }\n    .admin-card h3 { color:#f4e6d3; margin-top:0; }\n    .admin-card label { color:#f4e6d3; }\n    .grid { display:flex; flex-direction:column; gap:20px; }\n    label { display:block; margin:6px 0 2px; font-weight:600; }\n    input[type=text], input[type=number], textarea {\n      width:100%;\n      padding:6px;\n      box-sizing:border-box;\n      background: rgba(0,0,0,0.35);\n      color:#f4e6d3;\n      border:1px solid rgba(255,255,255,0.12);\n      border-radius:8px;\n    }\n    .row { display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap; }\n    .row > div { flex: 1 1 260px; min-width:220px; max-width:100%; }\n    .row .btn { flex: 0 0 auto; }\n    .muted {\n      color: rgba(244,230,211,0.78);\n      font-size:12px;\n    }\n    .danger { background:#8b0000; color:#fff; }\n    .ok { background:#006400; color:#fff; }\n    .btn { padding:6px 10px; border-radius:6px; cursor:pointer; border:none; color:#f4e6d3; background: rgba(255,255,255,0.08); }\n    .btn:hover { background: rgba(255,255,255,0.16); }\n    .readonly { opacity:.6; }\n    /* Hide deprecated cards */\n    #tavern-card, #faro-card { display:none !important; }\n  </style>\n</head>\n<body><script>(function(){try{if(sessionStorage.getItem('walletConnected')!=='true') location.replace('/landing.html');}catch(e){location.replace('/landing.html');}})();</script>\n<body class="game">\n  <div class="top-banner" role="region" aria-label="Wallet and status">\n    <div class="banner-left">\n      <button id="return" class="return-btn">Return to Tavern</button>\n      <div id="status" class="banner-status"></div>\n    </div>\n    <div class="banner-right">\n      <div class="controls">\n        <button id="connect-wallet">Connect Wallet</button>\n        <button id="disconnect-wallet" style="display:none;">Disconnect</button>\n      </div>\n    </div>\n  </div>\n\n  <div class="tavern">\n    <h1 style="margin:0 0 12px 0;">Admin (Owner Only)</h1>\n    <div class="admin-card" style="margin-bottom:12px; display:flex; align-items:center; gap:16px;">\n      <div><strong>Guests (unique wallets):</strong> <span id="guest-unique">0</span></div>\n      <div><strong>Online now:</strong> <span id="guest-online">0</span></div>\n    </div>\n    <p class="muted" id="owner-note">Connect the owner wallet. Controls are disabled for non-owners. This page is hidden and unlinked.</p>\n\n    <div class="grid">\n      <div class="admin-card" id="whitelist-card">\n        <h3 style="margin-top:0;">Whitelist</h3>\n        <div class="muted">Address: <span id="wl-address">(set below)</span></div>\n        <div class="row" style="margin-top:8px;">\n          <div style="flex:1;">\n            <label>Override Address</label>\n            <input id="wl-override" type="text" placeholder="0x...">\n          </div>\n          <button id="wl-set-addr" class="btn">Use</button>\n        </div>\n        <div class="row" style="margin-top:8px;">\n          <div style="flex:1;">\n            <label>Wallet Address</label>\n            <input id="wl-one" type="text" placeholder="0x...">\n          </div>\n          <button id="wl-add" class="btn ok">Add</button>\n          <button id="wl-remove" class="btn danger">Remove</button>\n        </div>\n        <div class="row" style="margin-top:8px;">\n          <div style="flex:1;">\n            <label>Bulk (comma or newline-separated)</label>\n            <textarea id="wl-bulk" rows="3" style="width:100%;"></textarea>\n          </div>\n          <button id="wl-bulk-add" class="btn ok">Bulk Add</button>\n          <button id="wl-bulk-remove" class="btn danger">Bulk Remove</button>\n        </div>\n        <div class="muted" id="wl-msg" style="margin-top:6px;"></div>\n      </div>\n      <div class="admin-card" id="pool-card">\n        <h3 style="margin-top:0;">Liquidity Pool</h3>\n        <div class="muted">Address: <span id="pool-address">-</span></div>\n        <div class="muted">Owner: <span id="pool-owner">-</span></div>\n        <div class="muted">Balance: <span id="pool-balance">-</span></div>\n        <div class="row" style="margin-top:8px;">\n          <div style="flex:1;">\n            <label>Override Address</label>\n            <input id="pool-override" type="text" placeholder="0x...">\n          </div>\n          <button id="pool-set-addr" class="btn">Use</button>\n        </div>\n        <div class="row" style="margin-top:6px;">\n          <div style="width:180px;">\n            <label>Fund Amount (MON)</label>\n            <input id="pool-fund-amt" type="number" min="0" step="0.001" placeholder="0.1">\n          </div>\n          <button id="pool-fund" class="btn ok">Fund</button>\n        </div>\n        <div class="row" style="margin-top:6px;">\n          <div style="flex:1;">\n            <label>Withdraw To (address)</label>\n            <input id="pool-to" type="text" placeholder="0x...">\n          </div>\n          <div style="width:180px;">\n            <label>Amount (MON)</label>\n            <input id="pool-amt" type="number" min="0" step="0.001" placeholder="0.1">\n          </div>\n          <button id="pool-withdraw" class="btn danger">Withdraw</button>\n        </div>\n        <div class="row" style="margin-top:6px;">\n          <div style="flex:1;">\n            <label>Authorize Game (address)</label>\n            <input id="pool-auth" type="text" placeholder="0x...">\n          </div>\n          <button id="pool-authorize" class="btn">Authorize</button>\n          <button id="pool-deauthorize" class="btn danger">Deauthorize</button>\n        </div>`n        <div style="margin-top:10px;">`n          <label>Authorized Games</label>`n          <div id="pool-auth-list" class="muted" style="font-family: ui-monospace, Menlo, Consolas, monospace; font-size:12px; white-space:nowrap; overflow:auto; max-height:180px; background: rgba(0,0,0,0.25); border:1px solid rgba(255,255,255,0.12); border-radius:8px; padding:8px;"></div>`n        </div>`n\n      </div>\n\n      <div class="row" style="margin-top:8px;">\n      </div>\n      <div class="admin-card" id="rt-card">\n        <h3 style="margin-top:0;">Realtime (Multiplayer)</h3>\n        <div class="row" style="margin-top:6px; align-items:center; gap:12px;">\n          <div class="muted">Status: <span id="rt-status">unknown</span></div>\n          <div class="muted">Conn: <span id="rt-conn" style="font-weight:600; color:#8b0000;">disconnected</span></div>\n          <div class="muted">Health: <span id="rt-health" style="font-weight:600; color:#8b0000;">n/a</span></div>\n          <button id="rt-pause" class="btn danger">Pause</button>\n          <button id="rt-resume" class="btn ok">Resume</button>\n          <button id="rt-restart" class="btn">Restart Backend</button>\n        </div>\n        <p class="muted" style="margin-top:6px;">Pause prevents new bets/deals on multiplayer tables. Restart will bounce the backend (pm2 brings it back up).</p>\n        <div class="row" style="margin-top:6px; align-items:center; gap:12px;">\n          <div class="muted">Rake (bps): <span id="rt-rake">-</span></div>\n          <div class="muted">Fees Accrued: <span id="rt-fees">0</span></div>\n        </div>\n        <div class="row" style="margin-top:6px;">\n          <div style="width:160px;">\n            <label>Set Rake (bps)</label>\n            <input id="rt-rake-input" type="number" min="0" max="1000" step="1" placeholder="100">\n          </div>\n          <button id="rt-rake-set" class="btn">Update</button>\n          <button id="rt-fees-reset" class="btn danger">Reset Fees</button>\n        </div>\n      </div>\n\n      \n\n      <div class="admin-card" id="health-card">\n        <h3 style="margin-top:0;">Site Health</h3>\n        <div class="muted">Build (assets/build.json): <span id="health-build">-</span></div>\n        <div class="muted">Deploy Marker: <span id="health-marker">-</span></div>\n        <div class="muted">WhoAmI: <span id="health-whoami">-</span></div>\n        <div class="row" style="margin-top:8px;">\n          <button id="health-refresh" class="btn">Refresh</button>\n        </div>\n      </div>\n    </div>\n    <!-- Live presence under other sections -->\n    <div class="admin-card" id="presence-card">\n      <h3 style="margin-top:0;">Live Users</h3>\n      <div id="presence-list" class="muted" style="font-family: ui-monospace, Menlo, Consolas, monospace; font-size:12px; white-space:nowrap; overflow:auto; max-height:320px;"></div>\n    </div>\n  </div>\n\n  <div style="position:fixed; right:12px; bottom:12px; z-index:10000;">\n    <div id="footer-meta" style="font-size:12px; color:#2b1e12; opacity:.95; background:rgba(255,244,233,0.96); border:2px solid #7800cd; border-radius:10px; padding:6px 8px; display:inline-block;">\n      Loading build info...\n    </div>\n  </div>\n\n  <script type="module">\n    (async()=>{\n      try{\n        const tag = window.__BUILD_TAG || Date.now();\n        await import(`./admin.js?v=${encodeURIComponent(tag)}`);\n      }catch(e){ console.error('admin module load failed', e); }\n    })();\n  </script>\n  <script>\n    (function(){\n      async function text(url){ try { const r = await fetch(url, { cache:'no-store' }); if (!r.ok) return null; return await r.text(); } catch { return null; } }\n      async function json(url){ try { const r = await fetch(url, { cache:'no-store' }); if (!r.ok) return null; return await r.json(); } catch { return null; } }\n      (async () => {\n        const metaEl = document.getElementById('footer-meta');\n        try {\n          const ver = (await text('/assets/version.txt')||'').trim();\n          const b = await json('/assets/build.json');\n          const c = b?.commit ? String(b.commit).slice(0, 12) : 'unknown';\n          const at = b?.builtAt || new Date().toISOString();\n          metaEl.textContent = `Version: ${ver || 'n/a'} | Commit: ${c} | Built: ${at}`;\n        } catch { metaEl.textContent = 'Version info unavailable'; }\n      })();\n    })();\n  </script>\n</body>\n</html>\n\n
