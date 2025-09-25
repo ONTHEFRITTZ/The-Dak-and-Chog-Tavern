@@ -156,7 +156,8 @@ shellElements.forEach((shell) => {
   });
 });
 
-returnBtn.addEventListener('click', () => { window.location.href = '/index.html'; });
+// Be defensive: the button may be absent on some embeds
+try { returnBtn?.addEventListener('click', () => { window.location.href = '/index.html'; }); } catch {}
 
 // Persist bet value
 try {
