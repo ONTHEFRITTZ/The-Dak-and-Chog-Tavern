@@ -1,4 +1,5 @@
 import { ethers } from 'https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.esm.min.js';
+import './bundler.js';
 // Defer loading of config.js with a version tag to avoid stale cache
 let cfgLoaded = false;
 let getAddressFor, detectChainId, getAddress, renderTavernBanner, CONTRACTS, showToast;

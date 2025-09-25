@@ -287,9 +287,41 @@ function renderTable(table) {
           try {
             const willReady = !s.ready;
             if (willReady && Array.isArray(myPendingBets) && myPendingBets.length) {
-              for (const b of myPendingBets) {
-                try { await placeOnchainBet(b.rank, b.amountEth, !!b.copper); }
-                catch (e) { log('Tx failed: ' + (e?.data?.message || e?.message || 'unknown')); }
+              const bets = myPendingBets.slice();
+              let bundled = false;
+              try {
+                const det = await window.Bundler?.detectBundler?.(window.ethereum);
+                const ethersRef = window.ethers;
+                const net = await (onchainProvider || new ethersRef.providers.Web3Provider(window.ethereum,'any')).getNetwork().catch(()=>({chainId: undefined}));
+                const fromAddr = myAddr || (await onchainSigner?.getAddress()?.catch(()=>null));
+                const hasAbi = !!(window.FaroV3ABI || window.FaroABI);
+                if (!hasAbi) {
+                  const cand=['/js/FaroV3ABI.js','/js/FaroABI.js','../../js/FaroV3ABI.js','../../js/FaroABI.js'];
+                  for (const src of cand) {
+                    if (window.FaroV3ABI || window.FaroABI) break;
+                    await new Promise(res=>{ const sc=document.createElement('script'); sc.src=src; sc.onload=()=>res(true); sc.onerror=()=>res(false); document.head.appendChild(sc); });
+                  }
+                }
+                const iface = new ethersRef.utils.Interface(window.FaroV3ABI || window.FaroABI);
+                if (det && det.available && fromAddr && faroAddr) {
+                  const calls = bets.map(b => {
+                    const data = window.FaroV3ABI ? iface.encodeFunctionData('playFaro', [Number(b.rank), !!b.copper])
+                                                  : iface.encodeFunctionData('playFaro', [Number(b.rank)]);
+                    const val = ethersRef.utils.hexlify(ethersRef.utils.parseEther(String(b.amountEth||0)));
+                    return { to: faroAddr, data, value: val };
+                  });
+                  log(`Bundling ${calls.length} Faro bets...`);
+                  const result = await window.Bundler.walletSendCalls({ provider: det.provider, from: fromAddr, chainId: Number(net?.chainId), calls });
+                  const hash = window.Bundler.extractTxHash(result);
+                  if (hash) { log(`Bundle sent: ${String(hash).slice(0,10)}… waiting…`); await window.Bundler.waitForTransactionReceipt(det.provider, hash); }
+                  bundled = true;
+                }
+              } catch (e) { console.warn('Bundled send failed; falling back to sequential txs', e); }
+              if (!bundled) {
+                for (const b of bets) {
+                  try { await placeOnchainBet(b.rank, b.amountEth, !!b.copper); }
+                  catch (e) { log('Tx failed: ' + (e?.data?.message || e?.message || 'unknown')); }
+                }
               }
               myPendingBets = [];
             }
