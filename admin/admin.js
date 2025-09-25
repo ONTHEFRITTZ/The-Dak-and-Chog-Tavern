@@ -585,7 +585,15 @@ faroResumeBtn?.addEventListener('click', async () => {
   } catch (e) { statusEl.textContent = e?.data?.message || e?.message || 'Failed'; }
 });
 
-window.addEventListener('load', async () => { await refresh(); });
+window.addEventListener('load', async () => {
+  // Ensure Live Users section stays at the bottom
+  try {
+    const tavernEl = document.querySelector('.tavern');
+    const presenceCard = document.getElementById('presence-card');
+    if (tavernEl && presenceCard) tavernEl.appendChild(presenceCard);
+  } catch (e) {}
+  await refresh();
+});
 
 // Address override handlers (persist to localStorage and refresh)
 tavSetAddrBtn?.addEventListener('click', async () => {
