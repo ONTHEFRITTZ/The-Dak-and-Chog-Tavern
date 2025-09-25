@@ -50,6 +50,23 @@ betInput.addEventListener('input', () => {
   try { localStorage.setItem('hazard.bet', betInput.value || ''); } catch {}
 });
 
+// Ensure dice boxes are visible and sized even if external CSS fails to load
+function ensureDiceSize() {
+  try {
+    const w = '140px';
+    [dice1El, dice2El].forEach((el) => {
+      if (!el) return;
+      el.style.width = w; el.style.height = w;
+      el.style.minWidth = w; el.style.minHeight = w;
+      el.style.maxWidth = w; el.style.maxHeight = w;
+      el.style.display = 'inline-block';
+      el.style.backgroundSize = 'cover';
+      el.style.backgroundPosition = 'center';
+      el.style.backgroundRepeat = 'no-repeat';
+    });
+  } catch {}
+}
+
 // Utility: split finalSum into a valid dice pair (1..6, sum = finalSum)
 function splitSumToDice(sum) {
   const pairs = [];
@@ -164,6 +181,7 @@ onReady(async () => {
   hazardAck = true;
   try { if (rulesOverlay) rulesOverlay.style.display = 'none'; } catch {}
   try { if (openRulesBtn) openRulesBtn.style.display = 'none'; } catch {}
+  try { ensureDiceSize(); setDiceFaces(1,1,{ force:true }); } catch {}
 
   // Accept either storage flag, but still try provider init even if missing
   let walletFlag = undefined;
@@ -182,7 +200,16 @@ onReady(async () => {
     try { walletAddress = await signer.getAddress(); } catch {}
     if (walletAddress) { currentWallet = walletAddress.toLowerCase(); }
     try { if (walletAddress && walletFlag !== 'true') localStorage.setItem('walletConnected','true'); } catch {}
-    const hazardAddr = await getAddressFor('hazard', provider);\n    const tavernFallback = await getAddressFor('tavern', provider);\n    tavernAddress = hazardAddr || tavernFallback;\n    const hazardAbi = (hazardAddr && window.HazardABI) ? window.HazardABI : window.TavernABI;\n    contract = new ethers.Contract(tavernAddress, hazardAbi, signer);\n    try {\n      const chainId = await detectChainId(provider);\n      const bannerKey = hazardAddr ? 'hazard' : 'tavern';\n      renderTavernBanner({ contractKey: bannerKey, address: tavernAddress, chainId, wallet: walletAddress || undefined });\n    } catch {}
+    const hazardAddr = await getAddressFor('hazard', provider);
+const tavernFallback = await getAddressFor('tavern', provider);
+tavernAddress = hazardAddr || tavernFallback;
+const hazardAbi = (hazardAddr && window.HazardABI) ? window.HazardABI : window.TavernABI;
+contract = new ethers.Contract(tavernAddress, hazardAbi, signer);
+try {
+const chainId = await detectChainId(provider);
+const bannerKey = hazardAddr ? 'hazard' : 'tavern';
+renderTavernBanner({ contractKey: bannerKey, address: tavernAddress, chainId, wallet: walletAddress || undefined });
+} catch {}
     // If no authorized account and flag not set, keep UI disabled until user connects
     if (!walletAddress && walletFlag !== 'true') {
       statusEl.textContent = 'Connect wallet on the Tavern first.';
