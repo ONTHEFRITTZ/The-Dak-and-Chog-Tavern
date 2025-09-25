@@ -34,9 +34,30 @@ async function init() {
   signer = provider.getSigner();
   try { attachProvider(provider); } catch {}
   userAddress = await signer.getAddress();
-  // Clear any stale local overrides so we use canonical addresses
-  try { localStorage.removeItem('contract.shell'); localStorage.removeItem('contract.tavern'); } catch {}
-  const shellAddr = await getAddressFor('shell', provider);
+  // Resolve Shell address: prefer authorized local override if present; otherwise config
+  let shellAddr = await getAddressFor('shell', provider);
+  try {
+    const candidate = (localStorage.getItem('contract.shell')||'').trim();
+    if (/^0x[0-9a-fA-F]{40}$/.test(candidate)) {
+      // Only trust override if authorized in Pool (when available)
+      let poolAddr = await getAddressFor('pool', provider).catch(()=>null);
+      if (!poolAddr) {
+        try {
+          const abi = window.ShellABI || window.TavernABI;
+          const tmp = new ethers.Contract(candidate, abi, provider);
+          poolAddr = await tmp.pool();
+        } catch {}
+      }
+      let ok = true;
+      try {
+        if (poolAddr && poolAddr !== ethers.constants.AddressZero && window.PoolABI) {
+          const pool = new ethers.Contract(poolAddr, window.PoolABI, provider);
+          ok = await pool.authorizedGames(candidate);
+        }
+      } catch {}
+      if (ok) shellAddr = candidate;
+    }
+  } catch {}
   const tavernFallback = await getAddressFor('tavern', provider);
   tavernAddress = shellAddr || tavernFallback;
   activeShellAbi = (shellAddr && window.ShellABI) ? window.ShellABI : window.TavernABI;
