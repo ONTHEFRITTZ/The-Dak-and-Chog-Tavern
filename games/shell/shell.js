@@ -65,20 +65,35 @@ shellElements.forEach((shell) => {
       // Prepare wager once
       const betWei = ethers.utils.parseEther(betAmount.toString());
 
-      // Bankroll coverage: prefer Pool.balance() if contract exposes pool()
+      // Bankroll coverage: prefer Pool.balance() from contract.pool(),
+      // fallback to configured pool in config.js, else the contract's own balance.
       try {
         let ok = false;
+        let coverageVerified = false;
         let poolAddr;
         try { poolAddr = await contract.pool(); } catch {}
-        if (poolAddr && poolAddr !== ethers.constants.AddressZero && window.PoolABI) {
-          const pool = new ethers.Contract(poolAddr, window.PoolABI, provider);
-          const bal = await pool.balance();
-          if (bal.gte(betWei.mul(2))) ok = true;
-        } else {
-          const bank = await provider.getBalance(tavernAddress);
-          if (bank && bank.gte(betWei.mul(2))) ok = true;
+        if (!poolAddr || poolAddr === ethers.constants.AddressZero) {
+          try { poolAddr = await getAddressFor('pool', provider); } catch {}
         }
-        if (!ok) { statusEl.innerText = 'Bankroll too low for this bet (needs 2x cover). Try a smaller amount.'; return; }
+        if (poolAddr && poolAddr !== ethers.constants.AddressZero && window.PoolABI) {
+          try {
+            const code = await provider.getCode(poolAddr).catch(()=> '0x');
+            if (code && code !== '0x') {
+              const pool = new ethers.Contract(poolAddr, window.PoolABI, provider);
+              const bal = await pool.balance();
+              coverageVerified = true;
+              if (bal.gte(betWei.mul(2))) ok = true;
+            }
+          } catch {}
+        }
+        if (!coverageVerified) {
+          try {
+            const bank = await provider.getBalance(tavernAddress);
+            coverageVerified = true;
+            if (bank && bank.gte(betWei.mul(2))) ok = true;
+          } catch {}
+        }
+        if (coverageVerified && !ok) { statusEl.innerText = 'Bankroll too low for this bet (needs 2x cover). Try a smaller amount.'; return; }
       } catch {}
 
       // Preflight static call to surface revert reasons (authorization, paused, maxBet, etc.)
