@@ -4,6 +4,7 @@ import { getAddressFor, detectChainId, renderTavernBanner, showToast } from '../
 import { attachProvider } from '../../js/contract-utils.js';
 
 let tavernAddress; // unified contract address
+let activeHazardAbi = null;   // ABI used for parsing logs consistently
 const diceImages = [
   '../../assets/images/dice/standard/dice1.png',
   '../../assets/images/dice/standard/dice2.png',
@@ -201,6 +202,7 @@ onReady(async () => {
     const tavernFallback = await getAddressFor('tavern', provider);
     tavernAddress = hazardAddr || tavernFallback;
     const hazardAbi = (hazardAddr && window.HazardABI) ? window.HazardABI : window.TavernABI;
+    activeHazardAbi = hazardAbi;
     contract = new ethers.Contract(tavernAddress, hazardAbi, signer);
 try {
 const chainId = await detectChainId(provider);
@@ -428,8 +430,9 @@ window.addEventListener('beforeunload', () => { try { contract.off('HazardPlayed
     statusEl.textContent = 'Waiting for result...';
 
     // Fallback: parse receipt for HazardPlayed to update UI even if socket event is delayed or missed
+    let updatedViaReceipt = false;
     try {
-      const iface = new ethers.utils.Interface(window.TavernABI || []);
+      const iface = new ethers.utils.Interface(activeHazardAbi || window.HazardABI || window.TavernABI || []);
       const tavernLower = String(tavernAddress||'').toLowerCase();
       for (const log of (receipt && receipt.logs) || []){
         if (String(log.address||'').toLowerCase() !== tavernLower) continue;
@@ -449,11 +452,17 @@ window.addEventListener('beforeunload', () => { try { contract.off('HazardPlayed
             // Stop spin and apply final faces + UI via event handler
             try { stopDiceSpin(); } catch {}
             try { await onHazardPlayed(player, wagerEv, winEv, mainEv, finalSumEv, chanceEv, iterationsEv); } catch {}
+            updatedViaReceipt = true;
             break;
           }
         } catch {}
       }
     } catch {}
+
+    if (!updatedViaReceipt) {
+      // No event found in the receipt (or filtered out). Provide a clear, non-hanging status.
+      statusEl.textContent = 'Confirmed on-chain, awaiting event… (refresh if it doesn\'t appear)';
+    }
 
     // Enable immediately after confirmed result; brief cooldown only
     try { stopDiceSpin(); } catch {}
