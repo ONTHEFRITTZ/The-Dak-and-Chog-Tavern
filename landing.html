@@ -3,7 +3,7 @@
   <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>The Dak and Chog Tavern â€“ Enter</title>
+  <title>The Dak and Chog Tavern</title>
   <!-- Load base CSS before JS to eliminate white flash on first paint -->
   <link rel="stylesheet" href="css/style.css">
   <!-- Preload wallet logos to avoid flicker/missing due to late loads -->
@@ -46,84 +46,69 @@
       </div>
     </section>
   </main>
-
-  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
-  <!-- Whitelist removed: no ABI preload needed -->
-  
-    
-  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script type="module">
-    (async()=>{
-      try{
-        const b = await fetch('/assets/build.json', { cache:'no-store' }).then(r=>r.ok?r.json():null).catch(()=>null);
-        window.__BUILD_TAG = (b && b.commit) ? String(b.commit).slice(0,12) : String(Date.now());
-      }catch{}
-    })();
-  </script>
-  <script type="module">
-    (function(){
-      const btn = document.getElementById('enter-tavern');
-      const chooser = document.getElementById('wallet-choice');
-      function showChooser(){ try{ chooser.style.display='block'; }catch{} }
-      if (btn) btn.addEventListener('click', showChooser);
-      window.addEventListener('keydown', (e) => { if (e.key === 'Enter') { try { btn?.click(); } catch {} } });
-      try { document.getElementById('network-banner')?.remove(); } catch {}
-    })();
-  </script>
+  <!-- React-only wallet gate (EIP-6963 discovery + connect + sign) -->
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script>
     (function(){
-      const { useEffect, useState } = React;
-      function LandingWallet(){
-        const [mounted,setMounted] = useState(false);
-        useEffect(()=>{
-          if (mounted) return; setMounted(true);
-          const status = document.getElementById('wc-status');
-          const discovered = [];
-          function onAnnounce(ev){ try{ const d=ev&&ev.detail; if(d&&d.info&&d.provider){ discovered.push(d); } }catch{} }
-          try {
-            window.addEventListener('eip6963:announceProvider', onAnnounce);
-            window.dispatchEvent(new Event('eip6963:requestProvider'));
-            setTimeout(()=>{ try{ window.removeEventListener('eip6963:announceProvider', onAnnounce); }catch{} }, 200);
-          } catch {}
-          function pickDiscovered(name){ try{ var re=new RegExp(name,'i'); var hit=discovered.find(function(d){ return re.test(d&&d.info&&d.info.name||'') || re.test(d&&d.info&&d.info.rdns||''); }); return hit? hit.provider : null; } catch { return null } }
-          async function doPick(key){
-            try{ if(status) status.textContent='Connecting...'; }catch{}
-            try{
-              var prov=null;
-              if (key==='metamask'){
-                var eth = window.ethereum; prov = pickDiscovered('metamask') || (eth&&eth.isMetaMask? eth : (Array.isArray(eth&&eth.providers)? eth.providers.find(function(p){return p&&p.isMetaMask;}) : eth));
-              } else if (key==='phantom'){
-                prov = pickDiscovered('phantom') || (window.phantom && window.phantom.ethereum) || null;
-              }
-              if (!prov || typeof prov.request !== 'function') throw new Error('Wallet not detected');
-              try { await prov.request({ method:'wallet_switchEthereumChain', params:[{ chainId: '0x279f' }] }); }
-              catch(e){ if (e && (e.code===4902 || /unknown chain/i.test(String(e.message)))){ await prov.request({ method:'wallet_addEthereumChain', params:[{ chainId:'0x279f', chainName:'Monad Testnet', nativeCurrency:{ name:'MON', symbol:'MON', decimals:18 }, rpcUrls:['https://testnet-rpc.monad.xyz'], blockExplorerUrls:['https://testnet.monadexplorer.com','https://testnet.monadscan.com'] }] }); await prov.request({ method:'wallet_switchEthereumChain', params:[{ chainId: '0x279f' }] }); } else { throw e; } }
-              var accs = await prov.request({ method:'eth_requestAccounts' }); if (!Array.isArray(accs) || !accs.length) throw new Error('No account'); var addr = accs[0];
-              var ts = Date.now(); var nonce = (Math.random().toString(36).slice(2)+Math.random().toString(36).slice(2)).slice(0,24);
-              var msg = 'Dak & Chog Tavern\n\nSign-In: '+nonce+'\nTime: '+new Date(ts).toISOString()+'\nAddress: '+addr+'\nWallet: '+key;
-              var sig = await prov.request({ method:'personal_sign', params:[msg, addr] });
-              try { sessionStorage.setItem('walletSigned','true'); sessionStorage.setItem('walletProvider', key); sessionStorage.setItem('walletMsg', msg); sessionStorage.setItem('walletSig', sig); } catch {}
-              window.location.replace('index.html?nav='+encodeURIComponent(String(Date.now())));
-            }catch(e){ try{ if (status) status.textContent = (e&&e.message) || 'Failed to connect'; }catch{} }
-          }
-          var mm = document.getElementById('btn-metamask'); var ph = document.getElementById('btn-phantom');
-          if (mm) mm.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); doPick('metamask'); });
-          if (ph) ph.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); doPick('phantom'); });
-          return function(){ try{ if (mm) mm.replaceWith(mm.cloneNode(true)); if (ph) ph.replaceWith(ph.cloneNode(true)); }catch{} };
-        },[mounted]);
-        return null;
+      function wireShowChooser(){
+        var btn = document.getElementById('enter-tavern');
+        var chooser = document.getElementById('wallet-choice');
+        function show(){ try{ chooser.style.display='block'; }catch{} }
+        if (btn) btn.onclick = show;
+        window.addEventListener('keydown', function(e){ if (e.key==='Enter'){ try{ btn && btn.click(); }catch{} } });
       }
-      try { var rootEl=document.getElementById('react-wallet-root'); if (rootEl) { var root=ReactDOM.createRoot(rootEl); root.render(React.createElement(LandingWallet)); } } catch{}
+      function startReact(){
+        const { useEffect, useState } = React;
+        function LandingWallet(){
+          const [ready,setReady] = useState(false);
+          useEffect(()=>{
+            if (ready) return; setReady(true);
+            const status = document.getElementById('wc-status');
+            const discovered = [];
+            function onAnnounce(ev){ try{ const d=ev&&ev.detail; if(d&&d.info&&d.provider){ discovered.push(d); } }catch{} }
+            try { window.addEventListener('eip6963:announceProvider', onAnnounce); window.dispatchEvent(new Event('eip6963:requestProvider')); setTimeout(()=>{ try{ window.removeEventListener('eip6963:announceProvider', onAnnounce); }catch{} }, 200); } catch {}
+            function pickDiscovered(name){ try{ var re=new RegExp(name,'i'); var hit=discovered.find(function(d){ return re.test((d&&d.info&&d.info.name)||'') || re.test((d&&d.info&&d.info.rdns)||''); }); return hit? hit.provider : null; } catch { return null } }
+            async function doPick(key){
+              try{ if(status) status.textContent='Connecting...'; }catch{}
+              try{
+                var prov=null;
+                if (key==='metamask'){
+                  var eth = window.ethereum; prov = pickDiscovered('metamask') || (eth&&eth.isMetaMask? eth : (Array.isArray(eth&&eth.providers)? eth.providers.find(function(p){return p&&p.isMetaMask;}) : eth));
+                } else if (key==='phantom'){
+                  prov = pickDiscovered('phantom') || (window.phantom && window.phantom.ethereum) || null;
+                }
+                if (!prov || typeof prov.request !== 'function') throw new Error('Wallet not detected');
+                try { await prov.request({ method:'wallet_switchEthereumChain', params:[{ chainId: '0x279f' }] }); }
+                catch(e){ if (e && (e.code===4902 || /unknown chain/i.test(String(e.message)))){ await prov.request({ method:'wallet_addEthereumChain', params:[{ chainId:'0x279f', chainName:'Monad Testnet', nativeCurrency:{ name:'MON', symbol:'MON', decimals:18 }, rpcUrls:['https://testnet-rpc.monad.xyz'], blockExplorerUrls:['https://testnet.monadexplorer.com','https://testnet.monadscan.com'] }] }); await prov.request({ method:'wallet_switchEthereumChain', params:[{ chainId: '0x279f' }] }); } else { throw e; } }
+                var accs = await prov.request({ method:'eth_requestAccounts' }); if (!Array.isArray(accs) || !accs.length) throw new Error('No account'); var addr = accs[0];
+                var ts = Date.now(); var nonce = (Math.random().toString(36).slice(2)+Math.random().toString(36).slice(2)).slice(0,24);
+                var msg = 'Dak & Chog Tavern\n\nSign-In: '+nonce+'\nTime: '+new Date(ts).toISOString()+'\nAddress: '+addr+'\nWallet: '+key;
+                var sig = await prov.request({ method:'personal_sign', params:[msg, addr] });
+                try { sessionStorage.setItem('walletSigned','true'); sessionStorage.setItem('walletProvider', key); sessionStorage.setItem('walletMsg', msg); sessionStorage.setItem('walletSig', sig); } catch {}
+                window.location.replace('index.html?nav='+encodeURIComponent(String(Date.now())));
+              }catch(e){ try{ if (status) status.textContent = (e&&e.message) || 'Failed to connect'; }catch{} }
+            }
+            var mm = document.getElementById('btn-metamask'); var ph = document.getElementById('btn-phantom');
+            if (mm) mm.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); doPick('metamask'); });
+            if (ph) ph.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); doPick('phantom'); });
+          },[ready]);
+          return null;
+        }
+        try {
+          var rootEl=document.getElementById('react-wallet-root');
+          if (rootEl) {
+            if (ReactDOM && typeof ReactDOM.createRoot === 'function') {
+              ReactDOM.createRoot(rootEl).render(React.createElement(LandingWallet));
+            } else if (ReactDOM && typeof ReactDOM.render === 'function') {
+              ReactDOM.render(React.createElement(LandingWallet), rootEl);
+            }
+          }
+        } catch{}
+      }
+      wireShowChooser();
+      if (document.readyState==='loading') { document.addEventListener('DOMContentLoaded', startReact); } else { startReact(); }
     })();
-  </script></body>
+  </script>
+</body>
 </html>
-
-
-
-
-
-
-
