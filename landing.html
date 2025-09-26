@@ -57,56 +57,66 @@
       }catch(e){ /* ignore; pick() will report errors */ }
     })();
   </script>
-  <script type="module">
+    <script type="module">
     (function(){
       const btn = document.getElementById('enter-tavern');
       const chooser = document.getElementById('wallet-choice');
-      const mm = document.getElementById('btn-metamask');
-      const ph = document.getElementById('btn-phantom');
-      const status = document.getElementById('wc-status');
-      async function showChooser(){
-        try { if (window.__tavernReady) { await window.__tavernReady; } } catch {}
-        try { chooser.style.display='block'; } catch {}
-        try {
-          const hasMetaMask = !!(window.ethereum && window.ethereum.request);
-          const hasPhantom = !!(window.phantom && window.phantom.ethereum && window.phantom.ethereum.request);
-          // Cache-bust logo src to avoid stale 404s after deploy
-          const tag = (window.__BUILD_TAG ? String(window.__BUILD_TAG) : String(Date.now()));
-          try { const mmimg = document.getElementById('logo-metamask'); if (mmimg) mmimg.src = '/assets/images/logos/metamask.png?v=' + encodeURIComponent(tag); } catch {}
-          try { const phimg = document.getElementById('logo-phantom'); if (phimg) phimg.src = '/assets/images/logos/phantom.png?v=' + encodeURIComponent(tag); } catch {}
-          if (!hasPhantom) {
-            const pm = document.getElementById('phantom-missing');
-            if (pm) pm.style.display = 'block';
-          }
-          if (!hasMetaMask) {
-            const mmBtn = document.getElementById('btn-metamask');
-            if (mmBtn) { mmBtn.disabled = true; mmBtn.title = 'MetaMask not detected'; }
-          }
-          if (!hasPhantom) {
-            const phBtn = document.getElementById('btn-phantom');
-            if (phBtn) { phBtn.disabled = false; phBtn.title = 'Phantom EVM not detected â€” install using the link below'; }
-          }
-        } catch {}
-      }
-       else {
-                status.textContent = 'Signature required to enter. Please try again.';
-              }
-            } catch(_) {}
-          }).catch(function(e){ try { status.textContent = (e && e.message) ? e.message : 'Failed to connect'; } catch(_){} });
-        } catch(e){ try { status.textContent = 'Failed to connect'; } catch {} }
-      }
-      
-if (btn) btn.addEventListener('click', showChooser);
-       e.stopPropagation(); pick('metamask'); });
-       e.stopPropagation(); pick('phantom'); });
+      function showChooser(){ try{ chooser.style.display='block'; }catch{} }
+      if (btn) btn.addEventListener('click', showChooser);
       window.addEventListener('keydown', (e) => { if (e.key === 'Enter') { try { btn?.click(); } catch {} } });
-      // No automatic prompts; user must click to pick a wallet
-      // Defensive: remove any stray network banner if injected by cached scripts
       try { document.getElementById('network-banner')?.remove(); } catch {}
     })();
   </script>
-</body>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script>
+    (function(){
+      const { useEffect, useState } = React;
+      function LandingWallet(){
+        const [mounted,setMounted] = useState(false);
+        useEffect(()=>{
+          if (mounted) return; setMounted(true);
+          const status = document.getElementById('wc-status');
+          const discovered = [];
+          function onAnnounce(ev){ try{ const d=ev&&ev.detail; if(d&&d.info&&d.provider){ discovered.push(d); } }catch{} }
+          try {
+            window.addEventListener('eip6963:announceProvider', onAnnounce);
+            window.dispatchEvent(new Event('eip6963:requestProvider'));
+            setTimeout(()=>{ try{ window.removeEventListener('eip6963:announceProvider', onAnnounce); }catch{} }, 200);
+          } catch {}
+          function pickDiscovered(name){ try{ var re=new RegExp(name,'i'); var hit=discovered.find(function(d){ return re.test(d&&d.info&&d.info.name||'') || re.test(d&&d.info&&d.info.rdns||''); }); return hit? hit.provider : null; } catch { return null } }
+          async function doPick(key){
+            try{ if(status) status.textContent='Connecting...'; }catch{}
+            try{
+              var prov=null;
+              if (key==='metamask'){
+                var eth = window.ethereum; prov = pickDiscovered('metamask') || (eth&&eth.isMetaMask? eth : (Array.isArray(eth&&eth.providers)? eth.providers.find(function(p){return p&&p.isMetaMask;}) : eth));
+              } else if (key==='phantom'){
+                prov = pickDiscovered('phantom') || (window.phantom && window.phantom.ethereum) || null;
+              }
+              if (!prov || typeof prov.request !== 'function') throw new Error('Wallet not detected');
+              try { await prov.request({ method:'wallet_switchEthereumChain', params:[{ chainId: '0x279f' }] }); }
+              catch(e){ if (e && (e.code===4902 || /unknown chain/i.test(String(e.message)))){ await prov.request({ method:'wallet_addEthereumChain', params:[{ chainId:'0x279f', chainName:'Monad Testnet', nativeCurrency:{ name:'MON', symbol:'MON', decimals:18 }, rpcUrls:['https://testnet-rpc.monad.xyz'], blockExplorerUrls:['https://testnet.monadexplorer.com','https://testnet.monadscan.com'] }] }); await prov.request({ method:'wallet_switchEthereumChain', params:[{ chainId: '0x279f' }] }); } else { throw e; } }
+              var accs = await prov.request({ method:'eth_requestAccounts' }); if (!Array.isArray(accs) || !accs.length) throw new Error('No account'); var addr = accs[0];
+              var ts = Date.now(); var nonce = (Math.random().toString(36).slice(2)+Math.random().toString(36).slice(2)).slice(0,24);
+              var msg = 'Dak & Chog Tavern\n\nSign-In: '+nonce+'\nTime: '+new Date(ts).toISOString()+'\nAddress: '+addr+'\nWallet: '+key;
+              var sig = await prov.request({ method:'personal_sign', params:[msg, addr] });
+              try { sessionStorage.setItem('walletSigned','true'); sessionStorage.setItem('walletProvider', key); sessionStorage.setItem('walletMsg', msg); sessionStorage.setItem('walletSig', sig); } catch {}
+              window.location.replace('index.html?nav='+encodeURIComponent(String(Date.now())));
+            }catch(e){ try{ if (status) status.textContent = (e&&e.message) || 'Failed to connect'; }catch{} }
+          }
+          var mm = document.getElementById('btn-metamask'); var ph = document.getElementById('btn-phantom');
+          if (mm) mm.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); doPick('metamask'); });
+          if (ph) ph.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); doPick('phantom'); });
+          return function(){ try{ if (mm) mm.replaceWith(mm.cloneNode(true)); if (ph) ph.replaceWith(ph.cloneNode(true)); }catch{} };
+        },[mounted]);
+        return null;
+      }
+      try { var rootEl=document.getElementById('react-wallet-root'); if (rootEl) { var root=ReactDOM.createRoot(rootEl); root.render(React.createElement(LandingWallet)); } } catch{}
+    })();
+  </script></body>
 </html>
+
 
 
 
