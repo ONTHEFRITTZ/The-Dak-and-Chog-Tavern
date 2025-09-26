@@ -1,166 +1,132 @@
-﻿import { ethers } from 'https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.esm.min.js';
-
+import { ethers } from 'https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.esm.min.js';
 import './bundler.js';
+import { profileLoad } from './profile.js';
 
-function resolveInjectedProvider(key) {
+const ORIGINAL_ETHEREUM = (function () {
+  try { return window.ethereum; } catch (err) { return undefined; }
+})();
+
+const ORIGINAL_PHANTOM = (function () {
+  try { return window.phantom && window.phantom.ethereum; } catch (err) { return undefined; }
+})();
+
+function readStoredProviderKey(explicitKey) {
   try {
-    const pref = String(key || '').toLowerCase();
-    if (pref === 'phantom') {
-      return (window.phantom && window.phantom.ethereum) || null;
+    const stored = explicitKey != null ? explicitKey : (sessionStorage.getItem('walletProvider') || window.__walletProviderKey || '');
+    return String(stored || '').toLowerCase();
+  } catch (err) {
+    return String(explicitKey || '').toLowerCase();
+  }
+}
+
+function findMetaMaskProvider(seed) {
+  if (!seed) return null;
+  if (seed.isMetaMask) return seed;
+  if (Array.isArray(seed.providers)) {
+    const mm = seed.providers.find((p) => p && p.isMetaMask);
+    if (mm) return mm;
+  }
+  return null;
+}
+
+function detectProviderKey(provider, fallback) {
+  try {
+    const phantom = window.phantom && window.phantom.ethereum;
+    if (phantom && provider === phantom) return 'phantom';
+  } catch (err) {}
+  if (provider && provider.isPhantom) return 'phantom';
+  if (provider && provider.isMetaMask) return 'metamask';
+  if (fallback) return fallback;
+  return 'injected';
+}
+
+function resolveSelectedProvider(preferredKey, injectedOverride) {
+  if (injectedOverride && typeof injectedOverride.request === 'function') {
+    return injectedOverride;
+  }
+  const key = readStoredProviderKey(preferredKey);
+  if (key === 'phantom') {
+    try {
+      const phantom = window.phantom && window.phantom.ethereum;
+      if (phantom && typeof phantom.request === 'function') return phantom;
+    } catch (err) {}
+  }
+
+  const candidates = [];
+  try {
+    if (window.__walletProvider && typeof window.__walletProvider.request === 'function') {
+      candidates.push(window.__walletProvider);
     }
-    if (pref === 'metamask') {
-      const eth = window.ethereum;
-      if (eth) {
-        if (Array.isArray(eth.providers)) {
-          const mm = eth.providers.find((p) => p && p.isMetaMask);
-          if (mm) return mm;
-        }
-        if (eth.isMetaMask) return eth;
-        return eth;
+  } catch (err) {}
+  if (ORIGINAL_ETHEREUM && typeof ORIGINAL_ETHEREUM.request === 'function') {
+    candidates.push(ORIGINAL_ETHEREUM);
+  }
+  try {
+    if (window.ethereum && window.ethereum !== ORIGINAL_ETHEREUM && typeof window.ethereum.request === 'function') {
+      candidates.push(window.ethereum);
+    }
+  } catch (err) {}
+  if (ORIGINAL_PHANTOM && typeof ORIGINAL_PHANTOM.request === 'function') {
+    candidates.push(ORIGINAL_PHANTOM);
+  }
+
+  if (key === 'metamask') {
+    for (const seed of candidates) {
+      const mm = findMetaMaskProvider(seed);
+      if (mm) return mm;
+    }
+  }
+
+  if (!key || key === 'injected') {
+    for (const seed of candidates) {
+      if (seed && typeof seed.request === 'function') {
+        return seed;
       }
-      return null;
     }
-    if (window.__walletProvider) return window.__walletProvider;
-    if (window.ethereum) return window.ethereum;
-    return (window.phantom && window.phantom.ethereum) || null;
-  } catch {
-    return window.__walletProvider || window.ethereum || (window.phantom && window.phantom.ethereum) || null;
   }
-}
-function setGlobalProvider(injected, key) {
-  if (!injected) return;
-  try { window.__walletProvider = injected; } catch {}
-  try { window.__walletProviderKey = key || ''; } catch {}
-  try {
-    let assigned = false;
-    try { window.ethereum = injected; if (window.ethereum === injected) assigned = true; } catch { assigned = false; }
-    if (!assigned) {
-      try {
-        Object.defineProperty(window, 'ethereum', { value: injected, configurable: true, writable: true });
-        assigned = (window.ethereum === injected);
-      } catch {}
-    }
-  } catch {}
-}
-function primeProviderFromSession() {
-  try {
-    const key = sessionStorage.getItem('walletProvider') || window.__walletProviderKey || '';
-    const injected = resolveInjectedProvider(key);
-    if (injected) setGlobalProvider(injected, key);
-    return injected;
-  } catch {
-    return null;
-  }
-}
-try { window.__getSelectedProvider = () => {
-  const key = sessionStorage.getItem('walletProvider') || window.__walletProviderKey || '';
-  const injected = resolveInjectedProvider(key);
-  if (injected) setGlobalProvider(injected, key);
-  return injected;
-}; } catch {}
-try { window.__setSelectedProvider = setGlobalProvider; } catch {}
-primeProviderFromSession();
 
+  if (key !== 'phantom') {
+    for (const seed of candidates) {
+      const mm = findMetaMaskProvider(seed);
+      if (mm) return mm;
+    }
+  }
+
+  try {
+    const phantom = window.phantom && window.phantom.ethereum;
+    if (phantom && typeof phantom.request === 'function') return phantom;
+  } catch (err) {}
+
+  return null;
+}
+
+function setSelectedProvider(provider, key) {
+  if (!provider || typeof provider.request !== 'function') return;
+  try { window.__walletProvider = provider; } catch (err) {}
+  try { window.__walletProviderKey = key || ''; } catch (err) {}
+  let assigned = false;
+  try {
+    window.ethereum = provider;
+    assigned = (window.ethereum === provider);
+  } catch (err) {
+    assigned = false;
+  }
+  if (!assigned) {
+    try {
+      Object.defineProperty(window, 'ethereum', { value: provider, configurable: true, writable: true });
+    } catch (err) {}
+  }
+}
+
+try { window.__getSelectedProvider = function (preferredKey) { return resolveSelectedProvider(preferredKey); }; } catch (err) {}
+try { window.__setSelectedProvider = setSelectedProvider; } catch (err) {}
 try {
-  if (!window.__ethereumPatched) {
-    let fallbackEthereumGetter = (() => {
-      try {
-        const desc = Object.getOwnPropertyDescriptor(window, 'ethereum');
-        if (desc) {
-          if (typeof desc.get === 'function') {
-            return () => { try { return desc.get.call(window); } catch { return undefined; } };
-          }
-          if ('value' in desc) {
-            const stored = desc.value;
-            return () => stored;
-          }
-        }
-      } catch {}
-      try { return () => window.__walletProvider || window.ethereum || (window.phantom && window.phantom.ethereum) || undefined; } catch { return () => undefined; }
-    })();
-    Object.defineProperty(window, 'ethereum', {
-      configurable: true,
-      enumerable: true,
-      get() {
-        try {
-          const key = sessionStorage.getItem('walletProvider') || window.__walletProviderKey || '';
-          const injected = resolveInjectedProvider(key);
-          if (injected) {
-            setGlobalProvider(injected, key);
-            return injected;
-          }
-        } catch {}
-        return fallbackEthereumGetter();
-      },
-      set(value) {
-        fallbackEthereumGetter = () => value;\n      }
-    });
-    window.__ethereumPatched = true;
+  const seededProvider = resolveSelectedProvider();
+  if (seededProvider) {
+    const seededKey = readStoredProviderKey();
+    setSelectedProvider(seededProvider, seededKey);
   }
-} catch {}
-
-
-
-function resolveInjectedProvider(key) {
-  try {
-    const pref = String(key || '').toLowerCase();
-    if (pref === 'phantom') {
-      return (window.phantom && window.phantom.ethereum) || null;
-    }
-    if (pref === 'metamask') {
-      const eth = window.ethereum;
-      if (eth) {
-        if (Array.isArray(eth.providers)) {
-          const mm = eth.providers.find((p) => p && p.isMetaMask);
-          if (mm) return mm;
-        }
-        if (eth.isMetaMask) return eth;
-        return eth;
-      }
-      return null;
-    }
-    if (window.__walletProvider) return window.__walletProvider;
-    if (window.ethereum) return window.ethereum;
-    return (window.phantom && window.phantom.ethereum) || null;
-  } catch {
-    return window.__walletProvider || window.ethereum || (window.phantom && window.phantom.ethereum) || null;
-  }
-}
-function setGlobalProvider(injected, key) {
-  if (!injected) return;
-  try { window.__walletProvider = injected; } catch {}
-  try { window.__walletProviderKey = key || ''; } catch {}
-  try {
-    let assigned = false;
-    try { window.ethereum = injected; if (window.ethereum === injected) assigned = true; } catch { assigned = false; }
-    if (!assigned) {
-      try {
-        Object.defineProperty(window, 'ethereum', { value: injected, configurable: true, writable: true });
-        assigned = (window.ethereum === injected);
-      } catch {}
-    }
-  } catch {}
-}
-function primeProviderFromSession() {
-  try {
-    const key = sessionStorage.getItem('walletProvider') || window.__walletProviderKey || '';
-    const injected = resolveInjectedProvider(key);
-    if (injected) setGlobalProvider(injected, key);
-    return injected;
-  } catch {
-    return null;
-  }
-}
-try { window.__getSelectedProvider = () => {
-  const key = sessionStorage.getItem('walletProvider') || window.__walletProviderKey || '';
-  const injected = resolveInjectedProvider(key);
-  if (injected) setGlobalProvider(injected, key);
-  return injected;
-}; } catch {}
-try { window.__setSelectedProvider = setGlobalProvider; } catch {}
-primeProviderFromSession();
-
-
+} catch (err) {}
 // Defer loading of config.js with a version tag to avoid stale cache
 let cfgLoaded = false;
 let getAddressFor, detectChainId, getAddress, renderTavernBanner, CONTRACTS, showToast;
@@ -181,7 +147,6 @@ async function ensureConfig() {
     throw e;
   }
 }
-import { profileLoad } from './profile.js';
 
 let provider;
 let signer;
@@ -198,7 +163,7 @@ function hideInlineConnectIfBannerPresent() {
   try {
     const walletBanner = document.getElementById('wallet-banner');
     if (walletBanner && connectButton) connectButton.style.display = 'none';
-  } catch {}
+  } catch (err) {}
 }
 
 function ensureAdminLink(show) {
@@ -208,7 +173,7 @@ function ensureAdminLink(show) {
       const p = String((location && location.pathname) || '').toLowerCase();
       const isTavern = (p === '/' || p === '/index.html');
       if (!isTavern) show = false;
-    } catch {}
+    } catch (err) {}
     let link = document.getElementById('admin-link');
     if (!link) {
       link = document.createElement('a');
@@ -219,7 +184,7 @@ function ensureAdminLink(show) {
       (topRightControls || document.body).appendChild(link);
     }
     link.style.display = show ? 'inline-block' : 'none';
-  } catch {}
+  } catch (err) {}
 }
 
 // Resolve a global ABI name for a given contract key, e.g., 'shell' -> window.ShellABI
@@ -227,7 +192,7 @@ function getAbiFromWindow(contractKey) {
   try {
     const cap = contractKey.charAt(0).toUpperCase() + contractKey.slice(1);
     return window[cap + 'ABI'] || window[contractKey + 'ABI'];
-  } catch {
+  } catch (err) {
     return undefined;
   }
 }
@@ -250,7 +215,7 @@ async function ensureAbiLoaded(contractKey) {
         document.head.appendChild(s);
       });
       if (getAbiFromWindow(contractKey)) return true;
-    } catch {
+    } catch (err) {
       // try next candidate
     }
   }
@@ -269,11 +234,11 @@ function setConnectButtonAsDisconnect() {
     connectButton.style.display = '';
     connectButton.textContent = 'Disconnect';
     connectButton.onclick = () => {
-      try { localStorage.removeItem('walletConnected'); } catch {}
-      try { sessionStorage.removeItem('walletConnected'); } catch {}
-      try { location.replace('/landing.html'); } catch { location.href='/landing.html'; }
+      try { localStorage.removeItem('walletConnected'); } catch (err) {}
+      try { sessionStorage.removeItem('walletConnected'); } catch (err) {}
+      try { location.replace('/landing.html'); } catch (err) { location.href='/landing.html'; }
     };
-  } catch {}
+  } catch (err) {}
 }
 
 function setConnectButtonAsConnect() {
@@ -282,97 +247,102 @@ function setConnectButtonAsConnect() {
     connectButton.style.display = '';
     connectButton.textContent = 'Connect Wallet';
     connectButton.onclick = connectWallet;
-  } catch {}
+  } catch (err) {}
 }
 
 // Connect Wallet
 export async function connectWallet(key, injectedOverride) {
-  // Prefer explicit provider override (from EIP-6963) then MetaMask
+  let providerKey = '';
+  try { providerKey = String(key || '').toLowerCase(); } catch (err) {}
+
   let injected = null;
   try {
-    if (injectedOverride && typeof injectedOverride.request === 'function') {
-      injected = injectedOverride;
-    } else {
-      const eth = window.ethereum;
-      if (eth && eth.isMetaMask) injected = eth;
-      else if (eth && Array.isArray(eth.providers)) injected = eth.providers.find(p=>p&&p.isMetaMask) || eth;
-      else injected = eth || null;
-    }
-  } catch {}
-  if (!injected) {\n    const resolved = resolveInjectedProvider(key);\n    if (resolved) injected = resolved;\n  }\n  if (!injected) {\n    let sessionKey = '';\n    try { sessionKey = sessionStorage.getItem('walletProvider') || window.__walletProviderKey || ''; } catch {}\n    const fromSession = resolveInjectedProvider(sessionKey);\n    if (fromSession) injected = fromSession;\n  }\n  if (injected) {\n    if (!key) {\n      try {\n        if (injected === (window.phantom && window.phantom.ethereum)) key = 'phantom';\n        else if (injected.isMetaMask) key = 'metamask';\n      } catch {}\n    }\n    setGlobalProvider(injected, key);\n  }\n  if (!injected || typeof injected.request !== 'function') return alert('Wallet not detected. Please install the selected wallet.');
+    injected = resolveSelectedProvider(providerKey, injectedOverride);
+  } catch (err) {
+    injected = null;
+  }
+
+  if (!injected || typeof injected.request !== 'function') {
+    alert('Wallet not detected. Please install the selected wallet.');
+    return;
+  }
+
+  providerKey = detectProviderKey(injected, providerKey || 'injected');
+  setSelectedProvider(injected, providerKey);
 
   try {
     await injected.request({ method: 'eth_requestAccounts' });
     provider = new ethers.providers.Web3Provider(injected, 'any');
     signer = provider.getSigner();
     userAddress = await signer.getAddress();
-    try { window.userAddress = userAddress; window.dispatchEvent(new CustomEvent('wallet:connected', { detail: { address: userAddress } })); } catch {}
-    // Force a fresh sign-in signature on landing
+    try { window.userAddress = userAddress; window.dispatchEvent(new CustomEvent('wallet:connected', { detail: { address: userAddress } })); } catch (err) {}
     try {
       const ts = Date.now();
       const nonce = (Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2)).slice(0, 24);
-      const msg = `Dak & Chog Tavern\n\nSign-In: ${nonce}\nTime: ${new Date(ts).toISOString()}\nAddress: ${userAddress}\nWallet: ${key||'injected'}`;
+      const msg = 'Dak & Chog Tavern\n\nSign-In: ' + nonce + '\nTime: ' + new Date(ts).toISOString() + '\nAddress: ' + userAddress + '\nWallet: ' + providerKey;
       const sig = await signer.signMessage(msg);
       const rec = ethers.utils.verifyMessage(msg, sig);
       if (!rec || String(rec).toLowerCase() !== String(userAddress).toLowerCase()) throw new Error('Signature verification failed');
       try {
         sessionStorage.setItem('walletSigned','true');
-        sessionStorage.setItem('walletProvider', String(key||'injected'));
+        sessionStorage.setItem('walletProvider', providerKey);
         sessionStorage.setItem('walletSig', sig);
         sessionStorage.setItem('walletMsg', msg);
-      } catch {}
+      } catch (err) {}
     } catch (e) {
       throw new Error('Signature required to enter');
     }
     await ensureConfig();
 
-    // Update top banner controls
     setConnectButtonAsDisconnect();
     hideInlineConnectIfBannerPresent();
-    try { statusEl.innerText = ''; } catch {}
+    try { statusEl.innerText = ''; } catch (err) {}
     showToast('Wallet connected', 'success');
 
-    // Update banner with resolved network and unified contract address
     try {
       const chainId = await detectChainId(provider);
       const tavernAddress = await getAddressFor('tavern', provider);
       renderTavernBanner({ contractKey: 'tavern', address: tavernAddress, chainId, wallet: userAddress, labelOverride: 'Address' });
-      // Owner-only admin link: show if wallet is Pool owner on current chain, or allowlisted
       try {
         const poolAddr = await getAddressFor('pool', provider);
         if (poolAddr && window.PoolABI) {
           const pool = new ethers.Contract(poolAddr, window.PoolABI, signer);
           const owner = await pool.owner();
-          const me = String(userAddress||'').toLowerCase();
+          const me = String(userAddress || '').toLowerCase();
           const isPoolOwner = owner && String(owner).toLowerCase() === me;
           const isAllowlisted = OWNER_WALLET_ALLOWLIST.includes(me);
           ensureAdminLink(!!(isPoolOwner || isAllowlisted));
         } else {
           ensureAdminLink(false);
         }
-      } catch {
+      } catch (err) {
         ensureAdminLink(false);
       }
-    } catch {}
-    // Announce presence to realtime server (best-effort)
+    } catch (err) {}
+
     try {
       if (!window.io) {
-        await new Promise((resolve)=>{ const s=document.createElement('script'); s.src='https://cdn.socket.io/4.7.5/socket.io.min.js'; s.onload=resolve; s.onerror=resolve; document.head.appendChild(s); });
+        await new Promise((resolve) => {
+          const s = document.createElement('script');
+          s.src = 'https://cdn.socket.io/4.7.5/socket.io.min.js';
+          s.onload = resolve;
+          s.onerror = resolve;
+          document.head.appendChild(s);
+        });
       }
       if (window.io) {
         if (!window.__presenceSocket) {
           window.__presenceSocket = window.io(window.location.origin, { path: '/socket.io' });
-          window.__presenceSocket.on('connect', ()=>{
-            try { window.__presenceSocket.emit('identify', { addr: userAddress }); } catch {}
-            try { window.__presenceSocket.emit('user:location', { path: location.pathname }); } catch {}
+          window.__presenceSocket.on('connect', () => {
+            try { window.__presenceSocket.emit('identify', { addr: userAddress }); } catch (err) {}
+            try { window.__presenceSocket.emit('user:location', { path: location.pathname }); } catch (err) {}
           });
         } else {
-          try { window.__presenceSocket.emit('identify', { addr: userAddress }); } catch {}
-          try { window.__presenceSocket.emit('user:location', { path: location.pathname }); } catch {}
+          try { window.__presenceSocket.emit('identify', { addr: userAddress }); } catch (err) {}
+          try { window.__presenceSocket.emit('user:location', { path: location.pathname }); } catch (err) {}
         }
       }
-    } catch {}
-    // Do not auto-load profile here to avoid signature prompts on non-game pages
+    } catch (err) {}
   } catch (err) {
     statusEl.innerText = 'Connection failed: ' + err.message;
   }
@@ -391,7 +361,7 @@ async function bootConnect() {
     const chainId = await detectChainId(undefined);
     const address = getAddress('tavern', chainId);
     renderTavernBanner({ contractKey: 'tavern', address, chainId, labelOverride: 'Address' });
-  } catch {}
+  } catch (err) {}
   // Auto-connect disabled: do nothing until user clicks connect from landing
   ensureAdminLink(false);
 }
@@ -403,7 +373,7 @@ try {
   } else {
     window.addEventListener('load', () => { bootConnect().catch(()=>{}); });
   }
-} catch {}
+} catch (err) {}
 
 if (connectButton) connectButton.addEventListener('click', connectWallet);
 
@@ -412,7 +382,8 @@ export { signer, provider, userAddress };
 // Re-export ethers so consumers can avoid loading the UMD build (CSP-safe)
 export { ethers };
 // Also expose on window for non-module consumers
-try { window.ethers = ethers; } catch {}
+try { window.ethers = ethers; } catch (err) {}
 // Expose connect for landing so the click handler can trigger wallet prompt immediately
-try { window.tavernConnectWallet = connectWallet; } catch {}
+try { window.tavernConnectWallet = connectWallet; } catch (err) {}
+
 
