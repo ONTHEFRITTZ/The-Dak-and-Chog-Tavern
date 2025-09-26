@@ -6,7 +6,7 @@
   <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <script>(function(){try{var signed=sessionStorage.getItem('walletSigned')==='true'; if(!signed){ location.replace('/landing.html'); return;} var injected = window.ethereum; if(!injected||!injected.request){ location.replace('/landing.html'); return;} injected.request({method:'eth_accounts'}).then(function(a){ if(!(Array.isArray(a)&&a.length)) location.replace('/landing.html'); }).catch(function(){ location.replace('/landing.html'); }); }catch(e){ location.replace('/landing.html'); }})();</script>
+  <script>(function(){try{var signed=sessionStorage.getItem('walletSigned')==='true'; if(!signed){ location.replace('/landing.html'); return; }}catch(e){ location.replace('/landing.html'); }})();</script>
   <title>Faro Lobby</title>
   <script>
     (async()=>{
@@ -18,12 +18,7 @@
       }catch(e){ console.error('head loader failed', e); }
     })();
   </script>
-  <script>(function(){try{
-    window.addEventListener('unload', function(){});
-    window.addEventListener('pageshow', function(e){ if (e && e.persisted) { location.reload(); } });
-    var nav = (performance && performance.getEntriesByType) ? performance.getEntriesByType('navigation') : null;
-    if (nav && nav[0] && nav[0].type === 'back_forward') { location.reload(); }
-  }catch(e){}})();</script>
+  <script>(function(){try{var signed=sessionStorage.getItem('walletSigned')==='true'; if(!signed){ location.replace('/landing.html'); return; }}catch(e){ location.replace('/landing.html'); }})();</script>
   <!-- Preload games-room background to avoid cold paint -->
   <link rel="preload" as="image" href="../../assets/images/games-room.png" type="image/png">
   <style>
@@ -57,7 +52,7 @@
 </head>
 <body class="game lobby-page">
 
-  <script>(function(){try{var ok=(sessionStorage.getItem('walletConnected')==='true')||(localStorage.getItem('walletConnected')==='true'); if(!ok){ location.replace('/landing.html'); } else { try{ sessionStorage.setItem('walletConnected','true'); }catch(e){} }}catch(e){location.replace('/landing.html');}})();</script>
+  <script>(function(){try{var signed=sessionStorage.getItem('walletSigned')==='true'; if(!signed){ location.replace('/landing.html'); return; }}catch(e){ location.replace('/landing.html'); }})();</script>
   
   <!-- Top banner (match Poker isolated layout) -->
   <div class="top-banner" role="region" aria-label="Wallet and status">

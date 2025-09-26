@@ -8,14 +8,9 @@
   <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <script>(function(){try{var signed=sessionStorage.getItem('walletSigned')==='true'; if(!signed){ location.replace('/landing.html'); return;} var injected = window.ethereum; if(!injected||!injected.request){ location.replace('/landing.html'); return;} injected.request({method:'eth_accounts'}).then(function(a){ if(!(Array.isArray(a)&&a.length)) location.replace('/landing.html'); }).catch(function(){ location.replace('/landing.html'); }); }catch(e){ location.replace('/landing.html'); }})();</script>
+  <script>(function(){try{var signed=sessionStorage.getItem('walletSigned')==='true'; if(!signed){ location.replace('/landing.html'); return; }}catch(e){ location.replace('/landing.html'); }})();</script>
   <!-- Opt-out/reload on bfcache restores across browsers -->
-  <script>(function(){try{
-    window.addEventListener('unload', function(){}); // disables bfcache in many browsers
-    window.addEventListener('pageshow', function(e){ if (e && e.persisted) { location.reload(); } });
-    var nav = (performance && performance.getEntriesByType) ? performance.getEntriesByType('navigation') : null;
-    if (nav && nav[0] && nav[0].type === 'back_forward') { location.reload(); }
-  }catch(e){}})();</script>
+  <script>(function(){try{var signed=sessionStorage.getItem('walletSigned')==='true'; if(!signed){ location.replace('/landing.html'); return; }}catch(e){ location.replace('/landing.html'); }})();</script>
   <!-- Load CSS with build tag to bust cache on updates -->
   <script>
     (async()=>{
@@ -111,7 +106,7 @@
   </style>
   </head>
 
-  <script>(function(){try{var ok=sessionStorage.getItem('walletConnected')==='true';if(!ok) location.replace('/landing.html');}catch(e){location.replace('/landing.html');}})();</script>
+  <script>(function(){try{var signed=sessionStorage.getItem('walletSigned')==='true'; if(!signed){ location.replace('/landing.html'); return; }}catch(e){ location.replace('/landing.html'); }})();</script>
   <div id="removed-overlay" style="position:fixed; inset:0; background:rgba(0,0,0,0.6); display:none; align-items:center; justify-content:center; z-index:20000;">
     <div style="background: var(--panel-bg-soft); border:1px solid rgba(255,255,255,0.12); border-radius:14px; padding:22px; width:min(92vw, 820px); max-height:90vh; overflow:auto; text-align:left; color:#f4e6d3; box-shadow:0 24px 60px rgba(0,0,0,0.55);">
       <h2 style="margin-top:0;">Hazard Rules</h2>
