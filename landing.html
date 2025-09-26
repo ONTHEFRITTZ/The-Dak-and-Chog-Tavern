@@ -85,6 +85,9 @@
                 var ts = Date.now(); var nonce = (Math.random().toString(36).slice(2)+Math.random().toString(36).slice(2)).slice(0,24);
                 var msg = 'Dak & Chog Tavern\n\nSign-In: '+nonce+'\nTime: '+new Date(ts).toISOString()+'\nAddress: '+addr+'\nWallet: '+key;
                 var sig = await prov.request({ method:'personal_sign', params:[msg, addr] });
+                try {
+                  if (typeof window.__setSelectedProvider === 'function') { window.__setSelectedProvider(prov, key); } else { window.__walletProvider = prov; window.__walletProviderKey = key; }
+                } catch {}
                 try { sessionStorage.setItem('walletSigned','true'); sessionStorage.setItem('walletProvider', key); sessionStorage.setItem('walletMsg', msg); sessionStorage.setItem('walletSig', sig); } catch {}
                 window.location.replace('index.html?nav='+encodeURIComponent(String(Date.now())));
               }catch(e){ try{ if (status) status.textContent = (e&&e.message) || 'Failed to connect'; }catch{} }
@@ -112,3 +115,5 @@
   </script>
 </body>
 </html>
+
+

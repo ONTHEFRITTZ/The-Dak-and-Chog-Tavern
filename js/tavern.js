@@ -1,5 +1,128 @@
 ﻿import { ethers } from 'https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.esm.min.js';
+
 import './bundler.js';
+
+function resolveInjectedProvider(key) {
+  try {
+    const pref = String(key || '').toLowerCase();
+    if (pref === 'phantom') {
+      return (window.phantom && window.phantom.ethereum) || null;
+    }
+    if (pref === 'metamask') {
+      const eth = window.ethereum;
+      if (eth) {
+        if (Array.isArray(eth.providers)) {
+          const mm = eth.providers.find((p) => p && p.isMetaMask);
+          if (mm) return mm;
+        }
+        if (eth.isMetaMask) return eth;
+        return eth;
+      }
+      return null;
+    }
+    if (window.__walletProvider) return window.__walletProvider;
+    if (window.ethereum) return window.ethereum;
+    return (window.phantom && window.phantom.ethereum) || null;
+  } catch {
+    return window.__walletProvider || window.ethereum || (window.phantom && window.phantom.ethereum) || null;
+  }
+}
+function setGlobalProvider(injected, key) {
+  if (!injected) return;
+  try { window.__walletProvider = injected; } catch {}
+  try { window.__walletProviderKey = key || ''; } catch {}
+  try {
+    let assigned = false;
+    try { window.ethereum = injected; if (window.ethereum === injected) assigned = true; } catch { assigned = false; }
+    if (!assigned) {
+      try {
+        Object.defineProperty(window, 'ethereum', { value: injected, configurable: true, writable: true });
+        assigned = (window.ethereum === injected);
+      } catch {}
+    }
+  } catch {}
+}
+function primeProviderFromSession() {
+  try {
+    const key = sessionStorage.getItem('walletProvider') || window.__walletProviderKey || '';
+    const injected = resolveInjectedProvider(key);
+    if (injected) setGlobalProvider(injected, key);
+    return injected;
+  } catch {
+    return null;
+  }
+}
+try { window.__getSelectedProvider = () => {
+  const key = sessionStorage.getItem('walletProvider') || window.__walletProviderKey || '';
+  const injected = resolveInjectedProvider(key);
+  if (injected) setGlobalProvider(injected, key);
+  return injected;
+}; } catch {}
+try { window.__setSelectedProvider = setGlobalProvider; } catch {}
+primeProviderFromSession();
+
+
+
+function resolveInjectedProvider(key) {
+  try {
+    const pref = String(key || '').toLowerCase();
+    if (pref === 'phantom') {
+      return (window.phantom && window.phantom.ethereum) || null;
+    }
+    if (pref === 'metamask') {
+      const eth = window.ethereum;
+      if (eth) {
+        if (Array.isArray(eth.providers)) {
+          const mm = eth.providers.find((p) => p && p.isMetaMask);
+          if (mm) return mm;
+        }
+        if (eth.isMetaMask) return eth;
+        return eth;
+      }
+      return null;
+    }
+    if (window.__walletProvider) return window.__walletProvider;
+    if (window.ethereum) return window.ethereum;
+    return (window.phantom && window.phantom.ethereum) || null;
+  } catch {
+    return window.__walletProvider || window.ethereum || (window.phantom && window.phantom.ethereum) || null;
+  }
+}
+function setGlobalProvider(injected, key) {
+  if (!injected) return;
+  try { window.__walletProvider = injected; } catch {}
+  try { window.__walletProviderKey = key || ''; } catch {}
+  try {
+    let assigned = false;
+    try { window.ethereum = injected; if (window.ethereum === injected) assigned = true; } catch { assigned = false; }
+    if (!assigned) {
+      try {
+        Object.defineProperty(window, 'ethereum', { value: injected, configurable: true, writable: true });
+        assigned = (window.ethereum === injected);
+      } catch {}
+    }
+  } catch {}
+}
+function primeProviderFromSession() {
+  try {
+    const key = sessionStorage.getItem('walletProvider') || window.__walletProviderKey || '';
+    const injected = resolveInjectedProvider(key);
+    if (injected) setGlobalProvider(injected, key);
+    return injected;
+  } catch {
+    return null;
+  }
+}
+try { window.__getSelectedProvider = () => {
+  const key = sessionStorage.getItem('walletProvider') || window.__walletProviderKey || '';
+  const injected = resolveInjectedProvider(key);
+  if (injected) setGlobalProvider(injected, key);
+  return injected;
+}; } catch {}
+try { window.__setSelectedProvider = setGlobalProvider; } catch {}
+primeProviderFromSession();
+
+
 // Defer loading of config.js with a version tag to avoid stale cache
 let cfgLoaded = false;
 let getAddressFor, detectChainId, getAddress, renderTavernBanner, CONTRACTS, showToast;
@@ -138,7 +261,7 @@ export async function connectWallet(key, injectedOverride) {
       else injected = eth || null;
     }
   } catch {}
-  if (!injected || typeof injected.request !== 'function') return alert('Wallet not detected. Please install the selected wallet.');
+  if (!injected) {\n    const resolved = resolveInjectedProvider(key);\n    if (resolved) injected = resolved;\n  }\n  if (!injected) {\n    let sessionKey = '';\n    try { sessionKey = sessionStorage.getItem('walletProvider') || window.__walletProviderKey || ''; } catch {}\n    const fromSession = resolveInjectedProvider(sessionKey);\n    if (fromSession) injected = fromSession;\n  }\n  if (injected) {\n    if (!key) {\n      try {\n        if (injected === (window.phantom && window.phantom.ethereum)) key = 'phantom';\n        else if (injected.isMetaMask) key = 'metamask';\n      } catch {}\n    }\n    setGlobalProvider(injected, key);\n  }\n  if (!injected || typeof injected.request !== 'function') return alert('Wallet not detected. Please install the selected wallet.');
 
   try {
     await injected.request({ method: 'eth_requestAccounts' });
@@ -254,12 +377,3 @@ export { ethers };
 try { window.ethers = ethers; } catch {}
 // Expose connect for landing so the click handler can trigger wallet prompt immediately
 try { window.tavernConnectWallet = connectWallet; } catch {}
-
-
-
-
-
-
-
-
-
