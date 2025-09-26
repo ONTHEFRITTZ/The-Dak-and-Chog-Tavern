@@ -126,7 +126,19 @@ function setConnectButtonAsConnect() {
 
 // Connect Wallet
 export async function connectWallet(key, injectedOverride) {
-  const eth = window.ethereum; const injected = (function(){ try { if (!eth) return null; if (eth.isMetaMask) return eth; if (Array.isArray(eth.providers)) return eth.providers.find(p=>p&&p.isMetaMask)||null; return eth||null; } catch { return null } })(); if(!injected) return alert('Wallet not detected. Please install the selected wallet.');
+  // Prefer explicit provider override (from EIP-6963) then MetaMask
+  let injected = null;
+  try {
+    if (injectedOverride && typeof injectedOverride.request === 'function') {
+      injected = injectedOverride;
+    } else {
+      const eth = window.ethereum;
+      if (eth && eth.isMetaMask) injected = eth;
+      else if (eth && Array.isArray(eth.providers)) injected = eth.providers.find(p=>p&&p.isMetaMask) || eth;
+      else injected = eth || null;
+    }
+  } catch {}
+  if (!injected || typeof injected.request !== 'function') return alert('Wallet not detected. Please install the selected wallet.');
 
   try {
     await injected.request({ method: 'eth_requestAccounts' });
@@ -134,18 +146,26 @@ export async function connectWallet(key, injectedOverride) {
     signer = provider.getSigner();
     userAddress = await signer.getAddress();
     try { window.userAddress = userAddress; window.dispatchEvent(new CustomEvent('wallet:connected', { detail: { address: userAddress } })); } catch {}
-// Force a fresh sign-in signature on landing
-try {
-  const ts = Date.now();
-  const nonce = (Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2)).slice(0, 24);
-  const msg = Dak & Chog Tavern\n\nSign-In: \nTime: \nAddress: \nWallet: ;
-  const sig = await signer.signMessage(msg);
-  const rec = ethers.utils.verifyMessage(msg, sig);
-  if (!rec || String(rec).toLowerCase() !== String(userAddress).toLowerCase()) throw new Error('Signature verification failed');
-  try { sessionStorage.setItem('walletSigned','true'); sessionStorage.setItem('walletProvider', String(key||'injected')); sessionStorage.setItem('walletSig', sig); sessionStorage.setItem('walletMsg', msg); } catch {}
-} catch (e) {
-  throw new Error('Signature required to enter');
-}    try { sessionStorage.setItem('walletSigned','true'); } catch {}\r\n    await ensureConfig();\r\n\r\n    // Update top banner controls
+    // Force a fresh sign-in signature on landing
+    try {
+      const ts = Date.now();
+      const nonce = (Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2)).slice(0, 24);
+      const msg = `Dak & Chog Tavern\n\nSign-In: ${nonce}\nTime: ${new Date(ts).toISOString()}\nAddress: ${userAddress}\nWallet: ${key||'injected'}`;
+      const sig = await signer.signMessage(msg);
+      const rec = ethers.utils.verifyMessage(msg, sig);
+      if (!rec || String(rec).toLowerCase() !== String(userAddress).toLowerCase()) throw new Error('Signature verification failed');
+      try {
+        sessionStorage.setItem('walletSigned','true');
+        sessionStorage.setItem('walletProvider', String(key||'injected'));
+        sessionStorage.setItem('walletSig', sig);
+        sessionStorage.setItem('walletMsg', msg);
+      } catch {}
+    } catch (e) {
+      throw new Error('Signature required to enter');
+    }
+    await ensureConfig();
+
+    // Update top banner controls
     setConnectButtonAsDisconnect();
     hideInlineConnectIfBannerPresent();
     try { statusEl.innerText = ''; } catch {}
@@ -172,7 +192,8 @@ try {
       } catch {
         ensureAdminLink(false);
       }
-    } catch {}    // Announce presence to realtime server (best-effort)
+    } catch {}
+    // Announce presence to realtime server (best-effort)
     try {
       if (!window.io) {
         await new Promise((resolve)=>{ const s=document.createElement('script'); s.src='https://cdn.socket.io/4.7.5/socket.io.min.js'; s.onload=resolve; s.onerror=resolve; document.head.appendChild(s); });
@@ -214,7 +235,14 @@ async function bootConnect() {
   ensureAdminLink(false);
 }
 
-// No auto-run hooks; explicit connect only via landing wallet buttons.
+// Render network banner on load without connecting wallets
+try {
+  if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    bootConnect();
+  } else {
+    window.addEventListener('load', () => { bootConnect().catch(()=>{}); });
+  }
+} catch {}
 
 if (connectButton) connectButton.addEventListener('click', connectWallet);
 
