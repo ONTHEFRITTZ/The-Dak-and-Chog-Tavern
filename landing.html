@@ -41,23 +41,27 @@
             </div>
           </div>
         </div>
-        <div id="wc-status" style="margin-top:8px; font-size:12px;"></div>\r\n        <div id="react-wallet-root"></div>
+        <div id="wc-status" style="margin-top:8px; font-size:12px;"></div>
+        <div id="react-wallet-root"></div>
       </div>
     </section>
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
   <!-- Whitelist removed: no ABI preload needed -->
-  <script type="module">
+  
+    
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script type="module">
     (async()=>{
       try{
-        const tag = (window.__BUILD_TAG ? String(window.__BUILD_TAG) : String(Date.now()));
-        // Preload tavern module so connectWallet is ready synchronously in click handler
-        await import(`./js/tavern.js?v=${encodeURIComponent(tag)}`);
-      }catch(e){ /* ignore; pick() will report errors */ }
+        const b = await fetch('/assets/build.json', { cache:'no-store' }).then(r=>r.ok?r.json():null).catch(()=>null);
+        window.__BUILD_TAG = (b && b.commit) ? String(b.commit).slice(0,12) : String(Date.now());
+      }catch{}
     })();
   </script>
-    <script type="module">
+  <script type="module">
     (function(){
       const btn = document.getElementById('enter-tavern');
       const chooser = document.getElementById('wallet-choice');
@@ -116,6 +120,8 @@
     })();
   </script></body>
 </html>
+
+
 
 
 
