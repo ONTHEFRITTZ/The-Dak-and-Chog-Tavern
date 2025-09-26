@@ -26,7 +26,8 @@
   <script src="../../js/HazardABI.js"></script>
   <script src="../../js/PoolABI.js"></script>
 
-  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+  <script src="../../js/provider-pin.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
   <!-- Preload dice faces so first roll is instant -->
   <link rel="preload" as="image" href="../../assets/images/dice/standard/dice1.png" type="image/png">
   <link rel="preload" as="image" href="../../assets/images/dice/standard/dice2.png" type="image/png">
@@ -188,48 +189,7 @@
         await import(`./hazard.js?v=${tag}`);
       }catch(e){ console.error('hazard import failed', e); }
     })();
-  </script>
-  <!-- Inline wallet sync for Hazard page -->
-  <script>
-    (function(){
-      function short(a){ try { return (a && a.length > 10) ? (a.slice(0,6)+'...'+a.slice(-4)) : (a || ''); } catch { return a || ''; } }
-      try {
-        var disconnectBtn = document.getElementById('wi-disconnect');
-        var walletAddrSpan = document.getElementById('wi-address');
-        function show(addr){
-          try { if (walletAddrSpan) walletAddrSpan.textContent = short(String(addr || '')); } catch {}
-          try {
-            if (disconnectBtn) {
-              disconnectBtn.style.display = '';
-              disconnectBtn.onclick = function(){
-                try { localStorage.removeItem('walletConnected'); sessionStorage.removeItem('walletConnected'); } catch (_){ }
-                try { location.replace('/landing.html'); } catch (_){ }
-              };
-            }
-          } catch {}
-        }
-        if (window.userAddress && String(window.userAddress)) { show(window.userAddress); }
-        window.addEventListener('wallet:connected', function(ev){
-          try {
-            var a = String((ev && ev.detail && ev.detail.address) || '');
-            if (a) show(a);
-          } catch {}
-        });
-        try {
-          var injected = null;
-          try { if (typeof window.__getSelectedProvider === 'function') injected = window.__getSelectedProvider(); } catch (e) {}
-          if (!injected) { try { if (window.ethereum && typeof window.ethereum.request === 'function') injected = window.ethereum; } catch (e) {} }
-          if (!injected) { try { if (window.phantom && window.phantom.ethereum && typeof window.phantom.ethereum.request === 'function') injected = window.phantom.ethereum; } catch (e) {} }
-          if (injected && window.ethers && !(window.userAddress && String(window.userAddress))) {
-            injected.request({ method:'eth_accounts' }).then(function(acc){
-              var a = (acc && acc[0]) ? String(acc[0]) : '';
-              if (a) show(a);
-            }).catch(function(){});
-          }
-        } catch {}
-      } catch {}
-    })();
-  </script>
+  </script>\r\n  <!-- Inline wallet sync for Hazard page (replaced by provider-pin) -->\r\n  
   <!-- Build footer: shows Version + Commit + Built time -->
   <div style="position:fixed; right:12px; bottom:12px; z-index:10000;">
     <div id="footer-meta" style="font-size:12px; color:#f4e6d3; opacity:.95; background: var(--panel-bg-soft); border:1px solid rgba(255,255,255,0.12); border-radius:10px; padding:6px 8px; display:inline-block; box-shadow:0 18px 40px rgba(0,0,0,0.45);">
@@ -254,3 +214,4 @@
   </script>
 </body>
 </html>
+
