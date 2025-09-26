@@ -105,7 +105,13 @@
     .scoreboard h3 { margin-top:0; }
     .scoreboard ul { list-style:none; padding-left:0; margin:0; }
   </style>
-  </head>
+  <style>
+    /* Hazard sidebar override: ensure visible on all viewports */
+    @media (max-width: 800px) {
+      .sidebar { transform: none !important; }
+      .sidebar.collapsed { transform: none !important; }
+    }
+  </style>  </head>
 
   <script>(function(){try{var signed=sessionStorage.getItem('walletSigned')==='true'; if(!signed){ location.replace('/landing.html'); return; }}catch(e){ location.replace('/landing.html'); }})();</script>
   <div id="removed-overlay" style="position:fixed; inset:0; background:rgba(0,0,0,0.6); display:none; align-items:center; justify-content:center; z-index:20000;">
@@ -258,6 +264,7 @@
   </script>
 </body>
 </html>
+
 
 
 
