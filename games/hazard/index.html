@@ -192,31 +192,42 @@
   <!-- Inline wallet sync for Hazard page -->
   <script>
     (function(){
-      function short(a){ try { return (a && a.length>10) ? (a.slice(0,6)+'...'+a.slice(-4)) : (a||''); } catch { return a||''; } }
+      function short(a){ try { return (a && a.length > 10) ? (a.slice(0,6)+'...'+a.slice(-4)) : (a || ''); } catch { return a || ''; } }
       try {
         var disconnectBtn = document.getElementById('wi-disconnect');
         var walletAddrSpan = document.getElementById('wi-address');
-        function show(addr){ try { if (walletAddrSpan) walletAddrSpan.textContent = short(String(addr||'')); } catch{} try { if (disconnectBtn) { disconnectBtn.style.display=''; disconnectBtn.onclick = function(){ try{ localStorage.removeItem('walletConnected'); sessionStorage.removeItem('walletConnected'); }catch(_){} try{ location.replace('/landing.html'); }catch(_){} }; } } catch{} }
+        function show(addr){
+          try { if (walletAddrSpan) walletAddrSpan.textContent = short(String(addr || '')); } catch {}
+          try {
+            if (disconnectBtn) {
+              disconnectBtn.style.display = '';
+              disconnectBtn.onclick = function(){
+                try { localStorage.removeItem('walletConnected'); sessionStorage.removeItem('walletConnected'); } catch (_){ }
+                try { location.replace('/landing.html'); } catch (_){ }
+              };
+            }
+          } catch {}
+        }
         if (window.userAddress && String(window.userAddress)) { show(window.userAddress); }
-        window.addEventListener('wallet:connected', function(ev){ try { var a = String((ev && ev.detail && ev.detail.address) || ''); if (a) show(a); } catch{} });
+        window.addEventListener('wallet:connected', function(ev){
+          try {
+            var a = String((ev && ev.detail && ev.detail.address) || '');
+            if (a) show(a);
+          } catch {}
+        });
         try {
-          if (window.ethereum && window.ethers && !(window.userAddress && String(window.userAddress))) {
-            window.ethereum.request({ method:'eth_accounts' }).then(function(acc){ var a = (acc && acc[0])? String(acc[0]) : ''; if (a) show(a); }).catch(function(){});
+          var injected = null;
+          try { if (typeof window.__getSelectedProvider === 'function') injected = window.__getSelectedProvider(); } catch (e) {}
+          if (!injected) { try { if (window.ethereum && typeof window.ethereum.request === 'function') injected = window.ethereum; } catch (e) {} }
+          if (!injected) { try { if (window.phantom && window.phantom.ethereum && typeof window.phantom.ethereum.request === 'function') injected = window.phantom.ethereum; } catch (e) {} }
+          if (injected && window.ethers && !(window.userAddress && String(window.userAddress))) {
+            injected.request({ method:'eth_accounts' }).then(function(acc){
+              var a = (acc && acc[0]) ? String(acc[0]) : '';
+              if (a) show(a);
+            }).catch(function(){});
           }
-        } catch{}
-      } catch{}
-    })();
-  </script>
-  <!-- Left Sidebar (collapsible) -->
-  <script>
-    (function(){
-      try {
-        var t = (window.__BUILD_TAG||Date.now());
-        var s = document.createElement('script');
-        s.type = 'module';
-        s.src = '/js/sidebar.js?v=' + encodeURIComponent(t);
-        document.body.appendChild(s);
-      } catch(e) {}
+        } catch {}
+      } catch {}
     })();
   </script>
   <!-- Build footer: shows Version + Commit + Built time -->
@@ -243,10 +254,3 @@
   </script>
 </body>
 </html>
-
-
-
-
-
-
-

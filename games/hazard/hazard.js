@@ -23,6 +23,31 @@ let selectedMain = 7;
 let currentWallet = null;
 let hazardEnableTimer = null;
 let lastClickAt = 0;          // debounce rapid duplicate clicks
+let injectedProvider = null;
+
+function getStoredProviderKey() {
+  try { return sessionStorage.getItem('walletProvider') || window.__walletProviderKey || ''; } catch (err) { return ''; }
+}
+
+function resolveInjectedProvider() {
+  try {
+    if (typeof window.__getSelectedProvider === 'function') {
+      const resolved = window.__getSelectedProvider();
+      if (resolved && typeof resolved.request === 'function') return resolved;
+    }
+  } catch (err) {}
+  try {
+    if (window.__walletProvider && typeof window.__walletProvider.request === 'function') return window.__walletProvider;
+  } catch (err) {}
+  try {
+    if (window.ethereum && typeof window.ethereum.request === 'function') return window.ethereum;
+  } catch (err) {}
+  try {
+    if (window.phantom && window.phantom.ethereum && typeof window.phantom.ethereum.request === 'function') return window.phantom.ethereum;
+  } catch (err) {}
+  return null;
+}
+
 
 // Global guards to prevent duplicate initialization/bindings
 try {
@@ -196,14 +221,19 @@ onReady(async () => {
   // Accept either storage flag, but still try provider init even if missing
   let walletFlag = undefined;
   try { walletFlag = localStorage.getItem('walletConnected') || sessionStorage.getItem('walletConnected'); } catch {}
-  if (!window.ethereum) {
-    statusEl.textContent = 'MetaMask not detected.';
+  injectedProvider = resolveInjectedProvider();
+  if (!injectedProvider) {
+    statusEl.textContent = 'Wallet provider not detected. Connect on the Tavern first.';
     rollBtn.disabled = true;
     return;
   }
-
   try {
-    provider = new ethers.providers.Web3Provider(window.ethereum, 'any');
+    if (typeof window.__setSelectedProvider === 'function') {
+      window.__setSelectedProvider(injectedProvider, getStoredProviderKey());
+    }
+  } catch (err) {}
+  try {
+    provider = new ethers.providers.Web3Provider(injectedProvider, 'any');
     signer = provider.getSigner();
     try { attachProvider(provider); } catch {}
     let walletAddress = null;
@@ -297,8 +327,8 @@ renderTavernBanner({ contractKey: bannerKey, address: tavernAddress, chainId, wa
 
   // If the user connects their wallet after load, enable play without reloading
   try {
-    if (window.ethereum?.on) {
-      window.ethereum.on('accountsChanged', async (accs) => {
+    if (injectedProvider?.on) {
+      injectedProvider.on('accountsChanged', async (accs) => {
   try {
     if (accs && accs.length) {
       signer = provider.getSigner();
@@ -516,4 +546,3 @@ renderTavernBanner({ contractKey: bannerKey, address: tavernAddress, chainId, wa
 
   returnBtn?.addEventListener('click', () => { window.location.href = '/index.html'; });
 });
-

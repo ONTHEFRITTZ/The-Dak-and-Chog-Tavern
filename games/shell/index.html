@@ -202,8 +202,12 @@
         if (window.userAddress && String(window.userAddress)) { show(window.userAddress); }
         window.addEventListener('wallet:connected', function(ev){ try { var a = String((ev && ev.detail && ev.detail.address) || ''); if (a) show(a); } catch{} });
         try {
-          if (window.ethereum && window.ethers && !(window.userAddress && String(window.userAddress))) {
-            window.ethereum.request({ method:'eth_accounts' }).then(function(acc){ var a = (acc && acc[0])? String(acc[0]) : ''; if (a) show(a); }).catch(function(){});
+          var injected = null;
+          try { if (typeof window.__getSelectedProvider === 'function') injected = window.__getSelectedProvider(); } catch (e) {}
+          if (!injected) { try { if (window.ethereum && typeof window.ethereum.request === 'function') injected = window.ethereum; } catch (e) {} }
+          if (!injected) { try { if (window.phantom && window.phantom.ethereum && typeof window.phantom.ethereum.request === 'function') injected = window.phantom.ethereum; } catch (e) {} }
+          if (injected && window.ethers && !(window.userAddress && String(window.userAddress))) {
+            injected.request({ method:'eth_accounts' }).then(function(acc){ var a = (acc && acc[0]) ? String(acc[0]) : ''; if (a) show(a); }).catch(function(){});
           }
         } catch{}
       } catch{}
@@ -245,6 +249,4 @@
   </script>
 </body>
 </html>
-
-
 

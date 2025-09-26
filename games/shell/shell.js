@@ -13,6 +13,25 @@ const rulesAck = document.getElementById('rules-ack');
 const openRulesBtn = document.getElementById('open-rules');
 let shellAck = true; // rules gate removed
 
+let injectedProvider = null;
+
+function getStoredProviderKey() {
+  try { return sessionStorage.getItem('walletProvider') || window.__walletProviderKey || ''; } catch (err) { return ''; }
+}
+
+function resolveInjectedProvider() {
+  try {
+    if (typeof window.__getSelectedProvider === 'function') {
+      const resolved = window.__getSelectedProvider();
+      if (resolved && typeof resolved.request === 'function') return resolved;
+    }
+  } catch (err) {}
+  try { if (window.__walletProvider && typeof window.__walletProvider.request === 'function') return window.__walletProvider; } catch (err) {}
+  try { if (window.ethereum && typeof window.ethereum.request === 'function') return window.ethereum; } catch (err) {}
+  try { if (window.phantom && window.phantom.ethereum && typeof window.phantom.ethereum.request === 'function') return window.phantom.ethereum; } catch (err) {}
+  return null;
+}
+
 function setShellInteractivity(enabled) {
   try {
     betInput.disabled = !enabled;
@@ -26,11 +45,18 @@ let tavernAddress;
 let activeShellAbi = null;
 
 async function init() {
-  if (!window.ethereum) {
-    alert('MetaMask not detected.');
-    return;
+  injectedProvider = resolveInjectedProvider();
+  if (!injectedProvider) {
+    alert('Wallet provider not detected. Connect on the Tavern first.');
+    return false;
   }
-  provider = new ethers.providers.Web3Provider(window.ethereum, 'any');
+  try {
+    if (typeof window.__setSelectedProvider === 'function') {
+      window.__setSelectedProvider(injectedProvider, getStoredProviderKey());
+    }
+  } catch (err) {}
+
+  provider = new ethers.providers.Web3Provider(injectedProvider, 'any');
   signer = provider.getSigner();
   try { attachProvider(provider); } catch {}
   userAddress = await signer.getAddress();
@@ -89,7 +115,6 @@ async function init() {
     }
   } catch {}
 }
-
 shellElements.forEach((shell) => {
   shell.addEventListener('click', async () => {
     // rules gate removed
