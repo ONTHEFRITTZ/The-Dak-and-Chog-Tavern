@@ -61,6 +61,44 @@ try { window.__getSelectedProvider = () => {
 try { window.__setSelectedProvider = setGlobalProvider; } catch {}
 primeProviderFromSession();
 
+try {
+  if (!window.__ethereumPatched) {
+    let fallbackEthereumGetter = (() => {
+      try {
+        const desc = Object.getOwnPropertyDescriptor(window, 'ethereum');
+        if (desc) {
+          if (typeof desc.get === 'function') {
+            return () => { try { return desc.get.call(window); } catch { return undefined; } };
+          }
+          if ('value' in desc) {
+            const stored = desc.value;
+            return () => stored;
+          }
+        }
+      } catch {}
+      try { return () => window.__walletProvider || window.ethereum || (window.phantom && window.phantom.ethereum) || undefined; } catch { return () => undefined; }
+    })();
+    Object.defineProperty(window, 'ethereum', {
+      configurable: true,
+      enumerable: true,
+      get() {
+        try {
+          const key = sessionStorage.getItem('walletProvider') || window.__walletProviderKey || '';
+          const injected = resolveInjectedProvider(key);
+          if (injected) {
+            setGlobalProvider(injected, key);
+            return injected;
+          }
+        } catch {}
+        return fallbackEthereumGetter();
+      },
+      set(value) {
+        fallbackEthereumGetter = () => value;\n      }
+    });
+    window.__ethereumPatched = true;
+  }
+} catch {}
+
 
 
 function resolveInjectedProvider(key) {
@@ -377,3 +415,4 @@ export { ethers };
 try { window.ethers = ethers; } catch {}
 // Expose connect for landing so the click handler can trigger wallet prompt immediately
 try { window.tavernConnectWallet = connectWallet; } catch {}
+
