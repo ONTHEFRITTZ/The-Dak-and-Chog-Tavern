@@ -1,930 +1,404 @@
-// Isolated Poker realtime server (standalone)
-// - Runs ONLY Poker on its own port (default: 3101)
-// - No shared imports or runtime state with Faro
+// Poker realtime server (on-chain limit, on-chain no-limit, off-chain sim)
+// Path (behind Nginx): /socket.io/   (Nginx maps /poker.io/ → /socket.io/ here)
+//
+// ENV:
+// - PORT                (default 3101)
+// - ADMIN_ADDR          (comma-separated lowercase addresses)
+// - GAME_TYPES          (optional; ignored here — poker-only)
+// - TABLE_CAPACITY      (default 8)
+// - SPAWN_THRESHOLD     (default 6) // when a table in a category reaches this many, create a new one
+// - PRUNE_IDLE_SEC      (default 60) // keep at least one table in category
+//
+// Bot policy: allowed ONLY in OFFCHAIN tables; auto-seat when exactly 1 human, auto-kick otherwise.
 
 const http = require('http');
 const { Server } = require('socket.io');
-const path = require('path');
 
-const PORT = process.env.PORT || 3101;
+const PORT = Number(process.env.PORT || 3101);
+const TABLE_CAPACITY = Math.max(2, Number(process.env.TABLE_CAPACITY || 8));
+const SPAWN_THRESHOLD = Math.min(TABLE_CAPACITY, Math.max(2, Number(process.env.SPAWN_THRESHOLD || 6)));
+const PRUNE_IDLE_SEC = Math.max(10, Number(process.env.PRUNE_IDLE_SEC || 60));
 
 const server = http.createServer((req, res) => {
   res.writeHead(200, { 'Content-Type': 'text/plain' });
   res.end('Poker realtime OK');
 });
 
-// Note: keep Socket.IO path at '/socket.io' — NGINX proxies /poker.io/ -> /socket.io
 const io = new Server(server, {
-  path: '/socket.io',
+  path: '/socket.io/',
   cors: { origin: true, methods: ['GET','POST'] },
 });
 
-const ADDR_ROOM_PREFIX = 'addr:';
+const admins = new Set(String(process.env.ADMIN_ADDR || '').toLowerCase().split(',').map(s=>s.trim()).filter(Boolean));
 
-// Minimal isolated state (no reuse)
-// tableId -> {
-//   id,
-//   seats: [null|{id,addr,ready,lastActive,socketId,chips:number}],
-//   lastActive,
-//   started?: boolean,
-//   poker?: {
-//     stage: 'preflop'|'flop'|'turn'|'river',
-//     deck: string[],
-//     community: string[],
-//     actors: Array<{ addr:string, seatId:number, folded:boolean, acted:boolean, contrib:number, cards?:string[] }>,
-//     dealerIndex:number, sbIndex:number, bbIndex:number,
-//     dealerSeatId:number,
-//     pot:number,
-//     toCall:number,
-//     turnIndex:number,
-//     startedAt:number,
-//     botTimer?: any,
-//   }
-// }
-const tables = new Map();
+/* ----------------------------- Tables & helpers ---------------------------- */
 
-function now() { return Date.now(); }
-function getTable(id) {
-  if (!tables.has(id)) {
-    // Default: no bot seated, dev bot disabled
-    tables.set(id, { id, seats: Array.from({length:8}, () => null), lastActive: now(), started: false, poker: null, devBotEnabled: false, simMode: false, _chain:{ settledKeys:new Set() } });
-  }
-  return tables.get(id);
-}
-function seatCount(t) { return t.seats.filter(Boolean).length; }
-function tablePublic(t) {
+const tables = new Map(); // id -> { id, kind, seats[], started, lastActive, poker, simulated, stakes, emptySince? }
+const KINDS = Object.freeze({
+  ONCHAIN_LIMIT:  'ONCHAIN_LIMIT',
+  ONCHAIN_NL:     'ONCHAIN_NL',
+  OFFCHAIN:       'OFFCHAIN',
+});
+
+function nowMs(){ return Date.now(); }
+function short(v){ return (v && v.length>10) ? (v.slice(0,6)+'...'+v.slice(-4)) : (v||''); }
+function seatCount(t){ return (t.seats||[]).filter(Boolean).length; }
+
+function publicRow(t){
   return {
     id: t.id,
-    seats: t.seats.map(s => s && ({ id: s.id, addr: s.addr, ready: !!s.ready, lastActive: Number(s.lastActive||0), chips: Number(s.chips||0) })),
-    started: !!t.started,
-    simulated: !!t.simMode,
-    devBotEnabled: !!t.devBotEnabled,
+    seated: seatCount(t),
+    capacity: TABLE_CAPACITY,
+    label: t.label || t.id,
   };
 }
-function emitLobby() {
-  const list = Array.from(tables.values()).map(t => ({ id: t.id, seated: seatCount(t), capacity: 8, started: false }));
-  io.emit('lobby:list', list.sort((a,b)=> a.id.localeCompare(b.id)));
+
+function makeId(kind, n){
+  const prefix = (kind===KINDS.ONCHAIN_LIMIT?'poker-onchain-limit'
+                : kind===KINDS.ONCHAIN_NL ? 'poker-onchain-nl'
+                : 'poker-offchain');
+  return `${prefix}-${n}`;
 }
-function emitUpdate(t) { io.to(t.id).emit('table:update', tablePublic(t)); }
 
-// Ensure at least one poker table exists
-getTable('poker-1');
+function nextIndexForKind(kind){
+  const nums = Array.from(tables.keys())
+    .map(id => {
+      const m = id.match(/-(\d+)$/);
+      return m ? Number(m[1]) : null;
+    }).filter(n => n!=null);
+  return (nums.length ? Math.max(...nums)+1 : 1);
+}
 
-// ---- Optional on-chain integration (env-gated) ----
-const ONCHAIN = {
-  enabled: (String(process.env.POKER_ONCHAIN||'').toLowerCase() === '1' || String(process.env.POKER_ONCHAIN||'').toLowerCase() === 'true'),
-  rpcUrl: process.env.POKER_RPC_URL || '',
-  privKey: process.env.POKER_PRIVATE_KEY || '',
-  tableAddr: process.env.POKER_TABLE_ADDRESS || process.env.POKER_TABLE || '',
-  ethers: null,
-  provider: null,
-  signer: null,
-  contract: null,
-  smallBlind: null,
-  ready: false,
-  error: null,
-};
+function listByKind(kind){
+  return Array.from(tables.values()).filter(t => t.kind === kind).sort((a,b)=>a.id.localeCompare(b.id));
+}
 
-async function ensureOnchain() {
-  if (!ONCHAIN.enabled) return false;
-  if (!ONCHAIN.rpcUrl || !ONCHAIN.privKey || !ONCHAIN.tableAddr) {
-    ONCHAIN.error = 'Missing POKER_RPC_URL/POKER_PRIVATE_KEY/POKER_TABLE_ADDRESS';
-    return false;
+function getOrCreate(kind, label){
+  const list = listByKind(kind);
+  if (list.length) return list[0];
+  const id = makeId(kind, 1);
+  const t = {
+    id, kind,
+    label: label || id,
+    seats: Array.from({length:TABLE_CAPACITY}, ()=>null),
+    started: false,
+    lastActive: nowMs(),
+    poker: null,
+    simulated: (kind === KINDS.OFFCHAIN),
+    stakes: (kind===KINDS.ONCHAIN_LIMIT) ? { limit:true, sb:3, bb:6 } : { limit:false },
+    emptySince: null,
+  };
+  tables.set(id, t);
+  return t;
+}
+
+function createNewTable(kind){
+  const n = nextIndexForKind(kind);
+  const id = makeId(kind, n);
+  const t = {
+    id, kind,
+    label: id,
+    seats: Array.from({length:TABLE_CAPACITY}, ()=>null),
+    started: false,
+    lastActive: nowMs(),
+    poker: null,
+    simulated: (kind === KINDS.OFFCHAIN),
+    stakes: (kind===KINDS.ONCHAIN_LIMIT) ? { limit:true, sb:3, bb:6 } : { limit:false },
+    emptySince: null,
+  };
+  tables.set(id, t);
+  return t;
+}
+
+/* --------------------------- Poker state (minimal) -------------------------- */
+
+function makeDeck(){
+  const ranks = ['2','3','4','5','6','7','8','9','T','J','Q','K','A'];
+  const suits = ['h','d','c','s'];
+  const deck = [];
+  for (const r of ranks) for (const s of suits) deck.push(r+s);
+  for (let i=deck.length-1; i>0; i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [deck[i],deck[j]] = [deck[j],deck[i]];
   }
-  try {
-    if (!ONCHAIN.ethers) { ONCHAIN.ethers = require('ethers'); }
-    if (!ONCHAIN.provider) { ONCHAIN.provider = new ONCHAIN.ethers.JsonRpcProvider(ONCHAIN.rpcUrl); }
-    if (!ONCHAIN.signer) { ONCHAIN.signer = new ONCHAIN.ethers.Wallet(ONCHAIN.privKey, ONCHAIN.provider); }
-    if (!ONCHAIN.contract) {
-      const meta = require(path.join(__dirname, '..', 'artifacts', 'HoldemPoker_metadata.json'));
-      const ABI = (meta && meta.output && meta.output.abi) ? meta.output.abi : [];
-      ONCHAIN.contract = new ONCHAIN.ethers.Contract(ONCHAIN.tableAddr, ABI, ONCHAIN.signer);
+  return deck;
+}
+
+function emitTableUpdate(t){ io.to(t.id).emit('table:update', { id:t.id, seats:t.seats.map(s=>s&&{id:s.id,addr:s.addr,ready:!!s.ready}), started:!!t.started, simulated:!!t.simulated }); }
+
+function startHand(t){
+  // minimal preflop w/ blinds; (no raises implemented in this server cut)
+  const actors = t.seats.map((s,i)=> s && ({ addr:s.addr, seatId:i, folded:false, acted:false, contrib:0 })).filter(Boolean);
+  if (actors.length < 2) return;
+
+  const deck = makeDeck();
+  const SB = 1, BB = 2;
+  const dealerIndex = 0;
+  const sbIndex = (dealerIndex + 1) % actors.length;
+  const bbIndex = (dealerIndex + 2) % actors.length;
+
+  actors[sbIndex].contrib = SB;
+  actors[bbIndex].contrib = BB;
+
+  const toCall = BB;
+  const pot = SB + BB;
+
+  actors.forEach(a => { a.cards = [deck.pop(), deck.pop()]; });
+
+  let turnIndex = (bbIndex + 1) % actors.length;
+  if (actors.length === 2) turnIndex = sbIndex;
+
+  t.poker = {
+    stage: 'preflop',
+    deck,
+    community: [],
+    actors,
+    dealerIndex, sbIndex, bbIndex,
+    toCall,
+    pot,
+    turnIndex,
+    startedAt: nowMs(),
+  };
+
+  // send hole cards privately
+  actors.forEach(a => {
+    try {
+      const seat = t.seats[a.seatId];
+      if (seat?.socketId){
+        io.to(seat.socketId).emit('poker:hole', { cards: Array.from(a.cards||[]), seatId: a.seatId, tableId: t.id });
+      }
+    } catch {}
+  });
+
+  // broadcast public state
+  io.to(t.id).emit('poker:state', {
+    stage: 'preflop',
+    pot, toCall,
+    community: [],
+    turnIndex,
+    dealerIndex,
+    actors: actors.map((a,i)=>({ addr:a.addr, seatId:a.seatId, folded:!!a.folded, acted:!!a.acted, contrib:Number(a.contrib||0), isDealer:(i===dealerIndex), isSB:(i===sbIndex), isBB:(i===bbIndex) })),
+    table: { id:t.id, seats:t.seats.map(s=>s&&{id:s.id,addr:s.addr,ready:!!s.ready}), simulated: !!t.simulated }
+  });
+}
+
+/* ------------------------- Category policy enforcement ---------------------- */
+
+function ensureCategory(kind){
+  // 1) Ensure at least one table exists
+  let list = listByKind(kind);
+  if (list.length === 0) createNewTable(kind);
+
+  // 2) Spawn new if any table reaches SPAWN_THRESHOLD seated
+  list = listByKind(kind);
+  const needSpawn = list.some(t => seatCount(t) >= SPAWN_THRESHOLD);
+  if (needSpawn) createNewTable(kind);
+
+  // 3) Prune: if two or more tables are empty, start aging and prune one after PRUNE_IDLE_SEC
+  list = listByKind(kind);
+  const empties = list.filter(t => seatCount(t) === 0);
+  const nonEmpties = list.filter(t => seatCount(t) > 0);
+
+  const now = nowMs();
+  empties.forEach(t => { if (!t.emptySince) t.emptySince = now; });
+
+  if (empties.length >= 2) {
+    // pick the oldest empty that aged long enough, but never prune to below 1 table
+    const pruneable = empties
+      .filter(t => (now - (t.emptySince||now)) >= PRUNE_IDLE_SEC*1000)
+      .sort((a,b)=> (a.emptySince||0) - (b.emptySince||0));
+    if (pruneable.length && list.length > 1) {
+      const victim = pruneable[0];
+      tables.delete(victim.id);
     }
-    if (ONCHAIN.smallBlind == null) {
-      try { ONCHAIN.smallBlind = await ONCHAIN.contract.smallBlind(); } catch {}
+  }
+
+  // Reset emptySince for tables that aren't empty anymore
+  nonEmpties.forEach(t => { t.emptySince = null; });
+}
+
+function enforceAllCategories(){
+  ensureCategory(KINDS.ONCHAIN_LIMIT);
+  ensureCategory(KINDS.ONCHAIN_NL);
+  ensureCategory(KINDS.OFFCHAIN);
+  emitLobbyFull();
+}
+
+/* ------------------------------ Bot management ----------------------------- */
+
+function humansAt(t){
+  return t.seats.filter(s=> s && typeof s.addr==='string' && !s.addr.startsWith('bot:')).length;
+}
+function botIndex(t){
+  return t.seats.findIndex(s=> s && typeof s.addr==='string' && s.addr.startsWith('bot:'));
+}
+
+function enforceBot(t){
+  if (t.kind !== KINDS.OFFCHAIN){
+    // never allow bot outside offchain
+    const bi = botIndex(t);
+    if (bi >= 0) t.seats[bi] = null;
+    return;
+  }
+  const h = humansAt(t);
+  const bi = botIndex(t);
+
+  if (h <= 0){
+    if (bi >= 0) t.seats[bi] = null;
+    return;
+  }
+
+  if (h === 1){
+    // ensure one bot seated
+    if (bi === -1){
+      const slot = t.seats.findIndex(s=>!s);
+      if (slot >= 0){
+        t.seats[slot] = { id: slot, addr: 'bot:auto', ready: false, balance: 0, lastActive: nowMs(), socketId: 'bot' };
+      }
     }
-    ONCHAIN.ready = !!ONCHAIN.contract;
-    return ONCHAIN.ready;
-  } catch (e) {
-    ONCHAIN.error = (e && e.message) || String(e);
-    return false;
+  } else {
+    // 2+ humans => remove bot
+    if (bi >= 0) t.seats[bi] = null;
   }
 }
 
-function chipsToWeiBN(chips) {
-  try {
-    if (ONCHAIN.smallBlind == null) return null;
-    // ethers v6 returns BigInt-like values; normalize via BigInt
-    const sb = BigInt(ONCHAIN.smallBlind.toString());
-    const c = BigInt(Math.max(0, Number(chips)|0));
-    return sb * c;
-  } catch { return null; }
+/* --------------------------------- Lobby ----------------------------------- */
+
+function emitLobbyFull(){
+  const pack = {
+    onchain: {
+      limit:  listByKind(KINDS.ONCHAIN_LIMIT).map(publicRow),
+      nolimit: listByKind(KINDS.ONCHAIN_NL).map(publicRow),
+    },
+    offchain: listByKind(KINDS.OFFCHAIN).map(publicRow),
+  };
+  io.emit('lobby:full', pack);
 }
 
-async function beginHandOnChainIfNeeded(tableId, t, dealerSeat, sbSeat, bbSeat) {
-  try {
-    if (!ONCHAIN.enabled || t.simMode) return true;
-    const ok = await ensureOnchain();
-    if (!ok) { console.warn('[onchain] disabled or not ready:', ONCHAIN.error); return false; }
-    const tx = await ONCHAIN.contract.beginHand(dealerSeat, sbSeat, bbSeat);
-    await tx.wait(1);
-    return true;
-  } catch (e) {
-    console.warn('[onchain] beginHand failed', e && e.message);
-    try { io.to(tableId).emit('system', 'On-chain begin failed. Try Ready again.'); } catch {}
-    return false;
-  }
-}
-
-async function settleHandOnChainIfNeeded(tableId, t, winners, amountsChips) {
-  try {
-    if (!ONCHAIN.enabled || t.simMode) return true;
-    const ok = await ensureOnchain();
-    if (!ok) { console.warn('[onchain] disabled or not ready:', ONCHAIN.error); return false; }
-    // Deduplicate by startedAt key if available
-    const key = String(t && t.poker && t.poker.startedAt || '') || String(Date.now());
-    t._chain = t._chain || { settledKeys: new Set() };
-    if (t._chain.settledKeys.has(key)) return true;
-    const addrs = winners.map(String);
-    const pays = amountsChips.map(c => chipsToWeiBN(c)).filter(v => v != null);
-    if (pays.length !== amountsChips.length) return false;
-    const tx = await ONCHAIN.contract.settleHand(addrs, pays);
-    await tx.wait(1);
-    t._chain.settledKeys.add(key);
-    return true;
-  } catch (e) {
-    console.warn('[onchain] settleHand failed', e && e.message);
-    try { io.to(tableId).emit('system', 'On-chain settlement failed. Retrying or contact support.'); } catch {}
-    return false;
-  }
-}
+/* --------------------------------- Sockets --------------------------------- */
 
 io.on('connection', (socket) => {
   let currentTableId = null;
   let addrLower = null;
 
   socket.on('identify', (m) => {
-    try { addrLower = String(m?.addr||'').toLowerCase(); } catch {}
-    try { if (addrLower) socket.join(ADDR_ROOM_PREFIX + addrLower); } catch {}
-    // If this socket belongs to an already seated player, refresh their seat.socketId
-    try {
-      if (addrLower) {
-        for (const [tid, t] of tables) {
-          const i = t.seats.findIndex(s => s && s.addr === addrLower);
-          if (i >= 0) { t.seats[i].socketId = socket.id; t.lastActive = now(); emitUpdate(t); }
-        }
-      }
-    } catch {}
-    socket.emit('rt:state', { ok: true, game: 'POKER' });
+    try { addrLower = String(m.addr||'').toLowerCase(); } catch {}
   });
 
-  socket.on('lobby:get', () => { try { emitLobby(); } catch {} });
-  // Allow client to request current poker state snapshot
-  socket.on('poker:get', () => {
-    try {
-      if (!currentTableId) return;
-      const t = getTable(currentTableId);
-      if (t && t.poker) emitPokerState(currentTableId, t);
-    } catch {}
-  });
-
-  // Allow client to request a fresh snapshot of a table immediately
-  socket.on('table:get', (m) => {
-    try {
-      const req = String(m?.table||m?.tableId||'poker-1');
-      const tableId = tables.has(req) ? req : 'poker-1';
-      const t = getTable(tableId);
-      // Refresh seat.socketId for this table if already seated under this address
-      try { if (addrLower) { const i = t.seats.findIndex(s => s && s.addr === addrLower); if (i >= 0) t.seats[i].socketId = socket.id; } } catch {}
-      socket.emit('table:update', tablePublic(t));
-    } catch {}
+  socket.on('lobby:get_full', () => {
+    try { enforceAllCategories(); } catch {}
   });
 
   socket.on('join_table', (m) => {
     try {
-      const req = String(m?.table||m?.tableId||'poker-1');
-      const tableId = tables.has(req) ? req : 'poker-1';
+      const req = String(m.table||m.tableId||'').trim();
+      let t = req && tables.get(req);
+      if (!t){
+        // default: prefer onchain limit
+        t = getOrCreate(KINDS.ONCHAIN_LIMIT);
+      }
       if (currentTableId) socket.leave(currentTableId);
-      currentTableId = tableId;
-      socket.join(tableId);
-      const t = getTable(tableId);
-      // Universal clean state on page load: if no hand is active, never keep a bot seated
-      try {
-        if (!t.poker) {
-          let changed = false;
-          for (let i=0;i<t.seats.length;i++){
-            const s=t.seats[i]; if (s && typeof s.addr==='string' && s.addr.startsWith('bot:')) { t.seats[i]=null; changed=true; }
-          }
-          if (t.devBotEnabled) { t.devBotEnabled = false; changed = true; }
-          if (t.simMode) { t.simMode = false; changed = true; }
-          if (changed) { io.to(tableId).emit('poker:mode', { simulated: false }); }
-        }
-      } catch {}
-      try {
-        if (!t.devBotEnabled) {
-          for (let i = 0; i < t.seats.length; i++) {
-            const s = t.seats[i];
-            if (s && typeof s.addr === 'string' && s.addr.startsWith('bot:')) {
-              t.seats[i] = null;
-            }
-          }
-        }
-      } catch {}
-      t.lastActive = now();
-      emitUpdate(t);
-      io.to(tableId).emit('system', `joined ${tableId}`);
-      emitLobby();
+      currentTableId = t.id;
+      socket.join(t.id);
+      t.lastActive = nowMs();
+      emitTableUpdate(t);
+      // after any join, refresh lobby
+      emitLobbyFull();
     } catch {}
   });
 
   socket.on('seat', (m) => {
     try {
       if (!currentTableId) return;
-      const t = getTable(currentTableId);
-      const idx = Number(m?.index);
-      if (idx === -1) {
-        const cur = t.seats.findIndex(s => s && (s.addr === addrLower || s.socketId === socket.id));
-        if (cur >= 0) t.seats[cur] = null;
-      } else if (idx >= 0 && idx < t.seats.length) {
-        // Enforce single seat per address/socket
-        try { const cur = t.seats.findIndex(s => s && (s.addr === addrLower || s.socketId === socket.id)); if (cur >= 0) t.seats[cur] = null; } catch {}
-        if (!t.seats[idx]) t.seats[idx] = { id: idx, addr: addrLower || null, ready: false, lastActive: now(), socketId: socket.id, chips: 100 };
-        if (!t.started) {
-          t.started = true;
+      const t = tables.get(currentTableId); if (!t) return;
+      const idx = Number(m.index);
+      const before = seatCount(t);
+
+      if (idx === -1){
+        const curIdx = t.seats.findIndex(s => s && s.addr === addrLower);
+        if (curIdx >= 0) { t.seats[curIdx] = null; }
+      } else if (idx >= 0 && idx < TABLE_CAPACITY){
+        if (!t.seats[idx]) {
+          t.seats[idx] = { id: idx, addr: addrLower, ready: false, balance: 0, lastActive: nowMs(), socketId: socket.id };
         }
       }
-      // Enforce bot policy: bot only active when exactly one human seated and devBotEnabled
-      try {
-        const humans = t.seats.filter(s => s && typeof s.addr === 'string' && !s.addr.startsWith('bot:')).length;
-        const botIdx = t.seats.findIndex(s => s && typeof s.addr === 'string' && s.addr.startsWith('bot:'));
-        if (humans >= 2 && botIdx >= 0) {
-          // Kick the bot and hard reset any simulated hand so on-chain mode can start cleanly
-          t.seats[botIdx] = null; t.devBotEnabled = false; t.simMode = false;
-          // If a hand is active, clear it and notify clients to clear the board
-          if (t.poker) {
-            try {
-              const board = Array.from(t.poker.community||[]);
-              io.to(currentTableId).emit('poker:hand', { winners: [], community: board, exposures: [], pot: t.poker.pot||0, table: tablePublic(t) });
-            } catch {}
-            try { const timers = t.poker && t.poker.simTimers; if (Array.isArray(timers)) timers.forEach(id=>{ try{ clearTimeout(id); }catch{} }); } catch {}
-            t.poker = null;
-          }
-          // Force all seats to unready; players will ready up for on-chain play
-          try { t.seats.filter(Boolean).forEach(s => { s.ready = false; }); } catch {}
-          io.to(currentTableId).emit('poker:mode', { simulated: false });
-          io.to(currentTableId).emit('system', 'Second player joined. Sim mode ended. Ready up for on-chain play.');
-        } else if (humans === 1 && t.devBotEnabled && botIdx === -1) {
-          const slot = t.seats.findIndex(s => !s);
-          if (slot >= 0) {
-            t.seats[slot] = { id: slot, addr: 'bot:dev', ready: true, balance: 0, lastActive: now(), socketId: 'bot', chips: 100 };
-            t.simMode = true;
-            io.to(currentTableId).emit('poker:mode', { simulated: true });
-            io.to(currentTableId).emit('system', 'Simulated mode enabled (bot joined).');
-          }
-        }
-      } catch {}
-      // If no humans remain, fully reset table state and ensure no bot remains
-      try {
-        const humansNow = t.seats.filter(s => s && typeof s.addr === 'string' && !s.addr.startsWith('bot:')).length;
-        if (humansNow === 0) {
-          // Clear any active hand and notify clients to clear board
-          if (t.poker) {
-            try {
-              const board = Array.from(t.poker.community||[]);
-              io.to(currentTableId).emit('poker:hand', { winners: [], community: board, exposures: [], pot: t.poker.pot||0, table: tablePublic(t) });
-            } catch {}
-            t.poker = null;
-          }
-          // Remove any bot and disable sim/dev flags
-          for (let i = 0; i < t.seats.length; i++) {
-            const s = t.seats[i]; if (s && typeof s.addr === 'string' && s.addr.startsWith('bot:')) { t.seats[i] = null; }
-          }
-          t.devBotEnabled = false; t.simMode = false;
-          io.to(currentTableId).emit('poker:mode', { simulated: false });
-        }
-      } catch {}
-      t.lastActive = now();
-      emitUpdate(t);
-      emitLobby();
+
+      // bot rules + category housekeeping
+      enforceBot(t);
+      t.lastActive = nowMs();
+
+      const after = seatCount(t);
+      if (!t.started && before===0 && after>0) t.started = true;
+
+      emitTableUpdate(t);
+      enforceAllCategories();
     } catch {}
   });
 
   socket.on('ready', (m) => {
     try {
       if (!currentTableId) return;
-      const t = getTable(currentTableId);
-      const si = t.seats.findIndex(x => x && (x.addr === addrLower || x.socketId === socket.id));
-      if (si >= 0) { t.seats[si].ready = !!m?.ready; t.seats[si].lastActive = now(); }
-      // If dev bot is enabled, ensure bot present and marked ready to allow solo starts
-      try {
-        if (t.devBotEnabled) {
-          let botIdx = t.seats.findIndex(u => u && typeof u.addr === 'string' && u.addr.startsWith('bot:'));
-          if (botIdx === -1) {
-            const slot = t.seats.findIndex(u => !u);
-            if (slot >= 0) { t.seats[slot] = { id: slot, addr: 'bot:dev', ready: true, balance: 0, lastActive: now(), socketId: 'bot', chips: 100 }; botIdx = slot; }
-          } else {
-            try { t.seats[botIdx].ready = true; } catch {}
-          }
-          // Enable simulated mode flag and notify clients
-          t.simMode = true; io.to(currentTableId).emit('poker:mode', { simulated: true });
+      const t = tables.get(currentTableId); if (!t) return;
+      const s = t.seats.find(x => x && x.addr === addrLower);
+      if (s) { s.ready = !!m.ready; s.lastActive = nowMs(); }
+
+      // if single human + bot in OFFCHAIN, mirror bot's ready to the human's to avoid double-toggle
+      if (t.kind === KINDS.OFFCHAIN){
+        const hCount = humansAt(t);
+        const bi = botIndex(t);
+        if (hCount === 1 && bi >= 0){
+          t.seats[bi].ready = !!m.ready;
         }
-      } catch {}
-      t.lastActive = now();
-      emitUpdate(t);
-      // If all seated are ready, and at least 2 players, start a hand
+      }
+
+      t.lastActive = nowMs();
+      emitTableUpdate(t);
+
       const active = t.seats.filter(Boolean);
       const allReady = active.length && active.every(x => !!x.ready);
-      // Robust: if solo vs bot, start immediately once human clicked Ready and bot is present
-      try {
-        const humans = t.seats.filter(u => u && typeof u.addr === 'string' && !u.addr.startsWith('bot:')).length;
-        const botPresent = t.seats.some(u => u && typeof u.addr === 'string' && u.addr.startsWith('bot:'));
-        if (!t.poker && botPresent && humans === 1) {
-          startPokerHand(currentTableId, t);
-          return;
-        }
-      } catch {}
-      if (allReady && active.length >= 2 && !t.poker) {
-        startPokerHand(currentTableId, t);
-      }
-    } catch {}
-  });
 
-  socket.on('health', () => { try { socket.emit('health', { ok: true, now: Date.now(), game: 'POKER' }); } catch {} });
-
-  // Toggle a simple dev bot to enable solo testing
-  socket.on('poker:devbot', (m) => {
-    try {
-      if (!currentTableId) return;
-      const t = getTable(currentTableId);
-      const enabled = !!m?.enabled;
-      // Allow enabling only when exactly one human is seated at this table
-      const humans = t.seats.filter(s => s && typeof s.addr === 'string' && !s.addr.startsWith('bot:')).length;
-      if (enabled && humans !== 1) {
-        // Reject enabling when not solo
-        t.devBotEnabled = false;
-        io.to(currentTableId).emit('poker:mode', { simulated: false });
-        io.to(currentTableId).emit('system', 'Dev Bot can only be enabled when you are alone at the table.');
-        emitUpdate(t); emitLobby();
-        return;
+      if (allReady && active.length >= 2 && !t.poker){
+        startHand(t);
       }
-      t.devBotEnabled = enabled;
-      const botIdx = t.seats.findIndex(s => s && typeof s.addr === 'string' && s.addr.startsWith('bot:'));
-      if (enabled) {
-        if (botIdx === -1) {
-          const slot = t.seats.findIndex(s => !s);
-          if (slot >= 0) {
-            t.seats[slot] = { id: slot, addr: 'bot:dev', ready: true, balance: 0, lastActive: now(), socketId: 'bot', chips: 100 };
-          }
-        } else {
-          try { t.seats[botIdx].ready = true; } catch {}
-        }
-        t.simMode = true;
-        io.to(currentTableId).emit('poker:mode', { simulated: true });
-        io.to(currentTableId).emit('system', 'Simulated mode: on-chain betting disabled while bot is active.');
-      } else {
-        if (botIdx >= 0) t.seats[botIdx] = null;
-        try { if (t.poker?.botTimer) { clearTimeout(t.poker.botTimer); t.poker.botTimer = null; } } catch {}
-        t.simMode = false;
-        io.to(currentTableId).emit('poker:mode', { simulated: false });
-        io.to(currentTableId).emit('system', 'Simulated mode disabled.');
-      }
-      t.lastActive = now();
-      emitUpdate(t);
-      emitLobby();
-    } catch {}
-  });
-
-  // Minimal Texas Hold'em flow (fold/check/call only)
-  socket.on('poker:act', (m) => {
-    try {
-      if (!currentTableId) return;
-      const t = getTable(currentTableId);
-      const state = t.poker; if (!state) return;
-      const turn = state.turnIndex;
-      const actor = state.actors?.[turn];
-      if (!actor) return;
-      // Permission: either address matches, or the seat's socketId matches this socket
-      try {
-        const seat = t.seats[actor.seatId];
-        const allowed = (actor.addr === addrLower) || (seat && seat.socketId === socket.id);
-        if (!allowed) return;
-      } catch { return; }
-      const action = String(m?.action||'').toLowerCase();
-      const amount = Math.max(0, Number(m?.amount||0)|0);
-      const need = Math.max(0, Number(state.toCall||0) - Number(actor.contrib||0));
-      const minRaise = Math.max(state.minRaise||state.bb||2, 1);
-      const canAct = !actor.allIn && !actor.folded;
-      if (!canAct) return;
-      if (action === 'fold') {
-        actor.folded = true; actor.acted = true;
-        const alive = state.actors.filter(a => !a.folded);
-        if (alive.length === 1) { endPokerByShowdown(currentTableId, t, alive.map(a => a.addr)); return; }
-      } else if (action === 'check') {
-        if (need > 0) return; // cannot check facing a bet
-        actor.acted = true;
-      } else if (action === 'call') {
-        const pay = Math.min(need, actor.stack);
-        actor.stack -= pay; actor.contrib = Number(actor.contrib||0) + pay; actor.invested = Number(actor.invested||0) + pay; actor.acted = true;
-        if (actor.stack === 0) actor.allIn = true;
-      } else if (action === 'bet') {
-        if (state.toCall > 0) return; // bet only when no bet
-        let betAmt = Math.max(amount, state.bb||2);
-        betAmt = Math.min(betAmt, actor.stack);
-        if (betAmt <= 0) return;
-        actor.stack -= betAmt; actor.contrib = Number(actor.contrib||0) + betAmt; actor.invested = Number(actor.invested||0) + betAmt; actor.acted = true;
-        state.toCall = actor.contrib;
-        state.lastAgg = betAmt;
-        state.minRaise = betAmt; // next raise must be at least this size
-        if (actor.stack === 0) actor.allIn = true;
-        // reset others acted=false to continue round
-        state.actors.forEach((a,i)=>{ if (i!==state.turnIndex && !a.folded && !a.allIn) a.acted = false; });
-      } else if (action === 'raise') {
-        if (state.toCall <= 0) return; // must be facing a bet
-        let raiseBy = Math.max(amount, minRaise);
-        let target = Number(state.toCall||0) + raiseBy;
-        let needCall = Math.max(0, Number(state.toCall||0) - Number(actor.contrib||0));
-        let totalPay = needCall + raiseBy;
-        if (totalPay > actor.stack) {
-          // all-in raise; set target to actor.contrib + stack
-          totalPay = actor.stack; target = Number(actor.contrib||0) + totalPay; raiseBy = Math.max(0, target - Number(state.toCall||0));
-        }
-        if (totalPay <= needCall) return; // must raise beyond call
-        actor.stack -= totalPay; actor.contrib = Number(actor.contrib||0) + totalPay; actor.invested = Number(actor.invested||0) + totalPay; actor.acted = true;
-        if (actor.stack === 0) actor.allIn = true;
-        state.toCall = target;
-        state.lastAgg = raiseBy;
-        state.minRaise = Math.max(raiseBy, minRaise);
-        state.actors.forEach((a,i)=>{ if (i!==state.turnIndex && !a.folded && !a.allIn) a.acted = false; });
-      } else {
-        return;
-      }
-      // advance turn to next active non-folded
-      state.turnIndex = nextActiveIndex(state.actors, state.turnIndex);
-      if (bettingRoundComplete(state)) { advancePokerStage(currentTableId, t); return; }
-      emitPokerState(currentTableId, t);
-      maybeTriggerBot(currentTableId, t);
     } catch {}
   });
 
   socket.on('disconnect', () => {
     try {
-      for (const [id, t] of tables) {
+      if (!addrLower) return;
+      for (const [, t] of tables.entries()){
         let changed = false;
-        for (let i = 0; i < t.seats.length; i++) {
+        for (let i=0;i<t.seats.length;i++){
           const s = t.seats[i];
-          if (!s) continue;
-          if ((addrLower && s.addr === addrLower) || s.socketId === socket.id) {
-            t.seats[i] = null; changed = true;
+          if (s && (s.addr === addrLower || s.socketId === socket.id)){
+            t.seats[i] = null;
+            changed = true;
           }
         }
-        // If table lost a player, enforce bot policy and clear any dangling hand when no humans remain
-        if (changed) {
-          try {
-            const humans = t.seats.filter(s => s && typeof s.addr === 'string' && !s.addr.startsWith('bot:')).length;
-            // Remove bot when 0 humans, and reset simulated flags
-            if (humans === 0) {
-              if (t.poker) {
-                try { io.to(id).emit('poker:hand', { winners: [], community: Array.from(t.poker.community||[]), exposures: [], pot: t.poker.pot||0, table: tablePublic(t) }); } catch {}
-                t.poker = null;
-              }
-              for (let j=0;j<t.seats.length;j++) { const u=t.seats[j]; if (u && typeof u.addr==='string' && u.addr.startsWith('bot:')) t.seats[j]=null; }
-              t.devBotEnabled = false; t.simMode = false; io.to(id).emit('poker:mode', { simulated:false });
-            }
-            // If 2+ humans remain, also ensure bot is removed
-            if (humans >= 2) {
-              for (let j=0;j<t.seats.length;j++) { const u=t.seats[j]; if (u && typeof u.addr==='string' && u.addr.startsWith('bot:')) t.seats[j]=null; }
-              t.devBotEnabled = false; t.simMode = false; io.to(id).emit('poker:mode', { simulated:false });
-            }
-          } catch {}
-          t.lastActive = now();
-          emitUpdate(t); emitLobby();
+        if (changed){
+          enforceBot(t);
+          t.lastActive = nowMs();
+          emitTableUpdate(t);
         }
       }
+      enforceAllCategories();
     } catch {}
+  });
+
+  // Admin minimal
+  socket.on('admin:shutdown', () => {
+    try { if (!admins.has(addrLower)) return; setTimeout(()=>process.exit(0), 100); } catch {}
   });
 });
 
-setInterval(() => { try { emitLobby(); } catch {} }, 15_000);
+/* ------------------------------ Background jobs ---------------------------- */
 
-server.listen(PORT, () => console.log('Poker RT on', PORT));
+setInterval(() => {
+  try { enforceAllCategories(); } catch {}
+}, 10_000);
 
-// ---------------- Poker helpers and state machine (minimal) -----------------
-function makeDeck() {
-  const ranks = ['2','3','4','5','6','7','8','9','T','J','Q','K','A'];
-  const suits = ['h','d','c','s'];
-  const deck = [];
-  for (const r of ranks) for (const s of suits) deck.push(r + s);
-  for (let i = deck.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [deck[i], deck[j]] = [deck[j], deck[i]]; }
-  return deck;
-}
+/* --------------------------------- Listen ---------------------------------- */
 
-function emitPokerState(tableId, t) {
-  try {
-    const state = t.poker; if (!state) return;
-    const pubActors = state.actors.map((a, i) => ({ addr: a.addr, seatId: a.seatId, folded: !!a.folded, acted: !!a.acted, contrib: Number(a.contrib||0), stack: Number(a.stack||0), allIn: !!a.allIn, isDealer: (i===state.dealerIndex), isSB: (i===state.sbIndex), isBB: (i===state.bbIndex) }));
-    let turnSocketId = null;
-    try {
-      const cur = state.actors?.[state.turnIndex];
-      const seat = cur ? t.seats[cur.seatId] : null;
-      turnSocketId = seat ? seat.socketId || null : null;
-    } catch {}
-    io.to(tableId).emit('poker:state', {
-      stage: state.stage,
-      pot: Number(state.pot||0),
-      toCall: Number(state.toCall||0),
-      minRaise: Number(state.minRaise||0),
-      community: Array.from(state.community||[]),
-      turnIndex: state.turnIndex,
-      turnAddr: state.actors?.[state.turnIndex]?.addr || null,
-      turnSocketId,
-      dealerIndex: state.dealerIndex,
-      actors: pubActors,
-      table: tablePublic(t),
-    });
-  } catch {}
-}
-
-function nextActiveIndex(actors, from) {
-  if (!actors.length) return -1;
-  let i = (from + 1) % actors.length;
-  let spins = 0;
-  while (spins < actors.length) { if (!actors[i]?.folded) return i; i = (i + 1) % actors.length; spins++; }
-  return -1;
-}
-
-function bettingRoundComplete(state) {
-  const target = Number(state.toCall||0);
-  return state.actors.filter(a => !a.folded && !a.allIn).every(a => a.acted && Number(a.contrib||0) === target);
-}
-
-async function startPokerHand(tableId, t) {
-  try {
-    const seated = t.seats.map((s,i)=> s && ({ seatId:i, addr:s.addr })).filter(Boolean);
-    if (seated.length < 2) return;
-    const prev = t.poker?.dealerSeatId;
-    let dealerSeatId;
-    if (typeof prev === 'number') { const idx = seated.findIndex(x => x.seatId === prev); dealerSeatId = seated[(idx >= 0 ? (idx + 1) % seated.length : 0)].seatId; }
-    else { dealerSeatId = seated[0].seatId; }
-    const startIdx = seated.findIndex(x => x.seatId === dealerSeatId);
-    const ordered = seated.slice(startIdx).concat(seated.slice(0, startIdx));
-    const actors = ordered.map(p => ({ addr:p.addr, seatId:p.seatId, folded:false, acted:false, contrib:0, stack:0, allIn:false, invested:0 }));
-    const deck = makeDeck();
-    const community = [];
-    const SB = 1, BB = 2;
-    const dealerIndex = 0;
-    const sbIndex = (dealerIndex + 1) % actors.length;
-    const bbIndex = (dealerIndex + 2) % actors.length;
-    // Initialize stacks from seats and post blinds from stacks
-    actors.forEach(a => { const seat=t.seats[a.seatId]; a.stack = Math.max(0, Number(seat?.chips||0)); a.contrib=0; a.acted=false; a.folded=false; a.allIn=false; });
-    const postSB = Math.min(SB, actors[sbIndex].stack); actors[sbIndex].stack -= postSB; actors[sbIndex].contrib = postSB; actors[sbIndex].invested += postSB; if (actors[sbIndex].stack===0) actors[sbIndex].allIn = true;
-    const postBB = Math.min(BB, actors[bbIndex].stack); actors[bbIndex].stack -= postBB; actors[bbIndex].contrib = postBB; actors[bbIndex].invested += postBB; if (actors[bbIndex].stack===0) actors[bbIndex].allIn = true;
-    let toCall = Math.max(actors[sbIndex].contrib, actors[bbIndex].contrib);
-    let pot = postSB + postBB;
-    actors.forEach(a => { a.cards = [deck.pop(), deck.pop()]; });
-    let turnIndex = (bbIndex + 1) % actors.length; if (actors.length === 2) turnIndex = sbIndex;
-    t.poker = { stage:'preflop', deck, community, actors, dealerIndex, sbIndex, bbIndex, dealerSeatId, pot, toCall, sb:SB, bb:BB, minRaise:BB, lastAgg:BB, turnIndex, startedAt: now() };
-    // On-chain begin (non-sim mode) before dealing
-    try {
-      if (!(t.simMode)) {
-        const ok = await beginHandOnChainIfNeeded(tableId, t, dealerSeatId, actors[sbIndex].seatId, actors[bbIndex].seatId);
-        if (!ok) { t.poker = null; return; }
-      }
-    } catch {}
-    emitPokerState(tableId, t);
-    // Send private hole cards to each player address room
-    try {
-      actors.forEach(a => {
-        const room = ADDR_ROOM_PREFIX + String(a.addr||'');
-        io.to(room).emit('poker:cards', { tableId, hole: Array.from(a.cards||[]) });
-      });
-    } catch {}
-    maybeTriggerBot(tableId, t);
-    // Solo play should progress via normal betting (no auto-simulation)
-  } catch {}
-}
-
-function advancePokerStage(tableId, t) {
-  try {
-    const state = t.poker; if (!state) return;
-    const actors = state.actors;
-    // Add current contribs to pot, reset round
-    try { const add = actors.reduce((s,a)=> s + Number(a.contrib||0), 0); state.pot = Number(state.pot||0) + add; } catch {}
-    actors.forEach(a => { a.acted = false; a.contrib = 0; });
-    state.toCall = 0; state.lastAgg = 0; state.minRaise = state.bb||2;
-    if (state.stage === 'preflop') { state.community.push(state.deck.pop(), state.deck.pop(), state.deck.pop()); state.stage = 'flop'; }
-    else if (state.stage === 'flop') { state.community.push(state.deck.pop()); state.stage = 'turn'; }
-    else if (state.stage === 'turn') { state.community.push(state.deck.pop()); state.stage = 'river'; }
-    else if (state.stage === 'river') {
-    // Final add of contribs then showdown with side pots
-      try { const add2 = actors.reduce((s,a)=> s + Number(a.contrib||0), 0); state.pot = Number(state.pot||0) + add2; } catch {}
-      endPokerWithSidePots(tableId, t);
-      return;
-    }
-    let idx = (state.dealerIndex + 1) % actors.length; // left of dealer
-    let spins = 0; while (actors[idx]?.folded && spins < actors.length) { idx = (idx + 1) % actors.length; spins++; }
-    state.turnIndex = idx;
-    emitPokerState(tableId, t);
-    maybeTriggerBot(tableId, t);
-    // Solo play should progress via normal betting (no auto-simulation)
-  } catch {}
-}
-
-// Fallback guard: if solo vs bot and stage did not advance from preflop within 1.6s, force progress
-function ensureSoloProgressFallback(tableId, t) {
-  try {
-    const state = t.poker; if (!state) return;
-    const seats = t.seats || [];
-    const humans = seats.filter(s => s && typeof s.addr === 'string' && !String(s.addr).startsWith('bot:')).length;
-    const botPresent = seats.some(s => s && typeof s.addr === 'string' && String(s.addr).startsWith('bot:'));
-    if (!(botPresent && humans === 1)) return;
-    setTimeout(() => { try { const st = t.poker; if (st && st.stage === 'preflop') advancePokerStage(tableId, t); } catch {} }, 1600);
-  } catch {}
-}
-
-// Utility: detect 1 human + at least 1 bot
-function isSoloVsBot(t) {
-  try {
-    const seats = t.seats || [];
-    const humans = seats.filter(s => s && typeof s.addr === 'string' && !String(s.addr).startsWith('bot:')).length;
-    const botPresent = seats.some(s => s && typeof s.addr === 'string' && String(s.addr).startsWith('bot:'));
-    return botPresent && humans === 1;
-  } catch { return false; }
-}
-
-// Simulate check/call flow for solo vs bot so betting rounds complete naturally
-function simResolveBetting(tableId, t) {
-  try {
-    const state = t.poker; if (!state) return;
-    if (!isSoloVsBot(t)) return;
-    if (bettingRoundComplete(state)) { advancePokerStage(tableId, t); return; }
-    const turn = state.turnIndex;
-    const actor = state.actors?.[turn]; if (!actor) return;
-    const need = Math.max(0, Number(state.toCall||0) - Number(actor.contrib||0));
-    const isBot = typeof actor.addr === 'string' && actor.addr.startsWith('bot:');
-    // Default behavior: if facing no bet, check; otherwise call up to need (or all-in)
-    const act = () => {
-      if (need === 0) {
-        actor.acted = true;
-      } else {
-        const pay = Math.min(need, actor.stack);
-        actor.stack -= pay; actor.contrib = Number(actor.contrib||0) + pay; actor.invested = Number(actor.invested||0) + pay; actor.acted = true;
-        if (actor.stack === 0) actor.allIn = true;
-      }
-      state.turnIndex = nextActiveIndex(state.actors, state.turnIndex);
-      emitPokerState(tableId, t);
-      if (bettingRoundComplete(state)) { advancePokerStage(tableId, t); return; }
-      setTimeout(() => { try { simResolveBetting(tableId, t); } catch {} }, 350);
-    };
-    // Small delay for UX, a touch longer for bot to look natural
-    setTimeout(act, isBot ? 420 : 320);
-  } catch {}
-}
-
-// Force-complete the current betting round in solo vs bot by simulating calls/checks for all actors
-function forceCompleteRound(tableId, t, delayMs) {
-  try {
-    const state = t.poker; if (!state) return;
-    setTimeout(() => {
-      try {
-        const st = t.poker; if (!st) return;
-        if (!isSoloVsBot(t)) return;
-        if (bettingRoundComplete(st)) return;
-        const target = Number(st.toCall||0);
-        st.actors.forEach((a) => {
-          if (a.folded || a.allIn) return;
-          const need = Math.max(0, target - Number(a.contrib||0));
-          if (need > 0) {
-            const pay = Math.min(need, a.stack);
-            a.stack -= pay; a.contrib = Number(a.contrib||0) + pay; a.invested = Number(a.invested||0) + pay; if (a.stack===0) a.allIn = true;
-          }
-          a.acted = true;
-        });
-        emitPokerState(tableId, t);
-        if (bettingRoundComplete(st)) advancePokerStage(tableId, t);
-      } catch {}
-    }, Math.max(0, Number(delayMs)||0));
-  } catch {}
-}
-
-function endPokerByShowdown(tableId, t, winnerAddrs) {
-  try {
-    const state = t.poker; if (!state) return;
-    const winners = Array.isArray(winnerAddrs)&&winnerAddrs.length ? winnerAddrs : [];
-    const each = winners.length ? Math.floor(Number(state.pot||0)/winners.length) : 0;
-    winners.forEach(addr => {
-      const i = state.actors.findIndex(a => a.addr === addr);
-      if (i>=0) state.actors[i].stack = Number(state.actors[i].stack||0) + each;
-    });
-    // write back stacks to seats
-    state.actors.forEach(a => { const seat = t.seats[a.seatId]; if (seat) seat.chips = Number(a.stack||0); });
-    // compute used cards for winners for client highlight
-    const board = Array.from(state.community||[]);
-    const winnerList = winners.map(addr => {
-      const i = state.actors.findIndex(a => a.addr === addr);
-      const hole = i>=0 ? Array.from(state.actors[i].cards||[]) : [];
-      const used = bestFiveUsed(hole, board);
-      return { addr, amount: each, usedHole: used.usedHole, usedCommunity: used.usedCommunity };
-    });
-    // On-chain settlement (non-sim) before broadcasting
-    try {
-      if (!t.simMode) {
-        const addrs = Array.from(winners||[]);
-        const amts = addrs.map(()=> each);
-        await settleHandOnChainIfNeeded(tableId, t, addrs, amts);
-      }
-    } catch {}
-    io.to(tableId).emit('poker:hand', { winners: winnerList, community: board, pot: state.pot||0, table: tablePublic(t) });
-    // Clear any sim timers
-    try { const timers = t.poker && t.poker.simTimers; if (Array.isArray(timers)) timers.forEach(id=>{ try{ clearTimeout(id); }catch{} }); } catch {}
-    t.poker = null;
-    try { t.seats.filter(Boolean).forEach(s => { s.ready = false; }); } catch {}
-    emitUpdate(t);
-  } catch {}
-}
-
-async function endPokerWithSidePots(tableId, t) {
-  try {
-    const state = t.poker; if (!state) return;
-    const actors = state.actors;
-    // Build levels from total invested (including folded) > 0
-    const levels = Array.from(new Set(actors.map(a => Number(a.invested||0)).filter(v=>v>0))).sort((a,b)=>a-b);
-    const board = Array.from(state.community||[]);
-    const payouts = new Array(actors.length).fill(0);
-    let prev = 0;
-    for (const L of levels) {
-      const seg = L - prev; if (seg <= 0) { prev = L; continue; }
-      // Amount in this segment from each player is min(max(invested-prev,0), seg)
-      const contributors = actors.map((a,i)=>({i, amt: Math.max(0, Math.min(seg, Number(a.invested||0) - prev)) })).filter(x=>x.amt>0);
-      if (!contributors.length) { prev = L; continue; }
-      const potAmt = contributors.reduce((s,x)=> s + x.amt, 0);
-      // Eligible winners: not folded and invested > prev
-      const elig = actors.map((a,i)=>({i, a})).filter(x => !x.a.folded && Number(x.a.invested||0) > prev);
-      if (!elig.length) { prev = L; continue; }
-      const holeArr = elig.map(x => x.a.cards);
-      const idxArr = elig.map(x => x.i);
-      let winIdxs = determineWinners(holeArr, idxArr, board);
-      // Enforce site split rule: only split if identical hole ranks
-      try {
-        if (winIdxs.length > 1) {
-          const tuples = winIdxs.map((idx, k) => ({ i: idx, t: holeRankTuple(holeArr[k]||[]) })).filter(x=>Array.isArray(x.t));
-          if (tuples.length === winIdxs.length) {
-            const same = allEqual(tuples.map(x=>x.t), (a,b)=> a[0]===b[0] && a[1]===b[1]);
-            if (!same) {
-              // Pick the highest hole rank tuple (lex desc); if ties remain (identical ranks), those can split
-              tuples.sort((x,y)=> cmpTupleDesc(x.t, y.t));
-              const bestT = tuples[0].t;
-              winIdxs = tuples.filter(x=> x.t[0]===bestT[0] && x.t[1]===bestT[1]).map(x=> x.i);
-            }
-          }
-        }
-      } catch {}
-      const share = winIdxs.length ? Math.floor(potAmt / winIdxs.length) : 0;
-      for (const wi of winIdxs) payouts[wi] += share;
-      prev = L;
-    }
-    // Credit payouts into stacks and write back to seats
-    for (let i=0;i<actors.length;i++) { actors[i].stack = Number(actors[i].stack||0) + Number(payouts[i]||0); }
-    state.actors.forEach(a => { const seat = t.seats[a.seatId]; if (seat) seat.chips = Number(a.stack||0); });
-    const winnerList = payouts.map((amt,i)=> ({ i, amt }))
-      .filter(x=>x.amt>0)
-      .map(x=> {
-        const hole = Array.from(actors[x.i].cards||[]);
-        const used = bestFiveUsed(hole, board);
-        return { addr: actors[x.i].addr, amount: x.amt, usedHole: used.usedHole, usedCommunity: used.usedCommunity };
-      });
-    // Enforce site split rule again at exposure time to avoid UI confusion if any rounding created extra entries
-    try {
-      if (winnerList.length > 1) {
-        const tuples = winnerList.map(w => ({ w, t: holeRankTuple(actors[actors.findIndex(a=>a.addr===w.addr)]?.cards||[]) })).filter(x=>Array.isArray(x.t));
-        if (tuples.length === winnerList.length) {
-          const same = allEqual(tuples.map(x=>x.t), (a,b)=> a[0]===b[0] && a[1]===b[1]);
-          if (!same) {
-            tuples.sort((x,y)=> cmpTupleDesc(x.t, y.t));
-            const bestT = tuples[0].t;
-            const keepAddrs = new Set(tuples.filter(x=> x.t[0]===bestT[0] && x.t[1]===bestT[1]).map(x=> x.w.addr));
-            // Zero out amounts for others
-            for (const item of winnerList) { if (!keepAddrs.has(item.addr)) item.amount = 0; }
-          }
-        }
-      }
-    } catch {}
-    // On-chain settlement (non-sim) before broadcasting
-    try {
-      if (!t.simMode) {
-        const addrs = winnerList.map(w => String(w.addr));
-        const amts = winnerList.map(w => Number(w.amount||0));
-        await settleHandOnChainIfNeeded(tableId, t, addrs, amts);
-      }
-    } catch {}
-    // Reveal surviving players' hole cards at showdown for transparency
-    const exposures = actors.filter(a => !a.folded).map(a => ({ addr: a.addr, cards: Array.from(a.cards||[]) }));
-    io.to(tableId).emit('poker:hand', { winners: winnerList, community: board, exposures, pot: state.pot||0, table: tablePublic(t) });
-    // Clear any sim timers
-    try { const timers = t.poker && t.poker.simTimers; if (Array.isArray(timers)) timers.forEach(id=>{ try{ clearTimeout(id); }catch{} }); } catch {}
-    t.poker = null;
-    try { t.seats.filter(Boolean).forEach(s => { s.ready = false; }); } catch {}
-    emitUpdate(t);
-  } catch {}
-}
-
-// Auto-advance community in simulated solo mode (one human + dev bot)
-function scheduleSimProgress(tableId, t) {
-  try {
-    const state = t.poker; if (!state) return;
-    const seats = t.seats || [];
-    const humans = seats.filter(s => s && typeof s.addr === 'string' && !String(s.addr).startsWith('bot:')).length;
-    const botPresent = seats.some(s => s && typeof s.addr === 'string' && String(s.addr).startsWith('bot:'));
-    if (!(botPresent && humans === 1)) return;
-    // Avoid stacking timers
-    if (!state.simTimers) state.simTimers = [];
-    // If betting round could block, just force next stage after a short delay
-    const delay = 900;
-    // Only schedule if not already at river (final)
-    if (['preflop','flop','turn'].includes(state.stage)) {
-      const id = setTimeout(() => { try { advancePokerStage(tableId, t); } catch {} }, delay);
-      state.simTimers.push(id);
-    }
-  } catch {}
-}
-
-// Simple dev bot: auto-acts on its turns
-function maybeTriggerBot(tableId, t) {
-  try {
-    const state = t.poker; if (!state) return;
-    const idx = state.actors.findIndex(a => typeof a?.addr === 'string' && a.addr.startsWith('bot:'));
-    if (idx === -1) return;
-    if (state.turnIndex !== idx) return;
-    if (state.actors[idx].folded) return;
-    if (state.botTimer) return;
-    state.botTimer = setTimeout(() => {
-      try {
-        state.botTimer = null;
-        const actor = state.actors[idx];
-        const need = Math.max(0, Number(state.toCall||0) - Number(actor.contrib||0));
-        let r = Math.random();
-        if (need === 0 && r < 0.15 && actor.stack > (state.bb||2)*2) {
-          // bet
-          const size = Math.min(actor.stack, (state.bb||2) * (2 + Math.floor(Math.random()*3)));
-          actor.stack -= size; actor.contrib += size; actor.acted = true;
-          state.toCall = actor.contrib; state.lastAgg = size; state.minRaise = Math.max(size, state.bb||2);
-          state.actors.forEach((a,i)=>{ if (i!==idx && !a.folded && !a.allIn) a.acted = false; });
-        } else if (need > 0 && r < 0.15 && actor.stack > need + (state.minRaise||2)) {
-          // raise
-          const raiseBy = Math.min(actor.stack - need, Math.max(state.minRaise||2, (state.bb||2)*2));
-          const total = need + raiseBy;
-          actor.stack -= total; actor.contrib += total; actor.acted = true;
-          state.toCall = actor.contrib; state.lastAgg = raiseBy; state.minRaise = Math.max(raiseBy, state.bb||2);
-          state.actors.forEach((a,i)=>{ if (i!==idx && !a.folded && !a.allIn) a.acted = false; });
-        } else {
-          // check/call/fold default
-          if (need === 0) { actor.acted = true; }
-          else { const pay = Math.min(need, actor.stack); actor.stack -= pay; actor.contrib += pay; actor.acted = true; if (actor.stack===0) actor.allIn = true; }
-        }
-        state.turnIndex = nextActiveIndex(state.actors, state.turnIndex);
-        if (bettingRoundComplete(state)) { advancePokerStage(tableId, t); return; }
-        emitPokerState(tableId, t);
-        maybeTriggerBot(tableId, t);
-      } catch {}
-    }, 700 + Math.floor(Math.random()*900));
-  } catch {}
-}
-
-// ---- 7-card evaluator
-const RANKS = ['2','3','4','5','6','7','8','9','T','J','Q','K','A'];
-const RVAL = Object.fromEntries(RANKS.map((r,i)=>[r, i+2]));
-function parseCard(c){ const r=c[0], s=c[1]; return { r, s, v:RVAL[r]||0 }; }
-function byvDesc(a,b){ return b.v-a.v; }
-function uniqueByRankDesc(cards){ const seen=new Set(); const out=[]; for(const c of cards.sort(byvDesc)){ if(!seen.has(c.v)){ out.push(c); seen.add(c.v);} } return out; }
-function straightHigh(cards){ const u = uniqueByRankDesc(cards); const vs = u.map(c=>c.v); if (vs.includes(14)) vs.push(1); let best=0, run=1; for (let i=1;i<vs.length;i++){ if (vs[i]===vs[i-1]-1) { run++; best = Math.max(best, vs[i-1]); } else if (vs[i]!==vs[i-1]) run=1; if (run>=5) best = Math.max(best, vs[i-1]); } if (best===0 && vs.includes(5) && vs.includes(1)) return 5; return best; }
-function evaluate7(cards){ const cs = cards.map(parseCard).sort(byvDesc); const bySuit = cs.reduce((m,c)=>{ (m[c.s]=m[c.s]||[]).push(c); return m; },{}); const counts = cs.reduce((m,c)=>{ m[c.v]=(m[c.v]||0)+1; return m; },{}); const groups = Object.entries(counts).map(([v,c])=>({v:Number(v), c})).sort((a,b)=> b.c-a.c || b.v-a.v); let flushSuit=null; for (const s of Object.keys(bySuit)){ if (bySuit[s].length>=5) { flushSuit=s; break; } } if (flushSuit){ const fcs = bySuit[flushSuit].slice(); const hi = straightHigh(fcs); if (hi>0){ return { cls:8, tiebreak:[hi] }; } } if (groups[0]?.c===4){ const kicker = cs.find(c=>c.v!==groups[0].v)?.v||0; return { cls:7, tiebreak:[groups[0].v, kicker] }; } if (groups[0]?.c===3){ const second = groups.find(g=>g.c>=2 && g.v!==groups[0].v); if (second){ return { cls:6, tiebreak:[groups[0].v, second.v] }; } } if (flushSuit){ const top5 = bySuit[flushSuit].slice(0,5).map(c=>c.v); return { cls:5, tiebreak: top5 } } const sh = straightHigh(cs); if (sh>0){ return { cls:4, tiebreak:[sh] }; } if (groups[0]?.c===3){ const kickers = cs.filter(c=>c.v!==groups[0].v).slice(0,2).map(c=>c.v); return { cls:3, tiebreak:[groups[0].v, ...kickers] }; } if (groups[0]?.c===2 && groups[1]?.c===2){ const kicker = cs.find(c=>c.v!==groups[0].v && c.v!==groups[1].v)?.v||0; const hi=Math.max(groups[0].v,groups[1].v), lo=Math.min(groups[0].v,groups[1].v); return { cls:2, tiebreak:[hi, lo, kicker] }; } if (groups[0]?.c===2){ const kickers = cs.filter(c=>c.v!==groups[0].v).slice(0,3).map(c=>c.v); return { cls:1, tiebreak:[groups[0].v, ...kickers] }; } return { cls:0, tiebreak: cs.slice(0,5).map(c=>c.v) }; }
-function cmpRank(a,b){ if (a.cls!==b.cls) return a.cls-b.cls; const n=Math.max(a.tiebreak.length,b.tiebreak.length); for(let i=0;i<n;i++){ const av=a.tiebreak[i]||0, bv=b.tiebreak[i]||0; if (av!==bv) return av-bv; } return 0; }
-function determineWinners(holeCardsArr, actorIdxs, board){ const winners=[]; let best=null; for (let i=0;i<holeCardsArr.length;i++){ const hole=holeCardsArr[i]; const evald=evaluate7([...(hole||[]), ...(board||[])]); if (!best || cmpRank(evald,best)>0){ best=evald; winners.length=0; winners.push(actorIdxs[i]); } else if (cmpRank(evald,best)===0){ winners.push(actorIdxs[i]); } } return winners; }
-
-// Site rule: split pot ONLY if winners have identical hole card ranks
-function holeRankTuple(hole){ try { if (!Array.isArray(hole) || hole.length!==2) return null; const v = hole.map(c=> RVAL[c[0]]||0).sort((a,b)=>a-b); return v.length===2 ? v : null; } catch { return null; } }
-function allEqual(arr, eq){ if (!arr.length) return true; for (let i=1;i<arr.length;i++){ if (!eq(arr[i], arr[0])) return false; } return true; }
-function cmpTupleDesc(a,b){ for (let i=0;i<Math.max(a.length,b.length);i++){ const av=a[i]||0, bv=b[i]||0; if (av!==bv) return bv-av; } return 0; }
-
-// Determine the best 5-card selection (indices) for a Hold'em hand
-function bestFiveUsed(hole, board){
-  try {
-    const all = Array.from(hole||[]).concat(Array.from(board||[])); // [h0,h1,b0..b4]
-    const idxs = all.map((_,i)=>i);
-    let best=null; let bestPick=null;
-    function* comb5(arr, start=0, k=5, prefix=[]) {
-      if (k===0) { yield prefix; return; }
-      for (let i=start; i<=arr.length-k; i++) { yield* comb5(arr, i+1, k-1, prefix.concat([arr[i]])); }
-    }
-    for (const pick of comb5(idxs)){
-      const cards = pick.map(i=> all[i]);
-      const rank = evaluate7(cards);
-      if (!best || cmpRank(rank, best) > 0){ best = rank; bestPick = pick; }
-    }
-    const usedHole = []; const usedCommunity = [];
-    (bestPick||[]).forEach(i=>{ if (i<2) usedHole.push(i); else usedCommunity.push(i-2); });
-    return { usedHole, usedCommunity };
-  } catch { return { usedHole: [], usedCommunity: [] }; }
-}
-
-
-
+server.listen(PORT, () => {
+  console.log('Poker RT server on', PORT, '| cap:', TABLE_CAPACITY, '| spawn>=', SPAWN_THRESHOLD, '| prune>=', PRUNE_IDLE_SEC,'s');
+});

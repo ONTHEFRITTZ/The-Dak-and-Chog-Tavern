@@ -1,12 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
-  <meta http-equiv="Pragma" content="no-cache">
-  <meta http-equiv="Expires" content="0">
-  <script>(function(){try{if(sessionStorage.getItem('walletSigned')!=='true'){location.replace('/landing.html')}}catch(e){location.replace('/landing.html')}})();</script>
+  <meta charset="UTF-8" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+  <script>(function(){try{var signed=sessionStorage.getItem('walletSigned')==='true'; if(!signed){ location.replace('/landing.html'); return; }}catch(e){ location.replace('/landing.html'); }})();</script>
   <title>Poker Lobby</title>
 
   <script>
@@ -15,142 +17,124 @@
         const b = await fetch('/assets/build.json',{cache:'no-store'}).then(r=>r.ok?r.json():null).catch(()=>null);
         const tag = (b && b.commit) ? String(b.commit).slice(0,12) : Date.now();
         window.__BUILD_TAG = tag;
-        const css = document.createElement('link');
-        css.rel='stylesheet';
-        css.href = `../../css/style.css?v=${tag}`;
+        const css = document.createElement('link'); css.rel='stylesheet'; css.href = `../../css/style.css?v=${tag}`;
         document.head.appendChild(css);
-      }catch(e){}
+      }catch(e){ console.error('poker lobby head loader failed', e); }
     })();
   </script>
 
+  <!-- Preload background for smooth paint -->
+  <link rel="preload" as="image" href="../../assets/images/games-room.png" type="image/png" />
+
   <style>
-    body { background:#120c08 url('../../assets/images/games-room.png') no-repeat center center fixed !important; background-size:100% auto !important; }
-    body.game { display:flex; flex-direction:column; align-items:center; justify-content:flex-start; min-height:100vh; }
-    .lobby-wrap { width:95%; max-width:1000px; margin: clamp(24px, 10vh, 120px) auto 32px; position:relative; }
+    /* Force navbar (top-banner) to show on lobby even if global CSS hides it */
+    .top-banner { display:flex !important; align-items:center; justify-content:space-between; height:var(--banner-h,80px); padding:0 12px; position:sticky; top:0; z-index:12000; }
+
+    body { background: #120c08 url('../../assets/images/games-room.png') no-repeat center center fixed !important; background-size: 100% auto !important; }
+    body.game { min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; }
+
+    .lobby-wrap { width:95%; max-width:1100px; margin: clamp(8px, 4vh, 24px) auto 32px; position:relative; }
     .lobby-card {
       background: var(--panel-bg-soft);
       border:1px solid rgba(255,255,255,0.12);
       border-radius:14px;
-      padding:18px 20px;
+      padding:16px;
       color:#f4e6d3;
       box-shadow:0 24px 60px rgba(0,0,0,0.55);
+      margin-bottom:16px;
     }
-    .section { margin-top:16px; }
-    .section h3 { margin:6px 0 10px; }
-    .list { display:flex; flex-direction:column; gap:8px; }
-    .row {
-      display:flex; align-items:center; gap:10px; justify-content:space-between;
-      background: rgba(0,0,0,0.25); border:1px solid rgba(255,255,255,0.12); border-radius:10px; padding:10px 12px;
+
+    h2 { margin: 6px 0 4px; }
+    .section-head { display:flex; align-items:center; justify-content:space-between; gap:8px; margin:8px 0; }
+    .lobby-list { display:flex; flex-wrap:wrap; gap:10px; }
+    .lobby-item {
+      flex: 0 1 calc(50% - 10px);
+      min-width: 280px;
+      background: rgba(0,0,0,0.28);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 12px;
+      padding: 12px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
     }
-    .row .meta { font-size:14px; opacity:.95; }
-    .row .meta strong { font-weight:900; }
-    .row button { font-size:16px; padding:8px 14px; border-radius:10px; background:#9200fa; color:#fff; border:none; cursor:pointer; }
-    .row button:hover { background:#7800cd; }
-    .muted { font-size:12px; opacity:.9; }
+    .lobby-item strong { display:block; margin-bottom:4px; }
+    .pill { background: rgba(0,0,0,0.6); color:#fff; padding: 4px 8px; border-radius:999px; font-weight:700; font-size:12px; }
+    .muted { opacity:.85; font-size:13px; }
+    @media (max-width: 760px) {
+      .lobby-item { flex-basis: 100%; }
+    }
   </style>
 </head>
 
 <body class="game">
-  <div class="lobby-wrap">
-    <div class="lobby-card">
-      <h2 style="margin:0 0 6px;">Poker Lobby</h2>
-      <div id="poker-status" class="muted" style="min-height:18px; margin-bottom:8px;">Connecting…</div>
-
-      <div class="section">
-        <h3>On-chain — Limit (3/6 MON)</h3>
-        <div id="list-onchain-limit" class="list"><div class="muted">Loading…</div></div>
+  <!-- Navbar / top banner kept -->
+  <div class="top-banner" role="region" aria-label="Wallet and status">
+    <div class="banner-left" style="display:flex; align-items:center; gap:10px;">
+      <div id="status" class="banner-status">Connecting...</div>
+      <div id="network-banner" class="muted">
+        <span class="pill" id="nb-top-info">Monad Testnet</span>
       </div>
-
-      <div class="section">
-        <h3>On-chain — No-Limit</h3>
-        <div id="list-onchain-nolimit" class="list"><div class="muted">Loading…</div></div>
-      </div>
-
-      <div class="section">
-        <h3>Off-chain (Simulated)</h3>
-        <div id="list-offchain" class="list"><div class="muted">Loading…</div></div>
-        <div class="muted" style="margin-top:6px;">Note: A test bot may auto-seat only while a single human is at a simulated table. A second human joining removes the bot and resets the hand.</div>
+    </div>
+    <div class="banner-right">
+      <div id="wallet-banner" class="controls" style="display:flex; align-items:center; gap:8px;">
+        <span title="Connected wallet" id="wb-addr" class="pill">—</span>
+        <button id="connect-wallet">Connect</button>
       </div>
     </div>
   </div>
 
-  <!-- Ethers (optional in lobby), Socket.IO, navbar/wallet helper -->
+  <div class="lobby-wrap">
+    <h1 class="visually-hidden">Poker Lobby</h1>
+
+    <!-- ON-CHAIN LIMIT -->
+    <div class="lobby-card" id="sec-onchain-limit">
+      <div class="section-head">
+        <h2>On-chain Hold’em — Limit (3 MON / 6 MON)</h2>
+        <span class="muted" id="oclim-note">loading…</span>
+      </div>
+      <div id="list-onchain-limit" class="lobby-list"></div>
+    </div>
+
+    <!-- ON-CHAIN NO-LIMIT -->
+    <div class="lobby-card" id="sec-onchain-nl">
+      <div class="section-head">
+        <h2>On-chain Hold’em — No-Limit</h2>
+        <span class="muted" id="ocnl-note">loading…</span>
+      </div>
+      <div id="list-onchain-nl" class="lobby-list"></div>
+    </div>
+
+    <!-- OFF-CHAIN (sim) -->
+    <div class="lobby-card" id="sec-offchain">
+      <div class="section-head">
+        <h2>Off-chain (Simulated)</h2>
+        <span class="muted" id="off-note">loading…</span>
+      </div>
+      <div id="list-offchain" class="lobby-list"></div>
+    </div>
+  </div>
+
+  <!-- Wallet helper + Socket.IO -->
+  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
   <script type="module" src="../../js/tavern.js"></script>
 
-  <!-- Poker lobby logic -->
+  <!-- Lobby logic -->
   <script>
-  (function(){
-    const statusEl = document.getElementById('poker-status');
-    const elLimit  = document.getElementById('list-onchain-limit');
-    const elNL     = document.getElementById('list-onchain-nolimit');
-    const elSim    = document.getElementById('list-offchain');
-
-    function setStatus(t){ try{ if(statusEl) statusEl.textContent=t }catch{} }
-    function openTable(id){
-      try{
-        const u = new URL(window.location.href);
-        u.pathname = '/games/poker/table.html';
-        u.searchParams.set('table', id);
-        window.location.href = u.toString();
-      }catch{
-        window.location.href = '/games/poker/table.html?table='+encodeURIComponent(id);
+    (function(){
+      function load(src){
+        try{ var s=document.createElement('script'); s.src=src; s.defer=true; document.body.appendChild(s); }
+        catch(e){ console.error('inject failed', e); }
       }
-    }
-    function rowHTML(meta){
-      const seated = Number(meta.seated||0), cap = Number(meta.capacity||8);
-      const stakes = meta.stakes ? (meta.stakes.sb+'/'+meta.stakes.bb+' '+(meta.stakes.denom||'MON')) : '';
-      const betStr = (meta.mode==='onchain' && meta.betting==='limit') ? 'Limit '+stakes
-                   : (meta.mode==='onchain' ? 'No-Limit' : 'Sim');
-      return `
-        <div class="row">
-          <div class="meta">
-            <strong>${meta.id}</strong> • ${seated}/${cap} seated • ${betStr}
-          </div>
-          <div><button data-open="${meta.id}">Open</button></div>
-        </div>
-      `;
-    }
-    function mountList(el, arr){
-      el.innerHTML = (arr && arr.length)
-        ? arr.map(rowHTML).join('')
-        : '<div class="muted">No tables yet.</div>';
-      // wire buttons
-      el.querySelectorAll('button[data-open]').forEach(btn=>{
-        btn.onclick = ()=> openTable(btn.getAttribute('data-open'));
-      });
-    }
-
-    let socket;
-    try{
-      socket = io(window.location.origin, {
-        path:'/poker.io/',
-        transports:['polling','websocket'], upgrade:true, reconnection:true,
-        reconnectionAttempts:10, reconnectionDelay:800, forceNew:true
-      });
-    }catch(e){ setStatus('Socket.IO unavailable'); return; }
-
-    socket.on('connect', ()=>{ setStatus('Connected'); try{ socket.emit('lobby:get'); }catch{} });
-    socket.on('disconnect', ()=> setStatus('Disconnected'));
-    socket.on('connect_error', ()=> setStatus('Lobby unavailable. Retrying…'));
-
-    // New grouped payload
-    socket.on('lobby:full', (g)=>{
       try{
-        mountList(elLimit, g?.onchain?.limit || []);
-        mountList(elNL,    g?.onchain?.nolimit || []);
-        mountList(elSim,   g?.offchain || []);
-      }catch(e){ console.warn(e); }
-    });
-
-    // Back-compat (single flat list). We’ll just dump everything into Off-chain.
-    socket.on('lobby:list', (list)=>{
-      try{
-        const arr = Array.isArray(list)?list:[];
-        mountList(elSim, arr);
-      }catch(e){ console.warn(e); }
-    });
-  })();
+        fetch('/assets/build.json',{cache:'no-store'})
+          .then(r=>r.ok?r.json():null)
+          .then(b=>{ var tag=(b&&b.commit)?String(b.commit).slice(0,12):Date.now(); load('poker.js?v='+encodeURIComponent(tag)); })
+          .catch(()=>load('poker.js?v='+Date.now()));
+      }catch{ load('poker.js?v='+Date.now()); }
+    })();
   </script>
 </body>
 </html>
