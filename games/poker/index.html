@@ -23,20 +23,20 @@
     })();
   </script>
 
-  <!-- Preload background for smooth paint -->
   <link rel="preload" as="image" href="../../assets/images/games-room.png" type="image/png" />
 
   <style>
-    /* Force navbar (top-banner) to show on lobby even if global CSS hides it */
     .top-banner { display:flex !important; align-items:center; justify-content:space-between; height:var(--banner-h,80px); padding:0 12px; position:sticky; top:0; z-index:12000; }
-
     body { background: #120c08 url('../../assets/images/games-room.png') no-repeat center center fixed !important; background-size: 100% auto !important; }
     body.game { min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; }
 
-    /* When sidebar is present, push content right so it doesn't sit under it */
-    body:has(#sidebar) .lobby-wrap { margin-left: calc(var(--sidebar-left, 240px) + 12px); }
+    /* Center the lobby always; don't push it because of the sidebar */
+    .lobby-wrap {
+      width: min(95%, 1100px);
+      margin: clamp(8px, 4vh, 24px) auto 32px;
+      position: relative;
+    }
 
-    .lobby-wrap { width:95%; max-width:1100px; margin: clamp(8px, 4vh, 24px) auto 32px; position:relative; }
     .lobby-card {
       background: var(--panel-bg-soft);
       border:1px solid rgba(255,255,255,0.12);
@@ -72,7 +72,7 @@
 </head>
 
 <body class="game">
-  <!-- Navbar / top banner kept -->
+  <!-- Navbar / top banner -->
   <div class="top-banner" role="region" aria-label="Wallet and status">
     <div class="banner-left" style="display:flex; align-items:center; gap:10px;">
       <div id="status" class="banner-status">Connecting...</div>
