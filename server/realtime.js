@@ -1,7 +1,7 @@
 // Realtime server: Faro + Poker (categories, fairness, auditing, spawn/prune, bot rules, private hole cards)
 // ENV:
 // - PORT (default 3000)
-// - GAME_TYPES (comma-separated: FARO,POKER; default FARO)
+// - GAME_TYPES (comma-separated: FARO,POKER; default FARO,POKER)
 // - ADMIN_ADDR (comma-separated lowercase wallet addrs)
 // - RT_RAKE_BPS (default 100 = 1%)
 // Socket.IO path is /socket.io/ (nginx proxies /poker.io/ → /socket.io/ upstream)
@@ -47,16 +47,12 @@ fs.mkdirSync(LOGS_DIR, { recursive: true });
 const tables = new Map();            // id -> Table
 // Table (Faro): { id, kind:'FARO', seats[6], started, bets:Map<addrLower,Bet[]>, lastActive, ownerId? }
 // Table (Poker): {
-//   id, kind:'POKER', seats[8], started, lastActive,
+//   id, kind:'POKER',
+//   seats[8], started, lastActive,
 //   category:'ONCHAIN_NL'|'ONCHAIN_FL'|'OFFCHAIN_NL',
 //   limit:'NL'|'FL', stakes?:'3/6 MON',
 //   simulated:boolean, devBotEnabled:boolean,
-//   poker: {
-//     stage, deck, community[], actors[], turnIndex, toCall, pot, dealerIndex, sbIndex, bbIndex,
-//     dealerSeatId, startedAt,
-//     turnTimer?, botTimer?,
-//     rng: { commit, seed }   // fairness commit→reveal
-//   } | null,
+//   poker: { ... } | null,
 //   emptySince?: number
 // }
 const profiles = new Map();          // addrLower -> { cipher }
@@ -75,8 +71,9 @@ const admins = new Set(
     .filter(Boolean)
 );
 
+// ⚠️ Default now includes POKER so poker lobby always appears unless explicitly disabled
 const enabledGames = new Set(
-  String(process.env.GAME_TYPES || 'FARO')
+  String(process.env.GAME_TYPES || 'FARO,POKER')
     .split(',')
     .map(s => s.trim().toUpperCase())
     .filter(Boolean)
@@ -264,7 +261,7 @@ function emitLobby() {
         const base = { id: t.id, seated: seatCount(t), capacity: (t.kind==='POKER'?POKER_SEATS:FARO_SEATS), started: !!t.started };
         if (t.kind === 'POKER') {
           base.simulated = !!t.simulated;
-          base.limit = t.limit;              // 'NL'|'FL'
+          base.limit = t.limit;
           if (t.limit === 'FL') base.stakes = t.stakes || '3/6 MON';
         }
         return base;
@@ -290,7 +287,7 @@ function seatFirstEmpty(t, addr, socketId='bot') {
   }
   return -1;
 }
-// Only on OFFCHAIN_NL tables: seat bot if exactly 1 human; boot if >=2 or 0 humans
+// Only on OFFCHAIN_NL tables: seat bot if exactly 1 human; boot if ≥2 or 0 humans
 function reconcileBotPolicy(t) {
   if (!isPoker(t)) return;
   if (t.category !== CAT.OFFCHAIN_NL) return;
@@ -363,7 +360,7 @@ function pruneEmpties(cat) {
 }
 
 function ensureLobbyPolicy() {
-  // Faro minimums (unchanged)
+  // Faro minimums
   if (gameEnabled('FARO')) {
     if (!Array.from(tables.keys()).some(id => String(id).startsWith('faro-'))) getTable('faro-1');
     const faro = Array.from(tables.values()).filter(t => t.kind==='FARO');
@@ -481,7 +478,6 @@ function scheduleTurnTimer(tableId, t) {
       const state = t.poker; if (!state) return;
       const actor = state.actors[state.turnIndex]; if (!actor) return;
       const need = Math.max(0, Number(state.toCall || 0) - Number(actor.contrib || 0));
-      // auto action: fold if calling required, else check
       const action = (need > 0) ? 'fold' : 'check';
       applyAction(tableId, t, actor.addr, action, true);
     } catch {}
@@ -630,7 +626,7 @@ function startPokerHand(tableId, t) {
     audit(tableId, 'handStart', { commit, seated: actors.map(a=>a.addr), dealerSeatId, sbIndex, bbIndex });
 
     emitPokerState(tableId, t);
-    sendAllPrivateHoles(t);          // <— send each player their hole cards privately
+    sendAllPrivateHoles(t);
     scheduleTurnTimer(tableId, t);
     maybeTriggerBot(tableId, t);
   } catch {}
@@ -710,10 +706,16 @@ function advancePokerStage(tableId, t) {
 
 /* ------------------------------ Socket wiring ----------------------------- */
 
+// Bootstrap: immediately create baselines and emit once on boot (so UI doesn't sit at "loading...")
+setTimeout(() => { try { ensureLobbyPolicy(); emitLobby(); } catch (e) { console.error(e); } }, 200);
+
 io.on('connection', (socket) => {
   let currentTableId = null;
   let addrLower = null;
   let isAdmin = false;
+
+  // Ensure this client sees a lobby immediately
+  try { ensureLobbyPolicy(); emitLobby(); } catch (e) { console.error(e); }
 
   socket.on('identify', (m) => {
     try { addrLower = String(m.addr || '').toLowerCase(); isAdmin = admins.has(addrLower); } catch {}
@@ -738,7 +740,6 @@ io.on('connection', (socket) => {
         if (seatIdx >= 0) {
           const actor = t.poker.actors.find(a => a.seatId === seatIdx);
           if (actor && actor.cards) {
-            // refresh this seat's socketId to current socket
             try { t.seats[seatIdx].socketId = socket.id; } catch {}
             sendPrivateHoleToSeat(t, seatIdx, actor.cards);
           }
@@ -775,7 +776,6 @@ io.on('connection', (socket) => {
       if (idx === -1) {
         const curIdx = t.seats.findIndex(s => s && s.addr === addrLower);
         if (curIdx >= 0) {
-          // clear private hole if any
           try { clearPrivateHoleForSeat(t, curIdx); } catch {}
           const leaving = t.seats[curIdx];
           t.seats[curIdx] = null;
@@ -818,7 +818,6 @@ io.on('connection', (socket) => {
           if (!s) continue;
           if ((addrLower && s.addr === addrLower) || s.socketId === socket.id) {
             if (t.kind==='FARO') { try { t.bets.delete(String(s.addr || '').toLowerCase()); } catch {} }
-            // clear private hole for this seat
             try { clearPrivateHoleForSeat(t, i); } catch {}
             t.seats[i] = null;
             changed = true;
@@ -923,7 +922,7 @@ io.on('connection', (socket) => {
       if (!isPoker(t)) return;
       if (t.category !== CAT.OFFCHAIN_NL) return;
 
-      const enabled = !!m?.enabled;
+    const enabled = !!m?.enabled;
       t.devBotEnabled = enabled;
       if (!enabled) {
         const botIdx = findBotIndex(t);
@@ -1032,7 +1031,6 @@ setInterval(() => {
         const last = Number(s.lastActive || 0);
         if (!s.ready && last && (now - last) > IDLE_EJECT_MS) {
           if (t.kind==='FARO') { try { t.bets.delete(String(s.addr||'').toLowerCase()); } catch {} }
-          // clear private hole if any
           try { clearPrivateHoleForSeat(t, i); } catch {}
           t.seats[i] = null;
           changed = true;
@@ -1058,7 +1056,6 @@ function saveState() {
         category: t.category||null, limit: t.limit||null, stakes: t.stakes||null,
         simulated: !!t.simulated, devBotEnabled: !!t.devBotEnabled,
         emptySince: t.emptySince || null,
-        // Important: do NOT persist in-hand poker state to avoid partial-resume exploits
       });
     }
     fs.writeFile(STATE_FN, JSON.stringify({ savedAt: Date.now(), tables: out }, null, 2), () => {});
@@ -1101,6 +1098,8 @@ server.listen(PORT, () => {
   } catch {
     console.log('RT server on', PORT);
   }
+  // Emit once after listen to wake up any early clients
+  setTimeout(() => { try { ensureLobbyPolicy(); emitLobby(); } catch (e) { console.error(e); } }, 150);
 });
 
 /* ----------------------- Dev helper: simple poker bot ---------------------- */
