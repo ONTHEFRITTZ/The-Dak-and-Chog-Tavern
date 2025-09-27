@@ -33,6 +33,9 @@
     body { background: #120c08 url('../../assets/images/games-room.png') no-repeat center center fixed !important; background-size: 100% auto !important; }
     body.game { min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; }
 
+    /* When sidebar is present, push content right so it doesn't sit under it */
+    body:has(#sidebar) .lobby-wrap { margin-left: calc(var(--sidebar-left, 240px) + 12px); }
+
     .lobby-wrap { width:95%; max-width:1100px; margin: clamp(8px, 4vh, 24px) auto 32px; position:relative; }
     .lobby-card {
       background: var(--panel-bg-soft);
@@ -134,6 +137,19 @@
           .then(b=>{ var tag=(b&&b.commit)?String(b.commit).slice(0,12):Date.now(); load('poker.js?v='+encodeURIComponent(tag)); })
           .catch(()=>load('poker.js?v='+Date.now()));
       }catch{ load('poker.js?v='+Date.now()); }
+    })();
+  </script>
+
+  <!-- Left Sidebar (collapsible) -->
+  <script>
+    (function(){
+      try {
+        var t = (window.__BUILD_TAG||Date.now());
+        var s = document.createElement('script');
+        s.type = 'module';
+        s.src = '/js/sidebar.js?v=' + encodeURIComponent(t);
+        document.body.appendChild(s);
+      } catch(e) {}
     })();
   </script>
 </body>
