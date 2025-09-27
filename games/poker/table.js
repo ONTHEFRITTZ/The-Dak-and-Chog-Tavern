@@ -48,28 +48,31 @@
     return null;
   }
 
-  /* ---------- Seat ring layout (8 spots) ---------- */
-  function layoutSeats(){
-    const wrap = document.querySelector('.table-canvas');
-    if (!wrap) return;
-    const W = wrap.clientWidth, H = wrap.clientHeight;
-    const cx = W/2, cy = H/2;
-    // Push farther out so seats don’t overlap table elements
-    const rx = W*0.42, ry = H*0.40;
-    const positions = [
-      270, 315,   0,  45,  // top arc (left -> right)
-       90, 135, 180, 225   // bottom arc (right -> left)
-    ];
-    seatsEls.forEach((el,i)=>{
-      const ang = (positions[i]||0) * Math.PI/180;
-      const x = cx + rx * Math.cos(ang);
-      const y = cy + ry * Math.sin(ang);
-      el.style.left = Math.round(x - el.clientWidth/2) + 'px';
-      el.style.top  = Math.round(y - el.clientHeight/2) + 'px';
-    });
-  }
-  window.addEventListener('resize', layoutSeats);
-  window.addEventListener('load', layoutSeats);
+  /* ---------- Seat ring layout (8 spots, wider oval) ---------- */
+function layoutSeats(){
+  const wrap = document.querySelector('.table-canvas');
+  if (!wrap) return;
+  const W = wrap.clientWidth, H = wrap.clientHeight;
+  const cx = W/2, cy = H/2;
+
+  // Make the oval wider/taller → pushes seats outward
+  const rx = W * 0.44;   // horizontal radius (was 0.36)
+  const ry = H * 0.42;   // vertical radius (was 0.34)
+
+  // Angles for 8 seats evenly distributed around oval
+  const positions = [
+    270, 315,   0,  45,   // top arc (left → right)
+     90, 135, 180, 225    // bottom arc (right → left)
+  ];
+
+  seatsEls.forEach((el,i)=>{
+    const ang = (positions[i]||0) * Math.PI/180;
+    const x = cx + rx * Math.cos(ang);
+    const y = cy + ry * Math.sin(ang);
+    el.style.left = Math.round(x - el.clientWidth/2) + 'px';
+    el.style.top  = Math.round(y - el.clientHeight/2) + 'px';
+  });
+}
 
   /* ---------- Rendering ---------- */
   function renderTable(t){
