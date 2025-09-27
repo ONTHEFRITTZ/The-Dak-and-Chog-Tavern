@@ -21,6 +21,7 @@ Deploy (copy/paste)
 ```
 cd ~/The-Dak-and-Chog-Tavern && git fetch origin && git reset --hard origin/main
 DOMAIN="thedakandchog.xyz" WEBROOT="/var/www/${DOMAIN}/html" UPLOAD="/var/www/${DOMAIN}/html_upload" bash scripts/deploy-ec2.sh
+
 ```
 
 Realtime backend (Socket.IO) – restart after server changes
