@@ -1,4 +1,4 @@
-// Poker Table UI (8-max) — shows personal hole cards, clears between hands.
+// Poker Table UI (8-max), wallet choice carried from landing (no auto-preference)
 
 (function(){
   /* ---------- DOM ---------- */
@@ -9,6 +9,8 @@
   const sbPNL    = document.getElementById('sb-pnl');
   const sbHands  = document.getElementById('sb-hands');
   const wiAddrEl = document.getElementById('wi-address');
+  const btnDisconnect = document.getElementById('wi-disconnect');
+  const btnDevBot     = document.getElementById('toggle-dev-bot');
 
   /* ---------- URL / globals ---------- */
   function getParam(k){ try{ return new URL(window.location.href).searchParams.get(k) }catch{ return null } }
@@ -22,13 +24,38 @@
   function short(a){ return a && a.length>10 ? (a.slice(0,6)+'...'+a.slice(-4)) : (a||''); }
   function lc(s){ return (s||'').toLowerCase(); }
 
+  /* ---------- Wallet provider selection (from landing) ---------- */
+  function pickMetaMask(){
+    const eth = window.ethereum;
+    if (!eth) return null;
+    if (eth.isMetaMask) return eth;
+    if (Array.isArray(eth.providers)) {
+      const mm = eth.providers.find(p => p && p.isMetaMask);
+      if (mm) return mm;
+    }
+    return eth;
+  }
+  function pickPhantom(){
+    return (window.phantom && window.phantom.ethereum) ? window.phantom.ethereum : null;
+  }
+  function getSelectedProvider(){
+    try {
+      if (window.__walletProvider) return window.__walletProvider;
+      const key = (sessionStorage.getItem('walletProvider') || '').toLowerCase();
+      if (key === 'metamask') return pickMetaMask();
+      if (key === 'phantom')  return pickPhantom();
+    } catch {}
+    return null;
+  }
+
   /* ---------- Seat ring layout (8 spots) ---------- */
   function layoutSeats(){
     const wrap = document.querySelector('.table-canvas');
     if (!wrap) return;
     const W = wrap.clientWidth, H = wrap.clientHeight;
     const cx = W/2, cy = H/2;
-    const rx = W*0.36, ry = H*0.34;
+    // Push farther out so seats don’t overlap table elements
+    const rx = W*0.42, ry = H*0.40;
     const positions = [
       270, 315,   0,  45,  // top arc (left -> right)
        90, 135, 180, 225   // bottom arc (right -> left)
@@ -104,7 +131,6 @@
   function clearCards(){
     myHole = [];
     community = [];
-    // remove any card DOM if you add visuals later
   }
 
   /* ---------- Socket ---------- */
@@ -112,7 +138,8 @@
     try{
       socket = io(window.location.origin, {
         path:'/poker.io/',
-        transports:['polling','websocket'], upgrade:true, reconnection:true,
+        transports:['websocket','polling'],
+        upgrade:true, reconnection:true,
         reconnectionAttempts:10, reconnectionDelay:800, forceNew:true
       });
     }catch(e){ showCenter('Socket unavailable', 2000); return; }
@@ -128,20 +155,18 @@
 
     // table model
     socket.on('table:update', (t)=> renderTable(t));
-    socket.on('table:state',  (t)=> renderTable(t)); // back-compat name
+    socket.on('table:state',  (t)=> renderTable(t)); // back-compat
 
     // poker hand state (public)
     socket.on('poker:state', (m)=>{
       state = m || null;
-      // community cards
       community = Array.isArray(m?.community) ? m.community.slice(0,5) : [];
-      // simple center banner
       if (typeof m?.pot !== 'undefined'){
         showCenter(`Stage: ${m.stage||'-'} • Pot: ${m.pot}`, 800);
       }
     });
 
-    // personal hole cards (only this socket receives)
+    // personal hole cards
     socket.on('poker:hole', (payload)=>{
       try{
         const arr = Array.isArray(payload?.cards) ? payload.cards.slice(0,2) : [];
@@ -152,7 +177,6 @@
     // showdown / hand complete
     socket.on('poker:hand', (h)=>{
       try{
-        // brief winner banner
         const winners = Array.isArray(h?.winners) ? h.winners : [];
         if (winners.length){
           const names = winners.map(w=> short(w.addr)).join(', ');
@@ -161,18 +185,16 @@
           showCenter('Hand complete', 1200);
         }
       }catch{}
-      // clear all local visuals after short delay
       setTimeout(()=>{ clearCards(); }, 600);
     });
 
-    // explicit table reset from server (e.g., bot ejected, table cleared)
     socket.on('table:reset', ()=>{
       clearCards();
       showCenter('Table reset', 800);
     });
   }
 
-  /* ---------- Wallet sync (listen to navbar/tavern.js) ---------- */
+  /* ---------- Wallet sync (selected provider only) ---------- */
   function setKnownAddress(addr){
     myAddr = lc(addr||'');
     if (wiAddrEl) wiAddrEl.textContent = myAddr ? short(myAddr) : '-';
@@ -182,18 +204,81 @@
         sessionStorage.setItem('walletConnected','true');
         localStorage.setItem('walletAddress', myAddr);
         sessionStorage.setItem('walletAddress', myAddr);
+        if (btnDisconnect) btnDisconnect.style.display = '';
+      } else {
+        if (btnDisconnect) btnDisconnect.style.display = 'none';
       }
     }catch{}
     if (socket?.connected && myAddr){
       try{ socket.emit('identify', { addr: myAddr }); }catch{}
     }
+    if (sbWallet) sbWallet.textContent = myAddr ? short(myAddr) : '—';
   }
-  window.addEventListener('wallet:connected', (e)=>{
-    const a = e?.detail?.address || e?.detail?.addr;
-    if (a) setKnownAddress(a);
+
+  async function adoptFromSelectedProvider(){
+    try{
+      const provider = getSelectedProvider();
+      if (!provider) { setKnownAddress(''); return; }
+      const accts = await provider.request?.({ method:'eth_accounts' }).catch(()=>[]);
+      const a = (accts && accts[0]) || '';
+      setKnownAddress(a);
+      if (provider.on){
+        provider.on('accountsChanged', (arr)=> setKnownAddress((arr && arr[0]) || ''));
+        provider.on('chainChanged', ()=>{}); // optional
+      }
+    }catch{
+      setKnownAddress('');
+    }
+  }
+
+  // Disconnect clears local state and returns to landing
+  btnDisconnect?.addEventListener('click', ()=>{
+    try {
+      sessionStorage.removeItem('walletSigned');
+      sessionStorage.removeItem('walletProvider');
+      sessionStorage.removeItem('walletMsg');
+      sessionStorage.removeItem('walletSig');
+      sessionStorage.removeItem('walletAddress');
+      localStorage.removeItem('walletAddress');
+      localStorage.removeItem('walletConnected');
+    } catch {}
+    setKnownAddress('');
+    // back to landing to pick a wallet again
+    window.location.replace('/landing.html');
   });
 
-  // bootstrap
-  initSocket();
-  if (myAddr) setKnownAddress(myAddr);
+  // Dev bot toggle (only effective on OFFCHAIN_NL tables)
+  btnDevBot?.addEventListener('click', ()=>{
+    try { socket?.emit('poker:devbot', { enabled: true }); } catch {}
+  });
+
+  /* ---------- Contract address into navbar/footer, if present ---------- */
+  async function updateContractLabels(){
+    try {
+      const provider = getSelectedProvider();
+      const mod = await import('../../js/config.js').catch(()=>null);
+      if (!mod || !mod.getAddressFor) return;
+      let ethersProvider = null;
+      if (window.ethers && provider) {
+        ethersProvider = new window.ethers.providers.Web3Provider(provider, 'any');
+      }
+      const addr = await mod.getAddressFor('pokerTable', ethersProvider);
+      if (!addr) return;
+      const shortAddr = addr.slice(0,6) + '...' + addr.slice(-4);
+      ['contract-address','nav-contract','footer-contract'].forEach(id=>{
+        const el = document.getElementById(id);
+        if (el) { el.textContent = shortAddr; el.title = addr; }
+      });
+    } catch {}
+  }
+
+  /* ---------- Bootstrap ---------- */
+  function bootstrap(){
+    initSocket();
+    if (myAddr) setKnownAddress(myAddr);
+    adoptFromSelectedProvider();
+    updateContractLabels();
+  }
+
+  bootstrap();
 })();
