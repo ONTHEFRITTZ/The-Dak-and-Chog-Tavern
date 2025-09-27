@@ -10,27 +10,33 @@
   <!-- Preload table surface and games-room background so the table paints promptly -->
   <link rel="preload" as="image" href="../../assets/images/table.png" type="image/png">
   <link rel="preload" as="image" href="../../assets/images/games-room.png" type="image/png">
+
   <script>
-    (async()=>{
-      try{
-        const b = await fetch('/assets/build.json', { cache:'no-store' }).then(r=>r.ok?r.json():null).catch(()=>null);
-        const tag = (b && b.commit) ? String(b.commit).slice(0,12) : Date.now();
+    (async () => {
+      try {
+        const b = await fetch('/assets/build.json', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null);
+        const tag = (b && b.commit) ? String(b.commit).slice(0, 12) : Date.now();
         window.__BUILD_TAG = tag;
-        const css = document.createElement('link'); css.rel='stylesheet'; css.href = `../../css/style.css?v=${tag}`; document.head.appendChild(css);
+
+        const css = document.createElement('link'); css.rel = 'stylesheet'; css.href = `../../css/style.css?v=${tag}`; document.head.appendChild(css);
         const abi = document.createElement('script'); abi.src = `../../js/FaroV3ABI.js?v=${tag}`; document.head.appendChild(abi);
         const poolAbi = document.createElement('script'); poolAbi.src = `../../js/PoolABI.js?v=${tag}`; document.head.appendChild(poolAbi);
-        const s1 = document.createElement('script'); s1.type='module'; s1.src = `../../js/tavern.js?v=${tag}`; document.head.appendChild(s1);
-        const s2 = document.createElement('script'); s2.type='module'; s2.src = `../../js/state.js?v=${tag}`; document.head.appendChild(s2);
-      }catch(e){ console.error('head loader failed', e); }
+        const s1 = document.createElement('script'); s1.type = 'module'; s1.src = `../../js/tavern.js?v=${tag}`; document.head.appendChild(s1);
+        const s2 = document.createElement('script'); s2.type = 'module'; s2.src = `../../js/state.js?v=${tag}`; document.head.appendChild(s2);
+      } catch (e) { console.error('head loader failed', e); }
     })();
   </script>
-  <script>(function(){try{
-    window.addEventListener('unload', function(){});
-    window.addEventListener('pageshow', function(e){ if (e && e.persisted) { location.reload(); } });
-    var nav = (performance && performance.getEntriesByType) ? performance.getEntriesByType('navigation') : null;
-    if (nav && nav[0] && nav[0].type === 'back_forward') { location.reload(); }
-  }catch(e){}})();</script>
-      <style>
+
+  <script>
+    (function () { try {
+      window.addEventListener('unload', function () { });
+      window.addEventListener('pageshow', function (e) { if (e && e.persisted) { location.reload(); } });
+      var nav = (performance && performance.getEntriesByType) ? performance.getEntriesByType('navigation') : null;
+      if (nav && nav[0] && nav[0].type === 'back_forward') { location.reload(); }
+    } catch (e) { } })();
+  </script>
+
+  <style>
     /* Full-viewport layout; no banner; keep content fully visible like Poker */
     body.game {
       --banner-h: 0px;           /* no top banner on this page */
@@ -120,7 +126,8 @@
     .owner-badge { position:absolute; top:-10px; right:-10px; background:rgba(146,0,250,0.9); color:#fff; font-size:11px; padding:2px 6px; border-radius:999px; box-shadow:0 0 12px rgba(146,0,250,0.35); }
     .ready { background: rgba(38,120,72,0.65); box-shadow:0 0 24px rgba(60,200,120,0.28); }
     .controls-inline { display:flex; align-items:center; gap:8px; }
-    .log {\r\n      display:none;\r\n    }
+    .log { display:none; }
+
     .faro-panel {
       display:flex;
       flex-direction:column;
@@ -145,8 +152,6 @@
       max-height: calc(100vh - var(--panel-top, 72px) - 24px);
       overflow: auto;
     }
-    /* Keep table centered; do not shift it horizontally when panel opens */
-    /* On very narrow screens, allow full-width fallback above content */
     @media (max-width: 780px) {
       /* No horizontal shift on small screens either */
     }
@@ -216,22 +221,16 @@
     }
     .rank-btn:hover { background:#7800cd; }
     .rank-btn:disabled { opacity: .6; cursor: not-allowed; box-shadow:none; }
-    .rank-btn .chip { position:absolute; right:6px; bottom:4px; background:rgba(34,20,12,0.9); color:#ffd166; border:1px solid rgba(255,255,255,0.22); border-radius:999px; padding:1px 6px; font-size:12px; line-height:1.2; box-shadow:0 2px 10px rgba(0,0,0,0.35); }
+    .rank-btn .chip {
+      position:absolute; right:6px; bottom:4px;
+      background:rgba(34,20,12,0.9); color:#ffd166;
+      border:1px solid rgba(255,255,255,0.22); border-radius:999px;
+      padding:1px 6px; font-size:12px; line-height:1.2;
+      box-shadow:0 2px 10px rgba(0,0,0,0.35);
+    }
     @media (max-width: 720px) {
       .game-logo { margin:24px 0 12px 8px; max-width:220px; }
       .rank-btn { font-size:13px; padding:6px 0; }
-    }
-      .rank-btn {
-      background:#9200fa;
-      color:#fff;
-      border:none;
-      border-radius:10px;
-      padding:8px 0;
-      font-size:14px;
-      cursor:pointer;
-      position:relative;
-      box-shadow:0 0 20px rgba(255,244,233,0.28);
-    }
     }
   </style>
 </head>
@@ -244,7 +243,74 @@
     <button id="wi-disconnect" style="display:none;">Disconnect</button>
   </div>
 
-  <script>(function(){try{var ok=(sessionStorage.getItem('walletConnected')==='true')||(localStorage.getItem('walletConnected')==='true'); if(!ok){ location.replace('/landing.html'); } else { try{ sessionStorage.setItem('walletConnected','true'); }catch(e){} }}catch(e){location.replace('/landing.html');}})();</script>
+  <!-- STRICT WALLET GATE (redirect stays, but waits for real wallet state) -->
+  <script>
+  ;(() => {
+    function redirect() {
+      const next = encodeURIComponent(location.pathname + location.search + location.hash);
+      location.replace('/landing.html?next=' + next);
+    }
+    function markConnected() {
+      try {
+        sessionStorage.setItem('walletConnected', 'true');
+        localStorage.setItem('walletConnected', 'true');
+      } catch {}
+    }
+    function delay(ms){ return new Promise(r=>setTimeout(r,ms)); }
+
+    async function hasWalletConnected() {
+      // Quick flag (works for your existing connect flow)
+      if (sessionStorage.getItem('walletConnected') === 'true' ||
+          localStorage.getItem('walletConnected') === 'true') return true;
+
+      // Allow brief time for provider injection
+      const until = Date.now() + 1500;
+      while (!(window.ethereum || (window.solana && window.solana.isPhantom)) && Date.now() < until) {
+        await delay(50);
+      }
+
+      // EVM (MetaMask / WalletConnect injects Ethereum provider)
+      try {
+        if (window.ethereum) {
+          const accs = await window.ethereum.request({ method: 'eth_accounts' }).catch(() => []);
+          if (accs && accs.length) { markConnected(); return true; }
+        }
+      } catch {}
+
+      // Phantom (Solana) — onlyIfTrusted to avoid prompting here
+      try {
+        if (window.solana && window.solana.isPhantom) {
+          await window.solana.connect({ onlyIfTrusted: true }).catch(() => {});
+          if (window.solana.isConnected && window.solana.publicKey) { markConnected(); return true; }
+        }
+      } catch {}
+
+      return false;
+    }
+
+    (async function init() {
+      if (!(await hasWalletConnected())) {
+        redirect();
+        return;
+      }
+      // Live enforcement: if wallet disconnects, redirect out
+      try {
+        if (window.ethereum) {
+          window.ethereum.on?.('accountsChanged', (a) => {
+            if (!Array.isArray(a) || !a.length) redirect();
+          });
+          window.ethereum.on?.('disconnect', redirect);
+        }
+      } catch {}
+      try {
+        if (window.solana && window.solana.isPhantom) {
+          window.solana.on?.('disconnect', redirect);
+        }
+      } catch {}
+    })();
+  })();
+  </script>
+
   <div class="top-banner" role="region" aria-label="Wallet and status">
     <div class="banner-left">
       <div id="status" class="banner-status"></div>
@@ -253,7 +319,8 @@
       <div class="controls">
       </div>
     </div>
-    </div>
+  </div>
+
   <!-- Removed per-page Rules button/header -->
   <div class="tavern" style="position:relative; width:95%; max-width:1280px; margin:6px auto 24px;">
     <!-- Lobby Panel (hidden on game page) -->
@@ -264,7 +331,7 @@
       </div>
       <p class="muted" style="font-size:12px; margin-top:8px;">A second table opens automatically when the first is full. Empty tables close automatically.</p>
     </div>
-    
+
     <div class="table-wrap">
       <h1 class="visually-hidden">Faro</h1>
       <div class="controls-inline"></div>
@@ -309,11 +376,12 @@
         <div class="seat" data-index="4" style="right:8%; bottom:14%;"></div>
         <div class="seat" data-index="5" style="left:50%; bottom:4%; transform:translateX(-50%);"></div>
       </div>
-      
+
     </div>
   </div>
 
   <script src="/socket.io/socket.io.js" onerror="(function(){var s=document.createElement('script');s.src='https://cdn.socket.io/4.7.5/socket.io.min.js';document.head.appendChild(s);})();"></script>
+
   <!-- Bet builder modal -->
   <div id="bet-modal" style="position:fixed; inset:0; background:rgba(0,0,0,0.55); display:none; align-items:center; justify-content:center; z-index:21000;">
     <div style="background: var(--panel-bg-soft); border:1px solid rgba(255,255,255,0.12); border-radius:14px; padding:18px; width:min(92vw, 560px); color:#f4e6d3; box-shadow:0 24px 60px rgba(0,0,0,0.55);">
@@ -329,15 +397,17 @@
       </div>
     </div>
   </div>
+
   <script type="module">
-    (async()=>{
-      try{
-        const b = await fetch('/assets/build.json', { cache: 'no-store' }).then(r=>r.ok?r.json():null).catch(()=>null);
-        const tag = (b && b.commit) ? String(b.commit).slice(0,12) : Date.now();
+    (async () => {
+      try {
+        const b = await fetch('/assets/build.json', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null);
+        const tag = (b && b.commit) ? String(b.commit).slice(0, 12) : Date.now();
         await import(`./table.js?v=${tag}`);
-      }catch(e){ console.error('table import failed', e); }
+      } catch (e) { console.error('table import failed', e); }
     })();
   </script>
+
   <!-- Build footer: shows Version + Commit + Built time -->
   <div style="position:fixed; right:12px; bottom:12px; z-index:10000;">
     <div id="footer-meta" style="font-size:12px; color:#f4e6d3; opacity:.95; background: var(--panel-bg-soft); border:1px solid rgba(255,255,255,0.12); border-radius:10px; padding:6px 8px; display:inline-block; box-shadow:0 18px 40px rgba(0,0,0,0.45);">
@@ -345,34 +415,33 @@
     </div>
   </div>
   <script>
-    (function(){
-      async function text(u){ try{ const r=await fetch(u,{cache:'no-store'}); if(!r.ok) return null; return await r.text(); }catch{return null} }
-      async function json(u){ try{ const r=await fetch(u,{cache:'no-store'}); if(!r.ok) return null; return await r.json(); }catch{return null} }
-      (async()=>{
-        const el=document.getElementById('footer-meta'); if(!el) return;
-        try{
-          const ver=(await text('/assets/version.txt')||'').trim();
-          const b=await json('/assets/build.json');
-          const c=b?.commit?String(b.commit).slice(0,12):'unknown';
-          const at=b?.builtAt||new Date().toISOString();
-          el.textContent=`Version: ${ver||'n/a'} | Commit: ${c} | Built: ${at}`;
-        }catch{ el.textContent='Version info unavailable'; }
+    (function () {
+      async function text(u) { try { const r = await fetch(u, { cache: 'no-store' }); if (!r.ok) return null; return await r.text(); } catch { return null } }
+      async function json(u) { try { const r = await fetch(u, { cache: 'no-store' }); if (!r.ok) return null; return await r.json(); } catch { return null } }
+      (async () => {
+        const el = document.getElementById('footer-meta'); if (!el) return;
+        try {
+          const ver = (await text('/assets/version.txt') || '').trim();
+          const b = await json('/assets/build.json');
+          const c = b?.commit ? String(b.commit).slice(0, 12) : 'unknown';
+          const at = b?.builtAt || new Date().toISOString();
+          el.textContent = `Version: ${ver || 'n/a'} | Commit: ${c} | Built: ${at}`;
+        } catch { el.textContent = 'Version info unavailable'; }
       })();
     })();
   </script>
+
   <!-- Left Sidebar (collapsible) -->
   <script>
-    (function(){
+    (function () {
       try {
-        var t = (window.__BUILD_TAG||Date.now());
+        var t = (window.__BUILD_TAG || Date.now());
         var s = document.createElement('script');
         s.type = 'module';
         s.src = '/js/sidebar.js?v=' + encodeURIComponent(t);
         document.body.appendChild(s);
-      } catch(e) {}
+      } catch (e) { }
     })();
   </script>
 </body>
 </html>
-
-
