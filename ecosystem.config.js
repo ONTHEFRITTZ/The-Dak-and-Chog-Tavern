@@ -3,30 +3,29 @@ module.exports = {
     {
       name: 'faro-rt',
       script: 'server/realtime.js',
-      cwd: '.',
+      cwd: '/home/ubuntu/The-Dak-and-Chog-Tavern',
       instances: 1,
       exec_mode: 'fork',
       autorestart: true,
-      watch: false,
       env: {
         NODE_ENV: 'production',
         PORT: '3100',
         GAME_TYPES: 'FARO',
-        // Optional: set ADMIN_ADDR (comma-separated lowercased addresses) before starting pm2
         ADMIN_ADDR: process.env.ADMIN_ADDR || ''
       }
     },
     {
-      name: 'holdempoker-rt',
-      script: 'server/poker-rt-bootstrap.js',
-      cwd: '.',
+      name: 'poker-rt',
+      script: 'server/realtime.js',
+      cwd: '/home/ubuntu/The-Dak-and-Chog-Tavern',
       instances: 1,
       exec_mode: 'fork',
       autorestart: true,
-      watch: false,
       env: {
         NODE_ENV: 'production',
-        PORT: '3101'
+        PORT: '3101',
+        GAME_TYPES: 'POKER',
+        ADMIN_ADDR: process.env.ADMIN_ADDR || ''
       }
     }
   ]
