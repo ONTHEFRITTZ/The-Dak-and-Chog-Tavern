@@ -26,11 +26,11 @@ const io = new Server(server, {
 
 /* --------------------------------- Config --------------------------------- */
 
-const HAND_TURN_MS = 25_000;      // auto-fold/check after this many ms
-const SAVE_INTERVAL_MS = 10_000;  // state snapshot cadence
-const LOBBY_TICK_MS = 5_000;      // baseline/spawn/prune cadence
-const IDLE_EJECT_MS = 90_000;     // remove unready inactive seat after 90s
-const EMPTY_PRUNE_MS = 60_000;    // prune an empty table after being empty ≥ 60s
+const HAND_TURN_MS = 25_000;
+const SAVE_INTERVAL_MS = 10_000;
+const LOBBY_TICK_MS = 5_000;
+const IDLE_EJECT_MS = 90_000;
+const EMPTY_PRUNE_MS = 60_000;
 const POKER_SEATS = 8;
 const FARO_SEATS = 6;
 
@@ -38,29 +38,18 @@ const DATA_DIR  = path.resolve(process.cwd(), 'data');
 const LOGS_DIR  = path.resolve(process.cwd(), 'logs');
 const STATE_FN  = path.join(DATA_DIR, 'state.json');
 
-// Make sure dirs exist
 fs.mkdirSync(DATA_DIR, { recursive: true });
 fs.mkdirSync(LOGS_DIR, { recursive: true });
 
 /* --------------------------------- State ---------------------------------- */
 
-const tables = new Map();            // id -> Table
-// Table (Faro): { id, kind:'FARO', seats[6], started, bets:Map<addrLower,Bet[]>, lastActive, ownerId? }
-// Table (Poker): {
-//   id, kind:'POKER',
-//   seats[8], started, lastActive,
-//   category:'ONCHAIN_NL'|'ONCHAIN_FL'|'OFFCHAIN_NL',
-//   limit:'NL'|'FL', stakes?:'3/6 MON',
-//   simulated:boolean, devBotEnabled:boolean,
-//   poker: { ... } | null,
-//   emptySince?: number
-// }
-const profiles = new Map();          // addrLower -> { cipher }
-const publicProfiles = new Map();    // addrLower -> { x }
-const stats = new Map();             // addrLower -> { rounds, wagered, won, lost }
+const tables = new Map(); // id -> Table
+const profiles = new Map();
+const publicProfiles = new Map();
+const stats = new Map();
 
 let paused = false;
-let rakeBps = Number(process.env.RT_RAKE_BPS || 100); // 1% default
+let rakeBps = Number(process.env.RT_RAKE_BPS || 100);
 let feesAccrued = 0;
 
 const admins = new Set(
@@ -71,7 +60,7 @@ const admins = new Set(
     .filter(Boolean)
 );
 
-// ⚠️ Default now includes POKER so poker lobby always appears unless explicitly disabled
+// DEFAULT NOW ENABLES POKER TOO
 const enabledGames = new Set(
   String(process.env.GAME_TYPES || 'FARO,POKER')
     .split(',')
@@ -102,10 +91,7 @@ function logFileName() {
 }
 
 function audit(tableId, type, payload) {
-  const line = JSON.stringify({
-    ts: new Date().toISOString(),
-    tableId, type, payload
-  }) + '\n';
+  const line = JSON.stringify({ ts: new Date().toISOString(), tableId, type, payload }) + '\n';
   fs.appendFile(logFileName(), line, () => {});
 }
 
@@ -231,6 +217,7 @@ function tablePublic(t) {
       started: !!t.started,
       ownerId: t.ownerId,
       capacity: FARO_SEATS,
+      kind: 'FARO',
     };
   }
 
@@ -248,6 +235,8 @@ function tablePublic(t) {
     limit: t.limit,        // 'NL' | 'FL'
     stakes: t.stakes || '',// '3/6 MON' for FL
     capacity: POKER_SEATS,
+    category: t.category,  // <-- include category in public view too
+    kind: 'POKER',
   };
 }
 
@@ -255,20 +244,32 @@ function emitUpdate(t) { try { io.to(t.id).emit('table:update', tablePublic(t));
 
 function emitLobby() {
   try {
+    // Always ensure baselines before emitting
+    ensureLobbyPolicy();
+
     const list = Array.from(tables.values())
       .filter(t => (t.kind === 'FARO' ? gameEnabled('FARO') : gameEnabled('POKER')))
       .map(t => {
-        const base = { id: t.id, seated: seatCount(t), capacity: (t.kind==='POKER'?POKER_SEATS:FARO_SEATS), started: !!t.started };
+        const base = {
+          id: t.id,
+          kind: t.kind,                      // <-- NEW: kind so UI can branch
+          seated: seatCount(t),
+          capacity: (t.kind==='POKER'?POKER_SEATS:FARO_SEATS),
+          started: !!t.started,
+        };
         if (t.kind === 'POKER') {
+          base.category  = t.category;       // <-- NEW: category so UI can group sections
           base.simulated = !!t.simulated;
-          base.limit = t.limit;
+          base.limit     = t.limit;
           if (t.limit === 'FL') base.stakes = t.stakes || '3/6 MON';
         }
         return base;
       });
 
     io.emit('lobby:list', list.sort((a,b)=> String(a.id).localeCompare(String(b.id))));
-  } catch {}
+  } catch (e) {
+    try { console.error('emitLobby error', e && e.message); } catch {}
+  }
 }
 
 /* ------------------------------ Poker bot rules ---------------------------- */
@@ -287,7 +288,6 @@ function seatFirstEmpty(t, addr, socketId='bot') {
   }
   return -1;
 }
-// Only on OFFCHAIN_NL tables: seat bot if exactly 1 human; boot if ≥2 or 0 humans
 function reconcileBotPolicy(t) {
   if (!isPoker(t)) return;
   if (t.category !== CAT.OFFCHAIN_NL) return;
@@ -314,7 +314,6 @@ function ensureCategoryBaselines() {
   ensurePokerTable(CAT.OFFCHAIN_NL);
 }
 
-// Spawn: if any table in category reaches 6/8, ensure there is an extra empty table
 function spawnIfCrowded(cat) {
   const list = pokerTablesBy(cat);
   if (list.length === 0) { ensurePokerTable(cat); return; }
@@ -328,7 +327,6 @@ function spawnIfCrowded(cat) {
   }
 }
 
-// Prune: if ≥2 empty tables in a category for ≥60s, prune one, but keep ≥1 (or keep 2 if any non-empty has ≥6)
 function pruneEmpties(cat) {
   const list = pokerTablesBy(cat);
   if (list.length === 0) return;
@@ -360,7 +358,6 @@ function pruneEmpties(cat) {
 }
 
 function ensureLobbyPolicy() {
-  // Faro minimums
   if (gameEnabled('FARO')) {
     if (!Array.from(tables.keys()).some(id => String(id).startsWith('faro-'))) getTable('faro-1');
     const faro = Array.from(tables.values()).filter(t => t.kind==='FARO');
@@ -376,7 +373,6 @@ function ensureLobbyPolicy() {
     }
   }
 
-  // Poker category baselines
   if (gameEnabled('POKER')) {
     ensureCategoryBaselines();
     spawnIfCrowded(CAT.ONCHAIN_NL);
@@ -396,7 +392,6 @@ function rand13() { return Math.floor(Math.random() * 13) + 1; }
 const RANKS = ['2','3','4','5','6','7','8','9','T','J','Q','K','A'];
 const RVAL = Object.fromEntries(RANKS.map((r,i)=>[r, i+2]));
 
-// Deterministic shuffle using SHA256(seed + ":" + counter)
 function makeSeededDeck(seedHex, tableId) {
   const suits = ['h','d','c','s'];
   const deck = [];
@@ -425,7 +420,7 @@ function cmpRank(a,b){ if (a.cls!==b.cls) return a.cls-b.cls; const n=Math.max(a
 function evaluate7Hand(hole2, board5){ try { const all = (hole2||[]).slice(0,2).concat((board5||[]).slice(0,5)); return evaluate7(all); } catch { return null; } }
 function bestFiveUsed(hole, board){
   try {
-    const all = Array.from(hole||[]).concat(Array.from(board||[])); // length <= 7
+    const all = Array.from(hole||[]).concat(Array.from(board||[]));
     const idxs = all.map((_,i)=>i);
     let best=null; let bestPick=null;
     function* comb5(arr, start=0, k=5, p=[]){
@@ -435,9 +430,7 @@ function bestFiveUsed(hole, board){
     for (const pick of comb5(idxs)){
       const cards = pick.map(i=> all[i]);
       const r = evaluate7(cards);
-      if (!best || cmpRank(r,best) > 0){
-        best = r; bestPick = pick;
-      }
+      if (!best || cmpRank(r,best) > 0){ best = r; bestPick = pick; }
     }
     const usedHole = []; const usedCommunity = [];
     (bestPick||[]).forEach(i=>{ if (i<2) usedHole.push(i); else usedCommunity.push(i-2); });
@@ -508,7 +501,6 @@ function applyAction(tableId, t, addrLower, action, isAuto=false) {
           rng: { commit: state.rng?.commit, seed: state.rng?.seed },
           table: tablePublic(t)
         });
-        // clear private hole for everyone
         try { state.actors.forEach(a => clearPrivateHoleForSeat(t, a.seatId)); } catch {}
         t.poker = null;
         try { t.seats.filter(Boolean).forEach(s => { s.ready = false; }); } catch {}
@@ -533,7 +525,6 @@ function applyAction(tableId, t, addrLower, action, isAuto=false) {
       actor.acted = true; // ignore raise/bet in beta
     }
 
-    // next active
     let next = (state.turnIndex + 1) % actors.length, loop = 0;
     while (actors[next] && actors[next].folded && loop < actors.length) { next = (next + 1) % actors.length; loop++; }
     state.turnIndex = next;
@@ -593,7 +584,6 @@ function startPokerHand(tableId, t) {
     const ordered = seated.slice(startIdx).concat(seated.slice(0, startIdx));
     const actors = ordered.map(p => ({ addr:p.addr, seatId:p.seatId, folded:false, acted:false, contrib:0 }));
 
-    // fairness: commit→reveal
     const seed = crypto.randomBytes(32).toString('hex');
     const commit = crypto.createHash('sha256').update(seed).digest('hex');
     const deck = makeSeededDeck(seed, tableId);
@@ -637,7 +627,6 @@ function advancePokerStage(tableId, t) {
     const state = t.poker; if (!state) return;
     const actors = state.actors;
 
-    // reset betting
     actors.forEach(a => { a.acted = false; a.contrib = 0; });
     state.toCall = 0;
 
@@ -681,7 +670,6 @@ function advancePokerStage(tableId, t) {
 
       audit(tableId, 'showdown', { winners, board, pot: state.pot, rngReveal: state.rng });
 
-      // clear hole cards from clients
       try { state.actors.forEach(a => clearPrivateHoleForSeat(t, a.seatId)); } catch {}
 
       clearTurnTimer(t);
@@ -691,7 +679,6 @@ function advancePokerStage(tableId, t) {
       return;
     }
 
-    // first to act postflop: left of dealer, not folded
     let idx = (state.dealerIndex + 1) % actors.length, spins = 0;
     while (actors[idx]?.folded && spins < actors.length) { idx = (idx + 1) % actors.length; spins++; }
     state.turnIndex = idx;
@@ -706,7 +693,6 @@ function advancePokerStage(tableId, t) {
 
 /* ------------------------------ Socket wiring ----------------------------- */
 
-// Bootstrap: immediately create baselines and emit once on boot (so UI doesn't sit at "loading...")
 setTimeout(() => { try { ensureLobbyPolicy(); emitLobby(); } catch (e) { console.error(e); } }, 200);
 
 io.on('connection', (socket) => {
@@ -714,7 +700,6 @@ io.on('connection', (socket) => {
   let addrLower = null;
   let isAdmin = false;
 
-  // Ensure this client sees a lobby immediately
   try { ensureLobbyPolicy(); emitLobby(); } catch (e) { console.error(e); }
 
   socket.on('identify', (m) => {
@@ -734,7 +719,6 @@ io.on('connection', (socket) => {
       currentTableId = wanted;
       socket.join(wanted);
 
-      // if player has a seat in an active hand, re-send their private cards on join
       if (isPoker(t) && t.poker && addrLower) {
         const seatIdx = t.seats.findIndex(s => s && s.addr === addrLower);
         if (seatIdx >= 0) {
@@ -892,7 +876,6 @@ io.on('connection', (socket) => {
     } catch {}
   });
 
-  // POKER actions (authoritative)
   socket.on('poker:act', (m) => {
     try {
       if (!allow(socket.id, 'poker:act')) { socket.emit('error', { message:'rate limit' }); return; }
@@ -907,14 +890,13 @@ io.on('connection', (socket) => {
       if (actorIdx < 0 || actorIdx >= actors.length) return;
       const actor = actors[actorIdx];
       if (!actor) return;
-      if (actor.addr !== addrLower) return; // not your turn
+      if (actor.addr !== addrLower) return;
 
       const action = String(m?.action || '').toLowerCase();
       applyAction(currentTableId, t, addrLower, action, false);
     } catch {}
   });
 
-  // Toggle dev bot: only effective on OFFCHAIN_NL
   socket.on('poker:devbot', (m) => {
     try {
       if (!currentTableId) return;
@@ -922,7 +904,7 @@ io.on('connection', (socket) => {
       if (!isPoker(t)) return;
       if (t.category !== CAT.OFFCHAIN_NL) return;
 
-    const enabled = !!m?.enabled;
+      const enabled = !!m?.enabled;
       t.devBotEnabled = enabled;
       if (!enabled) {
         const botIdx = findBotIndex(t);
@@ -937,7 +919,6 @@ io.on('connection', (socket) => {
     } catch {}
   });
 
-  // Simulated flag echo (OFFCHAIN only)
   socket.on('poker:mode', (m) => {
     try {
       if (!currentTableId) return;
@@ -1016,10 +997,8 @@ io.on('connection', (socket) => {
 
 /* ------------------------- Background maintenance -------------------------- */
 
-// Enforce baselines, spawn/prune, lobby refresh
 setInterval(() => { try { ensureLobbyPolicy(); emitLobby(); } catch {} }, LOBBY_TICK_MS);
 
-// Auto-eject inactive unready seats + reconcile bot + emit updates
 setInterval(() => {
   try {
     const now = nowMs();
@@ -1042,7 +1021,6 @@ setInterval(() => {
   } catch {}
 }, 7_000);
 
-// Persist a crash-safe snapshot (we clear active hands on restore for safety)
 function saveState() {
   try {
     const out = [];
@@ -1063,7 +1041,6 @@ function saveState() {
 }
 setInterval(saveState, SAVE_INTERVAL_MS);
 
-// Restore snapshot (clear hands)
 (function restoreState() {
   try {
     if (!fs.existsSync(STATE_FN)) return;
@@ -1081,7 +1058,6 @@ setInterval(saveState, SAVE_INTERVAL_MS);
       t.simulated = !!o.simulated;
       t.devBotEnabled = !!o.devBotEnabled;
       t.emptySince = o.emptySince || null;
-      // Ensure no dangling hand
       t.poker = null;
       if (isPoker(t)) reconcileBotPolicy(t);
     });
@@ -1098,7 +1074,6 @@ server.listen(PORT, () => {
   } catch {
     console.log('RT server on', PORT);
   }
-  // Emit once after listen to wake up any early clients
   setTimeout(() => { try { ensureLobbyPolicy(); emitLobby(); } catch (e) { console.error(e); } }, 150);
 });
 
@@ -1118,14 +1093,14 @@ function bettingRoundComplete(state) {
 function maybeTriggerBot(tableId, t) {
   try {
     if (!t?.devBotEnabled) return;
-    if (t.category !== CAT.OFFCHAIN_NL) return; // never act on on-chain tables
+    if (t.category !== CAT.OFFCHAIN_NL) return;
     const state = t.poker; if (!state) return;
 
     const idx = state.actors.findIndex(a => typeof a?.addr === 'string' && a.addr.startsWith('bot:'));
     if (idx === -1) return;
     if (state.turnIndex !== idx) return;
     if (state.actors[idx].folded) return;
-    if (state.botTimer) return; // debounce
+    if (state.botTimer) return;
 
     state.botTimer = setTimeout(() => {
       try {
