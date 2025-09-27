@@ -113,7 +113,6 @@ function renderTable(t){
 // =================== Socket.IO ===================
 function initSocket(){
   try {
-    // io must be available (socket.io client)
     socket = io(window.location.origin, {
       path: '/poker.io/',
       transports: ['polling','websocket'],
@@ -135,7 +134,6 @@ function initSocket(){
       if (myAddr) socket.emit('identify', { addr: myAddr });
     } catch {}
     try { socket.emit('lobby:get'); } catch {}
-    // If we are on table page and have an id, ask to join to get state updates
     if (currentTableId) {
       try { socket.emit('join_table', { table: currentTableId }); } catch {}
     }
@@ -151,22 +149,22 @@ function initSocket(){
 
   socket.on('lobby:list', (list) => renderLobby(list));
 
-  // Table-only channels (your server should emit these on table pages)
-  socket.on('table:state', (t) => renderTable(t));
-  socket.on('system', () => { /* noop */ });
+  // Accept BOTH names so we work with any server build
+  socket.on('table:update', (t) => renderTable(t));
+  socket.on('table:state',  (t) => renderTable(t));
+
+  // Optional: game flow (only used when you show live hand state)
+  // socket.on('poker:state', (m) => { /* update hand UI */ });
+  // socket.on('poker:hand',  (m) => { /* show showdown */ });
 }
 
 initSocket();
 
-// =================== Wallet Connect (fixed) ===================
+// =================== Wallet Connect ===================
 function getInjectedProvider(){
-  // Prefer explicit injected providers if present
   try {
-    // Phantom may expose phantom.ethereum
     if (window.phantom?.ethereum) return window.phantom.ethereum;
-    // MetaMask / EIP-1193
     if (window.ethereum) return window.ethereum;
-    // Custom injected (if you set one elsewhere)
     if (window.__walletProvider) return window.__walletProvider;
   } catch {}
   return null;
@@ -180,7 +178,6 @@ connectBtn?.addEventListener('click', async () => {
       return;
     }
 
-    // Request accounts (EIP-1102 / EIP-1193)
     await injected.request?.({ method: 'eth_requestAccounts' });
 
     const provider = new window.ethers.providers.Web3Provider(injected, 'any');
@@ -190,7 +187,6 @@ connectBtn?.addEventListener('click', async () => {
     myAddr = String(addr || '').toLowerCase();
     setStatus(`Wallet: ${short(myAddr)}`);
 
-    // Identify to backend and (re)join table if applicable
     try { if (socket?.connected) socket.emit('identify', { addr: myAddr }); } catch {}
     try {
       if (currentTableId) {
@@ -206,7 +202,6 @@ connectBtn?.addEventListener('click', async () => {
 
 // =================== On-chain orchestration (guarded) ===================
 (function(){
-  // Entire block is optional and fully guarded; it won’t run unless deps exist.
   let onChain = false, hp = null, hpOwner = null, lastState = null, nextHandId = 1;
 
   async function ensureHp() {
@@ -247,7 +242,7 @@ connectBtn?.addEventListener('click', async () => {
   async function sendCalls(calls){
     const from = await myAddrNow();
     try {
-      const det = await window.Bundler?.detectBundler?.(getInjectedProvider() || window.ethereum);
+      const det  = await window.Bundler?.detectBundler?.(getInjectedProvider() || window.ethereum);
       if (det?.available) {
         const net  = await (new window.ethers.providers.Web3Provider(getInjectedProvider() || window.ethereum,'any')).getNetwork().catch(()=>({ chainId: undefined }));
         const res  = await window.Bundler.walletSendCalls({ provider: det.provider, from, chainId: Number(net?.chainId), calls });
@@ -255,11 +250,8 @@ connectBtn?.addEventListener('click', async () => {
         if (hash) await window.Bundler.waitForTransactionReceipt?.(det.provider, hash);
         return true;
       }
-    } catch (e) {
-      console.warn('bundled send failed', e);
-    }
+    } catch (e) { console.warn('bundled send failed', e); }
 
-    // Fallback: sequential send (best-effort; requires signer)
     try {
       const injected = getInjectedProvider() || window.ethereum;
       const w3 = new window.ethers.providers.Web3Provider(injected, 'any');
@@ -269,10 +261,7 @@ connectBtn?.addEventListener('click', async () => {
         await tx.wait?.();
       }
       return true;
-    } catch (e) {
-      console.warn('fallback send failed', e);
-      return false;
-    }
+    } catch (e) { console.warn('fallback send failed', e); return false; }
   }
 
   async function onState(st){
@@ -280,7 +269,6 @@ connectBtn?.addEventListener('click', async () => {
       if (!onChain || !hp) return;
       const me = await myAddrNow(); if (!isOwner(me)) return;
 
-      // Begin hand when entering preflop from no/unknown stage
       if ((!lastState || !lastState.stage) && st?.stage === 'preflop'){
         const dealer = Number(st.dealerIndex || 0) | 0;
         const N      = (st.actors?.length || 6);
@@ -290,7 +278,6 @@ connectBtn?.addEventListener('click', async () => {
         await sendCalls([{ to: hp.address, data }]);
       }
 
-      // Contribute deltas
       if (lastState?.actors && st?.actors && Array.isArray(st.actors)) {
         const calls = [];
         for (let i = 0; i < st.actors.length; i++){
@@ -324,7 +311,6 @@ connectBtn?.addEventListener('click', async () => {
 
   (async () => { try { await ensureHp(); } catch {} })();
 
-  // Bind once socket is ready; retry until available
   (function bind(){
     try {
       if (socket) {

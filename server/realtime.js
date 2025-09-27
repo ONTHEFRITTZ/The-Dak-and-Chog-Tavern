@@ -20,7 +20,7 @@ const server = http.createServer((req, res) => {
 });
 
 const io = new Server(server, {
-  path: '/socket.io/', // IMPORTANT: trailing slash to match nginx proxy_pass target
+  path: '/socket.io/', // IMPORTANT: matches nginx proxy_pass target
   cors: { origin: true, methods: ['GET', 'POST'] },
 });
 
@@ -50,9 +50,7 @@ const enabledGames = new Set(
     .filter(Boolean)
 );
 
-function gameEnabled(name) {
-  return enabledGames.has(String(name || '').toUpperCase());
-}
+function gameEnabled(name) { return enabledGames.has(String(name || '').toUpperCase()); }
 
 function tableGameKind(id) {
   const x = String(id || '').toLowerCase();
@@ -86,9 +84,7 @@ function getTable(id) {
   return tables.get(id);
 }
 
-function seatCount(t) {
-  return t.seats.filter(Boolean).length;
-}
+function seatCount(t) { return t.seats.filter(Boolean).length; }
 
 function nextFaroTableId() {
   const ids = Array.from(tables.keys())
@@ -153,9 +149,7 @@ function ensureLobbyPolicy() {
   }
 }
 
-function short(v) {
-  return (v && v.length > 10) ? (v.slice(0, 6) + '...' + v.slice(-4)) : (v || '');
-}
+function short(v) { return (v && v.length > 10) ? (v.slice(0, 6) + '...' + v.slice(-4)) : (v || ''); }
 
 function ensureStats(addr) {
   const key = (addr || '').toLowerCase();
@@ -193,8 +187,13 @@ function tablePublic(t) {
   };
 }
 
+/** Back-compat: emit both channels so old/new clients work */
 function emitUpdate(t) {
-  try { io.to(t.id).emit('table:update', tablePublic(t)); } catch {}
+  try {
+    const payload = tablePublic(t);
+    io.to(t.id).emit('table:update', payload);
+    io.to(t.id).emit('table:state',  payload); // <— added
+  } catch {}
 }
 
 function emitLobby() {
@@ -258,57 +257,49 @@ function evaluate7(cards) {
   const counts = cs.reduce((m, c) => { m[c.v] = (m[c.v] || 0) + 1; return m; }, {});
   const groups = Object.entries(counts).map(([v, c]) => ({ v: Number(v), c })).sort((a,b)=> b.c - a.c || b.v - a.v);
 
-  // Flush / Straight Flush (incl. Royal)
+  // Flush / Straight Flush
   let flushSuit = null;
   for (const s of Object.keys(bySuit)) { if (bySuit[s].length >= 5) { flushSuit = s; break; } }
   if (flushSuit) {
     const fcs = bySuit[flushSuit].slice();
     const hi = straightHigh(fcs);
-    if (hi > 0) return { cls: 8, tiebreak: [hi] }; // straight flush
+    if (hi > 0) return { cls: 8, tiebreak: [hi] };
   }
 
-  // Four of a kind
   if (groups[0]?.c === 4) {
     const kicker = cs.find(c => c.v !== groups[0].v)?.v || 0;
     return { cls: 7, tiebreak: [groups[0].v, kicker] };
   }
 
-  // Full house
   if (groups[0]?.c === 3) {
     const second = groups.find(g => g.c >= 2 && g.v !== groups[0].v);
     if (second) return { cls: 6, tiebreak: [groups[0].v, second.v] };
   }
 
-  // Flush
   if (flushSuit) {
     const top5 = bySuit[flushSuit].slice(0,5).map(c => c.v);
     return { cls: 5, tiebreak: top5 };
   }
 
-  // Straight
   const sh = straightHigh(cs);
   if (sh > 0) return { cls: 4, tiebreak: [sh] };
 
-  // Trips
   if (groups[0]?.c === 3) {
     const kickers = cs.filter(c => c.v !== groups[0].v).slice(0,2).map(c => c.v);
     return { cls: 3, tiebreak: [groups[0].v, ...kickers] };
   }
 
-  // Two pair
   if (groups[0]?.c === 2 && groups[1]?.c === 2) {
     const kicker = cs.find(c => c.v !== groups[0].v && c.v !== groups[1].v)?.v || 0;
     const hi = Math.max(groups[0].v, groups[1].v), lo = Math.min(groups[0].v, groups[1].v);
     return { cls: 2, tiebreak: [hi, lo, kicker] };
   }
 
-  // One pair
   if (groups[0]?.c === 2) {
     const kickers = cs.filter(c => c.v !== groups[0].v).slice(0,3).map(c => c.v);
     return { cls: 1, tiebreak: [groups[0].v, ...kickers] };
   }
 
-  // High card
   return { cls: 0, tiebreak: cs.slice(0,5).map(c => c.v) };
 }
 
@@ -333,9 +324,7 @@ function bestFiveUsed(hole, board) {
   try {
     const all = Array.from(hole || []).concat(Array.from(board || [])); // length <= 7
     const idxs = all.map((_, i) => i);
-
-    let best = null;
-    let bestPick = null;
+    let best = null, bestPick = null;
 
     function* comb5(arr, start = 0, k = 5, p = []) {
       if (k === 0) { yield p; return; }
@@ -347,23 +336,13 @@ function bestFiveUsed(hole, board) {
     for (const pick of comb5(idxs)) {
       const cards = pick.map(i => all[i]);
       const r = evaluate7(cards);
-      if (!best || cmpRank(r, best) > 0) {
-        best = r;
-        bestPick = pick;
-      }
+      if (!best || cmpRank(r, best) > 0) { best = r; bestPick = pick; }
     }
 
-    const usedHole = [];
-    const usedCommunity = [];
-    (bestPick || []).forEach(i => {
-      if (i < 2) usedHole.push(i);
-      else usedCommunity.push(i - 2);
-    });
-
+    const usedHole = [], usedCommunity = [];
+    (bestPick || []).forEach(i => { if (i < 2) usedHole.push(i); else usedCommunity.push(i - 2); });
     return { usedHole, usedCommunity };
-  } catch {
-    return { usedHole: [], usedCommunity: [] };
-  }
+  } catch { return { usedHole: [], usedCommunity: [] }; }
 }
 
 function emitPokerState(tableId, t) {
@@ -396,12 +375,10 @@ function emitPokerState(tableId, t) {
 
 function nextActiveIndex(actors, from) {
   if (!actors.length) return -1;
-  let i = (from + 1) % actors.length;
-  let spins = 0;
+  let i = (from + 1) % actors.length, spins = 0;
   while (spins < actors.length) {
     if (!actors[i]?.folded) return i;
-    i = (i + 1) % actors.length;
-    spins++;
+    i = (i + 1) % actors.length; spins++;
   }
   return -1;
 }
@@ -427,7 +404,6 @@ function startPokerHand(tableId, t) {
       dealerSeatId = seated[0].seatId;
     }
 
-    // Build actors in seating order starting at dealer (inclusive)
     const startIdx = seated.findIndex(x => x.seatId === dealerSeatId);
     const ordered = seated.slice(startIdx).concat(seated.slice(0, startIdx));
     const actors = ordered.map(p => ({ addr: p.addr, seatId: p.seatId, folded: false, acted: false, contrib: 0 }));
@@ -435,23 +411,19 @@ function startPokerHand(tableId, t) {
     const deck = makeDeck();
     const community = [];
     const pot = 0;
-    const SB = 1;
-    const BB = 2;
+    const SB = 1, BB = 2;
 
     const dealerIndex = 0;
     const sbIndex = (dealerIndex + 1) % actors.length;
     const bbIndex = (dealerIndex + 2) % actors.length;
 
-    // blinds
     actors[sbIndex].contrib = SB;
     actors[bbIndex].contrib = BB;
     let toCall = BB;
     let newPot = pot + SB + BB;
 
-    // hole cards
     actors.forEach(a => { a.cards = [deck.pop(), deck.pop()]; });
 
-    // preflop actor (UTG) — heads-up special case
     let turnIndex = (bbIndex + 1) % actors.length;
     if (actors.length === 2) turnIndex = sbIndex;
 
@@ -477,7 +449,6 @@ function advancePokerStage(tableId, t) {
     const state = t.poker; if (!state) return;
     const actors = state.actors;
 
-    // reset betting
     actors.forEach(a => { a.acted = false; a.contrib = 0; });
     state.toCall = 0;
 
@@ -491,16 +462,13 @@ function advancePokerStage(tableId, t) {
       state.community.push(state.deck.pop());
       state.stage = 'river';
     } else if (state.stage === 'river') {
-      // showdown
       const board = Array.from(state.community || []);
       const alive = actors.map((a, i) => ({ i, a })).filter(x => !x.a.folded);
       let winners = [];
 
       if (alive.length > 0) {
         const evals = alive.map(x => ({
-          idx: x.i,
-          addr: x.a.addr,
-          hole: Array.from(x.a.cards || []),
+          idx: x.i, addr: x.a.addr, hole: Array.from(x.a.cards || []),
           ev: evaluate7Hand((x.a.cards || []), board),
         })).filter(e => e.ev);
 
@@ -538,8 +506,7 @@ function advancePokerStage(tableId, t) {
     }
 
     // first to act postflop: left of dealer, not folded
-    let idx = (state.dealerIndex + 1) % actors.length;
-    let spins = 0;
+    let idx = (state.dealerIndex + 1) % actors.length, spins = 0;
     while (actors[idx]?.folded && spins < actors.length) { idx = (idx + 1) % actors.length; spins++; }
     state.turnIndex = idx;
 
@@ -576,7 +543,7 @@ io.on('connection', (socket) => {
 
       const t = getTable(tableId);
 
-      // Poker: on join, clear dev bot if no hand
+      // Poker: on join, clear dev bot if no hand (keeps tables clean)
       try {
         if (String(tableId).startsWith('poker-') && !t.poker) {
           let changed = false;
@@ -585,7 +552,7 @@ io.on('connection', (socket) => {
             if (s && typeof s.addr === 'string' && s.addr.startsWith('bot:')) { t.seats[i] = null; changed = true; }
           }
           if (t.devBotEnabled) { t.devBotEnabled = false; changed = true; }
-          if (t.simulated) { t.simulated = false; changed = true; }
+          if (t.simulated)     { t.simulated     = false; changed = true; }
           if (changed) emitUpdate(t);
         }
       } catch {}
@@ -658,7 +625,7 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     try {
-      for (const [id, t] of tables.entries()) {
+      for (const [, t] of tables.entries()) {
         let changed = false;
         for (let i = 0; i < t.seats.length; i++) {
           const s = t.seats[i];
@@ -688,7 +655,7 @@ io.on('connection', (socket) => {
       const allReady = active.length && active.every(x => !!x.ready);
       if (paused) return;
 
-      const isFaro = String(currentTableId).startsWith('faro-');
+      const isFaro  = String(currentTableId).startsWith('faro-');
       const isPoker = String(currentTableId).startsWith('poker-');
 
       // If dev bot is seated in poker, mark it ready when a human is ready
@@ -709,8 +676,7 @@ io.on('connection', (socket) => {
           active.forEach(seat => {
             const list = t.bets.get(String(seat.addr || '').toLowerCase()) || [];
             if (!list.length) return;
-            let seatDelta = 0;
-            let totalStake = 0;
+            let seatDelta = 0, totalStake = 0;
             list.forEach(bet => {
               const fee = Math.floor((Number(bet.amount || 0) * Number(rakeBps)) / 10000);
               const stake = Math.max(0, Number(bet.amount || 0) - fee);
@@ -815,14 +781,31 @@ io.on('connection', (socket) => {
       t.devBotEnabled = enabled;
       t.simulated = !!enabled;
 
-      const botIdx = t.seats.findIndex(s => s && typeof s.addr === 'string' && s.addr.startsWith('bot:'));
+      let botIdx = t.seats.findIndex(s => s && typeof s.addr === 'string' && s.addr.startsWith('bot:'));
       if (enabled) {
         if (botIdx === -1) {
           const slot = t.seats.findIndex(s => !s);
-          if (slot >= 0) t.seats[slot] = { id: slot, addr: 'bot:dev', ready: false, balance: 0, lastActive: nowMs(), socketId: 'bot' };
+          if (slot >= 0) {
+            t.seats[slot] = { id: slot, addr: 'bot:dev', ready: false, balance: 0, lastActive: nowMs(), socketId: 'bot' };
+            botIdx = slot;
+          }
         } else {
           try { t.seats[botIdx].ready = false; } catch {}
         }
+
+        // QoL: if a human is already ready, ready the bot too and start hand when applicable
+        try {
+          const humans = t.seats.filter(s => s && typeof s.addr === 'string' && !s.addr.startsWith('bot:'));
+          const anyHumanReady = humans.some(h => !!h.ready);
+          if (anyHumanReady && botIdx >= 0) {
+            t.seats[botIdx].ready = true;
+            const active = t.seats.filter(Boolean);
+            const allReady = active.length && active.every(x => !!x.ready);
+            if (allReady && active.length >= 2 && !t.poker && !paused) {
+              startPokerHand(currentTableId, t);
+            }
+          }
+        } catch {}
       } else {
         if (botIdx >= 0) t.seats[botIdx] = null;
         try { if (t.poker?.botTimer) { clearTimeout(t.poker.botTimer); t.poker.botTimer = null; } } catch {}
@@ -1000,10 +983,8 @@ io.on('connection', (socket) => {
 
 /* ------------------------- Background maintenance -------------------------- */
 
-// Enforce lobby policy
 setInterval(() => { try { ensureLobbyPolicy(); emitLobby(); } catch {} }, 15_000);
 
-// Auto-eject inactive unready seats during a running shoe (90s)
 setInterval(() => {
   try {
     const now = nowMs();
