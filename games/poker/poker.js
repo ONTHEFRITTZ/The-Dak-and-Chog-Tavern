@@ -1,10 +1,11 @@
-// =================== Poker UI + Networking (Cleaned) ===================
+// =================== Poker UI + Networking (Wallet-hardened) ===================
 
 // ---- DOM refs ----
 const statusEl   = document.getElementById('poker-status') || document.getElementById('status');
 const lobbyEl    = document.getElementById('lobby');
 const connectBtn = document.getElementById('connect-wallet');
 const tableEl    = document.getElementById('table') || document.getElementById('poker-table');
+const wiAddrEl   = document.getElementById('wi-address'); // optional (navbar)
 
 // ---- URL helpers (tableId from ?table=...) ----
 function getQueryParam(k){ try { return new URL(window.location.href).searchParams.get(k); } catch { return null; } }
@@ -13,10 +14,41 @@ const currentTableId = (window.currentTableId ?? getQueryParam('table')) || null
 // ---- globals ----
 let socket;
 let myAddr = null;
+let chainIdHex = null;
 
 // ---- utils ----
-function setStatus(t){ try { if (statusEl) statusEl.textContent = t; } catch {} }
 function short(a){ try { return a && a.length>10 ? (a.slice(0,6)+'...'+a.slice(-4)) : (a||''); } catch { return a||''; } }
+function setStatus(t){ try { if (statusEl) statusEl.textContent = t; } catch {} }
+function lc(a){ return (a||'').toString().toLowerCase(); }
+
+function setKnownAddress(addr){
+  try {
+    myAddr = lc(addr);
+    if (myAddr) {
+      // Persist so other pages (Faro redirect, navbar) see it
+      try { localStorage.setItem('walletConnected','true'); } catch {}
+      try { sessionStorage.setItem('walletConnected','true'); } catch {}
+      try { localStorage.setItem('walletAddress', myAddr); } catch {}
+      try { sessionStorage.setItem('walletAddress', myAddr); } catch {}
+      // Update UI hooks if present
+      if (wiAddrEl) wiAddrEl.textContent = short(myAddr);
+      window.__WALLET_ADDR = myAddr;
+      // Broadcast to any listeners (your navbar/sidebar etc.)
+      try { window.dispatchEvent(new CustomEvent('wallet:connected', { detail: { address: myAddr, chainId: chainIdHex } })); } catch {}
+      // Identify to backend + (re)join table
+      if (socket?.connected) {
+        try { socket.emit('identify', { addr: myAddr }); } catch {}
+        if (currentTableId) {
+          try { socket.emit('lobby:get'); socket.emit('join_table', { table: currentTableId }); } catch {}
+        }
+      }
+      setStatus(`Wallet: ${short(myAddr)}`);
+    } else {
+      if (wiAddrEl) wiAddrEl.textContent = '-';
+      setStatus('Wallet: not connected');
+    }
+  } catch (e) { console.warn('setKnownAddress failed', e); }
+}
 
 // =================== Lobby Rendering ===================
 function renderLobby(list){
@@ -44,9 +76,7 @@ function renderLobby(list){
       lobbyEl.appendChild(card);
     });
     if (!items.length) lobbyEl.textContent = 'No poker tables yet.';
-  } catch (e) {
-    console.error('renderLobby error', e);
-  }
+  } catch (e) { console.error('renderLobby error', e); }
 }
 
 // =================== Table Rendering ===================
@@ -79,7 +109,7 @@ function renderTable(t){
         info.textContent = short(s.addr||s.id);
         panel.appendChild(info);
 
-        if (myAddr && s.addr && String(s.addr).toLowerCase()===String(myAddr).toLowerCase()){
+        if (myAddr && s.addr && lc(s.addr)===myAddr){
           const btnLeave = document.createElement('button');
           btnLeave.textContent='Leave';
           btnLeave.onclick = () => { try { socket?.emit('seat',{ index:-1 }); } catch {} };
@@ -105,9 +135,7 @@ function renderTable(t){
     }
 
     tableEl.appendChild(grid);
-  } catch (e) {
-    console.error('renderTable error', e);
-  }
+  } catch (e) { console.error('renderTable error', e); }
 }
 
 // =================== Socket.IO ===================
@@ -130,20 +158,12 @@ function initSocket(){
 
   socket.on('connect', () => {
     setStatus('Connected');
-    try {
-      if (myAddr) socket.emit('identify', { addr: myAddr });
-    } catch {}
+    if (myAddr) { try { socket.emit('identify', { addr: myAddr }); } catch {} }
     try { socket.emit('lobby:get'); } catch {}
-    if (currentTableId) {
-      try { socket.emit('join_table', { table: currentTableId }); } catch {}
-    }
+    if (currentTableId) { try { socket.emit('join_table', { table: currentTableId }); } catch {} }
   });
 
-  socket.on('connect_error', (err) => {
-    setStatus('Lobby unavailable. Retrying...');
-    try { console.error('connect_error', err?.message || err); } catch {}
-  });
-
+  socket.on('connect_error', (err) => { setStatus('Lobby unavailable. Retrying...'); console.warn('connect_error', err?.message || err); });
   socket.on('reconnect_error', () => { setStatus('Reconnecting...'); });
   socket.on('disconnect', () => setStatus('Disconnected'));
 
@@ -153,14 +173,12 @@ function initSocket(){
   socket.on('table:update', (t) => renderTable(t));
   socket.on('table:state',  (t) => renderTable(t));
 
-  // Optional: game flow (only used when you show live hand state)
-  // socket.on('poker:state', (m) => { /* update hand UI */ });
-  // socket.on('poker:hand',  (m) => { /* show showdown */ });
+  // Optional: detailed hand flow
+  // socket.on('poker:state', (m) => {});
+  // socket.on('poker:hand',  (m) => {});
 }
 
-initSocket();
-
-// =================== Wallet Connect ===================
+// =================== Wallet Sync (robust) ===================
 function getInjectedProvider(){
   try {
     if (window.phantom?.ethereum) return window.phantom.ethereum;
@@ -170,30 +188,56 @@ function getInjectedProvider(){
   return null;
 }
 
+async function detectExistingAccount(){
+  try {
+    const injected = getInjectedProvider();
+    if (!injected) return null;
+    // no prompt
+    const accts = await injected.request?.({ method: 'eth_accounts' }).catch(()=>[]);
+    const addr = (accts && accts[0]) || null;
+    chainIdHex = await injected.request?.({ method: 'eth_chainId' }).catch(()=>null);
+    return addr;
+  } catch { return null; }
+}
+
+async function ensureWalletFromAnySource(){
+  // 1) If another page already saved it, adopt immediately
+  const saved = (localStorage.getItem('walletAddress') || sessionStorage.getItem('walletAddress') || '').trim();
+  if (saved) setKnownAddress(saved);
+
+  // 2) Ask the provider quietly (no prompt) — covers “connected but not saved” case
+  const addr = await detectExistingAccount();
+  if (addr) setKnownAddress(addr);
+
+  // 3) Listen for global wallet events from your navbar/sidebar
+  window.addEventListener('wallet:connected', (e) => {
+    const addr2 = e?.detail?.address || e?.detail?.addr;
+    if (addr2) setKnownAddress(addr2);
+  });
+
+  // 4) React to wallet changes directly
+  const injected = getInjectedProvider();
+  if (injected && injected.on) {
+    injected.on('accountsChanged', (arr) => {
+      const a = (arr && arr[0]) || null;
+      setKnownAddress(a || '');
+    });
+    injected.on('chainChanged', (id) => {
+      chainIdHex = id;
+      // Keep showing address; no redirect here
+      if (myAddr) setStatus(`Wallet: ${short(myAddr)} | Chain ${id}`);
+    });
+  }
+}
+
 connectBtn?.addEventListener('click', async () => {
   try {
     const injected = getInjectedProvider();
-    if (!injected || !window.ethers) {
-      setStatus('No wallet provider found');
-      return;
-    }
-
-    await injected.request?.({ method: 'eth_requestAccounts' });
-
-    const provider = new window.ethers.providers.Web3Provider(injected, 'any');
-    const signer   = provider.getSigner();
-    const addr     = await signer.getAddress();
-
-    myAddr = String(addr || '').toLowerCase();
-    setStatus(`Wallet: ${short(myAddr)}`);
-
-    try { if (socket?.connected) socket.emit('identify', { addr: myAddr }); } catch {}
-    try {
-      if (currentTableId) {
-        socket?.emit('lobby:get');
-        socket?.emit('join_table', { table: currentTableId });
-      }
-    } catch {}
+    if (!injected || !window.ethers) { setStatus('No wallet provider found'); return; }
+    await injected.request?.({ method: 'eth_requestAccounts' }); // prompt
+    const [addr] = await injected.request?.({ method: 'eth_accounts' }) || [];
+    chainIdHex = await injected.request?.({ method: 'eth_chainId' }).catch(()=>null);
+    setKnownAddress(addr || '');
   } catch (e) {
     console.error('Wallet connect failed', e);
     setStatus('Wallet connect failed');
@@ -218,15 +262,11 @@ connectBtn?.addEventListener('click', async () => {
       hp      = new window.ethers.Contract(addr, window.HoldemPokerABI, signer);
       hpOwner = await hp.owner();
       return true;
-    } catch (e) {
-      console.warn('ensureHp failed', e);
-      return false;
-    }
+    } catch (e) { console.warn('ensureHp failed', e); return false; }
   }
 
   function isOwner(addr){
-    try { return !!addr && !!hpOwner && String(addr).toLowerCase() === String(hpOwner).toLowerCase(); }
-    catch { return false; }
+    try { return !!addr && !!hpOwner && lc(addr) === lc(hpOwner); } catch { return false; }
   }
 
   async function myAddrNow(){
@@ -288,11 +328,8 @@ connectBtn?.addEventListener('click', async () => {
         }
         if (calls.length) await sendCalls(calls);
       }
-    } catch (e) {
-      console.warn('onState error', e);
-    } finally {
-      lastState = st;
-    }
+    } catch (e) { console.warn('onState error', e); }
+    finally { lastState = st; }
   }
 
   async function onHand(m){
@@ -304,9 +341,7 @@ connectBtn?.addEventListener('click', async () => {
       const payouts = Array.isArray(m?.winners) ? m.winners.map(w=>Number(w.amount || 0)) : [];
       const data    = hp.interface.encodeFunctionData('settleHand', [winners, payouts, 0]);
       await sendCalls([{ to: hp.address, data }]);
-    } catch (e) {
-      console.warn('settleHand failed', e);
-    }
+    } catch (e) { console.warn('settleHand failed', e); }
   }
 
   (async () => { try { await ensureHp(); } catch {} })();
@@ -325,3 +360,7 @@ connectBtn?.addEventListener('click', async () => {
     }
   })();
 })();
+
+// =================== Bootstrap ===================
+initSocket();
+ensureWalletFromAnySource();
