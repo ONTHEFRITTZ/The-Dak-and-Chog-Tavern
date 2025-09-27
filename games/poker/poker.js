@@ -1,4 +1,4 @@
-// =================== Poker UI + Networking (Wallet-hardened) ===================
+// =================== Poker UI + Networking (Split Lobby + Wallet-hardened) ===================
 
 // ---- DOM refs ----
 const statusEl   = document.getElementById('poker-status') || document.getElementById('status');
@@ -21,21 +21,19 @@ function short(a){ try { return a && a.length>10 ? (a.slice(0,6)+'...'+a.slice(-
 function setStatus(t){ try { if (statusEl) statusEl.textContent = t; } catch {} }
 function lc(a){ return (a||'').toString().toLowerCase(); }
 
+// =================== Wallet state ===================
 function setKnownAddress(addr){
   try {
     myAddr = lc(addr);
     if (myAddr) {
-      // Persist so other pages (Faro redirect, navbar) see it
       try { localStorage.setItem('walletConnected','true'); } catch {}
       try { sessionStorage.setItem('walletConnected','true'); } catch {}
       try { localStorage.setItem('walletAddress', myAddr); } catch {}
       try { sessionStorage.setItem('walletAddress', myAddr); } catch {}
-      // Update UI hooks if present
       if (wiAddrEl) wiAddrEl.textContent = short(myAddr);
       window.__WALLET_ADDR = myAddr;
-      // Broadcast to any listeners (your navbar/sidebar etc.)
       try { window.dispatchEvent(new CustomEvent('wallet:connected', { detail: { address: myAddr, chainId: chainIdHex } })); } catch {}
-      // Identify to backend + (re)join table
+
       if (socket?.connected) {
         try { socket.emit('identify', { addr: myAddr }); } catch {}
         if (currentTableId) {
@@ -50,36 +48,149 @@ function setKnownAddress(addr){
   } catch (e) { console.warn('setKnownAddress failed', e); }
 }
 
-// =================== Lobby Rendering ===================
-function renderLobby(list){
-  try {
-    const items = Array.isArray(list) ? list : [];
-    if (!lobbyEl) return;
+// =================== Lobby classification & rendering ===================
 
-    lobbyEl.innerHTML = '';
-    items.forEach(row => {
-      const card = document.createElement('div'); card.className='lobby-item';
-      const left = document.createElement('div'); left.textContent = `${row.id} - Players ${row.seated}/${row.capacity}`;
-      const btn = document.createElement('button'); btn.textContent = 'Open Table';
-      btn.onclick = () => {
-        try {
-          const u = new URL(window.location.href);
-          u.pathname = '/games/poker/table.html';
-          u.searchParams.set('table', row.id);
-          window.location.href = u.toString();
-        } catch {
-          window.location.href = `/games/poker/table.html?table=${encodeURIComponent(row.id)}`;
-        }
-      };
-      card.appendChild(left);
-      card.appendChild(btn);
-      lobbyEl.appendChild(card);
-    });
-    if (!items.length) lobbyEl.textContent = 'No poker tables yet.';
-  } catch (e) { console.error('renderLobby error', e); }
+// Prefer backend flags if present; otherwise infer from id patterns.
+function isOffchain(row) {
+  if (typeof row?.simulated === 'boolean') return !!row.simulated;
+  if (typeof row?.onchain   === 'boolean') return !row.onchain;
+  const id = String(row?.id || '').toLowerCase();
+  return id.includes('-sim-') || id.startsWith('poker-sim-') || id.endsWith('-sim');
+}
+function isOnchain(row){ return !isOffchain(row); }
+
+function limitType(row){
+  const raw = (row?.limit || '').toString().toUpperCase();
+  if (raw === 'NL' || raw === 'NO_LIMIT' || raw === 'NO-LIMIT') return 'NL';
+  if (raw === 'FL' || raw === 'FIXED_LIMIT' || raw === 'FIXED-LIMIT' || raw === 'LIMIT') return 'FL';
+  const id = String(row?.id || '').toLowerCase();
+  if (id.includes('-fl-') || id.startsWith('poker-fl-') || id.endsWith('-fl') || id.includes('fixed')) return 'FL';
+  return 'NL';
 }
 
-// =================== Table Rendering ===================
+function sortTables(a, b) {
+  if (!!b.started - !!a.started) return (!!b.started - !!a.started);     // LIVE first
+  if ((b.seated|0) - (a.seated|0)) return (b.seated|0) - (a.seated|0);   // more players
+  return String(a.id).localeCompare(String(b.id));                        // lexicographic id
+}
+
+function makeLobbySectionsContainer(){
+  // Build sections dynamically inside #lobby so you don't need to edit HTML.
+  const root = document.createElement('div');
+  root.className = 'poker-lobby-sections';
+
+  const section = (titleTxt, subSections=[]) => {
+    const s = document.createElement('section');
+    s.className = 'lobby-sec';
+    const h = document.createElement('h3');
+    h.textContent = titleTxt;
+    h.style.margin = '8px 0';
+    s.appendChild(h);
+    subSections.forEach(ss => s.appendChild(ss));
+    return s;
+  };
+
+  const listBlock = (heading) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'lobby-subsec';
+    const h = document.createElement('h4');
+    h.textContent = heading;
+    h.style.margin = '6px 0';
+    const list = document.createElement('div');
+    list.className = 'lobby-list-grid';
+    wrap.appendChild(h);
+    wrap.appendChild(list);
+    return { wrap, list };
+  };
+
+  const onNL   = listBlock('No-Limit');
+  const onFL   = listBlock('Fixed-Limit');
+  const offSim = listBlock('Off-Chain (Simulated)');
+
+  const onChainSection = section('On-Chain Tables', [onNL.wrap, onFL.wrap]);
+  const offChainSection = section('Off-Chain Tables', [offSim.wrap]);
+
+  root.appendChild(onChainSection);
+  root.appendChild(offChainSection);
+
+  return { root, lists: { onNL: onNL.list, onFL: onFL.list, offSim: offSim.list } };
+}
+
+function rowCard(row){
+  const wrap = document.createElement('div');
+  wrap.className = 'lobby-item';
+  wrap.style.cssText = 'display:flex; align-items:center; justify-content:space-between; gap:8px; padding:10px; border:1px solid rgba(255,255,255,0.16); border-radius:10px; background:rgba(0,0,0,0.25);';
+
+  const left = document.createElement('div');
+  left.style.flex='1 1 auto';
+  const title = document.createElement('div');
+  title.style.fontWeight = '700';
+  title.textContent = row.id;
+
+  const meta = document.createElement('div');
+  meta.style.fontSize = '12px';
+  const limitTxt = (row.limitLabel || (limitType(row) === 'FL' ? 'Fixed-Limit' : 'No-Limit'));
+  const parts = [];
+  if (row.stakes) parts.push(String(row.stakes));
+  parts.push(`Players ${row.seated}/${row.capacity}`);
+  parts.push(limitTxt);
+  if (row.started) parts.push('LIVE');
+  meta.textContent = parts.join(' • ');
+
+  left.appendChild(title);
+  left.appendChild(meta);
+
+  const btn = document.createElement('button');
+  btn.textContent = 'Join';
+  btn.onclick = () => {
+    try {
+      const u = new URL(window.location.href);
+      u.pathname = '/games/poker/table.html';
+      u.searchParams.set('table', row.id);
+      window.location.href = u.toString();
+    } catch {
+      window.location.href = `/games/poker/table.html?table=${encodeURIComponent(row.id)}`;
+    }
+  };
+
+  wrap.appendChild(left);
+  wrap.appendChild(btn);
+  return wrap;
+}
+
+function renderLobby(list){
+  try {
+    if (!lobbyEl) return;
+    const items = Array.isArray(list) ? list : [];
+
+    // Build sections container fresh each time (simple and safe)
+    lobbyEl.innerHTML = '';
+    const { root, lists } = makeLobbySectionsContainer();
+    lobbyEl.appendChild(root);
+
+    // Split & sort
+    const on  = items.filter(isOnchain);
+    const off = items.filter(isOffchain);
+    const onNL = on.filter(r => limitType(r) === 'NL').sort(sortTables);
+    const onFL = on.filter(r => limitType(r) === 'FL').sort(sortTables);
+    const offX = off.sort(sortTables);
+
+    // Fill lists
+    if (onNL.length) onNL.forEach(r => lists.onNL.appendChild(rowCard(r)));
+    else lists.onNL.innerHTML = `<div class="muted" style="opacity:.8;">No No-Limit tables yet.</div>`;
+
+    if (onFL.length) onFL.forEach(r => lists.onFL.appendChild(rowCard(r)));
+    else lists.onFL.innerHTML = `<div class="muted" style="opacity:.8;">No Fixed-Limit tables yet.</div>`;
+
+    if (offX.length) offX.forEach(r => lists.offSim.appendChild(rowCard(r)));
+    else lists.offSim.innerHTML = `<div class="muted" style="opacity:.8;">No off-chain tables yet.</div>`;
+  } catch (e) {
+    console.error('renderLobby error', e);
+    try { lobbyEl.textContent = 'Failed to render lobby.'; } catch {}
+  }
+}
+
+// =================== Table Rendering (unchanged) ===================
 function renderTable(t){
   try {
     if (!tableEl) return;
@@ -167,15 +278,12 @@ function initSocket(){
   socket.on('reconnect_error', () => { setStatus('Reconnecting...'); });
   socket.on('disconnect', () => setStatus('Disconnected'));
 
+  // Flat list from server → split into sections client-side
   socket.on('lobby:list', (list) => renderLobby(list));
 
-  // Accept BOTH names so we work with any server build
+  // Keep compatibility with both event names
   socket.on('table:update', (t) => renderTable(t));
   socket.on('table:state',  (t) => renderTable(t));
-
-  // Optional: detailed hand flow
-  // socket.on('poker:state', (m) => {});
-  // socket.on('poker:hand',  (m) => {});
 }
 
 // =================== Wallet Sync (robust) ===================
@@ -192,7 +300,6 @@ async function detectExistingAccount(){
   try {
     const injected = getInjectedProvider();
     if (!injected) return null;
-    // no prompt
     const accts = await injected.request?.({ method: 'eth_accounts' }).catch(()=>[]);
     const addr = (accts && accts[0]) || null;
     chainIdHex = await injected.request?.({ method: 'eth_chainId' }).catch(()=>null);
@@ -201,21 +308,17 @@ async function detectExistingAccount(){
 }
 
 async function ensureWalletFromAnySource(){
-  // 1) If another page already saved it, adopt immediately
   const saved = (localStorage.getItem('walletAddress') || sessionStorage.getItem('walletAddress') || '').trim();
   if (saved) setKnownAddress(saved);
 
-  // 2) Ask the provider quietly (no prompt) — covers “connected but not saved” case
   const addr = await detectExistingAccount();
   if (addr) setKnownAddress(addr);
 
-  // 3) Listen for global wallet events from your navbar/sidebar
   window.addEventListener('wallet:connected', (e) => {
     const addr2 = e?.detail?.address || e?.detail?.addr;
     if (addr2) setKnownAddress(addr2);
   });
 
-  // 4) React to wallet changes directly
   const injected = getInjectedProvider();
   if (injected && injected.on) {
     injected.on('accountsChanged', (arr) => {
@@ -224,7 +327,6 @@ async function ensureWalletFromAnySource(){
     });
     injected.on('chainChanged', (id) => {
       chainIdHex = id;
-      // Keep showing address; no redirect here
       if (myAddr) setStatus(`Wallet: ${short(myAddr)} | Chain ${id}`);
     });
   }
@@ -234,7 +336,7 @@ connectBtn?.addEventListener('click', async () => {
   try {
     const injected = getInjectedProvider();
     if (!injected || !window.ethers) { setStatus('No wallet provider found'); return; }
-    await injected.request?.({ method: 'eth_requestAccounts' }); // prompt
+    await injected.request?.({ method: 'eth_requestAccounts' });
     const [addr] = await injected.request?.({ method: 'eth_accounts' }) || [];
     chainIdHex = await injected.request?.({ method: 'eth_chainId' }).catch(()=>null);
     setKnownAddress(addr || '');
@@ -244,7 +346,7 @@ connectBtn?.addEventListener('click', async () => {
   }
 });
 
-// =================== On-chain orchestration (guarded) ===================
+// =================== On-chain orchestration (guarded / optional) ===================
 (function(){
   let onChain = false, hp = null, hpOwner = null, lastState = null, nextHandId = 1;
 

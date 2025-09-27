@@ -1,74 +1,138 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
-  <meta http-equiv="Pragma" content="no-cache">
-  <meta http-equiv="Expires" content="0">
-  <script>(function(){try{var signed=sessionStorage.getItem('walletSigned')==='true'; if(!signed){ location.replace('/landing.html'); return; }}catch(e){ location.replace('/landing.html'); }})();</script>
-  <title>Poker (Isolated)</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
   <script>
-    (function(){try{
-      window.addEventListener('unload', function(){});
-      window.addEventListener('pageshow', function(e){ if (e && e.persisted) { location.reload(); } });
-      var nav = (performance && performance.getEntriesByType) ? performance.getEntriesByType('navigation') : null;
-      if (nav && nav[0] && nav[0].type === 'back_forward') { location.reload(); }
-    }catch(e){}})();
-  </script>
-  <script>
-    (async()=>{
-      try{
-        const b = await fetch('/assets/build.json', { cache:'no-store' }).then(r=>r.ok?r.json():null).catch(()=>null);
-        const tag = (b && b.commit) ? String(b.commit).slice(0,12) : Date.now();
-        window.__BUILD_TAG = tag;
-        const css = document.createElement('link'); css.rel='stylesheet'; css.href = `../../css/style.css?v=${tag}`;
-        document.head.appendChild(css);
-      }catch(e){ console.error('poker head loader failed', e); }
+    // Require a signed wallet session before viewing the lobby
+    (function () {
+      try {
+        var signed = sessionStorage.getItem("walletSigned") === "true";
+        if (!signed) { location.replace("/landing.html"); return; }
+      } catch (e) { location.replace("/landing.html"); }
     })();
   </script>
-  <!-- Preload table + games-room background so lobby->table paints fast -->
-  <link rel="preload" as="image" href="../../assets/images/table.png" type="image/png">
-  <link rel="preload" as="image" href="../../assets/images/games-room.png" type="image/png">
+  <title>Poker Lobby</title>
+
+  <!-- Build tag + CSS (cache-busted) -->
   <script>
-    (function(){ try { var tag=(window.__BUILD_TAG||Date.now()); var s=document.createElement('script'); s.src='../../js/HoldemPokerABI.js?v='+encodeURIComponent(tag); document.head.appendChild(s);} catch(e){} })();
+    (async () => {
+      try {
+        const b = await fetch("/assets/build.json", { cache: "no-store" })
+          .then(r => (r.ok ? r.json() : null))
+          .catch(() => null);
+        const tag = b && b.commit ? String(b.commit).slice(0, 12) : Date.now();
+        window.__BUILD_TAG = tag;
+        const css = document.createElement("link");
+        css.rel = "stylesheet";
+        css.href = `../../css/style.css?v=${tag}`;
+        document.head.appendChild(css);
+      } catch (e) {
+        console.error("head loader failed", e);
+      }
+    })();
   </script>
+
+  <!-- Preload images so table pages paint quickly -->
+  <link rel="preload" as="image" href="../../assets/images/table.png" type="image/png" />
+  <link rel="preload" as="image" href="../../assets/images/games-room.png" type="image/png" />
+
   <style>
-    body { background: #120c08 url('../../assets/images/games-room.png') no-repeat center center fixed !important; background-size: 100% auto !important; }
-    body.game { display:flex; flex-direction:column; align-items:center; justify-content:flex-start; min-height:100vh; }
-    .game-logo { display:block; height:auto; max-width: clamp(180px, 26vw, 420px); margin: clamp(12px, 4vh, 28px) auto clamp(10px, 2vh, 18px); filter: drop-shadow(0 0 18px rgba(255,244,233,0.45)) drop-shadow(0 4px 12px rgba(0,0,0,0.25)); pointer-events:none; user-select:none; }
-    /* Centered, locked lobby panel (shared with Faro). Expands and scrolls if needed. */
+    body {
+      background: #120c08 url("../../assets/images/games-room.png") no-repeat center center fixed !important;
+      background-size: 100% auto !important;
+    }
+    body.game {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      min-height: 100vh;
+    }
+
     :root { --panel-w: clamp(420px, 60vw, 1000px); --panel-vpad: 72px; }
-    .lobby-wrap { width:95%; max-width:1000px; margin: clamp(24px, 10vh, 120px) auto 32px; position:relative; }
+    .lobby-wrap { width: 95%; max-width: 1000px; margin: clamp(24px, 10vh, 120px) auto 32px; position: relative; }
     .lobby-card {
       position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
       z-index: 11000; width: var(--panel-w);
       max-height: calc(100vh - var(--panel-vpad) - 24px); overflow: auto;
       background: var(--panel-bg-soft);
-      border:1px solid rgba(255,255,255,0.12); border-radius:14px; padding:20px; color:#f4e6d3; box-shadow:0 24px 60px rgba(0,0,0,0.55);
+      border: 1px solid rgba(255,255,255,0.12); border-radius: 14px; padding: 20px; color: #f4e6d3;
+      box-shadow: 0 24px 60px rgba(0,0,0,0.55);
     }
+
+    .section { margin-top: 18px; }
+    .section h3 { margin: 10px 0 8px; font-size: 18px; display: flex; align-items: center; gap: 8px; }
+    .section h4 { margin: 8px 0 6px; font-size: 15px; opacity: .9; }
+
+    .list {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 10px;
+    }
+    .item {
+      background: rgba(0,0,0,0.35);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 10px;
+      padding: 10px;
+      display: grid;
+      grid-template-rows: auto auto;
+      gap: 6px;
+    }
+    .row1 { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .title { font-weight: 700; }
+    .meta { font-size: 12px; opacity: .9; }
+    .live-badge {
+      font-size: 11px; padding: 2px 6px; border-radius: 999px;
+      background: rgba(24, 128, 68, .9); border: 1px solid rgba(255,255,255,0.18);
+    }
+    .item button {
+      justify-self: end;
+      padding: 6px 10px; border-radius: 8px; cursor: pointer; border: none;
+      background: #9200fa; color: #fff; box-shadow: 0 0 20px rgba(255,244,233,0.28);
+    }
+    .item button:hover { background: #7800cd; }
+    .empty { font-size: 13px; opacity: .8; padding: 6px 2px; }
+    .muted { opacity: .85; font-size: 13px; }
   </style>
 </head>
 
-<script>(function(){try{var signed=sessionStorage.getItem('walletSigned')==='true'; if(!signed){ location.replace('/landing.html'); return; }}catch(e){ location.replace('/landing.html'); }})();</script>
 <body class="game">
+  <!-- Top banner (status only) -->
   <div class="top-banner" role="region" aria-label="Wallet and status">
-    <div class="banner-left">
-      <div id="status" class="banner-status">Connecting...</div>
-    </div>
-    <div class="banner-right">
-      <div class="controls">
-      </div>
-    </div>
+    <div class="banner-left"><div id="status" class="banner-status">Connecting…</div></div>
+    <div class="banner-right"><div class="controls"></div></div>
   </div>
 
   <div class="lobby-wrap">
-    <h1 class="visually-hidden">Poker (Isolated)</h1>
+    <h1 class="visually-hidden">Poker Lobby</h1>
     <div class="lobby-card">
       <h2 style="margin:0 0 8px;">Poker Lobby</h2>
-      <div id="poker-status" class="muted" style="margin-bottom:8px; font-size:13px; min-height:18px;"></div>
-      <div id="lobby" class="lobby-list"></div>
-      <div id="table" style="margin-top:14px;"></div>
+      <div id="poker-status" class="muted" style="margin-bottom:8px; min-height:18px;"></div>
+
+      <!-- ON-CHAIN -->
+      <div class="section" id="sec-onchain">
+        <h3>On-chain Tables</h3>
+
+        <h4>No-Limit Hold’em</h4>
+        <div id="list-onchain-nl" class="list"></div>
+
+        <h4 style="margin-top:12px;">Fixed-Limit Hold’em</h4>
+        <div id="list-onchain-fl" class="list"></div>
+      </div>
+
+      <!-- OFF-CHAIN -->
+      <div class="section" id="sec-offchain" style="margin-top:18px;">
+        <h3>Off-chain (Simulated)</h3>
+        <div id="list-offchain" class="list"></div>
+        <div class="muted" style="margin-top:6px;">
+          Off-chain tables may auto-seat a dev bot only while exactly one human is seated. When a second human joins,
+          the bot must be removed and the table state reset to a clean pre-hand state. (Enforced server-side.)
+        </div>
+      </div>
     </div>
   </div>
 
@@ -76,32 +140,159 @@
   <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
   <script type="module" src="../../js/tavern.js"></script>
-  <!-- Load poker.js as a classic script with cache-busting -->
+
   <script>
-    (function(){
-      function load(src){ try { var s=document.createElement('script'); s.src=src; s.defer=true; document.body.appendChild(s); } catch(e) { console.error('inject failed', e); } }
-      try {
-        fetch('/assets/build.json', { cache:'no-store' })
-          .then(function(r){ return r.ok ? r.json() : null; })
-          .then(function(b){ var tag=(b&&b.commit)? String(b.commit).slice(0,12) : Date.now(); load('poker.js?v='+encodeURIComponent(tag)); })
-          .catch(function(){ load('poker.js?v='+Date.now()); });
-      } catch(e) { load('poker.js?v='+Date.now()); }
+    (function () {
+      const statusEl = document.getElementById("status");
+      const lobbyStatusEl = document.getElementById("poker-status");
+
+      function setStatus(t) { try { if (statusEl) statusEl.textContent = t; } catch {} }
+      function setLobbyMsg(t) { try { if (lobbyStatusEl) lobbyStatusEl.textContent = t; } catch {} }
+
+      // Containers
+      const elNL  = document.getElementById("list-onchain-nl");
+      const elFL  = document.getElementById("list-onchain-fl");
+      const elSIM = document.getElementById("list-offchain");
+
+      // Heuristics only (server does not yet emit onchain/limit/simulated fields)
+      function isOffchain(row) {
+        const id = String(row.id || "").toLowerCase();
+        return id.includes("-sim-") || id.startsWith("poker-sim-");
+      }
+      function isOnchain(row) { return !isOffchain(row); }
+      function limitType(row) {
+        const id = String(row.id || "").toLowerCase();
+        if (id.includes("-fl-") || id.startsWith("poker-fl-")) return "FL";
+        return "NL";
+      }
+
+      function rowCard(row) {
+        const wrap = document.createElement("div");
+        wrap.className = "item";
+
+        const top = document.createElement("div");
+        top.className = "row1";
+
+        const left = document.createElement("div");
+        const title = document.createElement("div");
+        title.className = "title";
+        title.textContent = row.id;
+
+        const meta = document.createElement("div");
+        meta.className = "meta";
+        meta.textContent = `Players ${row.seated}/${row.capacity}${row.started ? " • active" : ""}`;
+
+        left.appendChild(title);
+        left.appendChild(meta);
+
+        const right = document.createElement("div");
+        if (row.started) {
+          const live = document.createElement("span");
+          live.className = "live-badge";
+          live.textContent = "LIVE";
+          right.appendChild(live);
+        }
+
+        top.appendChild(left);
+        top.appendChild(right);
+
+        const btn = document.createElement("button");
+        btn.textContent = "Join";
+        btn.onclick = () => {
+          try {
+            const u = new URL(window.location.href);
+            u.pathname = "/games/poker/table.html";
+            u.searchParams.set("table", row.id);
+            window.location.href = u.toString();
+          } catch {
+            window.location.href = `/games/poker/table.html?table=${encodeURIComponent(row.id)}`;
+          }
+        };
+
+        wrap.appendChild(top);
+        wrap.appendChild(btn);
+        return wrap;
+      }
+
+      function renderLobby(list) {
+        try {
+          const items = Array.isArray(list) ? list : [];
+
+          // Clear UI
+          elNL.innerHTML = "";
+          elFL.innerHTML = "";
+          elSIM.innerHTML = "";
+
+          // Split by on-chain/off-chain
+          const on = items.filter(isOnchain);
+          const off = items.filter(isOffchain);
+
+          // Split on-chain by limit
+          const onNL = on.filter(r => limitType(r) === "NL");
+          const onFL = on.filter(r => limitType(r) === "FL");
+
+          const byId = (a, b) => String(a.id).localeCompare(String(b.id));
+
+          onNL.sort(byId).forEach(r => elNL.appendChild(rowCard(r)));
+          onFL.sort(byId).forEach(r => elFL.appendChild(rowCard(r)));
+          off.sort(byId).forEach(r => elSIM.appendChild(rowCard(r)));
+
+          if (!onNL.length) elNL.innerHTML = '<div class="empty">No No-Limit tables yet.</div>';
+          if (!onFL.length) elFL.innerHTML = '<div class="empty">No Fixed-Limit tables yet.</div>';
+          if (!off.length) elSIM.innerHTML = '<div class="empty">No off-chain tables yet.</div>';
+        } catch (e) {
+          console.error("renderLobby error", e);
+          setLobbyMsg("Failed to render lobby.");
+        }
+      }
+
+      // Socket.IO (poker upstream)
+      let socket;
+      function initSocket() {
+        try {
+          socket = io(window.location.origin, {
+            path: "/poker.io/",
+            transports: ["polling", "websocket"],
+            upgrade: true,
+            reconnection: true,
+            reconnectionAttempts: 10,
+            reconnectionDelay: 800,
+            forceNew: true
+          });
+        } catch (e) {
+          setStatus("Socket.IO not available");
+          console.error("Socket init error", e);
+          return;
+        }
+
+        socket.on("connect", () => {
+          setStatus("Connected");
+          try { socket.emit("lobby:get"); } catch {}
+        });
+        socket.on("connect_error", (err) => {
+          setStatus("Lobby unavailable. Retrying…");
+          try { console.error("connect_error", err?.message || err); } catch {}
+        });
+        socket.on("reconnect_error", () => setStatus("Reconnecting…"));
+        socket.on("disconnect", () => setStatus("Disconnected"));
+
+        socket.on("lobby:list", (list) => renderLobby(list));
+        socket.on("system", () => { /* no-op in lobby */ });
+      }
+
+      initSocket();
     })();
   </script>
-  <!-- Left Sidebar (collapsible) -->
-  <script>
-    (function(){
-      try {
-        var t = (window.__BUILD_TAG||Date.now());
-        var s = document.createElement('script');
-        s.type = 'module';
-        s.src = '/js/sidebar.js?v=' + encodeURIComponent(t);
-        document.body.appendChild(s);
-      } catch(e) {}
-    })();
+
+  <!-- Optional collapsible sidebar (unchanged) -->
+  <script type="module">
+    try {
+      const t = window.__BUILD_TAG || Date.now();
+      const s = document.createElement("script");
+      s.type = "module";
+      s.src = "/js/sidebar.js?v=" + encodeURIComponent(t);
+      document.body.appendChild(s);
+    } catch (e) {}
   </script>
 </body>
 </html>
-
-
-
