@@ -56,8 +56,8 @@ function layoutSeats(){
   const cx = W/2, cy = H/2;
 
   // Make the oval wider/taller → pushes seats outward
-  const rx = W * 0.44;   // horizontal radius (was 0.36)
-  const ry = H * 0.42;   // vertical radius (was 0.34)
+  const rx = W * 0.52;   // horizontal radius (was 0.36)
+  const ry = H * 0.50;   // vertical radius (was 0.34)
 
   // Angles for 8 seats evenly distributed around oval
   const positions = [
