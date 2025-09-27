@@ -423,10 +423,32 @@ function parseCard(c){ const r=c && c[0], s=c && c[1]; return { r, s, v:RVAL[r]|
 function byvDesc(a,b){ return b.v-a.v; }
 function uniqueByRankDesc(cards){ const seen=new Set(); const out=[]; for(const c of cards.sort(byvDesc)){ if(!seen.has(c.v)){ out.push(c); seen.add(c.v);} } return out; }
 function straightHigh(cards){ const u = uniqueByRankDesc(cards); const vs = u.map(c=>c.v); if (vs.includes(14)) vs.push(1); let best=0, run=1; for (let i=1;i<vs.length;i++){ if (vs[i]===vs[i-1]-1) { run++; best = Math.max(best, vs[i-1]); } else if (vs[i]!==vs[i-1]) run=1; if (run>=5) best = Math.max(best, vs[i-1]); } if (best===0 && vs.includes(5) && vs.includes(1)) return 5; return best; }
-function evaluate7(cards){ const cs = cards.map(parseCard).sort(byvDesc); const bySuit = cs.reduce((m,c)=>{ (m[c.s2]=m[c.s2]||[]).push(c); return m; },{}); const counts = cs.reduce((m,c)=>{ m[c.v]=(m[c.v]||0)+1; return m; },{}); const groups = Object.entries(counts).map(([v,c])=>({v:Number(v), c})).sort((a,b)=> b.c-a.c || b.v-a.v); let flushSuit=null; for (const s of Object.keys(bySuit)){ if (bySuit[s].length>=5) { flushSuit=s; break; } } if (flushSuit){ const fcs = bySuit[flushSuit].slice(); const hi = straightHigh(fcs); if (hi>0){ return { cls:8, tiebreak:[hi] }; } } if (groups[0]?.c===4){ const kicker = cs.find(c=>c.v!==groups[0].v)?.v||0; return { cls:7, tiebreak:[groups[0].v, kicker] }; } if (groups[0]?.c===3){ const second = groups.find(g=>g.c>=2 && g.v!==groups[0].v); if (second){ return { cls:6, tiebreak:[groups[0].v, second.v] }; } } if (flushSuit){ const top5 = bySuit[flushSuit].slice(0,5).map(c=>c.v); return { cls:5, tiebreak: top5 } } const sh = straightHigh(cs); if (sh>0){ return { cls:4, tiebreak:[sh] }; } if (groups[0]?.c===3){ const kickers = cs.filter(c=>c.v!==groups[0].v).slice(0,2).map(c=>c.v); return { cls:3, tiebreak:[groups[0].v, ...kickers] }; } if (groups[0]?.c===2 && groups[1]?.c===2){ const kicker = cs.find(c=>c.v!==groups[0].v && c.v!==groups[1].v)?.v||0; const hi=Math.max(groups[0].v,groups[1].v), lo=Math.min(groups[0].v,groups[1].v); return { cls:2, tiebreak:[hi, lo, kicker] }; } if (groups[0]?.c===2){ const kickers = cs.filter(c=>c.v!==groups[0].v).slice(0,3).map(c=>c.v); return { cls:1, tiebreak:[groups[0].v, ...kickers] }; } return { cls:0, tiebreak: cs.slice(0,5).map(c=>c.v) }; }
+function evaluate7(cards){ const cs = cards.map(parseCard).sort(byvDesc); const bySuit = cs.reduce((m,c)=>{ (m[c.s2]=m[c.s2]||[]).push(c); return m; },{}); const counts = cs.reduce((m,c)=>{ m[c.v]=(m[c.v]||0)+1; return m; },{}); const groups = Object.entries(counts).map(([v,c])=>({v:Number(v), c})).sort((a,b)=> b.c-a.c || b.v-a.v); let flushSuit=null; for (const s of Object.keys(bySuit)){ if (bySuit[s].length>=5) { flushSuit=s; break; } } if (flushSuit){ const fcs = bySuit[flushSuit].slice(); const hi = straightHigh(fcs); if (hi>0){ return { cls:8, tiebreak:[hi] }; } } if (groups[0]?.c===4){ const kicker = cs.find(c=>c.v!==groups[0].v)?.v||0; return { cls:7, tiebreak:[groups[0].v, kicker] }; } if (groups[0]?.c===3){ const second = groups.find(g=>g.c>=2 && g.v!==groups[0].v); if (second){ return { cls:6, tiebreak:[groups[0].v, second.v] }; } } if (flushSuit){ const top5 = bySuit[flushSuit].slice(0,5).map(c=>c.v); return { cls:5, tiebreak: top5 }; } const sh = straightHigh(cs); if (sh>0){ return { cls:4, tiebreak:[sh] }; } if (groups[0]?.c===3){ const kickers = cs.filter(c=>c.v!==groups[0].v).slice(0,2).map(c=>c.v); return { cls:3, tiebreak:[groups[0].v, ...kickers] }; } if (groups[0]?.c===2 && groups[1]?.c===2){ const kicker = cs.find(c=>c.v!==groups[0].v && c.v!==groups[1].v)?.v||0; const hi=Math.max(groups[0].v,groups[1].v), lo=Math.min(groups[0].v,groups[1].v); return { cls:2, tiebreak:[hi, lo, kicker] }; } if (groups[0]?.c===2){ const kickers = cs.filter(c=>c.v!==groups[0].v).slice(0,3).map(c=>c.v); return { cls:1, tiebreak:[groups[0].v, ...kickers] }; } return { cls:0, tiebreak: cs.slice(0,5).map(c=>c.v) }; }
 function cmpRank(a,b){ if (a.cls!==b.cls) return a.cls-b.cls; const n=Math.max(a.tiebreak.length,b.tiebreak.length); for(let i=0;i<n;i++){ const av=a.tiebreak[i]||0, bv=b.tiebreak[i]||0; if (av!==bv) return av-bv; } return 0; }
 function evaluate7Hand(hole2, board5){ try { const all = (hole2||[]).slice(0,2).concat((board5||[]).slice(0,5)); return evaluate7(all); } catch { return null; } }
-function bestFiveUsed(hole, board){ try { const all = Array.from(hole||[]).concat(Array.from(board||[])); const idxs = all.map((_,i)=>i); let best=null; let bestPick=null; function* comb5(arr, start=0, k=5, p=[]) { if (k===0) { yield p; return; } for (let i=start; i<=arr.length-k; i++) { yield* comb5(arr, i+1, k-1, p.concat([arr[i]])); } } for (const pick of comb5(idxs)){ const cards = pick.map(i=> all[i]); const r = evaluate7(cards); if (!best || cmpRank(r,best) > 0){ best = r; bestPick = pick; } } const usedHole = []; const usedCommunity = []; (bestPick||[]).forEach(i=>{ if (i<2) usedHole.push(i); else usedCommunity.push(i-2); }); return { usedHole, usedCommunity }; } catch { return { usedHole: [], usedCommunity: [] }; }
+function bestFiveUsed(hole, board){
+  try {
+    const all = Array.from(hole||[]).concat(Array.from(board||[])); // length <= 7
+    const idxs = all.map((_,i)=>i);
+    let best=null; let bestPick=null;
+    function* comb5(arr, start=0, k=5, p=[]){
+      if (k===0){ yield p; return; }
+      for (let i=start; i<=arr.length-k; i++){ yield* comb5(arr, i+1, k-1, p.concat([arr[i]])); }
+    }
+    for (const pick of comb5(idxs)){
+      const cards = pick.map(i=> all[i]);
+      const r = evaluate7(cards);
+      if (!best || cmpRank(r,best) > 0){
+        best = r; bestPick = pick;
+      }
+    }
+    const usedHole = []; const usedCommunity = [];
+    (bestPick||[]).forEach(i=>{ if (i<2) usedHole.push(i); else usedCommunity.push(i-2); });
+    return { usedHole, usedCommunity };
+  } catch {
+    return { usedHole: [], usedCommunity: [] };
+  }
+}
 
 function emitPokerState(tableId, t) {
   try {
