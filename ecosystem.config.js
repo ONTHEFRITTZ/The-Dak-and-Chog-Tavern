@@ -1,7 +1,7 @@
 module.exports = {
   apps: [
     {
-      name: 'dakchog-rt',
+      name: 'faro-rt',
       script: 'server/realtime.js',
       cwd: '.',
       instances: 1,
@@ -17,7 +17,7 @@ module.exports = {
       }
     },
     {
-      name: 'poker-rt',
+      name: 'holdempoker-rt',
       script: 'server/poker-rt-bootstrap.js',
       cwd: '.',
       instances: 1,
