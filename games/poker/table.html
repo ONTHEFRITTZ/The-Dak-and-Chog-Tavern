@@ -1,116 +1,133 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
-  <meta http-equiv="Pragma" content="no-cache">
-  <meta http-equiv="Expires" content="0">
-
-  <!-- Import map: resolve bare specifiers used by aaClient/AgentOps -->
-    <script type="importmap">
-  {
-    "imports": {
--     "@zerodev/sdk": "https://esm.sh/@zerodev/sdk@4",
-+     "@zerodev/sdk": "https://esm.sh/@zerodev/sdk@3.1.0",
-      "permissionless": "https://esm.sh/permissionless@0.1.34",
-      "viem": "https://esm.sh/viem@2",
-      "viem/chains": "https://esm.sh/viem@2/chains",
-      "viem/utils": "https://esm.sh/viem@2/utils",
-      "viem/actions": "https://esm.sh/viem@2/actions"
-    }
-  }
-  </script>
-
-
-  <script>(function(){try{var signed=sessionStorage.getItem('walletSigned')==='true'; if(!signed){ location.replace('/landing.html'); return; }}catch(e){ location.replace('/landing.html'); }})();</script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
   <title>Poker Table</title>
-  <script>
-    (function(){try{
-      window.addEventListener('unload', function(){});
-      window.addEventListener('pageshow', function(e){ if (e && e.persisted) { location.reload(); } });
-      var nav = (performance && performance.getEntriesByType) ? performance.getEntriesByType('navigation') : null;
-      if (nav && nav[0] && nav[0].type === 'back_forward') { location.reload(); }
-    }catch(e){}})();
-  </script>
-  <script>
-  (function(){
-    try {
-      const u = new URL(location.href);
-      const mode = (u.searchParams.get('mode') || '').toLowerCase();
-      if (mode === 'onchain' || mode === 'f2p') {
-        document.documentElement.setAttribute('data-table-mode', mode);
-      }
-    } catch {}
-  })();
-  </script>
 
+  <!-- Decide table mode up-front and (only for on-chain) inject import map -->
   <script>
-    (async()=>{
-      try{
-        const b = await fetch('/assets/build.json', { cache:'no-store' }).then(r=>r.ok?r.json():null).catch(()=>null);
-        const tag = (b && b.commit) ? String(b.commit).slice(0,12) : Date.now();
-        window.__BUILD_TAG = tag;
-        const css = document.createElement('link'); css.rel='stylesheet'; css.href = `../../css/style.css?v=${tag}`;
-        document.head.appendChild(css);
-      }catch(e){ console.error('poker table head loader failed', e); }
+    (function () {
+      try {
+        const u = new URL(location.href);
+        const qpMode = String(u.searchParams.get('mode') || '').toLowerCase();
+        const tableId = String(u.searchParams.get('table') || '');
+        const isOnChainId = /^poker-(nl|fl)-/i.test(tableId);
+        const tag = qpMode === 'onchain' || isOnChainId ? 'onchain' : 'f2p';
+        document.documentElement.setAttribute('data-table-mode', tag);
+
+        if (tag === 'onchain') {
+          const im = document.createElement('script');
+          im.type = 'importmap';
+          im.text = JSON.stringify({
+            imports: {
+              "@zerodev/sdk": "https://esm.sh/@zerodev/sdk@4",
+              "permissionless": "https://esm.sh/permissionless@0.1.34",
+              "viem": "https://esm.sh/viem@2",
+              "viem/chains": "https://esm.sh/viem@2/chains",
+              "viem/utils": "https://esm.sh/viem@2/utils",
+              "viem/actions": "https://esm.sh/viem@2/actions"
+            }
+          });
+          document.currentScript.after(im);
+        }
+      } catch (e) {
+        console.warn('mode/importmap init failed', e);
+        document.documentElement.setAttribute('data-table-mode', 'f2p');
+      }
     })();
   </script>
-  <!-- Preload table surface and room background to ensure they paint immediately -->
-  <link rel="preload" as="image" href="../../assets/images/table.png" type="image/png">
-  <link rel="preload" as="image" href="../../assets/images/games-room.png" type="image/png">
-  <link rel="preload" as="image" href="/assets/images/cards/cards-sprite.png" type="image/png">
-  <link rel="preload" as="image" href="/assets/images/chog_cards/dak-and-chog-cardback.png" type="image/png">
-  <script>(function(){ try { var tag=(window.__BUILD_TAG||Date.now()); var s=document.createElement('script'); s.src='../../js/HoldemPokerABI.js?v='+encodeURIComponent(tag); document.head.appendChild(s);} catch(e){} })();</script>
+
+  <!-- Gate: must have signed session -->
+  <script>
+    (function () {
+      try {
+        var signed = sessionStorage.getItem('walletSigned') === 'true';
+        if (!signed) { location.replace('/landing.html'); return; }
+      } catch (e) { location.replace('/landing.html'); }
+    })();
+  </script>
+
+  <!-- Hard refresh when navigating back/forward to avoid stale sockets -->
+  <script>
+    (function () {
+      try {
+        window.addEventListener('unload', function () {});
+        window.addEventListener('pageshow', function (e) { if (e && e.persisted) { location.reload(); } });
+        var nav = (performance && performance.getEntriesByType) ? performance.getEntriesByType('navigation') : null;
+        if (nav && nav[0] && nav[0].type === 'back_forward') { location.reload(); }
+      } catch (e) {}
+    })();
+  </script>
+
+  <!-- Versioned stylesheet -->
+  <script>
+    (async () => {
+      try {
+        const b = await fetch('/assets/build.json', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null);
+        const tag = (b && b.commit) ? String(b.commit).slice(0, 12) : Date.now();
+        window.__BUILD_TAG = tag;
+        const css = document.createElement('link');
+        css.rel = 'stylesheet';
+        css.href = `../../css/style.css?v=${tag}`;
+        document.head.appendChild(css);
+      } catch (e) { console.error('poker table head loader failed', e); }
+    })();
+  </script>
+
+  <!-- Preloads -->
+  <link rel="preload" as="image" href="../../assets/images/table.png" type="image/png" />
+  <link rel="preload" as="image" href="../../assets/images/games-room.png" type="image/png" />
+  <link rel="preload" as="image" href="/assets/images/cards/cards-sprite.png" type="image/png" />
+  <link rel="preload" as="image" href="/assets/images/chog_cards/dak-and-chog-cardback.png" type="image/png" />
+
+  <!-- Holdem ABI (global) -->
+  <script>
+    (function () {
+      try {
+        var tag = (window.__BUILD_TAG || Date.now());
+        var s = document.createElement('script');
+        s.src = '../../js/HoldemPokerABI.js?v=' + encodeURIComponent(tag);
+        document.head.appendChild(s);
+      } catch (e) { }
+    })();
+  </script>
+
   <style>
     /* Full-viewport layout; dead-center the table and seats */
     body.game {
-      --banner-h: 0px; /* no top banner on this page */
-      display:flex;
-      flex-direction:column;
-      align-items:center;
-      justify-content:center; /* hard lock to vertical center */
-      min-height: 100vh;
-      height: 100vh;
-      overflow: hidden; /* avoid accidental page scroll */
+      --banner-h: 0px;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      min-height: 100vh; height: 100vh; overflow: hidden;
     }
     body {
-      /* Force image to span full viewport width; crop vertically if needed */
       background: #120c08 url('../../assets/images/games-room.png') no-repeat center center fixed !important;
       background-size: 100% auto !important;
-      background-image: url('../../assets/images/games-room.png') !important;
     }
-    /* Header row: logo (left) + stats (right) */
-    .table-header { display:none; }
-    /* Logo sizing and glow consistent with Faro; left aligned inside header */
+    .table-header { display: none; }
     .game-logo { display:block; width:auto; height:auto; max-width: clamp(180px, 26vw, 320px); margin: 32px 0 16px 12px; filter: drop-shadow(0 0 18px rgba(255,244,233,0.45)) drop-shadow(0 4px 12px rgba(0,0,0,0.25)); pointer-events:none; user-select:none; }
     .tavern { padding-top: 0; }
-    /* Canvas sized to stay centered and fully visible */
+
     .table-canvas {
-      position:relative;
+      position: relative;
       width: min(92vw, 860px);
       height: min(88vw, 560px, 80vh);
       margin: 0 auto;
     }
-    @media (max-height: 720px) {
-      .table-canvas { height: min(88vw, 520px, 76vh); }
-    }
-    @media (max-height: 640px) {
-      .table-canvas { height: min(88vw, 480px, 72vh); }
-      .seat { width:100px; height:120px; }
-    }
-    /* Make the table itself pop without filling the container: remove color fill and add a soft backglow */
+    @media (max-height: 720px) { .table-canvas { height: min(88vw, 520px, 76vh); } }
+    @media (max-height: 640px) { .table-canvas { height: min(88vw, 480px, 72vh); } .seat { width:100px; height:120px; } }
+
     .table-surface {
       position:absolute; inset:0; border-radius:24px; z-index:1;
       background: url('../../assets/images/table.png') no-repeat center / contain;
       box-shadow: none;
     }
-    /* Dedicated glow layer sits behind the table image */
     .table-glow { position:absolute; inset:0; pointer-events:none; z-index:0; }
     .table-glow::before {
-      content: '';
-      position: absolute;
-      left: 50%; top: 50%; transform: translate(-50%, -50%);
+      content: ''; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
       width: 96%; height: 96%; border-radius: 50%;
       background: radial-gradient(ellipse at center, rgba(255,244,233,0.62) 0%, rgba(255,244,233,0.34) 52%, rgba(255,244,233,0.12) 72%, rgba(0,0,0,0) 92%);
       filter: blur(16px);
@@ -119,24 +136,13 @@
     .seat .btns button { padding:4px 8px; font-size:12px; border-radius:6px; }
     .center-banner { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); background: var(--panel-bg-soft); border:1px solid rgba(255,255,255,0.12); border-radius:14px; padding:16px 18px; color:#f4e6d3; box-shadow:0 24px 60px rgba(0,0,0,0.55); min-width:240px; text-align:center; pointer-events:none; font-weight:600; z-index:6; }
     .seat {
-      position:absolute;
-      z-index:2;
-      width:110px;
-      height:130px;
-      border-radius:16px;
-      background: var(--panel-bg-soft);
-      border:1px solid rgba(255,255,255,0.18);
+      position:absolute; z-index:2; width:110px; height:130px; border-radius:16px;
+      background: var(--panel-bg-soft); border:1px solid rgba(255,255,255,0.18);
       box-shadow:0 0 26px rgba(255,180,60,0.28);
-      display:flex;
-      flex-direction:column;
-      align-items:center;
-      justify-content:flex-start;
-      gap:6px;
-      padding:8px;
+      display:flex; flex-direction:column; align-items:center; justify-content:flex-start; gap:6px; padding:8px;
     }
     .seat .btns { display:flex; gap:6px; margin-top:auto; }
     .seat .cards { min-height: var(--card-hole-h); }
-    /* Card visuals (works for both <img> and sprite-backed <div>) */
     .card { display:block; width:72px; height:104px; border-radius:8px; box-shadow:0 3px 8px rgba(0,0,0,0.25); transform-style:preserve-3d; backface-visibility:hidden; background-repeat:no-repeat; }
     .card--hole { width:60px; height:87px; border-radius:6px; box-shadow:0 2px 6px rgba(0,0,0,0.25); }
     .card--flip { transform:rotateY(90deg); transition: transform 260ms ease, box-shadow 200ms ease; }
@@ -144,46 +150,36 @@
     .card--win { box-shadow:0 0 0 2px #ffd166, 0 4px 14px rgba(0,0,0,0.25); transform: translateY(-6px); }
     .win-badge { margin-top:4px; display:inline-block; background:#ffd166; color:#2b1e12; font-weight:700; font-size:11px; padding:2px 6px; border-radius:8px; }
 
-    /* Compact stats box (opposite corner from logo) */
     .stats-box {
       position: fixed;
       left: calc(var(--sidebar-left, 240px) + 12px);
-      bottom: 12px;
-      z-index: 9000;
+      bottom: 12px; z-index: 9000;
       background: var(--panel-bg-soft);
       border:1px solid rgba(255,255,255,0.08);
-      border-radius:14px;
-      padding:12px 14px;
-      color:#f4e6d3;
-      text-align:left;
+      border-radius:14px; padding:12px 14px; color:#f4e6d3; text-align:left;
       box-shadow:0 12px 32px rgba(0,0,0,0.35);
-      min-width:200px;
-      display:flex;
-      flex-direction:column;
-      gap:6px;
+      min-width:200px; display:flex; flex-direction:column; gap:6px;
     }
     .stats-box .label { font-weight:700; margin-right:4px; }
 
-    /* ===== AA PANEL: bottom-right + hidden on f2p ===== */
-    #aa-panel, .aa-panel, [data-aa-panel] {
-      position: fixed !important;
-      right: 12px !important;
-      bottom: 12px !important;
-      left: auto !important;
-      top: auto !important;
-      z-index: 12050 !important; /* above nav/sidebar */
-    }
+    /* AA panel pin + hide on F2P */
+    #aa-panel, .aa-panel, [data-aa-panel] { position: fixed !important; right: 12px !important; bottom: 12px !important; left: auto !important; top: auto !important; z-index: 12050 !important; }
     :root[data-table-mode="f2p"] #aa-panel,
     :root[data-table-mode="f2p"] .aa-panel,
-    :root[data-table-mode="f2p"] [data-aa-panel] {
-      display: none !important;
-      visibility: hidden !important;
+    :root[data-table-mode="f2p"] [data-aa-panel] { display: none !important; visibility: hidden !important; }
+
+    /* Sponsor indicator moved to bottom-center */
+    #sponsor-indicator {
+      position: fixed !important;
+      left: 50% !important; transform: translateX(-50%) !important;
+      bottom: 12px !important; right: auto !important; top: auto !important;
+      z-index: 12040 !important;
     }
   </style>
- </head>
- <body class="game">
-  <script>(function(){try{var signed=sessionStorage.getItem('walletSigned')==='true'; if(!signed){ location.replace('/landing.html'); return; }}catch(e){ location.replace('/landing.html'); }})();</script>
-  <!-- Inline wallet panel (no banner) -->
+</head>
+
+<body class="game">
+  <!-- Inline wallet panel (always visible on this page) -->
   <div id="wallet-inline" style="position:fixed; top:12px; right:12px; z-index:12000; display:flex; align-items:center; gap:8px; background: var(--panel-bg-soft); border:1px solid rgba(255,255,255,0.12); border-radius:12px; padding:6px 10px; color:#f4e6d3;">
     <span id="wi-label" style="font-weight:700;">Wallet:</span>
     <span id="wi-address">-</span>
@@ -200,12 +196,11 @@
       <div><span class="label">Hands Won:</span><span id="sb-hands">0</span></div>
     </div>
   </div>
+
   <div class="table-canvas" style="margin:0 auto;">
     <div class="table-glow"></div>
     <div class="table-surface"></div>
-    <!-- Center winner/readout banner -->
     <div id="poker-center" class="center-banner" style="display:none;"></div>
-    <!-- 8 seats; positions applied dynamically for even spacing -->
     <div class="seat" data-index="0"></div>
     <div class="seat" data-index="1"></div>
     <div class="seat" data-index="2"></div>
@@ -216,68 +211,92 @@
     <div class="seat" data-index="7"></div>
   </div>
 
-  <!-- Last Hand debug panel (fixed, compact) -->
+  <!-- Last Hand debug panel -->
   <div id="last-hand" style="position:fixed; right:12px; bottom:84px; z-index:9000; background: var(--panel-bg-soft); border:1px solid rgba(255,255,255,0.12); border-radius:12px; padding:8px 10px; color:#f4e6d3; text-align:left; box-shadow:0 18px 40px rgba(0,0,0,0.45); width:min(92vw, 260px); max-height:34vh; overflow:auto; display:none;">
     <div style="font-weight:700; margin-bottom:6px;">Last Hand</div>
     <div id="lh-content" style="font-size:12px; line-height:1.35;"></div>
   </div>
 
-  <!-- Wallet banner + auto-connect like Tavern -->
+  <!-- Wallet/banner runtime -->
   <script type="module" src="../../js/tavern.js"></script>
-  <script type="module" src="../../js/aa/ui.js"></script>
-  <!-- Smart Account + on-chain ops for onchain tables -->
-  <script type="module" src="../../js/agent-ops.js?v=__BUILD__"></script>
+
   <!-- Socket.IO (CDN) -->
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-  <!-- Prewarm table background in cache before JS/paint -->
+
+  <!-- Prewarm table art -->
   <script>try{(new Image()).src='../../assets/images/table.png';}catch(e){}</script>
+
+  <!-- Versioned table.js -->
   <script>
-    (function(){
-      function load(src){ try { var s=document.createElement('script'); s.src=src; s.defer=true; document.body.appendChild(s); } catch(e) { console.error('inject failed', e); } }
-      try {
-        fetch('/assets/build.json',{cache:'no-store'})
-          .then(r=>r.ok?r.json():null)
-          .then(b=>{
-            var c = (b&&b.commit)?String(b.commit).slice(0,12):Date.now();
-            var t = (b&&b.builtAt)?String(b.builtAt):Date.now();
-            var tag = c + '-' + t; // include built time to hard-bust caches
-            try { window.__ASSET_TAG = tag; } catch(_){ }
-            load('table.js?v='+encodeURIComponent(tag));
-          })
-          .catch(()=> { try { window.__ASSET_TAG = Date.now(); } catch(_){ } load('table.js?v='+Date.now()); });
+    (function () {
+      function load(src) {
+        try { var s = document.createElement('script'); s.src = src; s.defer = true; document.body.appendChild(s); }
+        catch (e) { console.error('inject failed', e); }
       }
-      catch(e){ try { window.__ASSET_TAG = Date.now(); } catch(_){ } load('table.js?v='+Date.now()); }
+      try {
+        fetch('/assets/build.json', { cache: 'no-store' })
+          .then(r => r.ok ? r.json() : null)
+          .then(b => {
+            var c = (b && b.commit) ? String(b.commit).slice(0, 12) : Date.now();
+            var t = (b && b.builtAt) ? String(b.builtAt) : Date.now();
+            var tag = c + '-' + t;
+            try { window.__ASSET_TAG = tag; } catch (_) {}
+            load('table.js?v=' + encodeURIComponent(tag));
+          })
+          .catch(() => { try { window.__ASSET_TAG = Date.now(); } catch (_) {} load('table.js?v=' + Date.now()); });
+      } catch (e) { try { window.__ASSET_TAG = Date.now(); } catch (_) {} load('table.js?v=' + Date.now()); }
     })();
   </script>
-  <script src="../../js/agent-budget.js" defer></script>
-  <script src="../../js/agent-sponsor-indicator.js" defer></script>
 
-  <!-- keep the second agent-ops include, but guard to avoid double init -->
-  <script type="module" defer>
-    if (!window.AgentOps) { import('../../js/agent-ops.js'); }
+  <!-- ON-CHAIN-ONLY: AA UI, ops, budget, sponsor indicator -->
+  <script type="module">
+    (async () => {
+      const mode = (document.documentElement.getAttribute('data-table-mode') || '').toLowerCase();
+      if (mode !== 'onchain') return;
+      try { await import('../../js/aa/config.js'); } catch {}
+      try { await import('../../js/aa/ui.js'); } catch {}
+      try { await import('../../js/agent-ops.js'); } catch {}
+      try { await import('../../js/agent-budget.js'); } catch {}
+      try { await import('../../js/agent-sponsor-indicator.js'); } catch {}
+    })();
   </script>
 
-  <!-- Left Sidebar (collapsible) -->
+  <!-- Sidebar (optional, independent) -->
   <script>
-    (function(){
+    (function () {
       try {
-        var t = (window.__BUILD_TAG||Date.now());
+        var t = (window.__BUILD_TAG || Date.now());
         var s = document.createElement('script');
         s.type = 'module';
         s.src = '../../js/sidebar.js?v=' + encodeURIComponent(t);
         document.body.appendChild(s);
-      } catch(e) {}
+      } catch (e) {}
     })();
   </script>
 
-  <!-- === AA LAYER ADDITIONS (non-invasive) =================================== -->
-  <!-- These two module imports add the Smart Account / Delegation UI & logic. -->
-  <script type="module">
-    if (!window.__AA_UI_LOADED__) {
-      try { await import('../../js/aa/config.js'); } catch {}
-      try { await import('../../js/aa/ui.js'); } finally { window.__AA_UI_LOADED__ = true; }
-    }
+  <!-- Wallet inline hookup: show stored address + disconnect -->
+  <script>
+    (function () {
+      try {
+        const addr = (localStorage.getItem('walletAddress') || sessionStorage.getItem('walletAddress') || '').toLowerCase();
+        const el = document.getElementById('wi-address');
+        const btn = document.getElementById('wi-disconnect');
+        if (addr && el) el.textContent = addr.slice(0, 6) + '...' + addr.slice(-4);
+        if (addr && btn) {
+          btn.style.display = '';
+          btn.onclick = function () {
+            try { localStorage.removeItem('walletConnected'); sessionStorage.removeItem('walletConnected'); } catch (e) {}
+            try { location.replace('/landing.html'); } catch (e) { location.href = '/landing.html'; }
+          };
+        }
+        // Live update when tavern.js broadcasts
+        window.addEventListener('wallet:connected', (e) => {
+          const a = (e && e.detail && (e.detail.address || e.detail.addr)) || '';
+          if (a && el) el.textContent = String(a).slice(0, 6) + '...' + String(a).slice(-4);
+          if (btn) btn.style.display = '';
+        });
+      } catch (e) {}
+    })();
   </script>
-  <!-- ======================================================================== -->
 </body>
 </html>
