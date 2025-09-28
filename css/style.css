@@ -684,8 +684,8 @@ body.age-landing .age-warning { color: #ffffff !important; }
 /* Table canvas keeps the table centered; seats absolutely placed inside */
 .table-canvas {
   position:relative;
-  width: min(92vw, 1280px);
-  height: min(88vw, 720px, 80vh);
+  width: min(92vw, 1000px);
+  height: min(88vw, 1000px, 80vh);
   margin: 0 auto;
 }
 
