@@ -179,7 +179,7 @@
 
     const probe = seatEls[0];
     const seatW = (probe && probe.offsetWidth)  ? probe.offsetWidth  : 50;
-    const seatH = (probe && probe.offsetHeight) ? probe.offsetHeight : 30;
+    const seatH = (probe && probe.offsetHeight) ? probe.offsetHeight : 50;
 
     const gap = 40; // px (visual offset from center)
 
