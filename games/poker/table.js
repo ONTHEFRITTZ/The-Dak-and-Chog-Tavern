@@ -93,24 +93,43 @@
     return 0;
   }
 
-  /* --------------------------- Seat ring layout -------------------------------- */
-  function layoutSeats(){
-    if (!canvas) return;
-    const W = canvas.clientWidth, H = canvas.clientHeight;
-    const cx = W/2, cy = H/2;
-    const rx = W * RADIUS_X, ry = H * RADIUS_Y;
+  /* ---------- Seat ring layout (8 spots, even spacing, no overlap) ---------- */
+function layoutSeats() {
+  const wrap = document.querySelector('.table-canvas');
+  if (!wrap || !seatsEls.length) return;
 
-    const deg = [ 265, 315,  5,  55,  95, 145, 185, 225 ]; // evenly spaced around oval
-    seatEls.forEach((el, i)=>{
-      const a = (deg[i]||0) * Math.PI/180;
-      const x = cx + rx * Math.cos(a);
-      const y = cy + ry * Math.sin(a);
-      el.style.left = Math.round(x - el.clientWidth/2) + 'px';
-      el.style.top  = Math.round(y - el.clientHeight/2) + 'px';
-    });
+  const W = wrap.clientWidth;
+  const H = wrap.clientHeight;
+
+  // Use actual seat dimensions; fall back to CSS values if not rendered yet
+  const probe = seatsEls[0];
+  const seatW = (probe && probe.offsetWidth)  ? probe.offsetWidth  : 110;
+  const seatH = (probe && probe.offsetHeight) ? probe.offsetHeight : 130;
+
+  // Gap pushes seats away from table center (increase if you want wider spacing)
+  const gap = 28; // px
+
+  // Radii ensure each seat’s bounding box stays inside the table-canvas without colliding
+  // Half the container minus half the seat minus our desired gap
+  const rx = Math.max(0, (W * 0.5) - (seatW * 0.5) - gap);
+  const ry = Math.max(0, (H * 0.5) - (seatH * 0.5) - gap);
+
+  // Evenly spaced seats around an ellipse, starting at 270° (top center) clockwise
+  const N = seatsEls.length; // 8 seats in your DOM
+  const startDeg = 270;
+
+  for (let i = 0; i < N; i++) {
+    const ang = (startDeg + (i * 360 / N)) * Math.PI / 180;
+    const x = (W * 0.5) + rx * Math.cos(ang);
+    const y = (H * 0.5) + ry * Math.sin(ang);
+
+    const el = seatsEls[i];
+    // Place by top-left coordinates so the seat's center hits (x, y)
+    el.style.left = Math.round(x - seatW / 2) + 'px';
+    el.style.top  = Math.round(y - seatH / 2) + 'px';
   }
-  window.addEventListener('resize', layoutSeats);
-  window.addEventListener('load', layoutSeats);
+}
+
 
   /* ------------------------------ Rendering ------------------------------------ */
   function showCenter(msg, ms=1200){
