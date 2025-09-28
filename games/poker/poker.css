@@ -1,6 +1,130 @@
-.wrap { max-width: 720px; margin: 40px auto; font-family: system-ui, sans-serif; }
-h1 { margin-bottom: 8px; }
-#status { padding: 8px 10px; border: 1px solid #ccc; border-radius: 6px; background: #fafafa; margin-bottom: 12px; }
-.lobby-item { display:flex; justify-content:space-between; align-items:center; padding:8px; border:1px solid #ddd; border-radius:6px; margin:6px 0; }
-.lobby-item button { padding:6px 10px; }
+/* Poker page UI (cards, board, action bar). Safe to include in addition to style.css */
 
+/* Card sizing helpers */
+:root {
+  --card-tile-w: 72px;     /* community / generic */
+  --card-tile-h: 104px;
+  --card-hole-w: 60px;     /* hole cards in seats */
+  --card-hole-h: 87px;
+}
+
+.table-canvas {
+  position:relative;
+  width: min(92vw, 860px);
+  height: min(88vw, 560px, 80vh);
+  margin: 0 auto;
+}
+
+.table-surface {
+  position:absolute; inset:0; border-radius:24px; z-index:1;
+  background: url('/assets/images/table.png') no-repeat center / contain;
+}
+
+/* Soft glow behind the table */
+.table-glow { position:absolute; inset:0; pointer-events:none; z-index:0; }
+.table-glow::before {
+  content: '';
+  position: absolute;
+  left: 50%; top: 50%; transform: translate(-50%, -50%);
+  width: 96%; height: 96%; border-radius: 50%;
+  background: radial-gradient(ellipse at center,
+    rgba(255,244,233,0.62) 0%,
+    rgba(255,244,233,0.34) 52%,
+    rgba(255,244,233,0.12) 72%,
+    rgba(0,0,0,0) 92%);
+  filter: blur(16px);
+}
+
+/* Seats */
+.seat {
+  position:absolute;
+  z-index:2;
+  width:110px;
+  height:130px;
+  border-radius:16px;
+  background: var(--panel-bg-soft, rgba(42,26,16,.72));
+  border:1px solid rgba(255,255,255,0.18);
+  box-shadow:0 0 26px rgba(255,180,60,0.28);
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:flex-start;
+  gap:6px;
+  padding:8px;
+}
+.seat .addr {
+  font-size:12px; color:#f4e6d3;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; width:100%; text-align:center;
+}
+.seat .btns { display:flex; gap:6px; margin-top:auto; }
+.seat .btns button { padding:4px 8px; font-size:12px; border-radius:6px; }
+
+/* Cards row inside seat */
+.seat .cards {
+  display:flex; gap:6px; align-items:center; justify-content:center;
+  min-height: var(--card-hole-h);
+}
+
+/* Board (community cards) */
+.board {
+  position:absolute; z-index:3;
+  left:50%; top:50%; transform: translate(-50%, calc(-50% - 18px));
+  display:flex; gap:8px; align-items:center; justify-content:center;
+  min-height: var(--card-tile-h);
+}
+
+/* Burn pile (face-down backs), left side of table center */
+.burn-pile {
+  position:absolute; z-index:3;
+  left: 6%;
+  top: 50%;
+  transform: translateY(-50%);
+  display:flex; gap:4px; align-items:center; justify-content:flex-start;
+}
+.burn-pile .card--burn { opacity: 0.95; }
+
+/* Center banner for stage/pot/winner messages */
+.center-banner {
+  position:absolute; z-index:6;
+  left:50%; top:50%; transform:translate(-50%,-50%);
+  background: var(--panel-bg-soft, rgba(42,26,16,.72));
+  border:1px solid rgba(255,255,255,0.12);
+  border-radius:14px;
+  padding:16px 18px; min-width:240px; color:#f4e6d3; text-align:center;
+  box-shadow:0 24px 60px rgba(0,0,0,0.55); font-weight:600;
+}
+
+/* Cards (sprite) */
+.card {
+  display:block;
+  width: var(--card-tile-w); height: var(--card-tile-h);
+  border-radius:8px;
+  box-shadow:0 3px 8px rgba(0,0,0,0.25);
+  background-repeat:no-repeat;
+  background-size: cover;     /* set precisely by JS with cols/rows scaling */
+  background-position: 0 0;   /* set by JS */
+}
+.card--hole { width: var(--card-hole-w); height: var(--card-hole-h); border-radius:6px; box-shadow:0 2px 6px rgba(0,0,0,0.25); }
+.card--win  { box-shadow:0 0 0 2px #ffd166, 0 6px 18px rgba(0,0,0,0.30); }
+
+/* Action bar under my seat */
+.action-bar {
+  position:absolute; z-index:7;
+  transform: translate(-50%, 0);
+  display:flex; gap:8px;
+  background: var(--panel-bg-soft, rgba(42,26,16,.72));
+  border:1px solid rgba(255,255,255,0.12);
+  border-radius:12px; padding:8px 10px;
+  box-shadow:0 18px 40px rgba(0,0,0,0.45);
+}
+.action-bar button { padding:6px 12px; font-size:14px; border-radius:8px; }
+
+/* Shorter screens */
+@media (max-height: 720px) {
+  .table-canvas { height: min(88vw, 520px, 76vh); }
+}
+@media (max-height: 640px) {
+  .table-canvas { height: min(88vw, 480px, 72vh); }
+  .seat { width:100px; height:120px; }
+  :root { --card-hole-w: 56px; --card-hole-h: 82px; }
+}

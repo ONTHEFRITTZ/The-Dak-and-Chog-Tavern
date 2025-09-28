@@ -1,265 +1,427 @@
+// Poker Table UI (8-max) — proper Texas Hold’em flow with sprite cards, burns (face-down),
+// action buttons, and no auto-simulation. Works with your existing realtime.js events.
+
 (function(){
-  /* ---------- DOM ---------- */
-  const centerEl  = document.getElementById('poker-center');
-  const seatsEls  = Array.from(document.querySelectorAll('.seat'));
-  const wiAddrEl  = document.getElementById('wi-address');
-  const btnDisc   = document.getElementById('wi-disconnect');
-  const btnDevBot = document.getElementById('toggle-dev-bot');
-  const sbWallet  = document.getElementById('sb-wallet');
+  /* -------------------------- Config (sprite + layout) -------------------------- */
+  const SPRITE_URL  = '/assets/images/cards/cards-sprite.png';
+  const SPRITE_COLS = 13;     // 13 ranks across
+  const SPRITE_ROWS = 5;      // 4 suits + 1 row for card back
+  const SUIT_ROW = { h:0, d:1, c:2, s:3 };     // hearts, diamonds, clubs, spades
+  const RANKS   = ['2','3','4','5','6','7','8','9','T','J','Q','K','A']; // left→right
+  const BACK_POS = { row: 4, col: 0 };         // back tile on last row, first col
 
-  /* ---------- URL / globals ---------- */
-  function getParam(k){ try{ return new URL(window.location.href).searchParams.get(k) }catch{ return null } }
-  const tableId = getParam('table');
+  // Seat ring spacing (bigger ellipse → more room)
+  const RADIUS_X = 0.42;      // 42% of canvas width
+  const RADIUS_Y = 0.38;      // 38% of canvas height
 
-  let socket=null;
-  let myAddr = (localStorage.getItem('walletAddress') || sessionStorage.getItem('walletAddress') || '').toLowerCase();
-  let isSim=false, devBotEnabled=false;
+  /* ------------------------------- DOM refs ------------------------------------ */
+  const canvas     = document.querySelector('.table-canvas');
+  const seatEls    = Array.from(document.querySelectorAll('.seat'));
+  const centerEl   = document.getElementById('poker-center');
 
-  // per-hand UI state
-  let myHole = [];                 // ['As','Kh']
-  let currentActors = [];          // [{seatId, addr, folded, ...}]
-  let turnSeatId = -1;
+  // We create these containers if not present:
+  function ensureOverlayEl(id, className, parent){
+    let el = document.getElementById(id);
+    if (!el){
+      el = document.createElement('div');
+      el.id = id;
+      if (className) el.className = className;
+      (parent||canvas).appendChild(el);
+    }
+    return el;
+  }
+  const boardEl    = ensureOverlayEl('board-cards', 'board', canvas);
+  const burnsEl    = ensureOverlayEl('burn-pile', 'burn-pile', canvas);
 
+  // Action bar under my seat (created on demand)
+  let actionBarEl = null;
+
+  /* ------------------------------- State --------------------------------------- */
+  function qp(k){ try{ return new URL(window.location.href).searchParams.get(k) }catch{ return null } }
+  const tableId = qp('table');
+  let socket;
+
+  let myAddr   = (localStorage.getItem('walletAddress') || sessionStorage.getItem('walletAddress') || '').toLowerCase();
+  let mySeat   = -1;
+
+  let state       = null;   // last 'poker:state'
+  let myHole      = [];     // ['As','Kd'] when dealt
+  let oppHasHole  = new Set(); // seatIds of opponents in-hand (we show backs)
+
+  /* ------------------------------- Helpers ------------------------------------- */
   function short(a){ return a && a.length>10 ? (a.slice(0,6)+'...'+a.slice(-4)) : (a||''); }
   function lc(s){ return (s||'').toLowerCase(); }
 
-  /* ---------- Provider chosen on landing ---------- */
-  function getSelectedProvider(){
-    const key=(sessionStorage.getItem('walletProvider')||'').toLowerCase();
-    if (key==='metamask'){
-      const eth=window.ethereum;
-      if (eth?.isMetaMask) return eth;
-      if (Array.isArray(eth?.providers)){ const mm=eth.providers.find(p=>p&&p.isMetaMask); if(mm) return mm; }
-      return eth||null;
+  // Compute CSS for a specific card tile
+  function cardStylesFromCode(code){
+    if (!code || typeof code !== 'string' || code.length < 2){
+      return cardBackStyles();
     }
-    if (key==='phantom') return window.phantom?.ethereum || null;
-    if (window.phantom?.ethereum) return window.phantom.ethereum;
-    if (window.ethereum) return window.ethereum;
-    return window.__walletProvider || null;
+    const r = code[0].toUpperCase();
+    const s = code[1].toLowerCase();
+    const col = Math.max(0, RANKS.indexOf(r));     // 0..12
+    const row = (s in SUIT_ROW) ? SUIT_ROW[s] : 0; // 0..3
+    return {
+      backgroundImage: `url("${SPRITE_URL}")`,
+      backgroundSize: `${SPRITE_COLS*100}% ${SPRITE_ROWS*100}%`,
+      backgroundPosition: `${(col/(SPRITE_COLS-1))*100}% ${(row/(SPRITE_ROWS-1))*100}%`
+    };
   }
-  async function resolveAddressFromSelection(){
-    try{ const p=getSelectedProvider(); if(!p?.request) return null; const a=await p.request({method:'eth_accounts'}).catch(()=>[]); return a&&a[0]? lc(a[0]):null; }catch{ return null; }
+  function cardBackStyles(){
+    return {
+      backgroundImage: `url("${SPRITE_URL}")`,
+      backgroundSize: `${SPRITE_COLS*100}% ${SPRITE_ROWS*100}%`,
+      backgroundPosition: `${(BACK_POS.col/(SPRITE_COLS-1))*100}% ${(BACK_POS.row/(SPRITE_ROWS-1))*100}%`
+    };
   }
-  function applyKnownAddress(addr){
-    myAddr=lc(addr||'');
-    if (wiAddrEl) wiAddrEl.textContent = myAddr ? short(myAddr) : '-';
-    if (sbWallet) sbWallet.textContent = myAddr ? short(myAddr) : '—';
-    try{
-      if(myAddr){
-        localStorage.setItem('walletConnected','true'); sessionStorage.setItem('walletConnected','true');
-        localStorage.setItem('walletAddress',myAddr);   sessionStorage.setItem('walletAddress',myAddr);
-      } else {
-        localStorage.removeItem('walletAddress'); sessionStorage.removeItem('walletAddress');
-      }
-    }catch{}
-    if (socket?.connected && myAddr){ try{ socket.emit('identify',{addr:myAddr}); }catch{} }
-  }
-  // allow disconnect
-  if (btnDisc){
-    btnDisc.style.display='inline-block';
-    btnDisc.onclick=()=>{ try{
-      sessionStorage.removeItem('walletAddress'); localStorage.removeItem('walletAddress');
-      sessionStorage.removeItem('walletConnected'); localStorage.removeItem('walletConnected');
-      sessionStorage.removeItem('walletProvider'); applyKnownAddress('');
-      window.dispatchEvent(new CustomEvent('wallet:connected',{detail:{address:''}}));
-    }catch{} };
-  }
-  (async()=>{ const a=await resolveAddressFromSelection(); if(a) applyKnownAddress(a); })();
-  window.addEventListener('wallet:connected',(e)=>{ const a=e?.detail?.address||e?.detail?.addr; if(a) applyKnownAddress(a); });
 
-  /* ---------- Layout (roomier oval) ---------- */
+  function makeCardEl(code, hole=false, faceUp=true){
+    const el = document.createElement('div');
+    el.className = 'card' + (hole ? ' card--hole' : '');
+    const styles = faceUp ? cardStylesFromCode(code) : cardBackStyles();
+    el.style.backgroundImage = styles.backgroundImage;
+    el.style.backgroundSize = styles.backgroundSize;
+    el.style.backgroundPosition = styles.backgroundPosition;
+    return el;
+  }
+
+  function burnsForStage(stage){
+    // Visual only: standard Hold’em burns (not revealing identity)
+    if (stage === 'flop')  return 1;
+    if (stage === 'turn')  return 2;
+    if (stage === 'river') return 3;
+    return 0;
+  }
+
+  /* --------------------------- Seat ring layout -------------------------------- */
   function layoutSeats(){
-    const wrap=document.querySelector('.table-canvas'); if(!wrap) return;
-    const W=wrap.clientWidth, H=wrap.clientHeight, cx=W/2, cy=H/2, rx=W*0.46, ry=H*0.44;
-    const deg=[270,315,0,45,90,135,180,225];
-    seatsEls.forEach((el,i)=>{ const a=(deg[i]||0)*Math.PI/180; const x=cx+rx*Math.cos(a), y=cy+ry*Math.sin(a); el.style.left=Math.round(x-el.clientWidth/2)+'px'; el.style.top=Math.round(y-el.clientHeight/2)+'px'; });
+    if (!canvas) return;
+    const W = canvas.clientWidth, H = canvas.clientHeight;
+    const cx = W/2, cy = H/2;
+    const rx = W * RADIUS_X, ry = H * RADIUS_Y;
+
+    const deg = [ 265, 315,  5,  55,  95, 145, 185, 225 ]; // evenly spaced around oval
+    seatEls.forEach((el, i)=>{
+      const a = (deg[i]||0) * Math.PI/180;
+      const x = cx + rx * Math.cos(a);
+      const y = cy + ry * Math.sin(a);
+      el.style.left = Math.round(x - el.clientWidth/2) + 'px';
+      el.style.top  = Math.round(y - el.clientHeight/2) + 'px';
+    });
   }
-  window.addEventListener('resize',layoutSeats);
-  window.addEventListener('load',layoutSeats);
+  window.addEventListener('resize', layoutSeats);
+  window.addEventListener('load', layoutSeats);
 
-  function showCenter(msg,ms=1200){ if(!centerEl) return; centerEl.textContent=msg; centerEl.style.display='block'; if(ms>0) setTimeout(()=> centerEl.style.display='none', ms); }
-
-  /* ---------- Card helpers ---------- */
-  function cardText(code){
-    // code like 'Ah', 'Td' — for now just print text; you can swap to sprite later
-    return code || '🂠';
+  /* ------------------------------ Rendering ------------------------------------ */
+  function showCenter(msg, ms=1200){
+    if (!centerEl) return;
+    centerEl.textContent = msg;
+    centerEl.style.display = 'block';
+    if (ms>0){ setTimeout(()=>{ centerEl.style.display='none'; }, ms); }
   }
-  function renderSeatCards(seatEl, seatId){
-    // Show my two cards; for others show backs if they are still alive in actors[]
-    const actor = currentActors.find(a=> a.seatId===seatId);
-    if (!actor) return;
 
-    const holder = document.createElement('div');
-    holder.style.display='flex'; holder.style.gap='6px'; holder.style.marginTop='6px';
+  function clearBoard(){
+    boardEl.innerHTML = '';
+    burnsEl.innerHTML = '';
+  }
 
-    if (myHole.length===2 && actor.addr && lc(actor.addr)===myAddr){
-      // my cards
-      const c1=document.createElement('div'); c1.className='card card--hole'; c1.textContent = cardText(myHole[0]);
-      const c2=document.createElement('div'); c2.className='card card--hole'; c2.textContent = cardText(myHole[1]);
-      holder.appendChild(c1); holder.appendChild(c2);
-    } else {
-      // others: show backs only if not folded
-      if (!actor.folded){
-        const b1=document.createElement('div'); b1.className='card card--hole'; b1.textContent='🂠';
-        const b2=document.createElement('div'); b2.className='card card--hole'; b2.textContent='🂠';
-        holder.appendChild(b1); holder.appendChild(b2);
-      }
+  function renderBoard(){
+    if (!state){ clearBoard(); return; }
+    const cards = Array.isArray(state.community) ? state.community.slice(0,5) : [];
+    boardEl.innerHTML = '';
+
+    // Flop/turn/river laid out left→right
+    cards.forEach((code, i) => {
+      const c = makeCardEl(code, false, true);
+      c.dataset.slot = String(i);
+      boardEl.appendChild(c);
+    });
+
+    // Burn pile on left side, face-down backs only
+    const nBurns = burnsForStage(state.stage||'');
+    burnsEl.innerHTML = '';
+    for (let i=0; i<nBurns; i++){
+      const back = makeCardEl(null, false, false);
+      back.classList.add('card--burn');
+      burnsEl.appendChild(back);
     }
-    seatEl.appendChild(holder);
   }
 
-  /* ---------- Action buttons (only my turn) ---------- */
-  function renderActionBar(seatEl){
-    const row=document.createElement('div');
-    row.style.display='flex'; row.style.gap='8px'; row.style.marginTop='8px';
-    const bFold=document.createElement('button'); bFold.textContent='Fold';
-    const bCheck=document.createElement('button'); bCheck.textContent='Check';
-    const bCall=document.createElement('button'); bCall.textContent='Call';
-    bFold.onclick=()=> socket?.emit('poker:act',{ action:'fold' });
-    bCheck.onclick=()=> socket?.emit('poker:act',{ action:'check' });
-    bCall.onclick =()=> socket?.emit('poker:act',{ action:'call'  });
-    row.appendChild(bFold); row.appendChild(bCheck); row.appendChild(bCall);
-    seatEl.appendChild(row);
-  }
+  function drawSeatCards(seatId){
+    const el = seatEls[seatId];
+    if (!el) return;
 
-  /* ---------- Render table + seats ---------- */
-  function renderTable(t){
-    if (!t || t.id!==tableId) return;
+    let row = el.querySelector('.cards');
+    if (!row){
+      row = document.createElement('div');
+      row.className = 'cards';
+      el.insertBefore(row, el.firstChild.nextSibling); // under name
+    }
+    row.innerHTML = '';
 
-    isSim = !!t.simulated;
-    devBotEnabled = !!t.devBotEnabled;
-
-    const seats = Array.isArray(t.seats)? t.seats : [];
-    const humanCount = seats.filter(s=> s && s.addr && !String(s.addr).startsWith('bot:')).length;
-
-    // Dev-bot toggle: visible only when sim & exactly one human
-    if (btnDevBot){
-      if (isSim && humanCount===1){
-        btnDevBot.style.display='inline-block';
-        btnDevBot.textContent = devBotEnabled ? 'Disable Dev Bot' : 'Enable Dev Bot';
-        btnDevBot.onclick = ()=>{ try{ socket?.emit('poker:devbot',{ enabled: !devBotEnabled }); }catch{} };
-      } else {
-        btnDevBot.style.display='none';
-      }
+    // My seat → show real hole if dealt
+    if (seatId === mySeat && myHole && myHole.length){
+      row.appendChild(makeCardEl(myHole[0], true, true));
+      row.appendChild(makeCardEl(myHole[1], true, true));
+      return;
     }
 
-    seatsEls.forEach((el,i)=>{
-      const s=seats[i]; el.innerHTML='';
-      const head=document.createElement('div'); head.className='addr'; head.textContent = s ? (s.addr||`Seat ${i}`) : 'Empty';
+    // Opponents in-hand → show backs; folded/empty → nothing
+    if (oppHasHole.has(seatId)){
+      row.appendChild(makeCardEl(null, true, false));
+      row.appendChild(makeCardEl(null, true, false));
+    }
+  }
+
+  function renderTableModel(t){
+    if (!t || t.id !== tableId) return;
+
+    // seats + buttons
+    mySeat = -1;
+    const seats = Array.isArray(t.seats) ? t.seats : [];
+
+    seatEls.forEach((el, i)=>{
+      const s = seats[i];
+      el.innerHTML = '';
+
+      // name / addr
+      const head = document.createElement('div');
+      head.className = 'addr';
+      head.textContent = s ? short(s.addr||('Seat '+i)) : 'Empty';
       el.appendChild(head);
 
-      if (isSim && s){
-        const chips=document.createElement('div'); chips.style.fontSize='12px'; chips.style.opacity='.9';
-        chips.textContent = `Chips: ${Number(s.chips||0)}`;
-        el.appendChild(chips);
-      }
+      // cards row (created on demand in drawSeatCards)
+      const cardsRow = document.createElement('div');
+      cardsRow.className = 'cards';
+      el.appendChild(cardsRow);
 
-      const btns=document.createElement('div'); btns.className='btns';
+      // buttons
+      const btns = document.createElement('div');
+      btns.className = 'btns';
+
       if (s){
-        const mine = myAddr && s.addr && lc(s.addr)===myAddr;
-        if (mine){
-          const b1=document.createElement('button'); b1.textContent='Leave'; b1.onclick=()=> socket?.emit('seat',{index:-1}); btns.appendChild(b1);
-          const b2=document.createElement('button'); b2.textContent= s.ready?'Unready':'Ready'; b2.style.marginLeft='6px'; b2.onclick=()=> socket?.emit('ready',{ready:!s.ready}); btns.appendChild(b2);
-          if (isSim){
-            const canRebuy = Number(s.chips||0) <= 0;
-            const b3=document.createElement('button'); b3.textContent='Buy 100'; b3.style.marginLeft='6px'; b3.disabled=!canRebuy; b3.title= canRebuy ? '' : 'You must bust to rebuy';
-            b3.onclick=()=> socket?.emit('sim:rebuy');
-            btns.appendChild(b3);
-          }
+        // me
+        if (myAddr && s.addr && lc(s.addr)===lc(myAddr)){
+          mySeat = i;
+
+          const bLeave = document.createElement('button');
+          bLeave.textContent = 'Leave';
+          bLeave.onclick = ()=> socket?.emit('seat',{ index:-1 });
+          btns.appendChild(bLeave);
+
+          const bReady = document.createElement('button');
+          bReady.textContent = s.ready ? 'Unready' : 'Ready';
+          bReady.style.marginLeft='6px';
+          bReady.onclick = ()=> socket?.emit('ready', { ready: !s.ready });
+          btns.appendChild(bReady);
         }
       } else {
-        const sit=document.createElement('button'); sit.textContent='Sit';
-        if(!myAddr){ sit.disabled=true; sit.title='Connect wallet'; }
-        sit.onclick=()=>{ if(!myAddr) return; socket?.emit('seat',{index:i}); };
-        btns.appendChild(sit);
+        // empty seat
+        const bSit = document.createElement('button');
+        bSit.textContent = 'Sit';
+        if (!myAddr){ bSit.disabled = true; bSit.title = 'Connect wallet'; }
+        bSit.onclick = ()=> { if (!myAddr) return; socket?.emit('seat', { index:i }); };
+        btns.appendChild(bSit);
       }
+
       el.appendChild(btns);
-
-      // If we have actor info, draw cards/backs now
-      if (s && currentActors.length){
-        renderSeatCards(el, i);
-      }
-
-      // Action bar if it's my turn right now
-      if (s && myAddr && s.addr && lc(s.addr)===myAddr && i===turnSeatId){
-        // Only show if I haven't folded
-        const me = currentActors.find(a=> a.seatId===i);
-        if (me && !me.folded) renderActionBar(el);
-      }
     });
 
-    if (sbWallet) sbWallet.textContent = myAddr ? short(myAddr) : '—';
+    // After rebuilding, lay out and re-draw any known cards
     layoutSeats();
+    renderBoard();
+    refreshSeatCardBacksFromState(); // opp backs
+    if (mySeat >= 0) drawSeatCards(mySeat);
   }
 
-  /* ---------- Socket ---------- */
-  function initSocket(){
-    try{
-      socket=io(window.location.origin,{
-        path:'/poker.io/',
-        transports:['websocket'], upgrade:false, reconnection:true, reconnectionAttempts:10, reconnectionDelay:800, forceNew:true, withCredentials:true
-      });
-    }catch(e){ showCenter('Socket unavailable',1500); return; }
+  function refreshSeatCardBacksFromState(){
+    oppHasHole.clear();
+    if (!state || !Array.isArray(state.actors)) return;
 
-    socket.on('connect', async ()=>{
-      let addr=myAddr;
-      if(!addr){ const r=await resolveAddressFromSelection(); if(r){ addr=r; applyKnownAddress(r); } }
-      if(addr) socket.emit('identify',{addr});
-      socket.emit('join_table',{ table:tableId });
-      socket.emit('lobby:get');
+    state.actors.forEach(a => {
+      if (!a) return;
+      if (a.seatId === mySeat) return;
+      if (a.folded) return;
+      oppHasHole.add(a.seatId);
     });
 
-    socket.on('disconnect', ()=> showCenter('Disconnected',1000));
+    // Update all seats based on that set
+    seatEls.forEach((_, i) => drawSeatCards(i));
+  }
 
-    // Base table updates (seats/ready/chips etc.)
-    socket.on('table:update', t=> renderTable(t));
-    socket.on('table:state',  t=> renderTable(t));
+  function updateActionBar(){
+    if (mySeat < 0 || !state || !Array.isArray(state.actors)) {
+      if (actionBarEl){ actionBarEl.remove(); actionBarEl = null; }
+      return;
+    }
+    const idx = state.turnIndex|0;
+    const actor = state.actors[idx];
+    if (!actor || actor.seatId !== mySeat || actor.folded){
+      if (actionBarEl){ actionBarEl.remove(); actionBarEl = null; }
+      return;
+    }
 
-    // Hand state
-    socket.on('poker:state', (m)=>{
+    const need = Math.max(0, Number(state.toCall||0) - Number(actor.contrib||0));
+    const under = seatEls[mySeat];
+
+    if (!actionBarEl){
+      actionBarEl = document.createElement('div');
+      actionBarEl.className = 'action-bar';
+      canvas.appendChild(actionBarEl);
+    }
+    // position under my seat panel
+    const r = under.getBoundingClientRect();
+    const c = canvas.getBoundingClientRect();
+    actionBarEl.style.left = (r.left - c.left + r.width/2) + 'px';
+    actionBarEl.style.top  = (r.top  - c.top  + r.height + 10) + 'px';
+
+    actionBarEl.innerHTML = '';
+    const bFold = document.createElement('button');
+    bFold.textContent = 'Fold';
+    bFold.onclick = ()=> socket?.emit('poker:act', { action:'fold' });
+
+    const bCheckCall = document.createElement('button');
+    bCheckCall.textContent = (need > 0) ? `Call ${need}` : 'Check';
+    bCheckCall.onclick = ()=> socket?.emit('poker:act', { action: (need>0?'call':'check') });
+
+    actionBarEl.appendChild(bFold);
+    actionBarEl.appendChild(bCheckCall);
+  }
+
+  /* ------------------------------ Socket wiring ------------------------------- */
+  function initSocket(){
+    try{
+      socket = io(window.location.origin, {
+        path:'/poker.io/',
+        transports:['websocket','polling'],
+        upgrade:true,
+        reconnection:true,
+        reconnectionAttempts:10,
+        reconnectionDelay:800,
+        forceNew:true
+      });
+    }catch(e){ showCenter('Socket unavailable', 1800); return; }
+
+    socket.on('connect', ()=>{
       try{
-        // track whose turn and actors (for backs & fold visibility)
-        turnSeatId = Number(m?.actors?.[m?.turnIndex||0]?.seatId ?? -1);
-        currentActors = Array.isArray(m?.actors) ? m.actors.map(x=>({seatId:x.seatId, addr:x.addr, folded:!!x.folded})) : [];
-        // banner
-        if(typeof m?.pot!=='undefined'){ showCenter(`Stage: ${m.stage||'-'} • Pot: ${m.pot}`, 800); }
+        if (myAddr) socket.emit('identify', { addr: myAddr });
+        socket.emit('join_table', { table: tableId });
+        socket.emit('lobby:get');
       }catch{}
-      // redraw seats to reflect backs/turn bar
-      const t = m?.table || null; if (t) renderTable(t);
+    });
+    socket.on('disconnect', ()=> {
+      showCenter('Disconnected', 1000);
+      if (actionBarEl){ actionBarEl.remove(); actionBarEl = null; }
+    });
+
+    // Model/table updates
+    socket.on('table:update', (t)=> renderTableModel(t));
+    socket.on('table:state',  (t)=> renderTableModel(t)); // back-compat
+
+    // Hand state (public)
+    socket.on('poker:state', (m)=>{
+      state = m || null;
+      renderBoard();
+      refreshSeatCardBacksFromState();
+      updateActionBar();
+
+      if (typeof m?.pot !== 'undefined'){
+        showCenter(`Stage: ${m.stage||'-'} • Pot: ${m.pot}`, 700);
+      }
+
+      // If my seat folded (server-side), clear my local hole
+      if (state && Array.isArray(state.actors)){
+        const me = state.actors.find(a => a && a.seatId === mySeat);
+        if (me && me.folded){
+          myHole = [];
+          drawSeatCards(mySeat);
+        }
+      }
     });
 
     // My private hole cards
     socket.on('poker:hole', (payload)=>{
-      try{
-        const arr = Array.isArray(payload?.cards) ? payload.cards.slice(0,2) : [];
-        myHole = arr;
-      }catch{ myHole=[]; }
-      // force a redraw
-      const t = payload?.table || null; // server doesn't include; just pull from last table:update next time
-      const cur = document.querySelector('.seat'); // just trigger a render with last known actors
-      // noop; next state tick will render — or we can request state
+      const arr = Array.isArray(payload?.cards) ? payload.cards.slice(0,2) : [];
+      myHole = arr;
+      if (mySeat >= 0) drawSeatCards(mySeat);
     });
 
-    // Clear my hole on explicit signal
+    // Clear my private hole on server request
     socket.on('poker:hole_clear', ()=>{
       myHole = [];
+      if (mySeat >= 0) drawSeatCards(mySeat);
     });
 
-    // Showdown / end of hand
+    // Showdown / winners
     socket.on('poker:hand', (h)=>{
       try{
-        const w=Array.isArray(h?.winners)?h.winners:[];
-        showCenter(w.length?`Hand complete — Winner: ${w.map(x=> short(x.addr)).join(', ')}`:'Hand complete', 1400);
+        const winners = Array.isArray(h?.winners) ? h.winners : [];
+        if (winners.length){
+          const names = winners.map(w=> short(w.addr)).join(', ');
+          showCenter(`Hand complete — Winner: ${names}`, 1800);
+
+          // Optional: highlight best 5 for winners if we can map them
+          const usedCommunity = winners[0]?.usedCommunity || []; // [0..4]
+          // highlight board cards
+          Array.from(boardEl.children).forEach((el, i)=>{
+            if (usedCommunity.includes(i)) el.classList.add('card--win');
+          });
+          // If I’m a winner and usedHole is provided, highlight my used holes
+          if (mySeat >= 0 && winners.some(w => lc(w.addr)===lc(myAddr))){
+            const myW = winners.find(w => lc(w.addr)===lc(myAddr));
+            const row = seatEls[mySeat].querySelector('.cards');
+            if (row && Array.isArray(myW?.usedHole)){
+              Array.from(row.children).forEach((el, i)=>{
+                if (myW.usedHole.includes(i)) el.classList.add('card--win');
+              });
+            }
+          }
+        } else {
+          showCenter('Hand complete', 1200);
+        }
       }catch{}
-      // after a short delay, clear local hole
-      setTimeout(()=>{ myHole=[]; currentActors=[]; turnSeatId=-1; }, 600);
+
+      // Clear center highlights after a bit; server will send next state
+      setTimeout(()=> {
+        Array.from(boardEl.children).forEach(el=> el.classList.remove('card--win'));
+        if (actionBarEl){ actionBarEl.remove(); actionBarEl = null; }
+      }, 1800);
     });
 
-    // keep sim flag in sync (not strictly needed here)
-    socket.on('poker:mode', (m)=>{ isSim=!!m?.simulated; });
+    // Explicit table reset
+    socket.on('table:reset', ()=>{
+      myHole = [];
+      clearBoard();
+      seatEls.forEach((_, i)=> drawSeatCards(i));
+      if (actionBarEl){ actionBarEl.remove(); actionBarEl = null; }
+      showCenter('Table reset', 800);
+    });
   }
 
-  /* ---------- Bootstrap ---------- */
+  /* ---------------------- Wallet sync from navbar/tavern ----------------------- */
+  function setKnownAddress(addr){
+    myAddr = lc(addr||'');
+    // save so page reloads keep it
+    try{
+      if (myAddr){
+        localStorage.setItem('walletConnected','true');
+        sessionStorage.setItem('walletConnected','true');
+        localStorage.setItem('walletAddress', myAddr);
+        sessionStorage.setItem('walletAddress', myAddr);
+      }
+    }catch{}
+    if (socket?.connected && myAddr){
+      try{ socket.emit('identify', { addr: myAddr }); }catch{}
+    }
+  }
+  window.addEventListener('wallet:connected', (e)=>{
+    const a = e?.detail?.address || e?.detail?.addr;
+    if (a) setKnownAddress(a);
+  });
+
+  /* ------------------------------- Bootstrap ----------------------------------- */
+  // Preload sprite to avoid first-deal flash
+  try{ (new Image()).src = SPRITE_URL; }catch(e){}
   initSocket();
-  if (myAddr) applyKnownAddress(myAddr);
+  if (myAddr) setKnownAddress(myAddr);
 })();
