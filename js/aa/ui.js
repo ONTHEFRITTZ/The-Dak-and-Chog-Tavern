@@ -1,3 +1,7 @@
+// at the very top of aa/ui.js
+const __MODE = (document.documentElement.getAttribute('data-table-mode') || '').toLowerCase();
+const __IS_F2P = __MODE === 'f2p';
+
 import { ensureMonadSelected, getAccounts, isSmartAccount, upgradeToSmartAccount } from './account.js';
 import { MONAD, getPokerTableAddress } from './config.js';
 import { presets as buildPresets, createDelegation, revokeDelegation, loadDelegation, isDelegationActive, nowSec } from './delegation.js';
@@ -5,6 +9,11 @@ import { presets as buildPresets, createDelegation, revokeDelegation, loadDelega
 function short(a){ return a && a.length>10 ? (a.slice(0,6)+'...'+a.slice(-4)) : (a||''); }
 
 function ensureContainer() {
+  if (__IS_F2P) {
+    // Return a detached element so rest of code doesn't blow up, but nothing mounts.
+    const ghost = document.createElement('div');
+    return ghost;
+  }
   let c = document.getElementById('aa-controls');
   if (c) return c;
   const host = document.getElementById('wallet-inline') || document.body;
@@ -14,6 +23,7 @@ function ensureContainer() {
   host.appendChild(c);
   return c;
 }
+
 
 function renderStatus({ addr, smart, active, end, chainOk }) {
   const c = ensureContainer();
@@ -64,6 +74,7 @@ async function renderButtons({ addr }) {
 }
 
 async function hydrate(){
+  if (__IS_F2P) return;  // Completely skip on free tables
   const okNet = await ensureMonadSelected();
   const accs = await getAccounts();
   const addr = (accs[0] || '').toLowerCase();
