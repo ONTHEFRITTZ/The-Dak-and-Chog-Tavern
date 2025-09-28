@@ -107,7 +107,7 @@
     const seatH = (probe && probe.offsetHeight) ? probe.offsetHeight : 130;
 
     // Gap pushes seats away from table center (increase if you want wider spacing)
-    const gap = 28; // px
+    const gap = 50; // px
 
     // Radii ensure each seat’s bounding box stays inside the table-canvas without colliding
     // Half the container minus half the seat minus our desired gap
