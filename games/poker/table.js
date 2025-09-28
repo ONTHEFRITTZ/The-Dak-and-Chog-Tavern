@@ -1,101 +1,157 @@
-// Poker Table UI (8-max), wallet choice carried from landing (no auto-preference)
-
+/* Poker Table UI (8-max) — OFFCHAIN sim chips + wallet choice carry-over */
 (function(){
   /* ---------- DOM ---------- */
-  const centerEl = document.getElementById('poker-center');
-  const seatsEls = Array.from(document.querySelectorAll('.seat'));
-  const sbWallet = document.getElementById('sb-wallet');
-  const sbChips  = document.getElementById('sb-chips');
-  const sbPNL    = document.getElementById('sb-pnl');
-  const sbHands  = document.getElementById('sb-hands');
-  const wiAddrEl = document.getElementById('wi-address');
-  const btnDisconnect = document.getElementById('wi-disconnect');
-  const btnDevBot     = document.getElementById('toggle-dev-bot');
+  const centerEl   = document.getElementById('poker-center');
+  const seatsEls   = Array.from(document.querySelectorAll('.seat'));
+  const wiAddrEl   = document.getElementById('wi-address');
+  const btnDisc    = document.getElementById('wi-disconnect');
+  const btnDevBot  = document.getElementById('toggle-dev-bot');
+  const sbWallet   = document.getElementById('sb-wallet');
 
   /* ---------- URL / globals ---------- */
   function getParam(k){ try{ return new URL(window.location.href).searchParams.get(k) }catch{ return null } }
   const tableId = getParam('table');
-  let socket, myAddr = (localStorage.getItem('walletAddress') || sessionStorage.getItem('walletAddress') || '').toLowerCase();
-  let mySeat = -1;
-  let myHole = [];       // e.g. ['As','Kh']
-  let community = [];    // 5
-  let state = null;      // last poker:state
+
+  let socket = null;
+  let myAddr = (localStorage.getItem('walletAddress') || sessionStorage.getItem('walletAddress') || '').toLowerCase();
+  let isSim  = true;
 
   function short(a){ return a && a.length>10 ? (a.slice(0,6)+'...'+a.slice(-4)) : (a||''); }
   function lc(s){ return (s||'').toLowerCase(); }
 
-  /* ---------- Wallet provider selection (from landing) ---------- */
-  function pickMetaMask(){
-    const eth = window.ethereum;
-    if (!eth) return null;
-    if (eth.isMetaMask) return eth;
-    if (Array.isArray(eth.providers)) {
-      const mm = eth.providers.find(p => p && p.isMetaMask);
-      if (mm) return mm;
-    }
-    return eth;
-  }
-  function pickPhantom(){
-    return (window.phantom && window.phantom.ethereum) ? window.phantom.ethereum : null;
-  }
+  /* ---------- Provider selection carried from landing ---------- */
   function getSelectedProvider(){
+    const key = (sessionStorage.getItem('walletProvider') || '').toLowerCase();
+    if (key === 'metamask') {
+      const eth = window.ethereum;
+      if (eth?.isMetaMask) return eth;
+      if (Array.isArray(eth?.providers)) {
+        const mm = eth.providers.find(p => p && p.isMetaMask);
+        if (mm) return mm;
+      }
+      return eth || null;
+    }
+    if (key === 'phantom') return window.phantom?.ethereum || null;
+    // fallback
+    if (window.phantom?.ethereum) return window.phantom.ethereum;
+    if (window.ethereum) return window.ethereum;
+    return window.__walletProvider || null;
+  }
+  async function resolveAddressFromSelection(){
     try {
-      if (window.__walletProvider) return window.__walletProvider;
-      const key = (sessionStorage.getItem('walletProvider') || '').toLowerCase();
-      if (key === 'metamask') return pickMetaMask();
-      if (key === 'phantom')  return pickPhantom();
-    } catch {}
-    return null;
+      const prov = getSelectedProvider();
+      if (!prov?.request) return null;
+      const accts = await prov.request({ method:'eth_accounts' }).catch(()=>[]);
+      const addr  = (accts && accts[0]) ? String(accts[0]) : null;
+      return addr ? lc(addr) : null;
+    } catch { return null; }
+  }
+  function applyKnownAddress(addr){
+    myAddr = lc(addr || '');
+    if (wiAddrEl) wiAddrEl.textContent = myAddr ? short(myAddr) : '-';
+    if (sbWallet) sbWallet.textContent = myAddr ? short(myAddr) : '—';
+    try{
+      if (myAddr){
+        localStorage.setItem('walletConnected','true');
+        sessionStorage.setItem('walletConnected','true');
+        localStorage.setItem('walletAddress', myAddr);
+        sessionStorage.setItem('walletAddress', myAddr);
+      } else {
+        localStorage.removeItem('walletAddress');
+        sessionStorage.removeItem('walletAddress');
+      }
+    }catch{}
+    if (socket?.connected && myAddr){
+      try { socket.emit('identify', { addr: myAddr }); } catch {}
+    }
   }
 
-  /* ---------- Seat ring layout (8 spots, wider oval) ---------- */
-function layoutSeats(){
-  const wrap = document.querySelector('.table-canvas');
-  if (!wrap) return;
-  const W = wrap.clientWidth, H = wrap.clientHeight;
-  const cx = W/2, cy = H/2;
+  // Disconnect button
+  if (btnDisc){
+    btnDisc.style.display = 'inline-block';
+    btnDisc.onclick = () => {
+      try {
+        sessionStorage.removeItem('walletAddress');
+        localStorage.removeItem('walletAddress');
+        sessionStorage.removeItem('walletConnected');
+        localStorage.removeItem('walletConnected');
+        sessionStorage.removeItem('walletProvider');
+        applyKnownAddress('');
+        window.dispatchEvent(new CustomEvent('wallet:connected', { detail:{ address:'' } }));
+      } catch {}
+    };
+  }
 
-  // Make the oval wider/taller → pushes seats outward
-  const rx = W * 0.52;   // horizontal radius (was 0.36)
-  const ry = H * 0.50;   // vertical radius (was 0.34)
+  // Adopt landing choice on load (no prompt)
+  (async () => {
+    const a = await resolveAddressFromSelection();
+    if (a) applyKnownAddress(a);
+  })();
 
-  // Angles for 8 seats evenly distributed around oval
-  const positions = [
-    270, 315,   0,  45,   // top arc (left → right)
-     90, 135, 180, 225    // bottom arc (right → left)
-  ];
-
-  seatsEls.forEach((el,i)=>{
-    const ang = (positions[i]||0) * Math.PI/180;
-    const x = cx + rx * Math.cos(ang);
-    const y = cy + ry * Math.sin(ang);
-    el.style.left = Math.round(x - el.clientWidth/2) + 'px';
-    el.style.top  = Math.round(y - el.clientHeight/2) + 'px';
+  // Listen to global wallet events
+  window.addEventListener('wallet:connected', (e)=>{
+    const a = e?.detail?.address || e?.detail?.addr;
+    if (a) applyKnownAddress(a);
   });
-}
+
+  /* ---------- Seat ring layout (spaced oval) ---------- */
+  function layoutSeats(){
+    const wrap = document.querySelector('.table-canvas');
+    if (!wrap) return;
+    const W = wrap.clientWidth, H = wrap.clientHeight;
+    const cx = W/2, cy = H/2;
+    const rx = W * 0.46, ry = H * 0.44; // more space
+    const positions = [270, 315, 0, 45, 90, 135, 180, 225];
+    seatsEls.forEach((el,i)=>{
+      const ang = (positions[i]||0) * Math.PI/180;
+      const x = cx + rx * Math.cos(ang);
+      const y = cy + ry * Math.sin(ang);
+      el.style.left = Math.round(x - el.clientWidth/2) + 'px';
+      el.style.top  = Math.round(y - el.clientHeight/2) + 'px';
+    });
+  }
+  window.addEventListener('resize', layoutSeats);
+  window.addEventListener('load', layoutSeats);
+
+  function showCenter(msg, ms=1500){
+    if (!centerEl) return;
+    centerEl.textContent = msg;
+    centerEl.style.display = 'block';
+    if (ms>0){ setTimeout(()=>{ centerEl.style.display='none'; }, ms); }
+  }
 
   /* ---------- Rendering ---------- */
   function renderTable(t){
     try{
       if (!t || t.id !== tableId) return;
 
-      mySeat = -1;
-      const seats = Array.isArray(t.seats) ? t.seats : [];
+      isSim = !!t.simulated;
+      if (btnDevBot) btnDevBot.style.display = (isSim ? 'inline-block' : 'none');
 
+      const seats = Array.isArray(t.seats) ? t.seats : [];
       seatsEls.forEach((el, i)=>{
         const s = seats[i];
         el.innerHTML = '';
+
         const head = document.createElement('div');
         head.className = 'addr';
         head.textContent = s ? short(s.addr||('Seat '+i)) : 'Empty';
         el.appendChild(head);
 
+        const info = document.createElement('div');
+        info.style.fontSize = '12px';
+        info.style.opacity = '0.9';
+        if (s && isSim) {
+          info.textContent = `Chips: ${Number(s.chips||0)}`;
+          el.appendChild(info);
+        }
+
         const btns = document.createElement('div');
         btns.className = 'btns';
 
         if (s){
-          if (myAddr && s.addr && lc(s.addr)===lc(myAddr)){
-            mySeat = i;
+          const mine = myAddr && s.addr && lc(s.addr)===lc(myAddr);
+          if (mine){
             const bLeave = document.createElement('button');
             bLeave.textContent = 'Leave';
             bLeave.onclick = ()=> socket?.emit('seat',{ index:-1 });
@@ -106,8 +162,17 @@ function layoutSeats(){
             bReady.style.marginLeft='6px';
             bReady.onclick = ()=> socket?.emit('ready', { ready: !s.ready });
             btns.appendChild(bReady);
+
+            if (isSim) {
+              const bBuy = document.createElement('button');
+              bBuy.textContent = 'Buy 100';
+              bBuy.style.marginLeft = '6px';
+              bBuy.onclick = ()=> socket?.emit('sim:rebuy');
+              if (Number(s.chips||0) <= 0) bBuy.style.boxShadow = '0 0 0 2px #ffd166';
+              btns.appendChild(bBuy);
+            }
           }
-        }else{
+        } else {
           const bSit = document.createElement('button');
           bSit.textContent = 'Sit';
           if (!myAddr){ bSit.disabled = true; bSit.title = 'Connect wallet'; }
@@ -118,22 +183,9 @@ function layoutSeats(){
         el.appendChild(btns);
       });
 
-      // Update small stats header
       if (sbWallet) sbWallet.textContent = myAddr ? short(myAddr) : '—';
       layoutSeats();
     }catch(e){ console.warn('renderTable', e); }
-  }
-
-  function showCenter(msg, ms=1500){
-    if (!centerEl) return;
-    centerEl.textContent = msg;
-    centerEl.style.display = 'block';
-    if (ms>0){ setTimeout(()=>{ centerEl.style.display='none'; }, ms); }
-  }
-
-  function clearCards(){
-    myHole = [];
-    community = [];
   }
 
   /* ---------- Socket ---------- */
@@ -141,147 +193,54 @@ function layoutSeats(){
     try{
       socket = io(window.location.origin, {
         path:'/poker.io/',
-        transports:['websocket','polling'],
-        upgrade:true, reconnection:true,
-        reconnectionAttempts:10, reconnectionDelay:800, forceNew:true
+        transports:['websocket'], upgrade:false,
+        reconnection:true, reconnectionAttempts:10, reconnectionDelay:800,
+        forceNew:true, withCredentials:true
       });
     }catch(e){ showCenter('Socket unavailable', 2000); return; }
 
-    socket.on('connect', ()=>{
+    socket.on('connect', async ()=>{
       try{
-        if (myAddr) socket.emit('identify', { addr: myAddr });
+        let addr = myAddr;
+        if (!addr) {
+          const resolved = await resolveAddressFromSelection();
+          if (resolved) { addr = resolved; applyKnownAddress(resolved); }
+        }
+        if (addr) socket.emit('identify', { addr });
         socket.emit('join_table', { table: tableId });
         socket.emit('lobby:get');
       }catch{}
     });
+
     socket.on('disconnect', ()=> showCenter('Disconnected', 1200));
 
-    // table model
     socket.on('table:update', (t)=> renderTable(t));
-    socket.on('table:state',  (t)=> renderTable(t)); // back-compat
+    socket.on('table:state',  (t)=> renderTable(t));
 
-    // poker hand state (public)
+    socket.on('poker:mode', (m)=>{ isSim = !!m?.simulated; });
+
     socket.on('poker:state', (m)=>{
-      state = m || null;
-      community = Array.isArray(m?.community) ? m.community.slice(0,5) : [];
-      if (typeof m?.pot !== 'undefined'){
-        showCenter(`Stage: ${m.stage||'-'} • Pot: ${m.pot}`, 800);
-      }
+      if (typeof m?.pot !== 'undefined') showCenter(`Stage: ${m.stage||'-'} • Pot: ${m.pot}`, 900);
     });
 
-    // personal hole cards
-    socket.on('poker:hole', (payload)=>{
-      try{
-        const arr = Array.isArray(payload?.cards) ? payload.cards.slice(0,2) : [];
-        myHole = arr;
-      }catch{}
-    });
-
-    // showdown / hand complete
     socket.on('poker:hand', (h)=>{
       try{
         const winners = Array.isArray(h?.winners) ? h.winners : [];
         if (winners.length){
           const names = winners.map(w=> short(w.addr)).join(', ');
-          showCenter(`Hand complete — Winner: ${names}`, 1800);
-        }else{
+          showCenter(`Hand complete — Winner: ${names}`, 1600);
+        } else {
           showCenter('Hand complete', 1200);
         }
       }catch{}
-      setTimeout(()=>{ clearCards(); }, 600);
     });
 
-    socket.on('table:reset', ()=>{
-      clearCards();
-      showCenter('Table reset', 800);
-    });
-  }
-
-  /* ---------- Wallet sync (selected provider only) ---------- */
-  function setKnownAddress(addr){
-    myAddr = lc(addr||'');
-    if (wiAddrEl) wiAddrEl.textContent = myAddr ? short(myAddr) : '-';
-    try{
-      if (myAddr){
-        localStorage.setItem('walletConnected','true');
-        sessionStorage.setItem('walletConnected','true');
-        localStorage.setItem('walletAddress', myAddr);
-        sessionStorage.setItem('walletAddress', myAddr);
-        if (btnDisconnect) btnDisconnect.style.display = '';
-      } else {
-        if (btnDisconnect) btnDisconnect.style.display = 'none';
-      }
-    }catch{}
-    if (socket?.connected && myAddr){
-      try{ socket.emit('identify', { addr: myAddr }); }catch{}
+    if (btnDevBot){
+      btnDevBot.onclick = ()=> { try { socket.emit('poker:devbot', { enabled: true }); showCenter('Dev bot toggled', 800); } catch {} };
     }
-    if (sbWallet) sbWallet.textContent = myAddr ? short(myAddr) : '—';
-  }
-
-  async function adoptFromSelectedProvider(){
-    try{
-      const provider = getSelectedProvider();
-      if (!provider) { setKnownAddress(''); return; }
-      const accts = await provider.request?.({ method:'eth_accounts' }).catch(()=>[]);
-      const a = (accts && accts[0]) || '';
-      setKnownAddress(a);
-      if (provider.on){
-        provider.on('accountsChanged', (arr)=> setKnownAddress((arr && arr[0]) || ''));
-        provider.on('chainChanged', ()=>{}); // optional
-      }
-    }catch{
-      setKnownAddress('');
-    }
-  }
-
-  // Disconnect clears local state and returns to landing
-  btnDisconnect?.addEventListener('click', ()=>{
-    try {
-      sessionStorage.removeItem('walletSigned');
-      sessionStorage.removeItem('walletProvider');
-      sessionStorage.removeItem('walletMsg');
-      sessionStorage.removeItem('walletSig');
-      sessionStorage.removeItem('walletAddress');
-      localStorage.removeItem('walletAddress');
-      localStorage.removeItem('walletConnected');
-    } catch {}
-    setKnownAddress('');
-    // back to landing to pick a wallet again
-    window.location.replace('/landing.html');
-  });
-
-  // Dev bot toggle (only effective on OFFCHAIN_NL tables)
-  btnDevBot?.addEventListener('click', ()=>{
-    try { socket?.emit('poker:devbot', { enabled: true }); } catch {}
-  });
-
-  /* ---------- Contract address into navbar/footer, if present ---------- */
-  async function updateContractLabels(){
-    try {
-      const provider = getSelectedProvider();
-      const mod = await import('../../js/config.js').catch(()=>null);
-      if (!mod || !mod.getAddressFor) return;
-      let ethersProvider = null;
-      if (window.ethers && provider) {
-        ethersProvider = new window.ethers.providers.Web3Provider(provider, 'any');
-      }
-      const addr = await mod.getAddressFor('pokerTable', ethersProvider);
-      if (!addr) return;
-      const shortAddr = addr.slice(0,6) + '...' + addr.slice(-4);
-      ['contract-address','nav-contract','footer-contract'].forEach(id=>{
-        const el = document.getElementById(id);
-        if (el) { el.textContent = shortAddr; el.title = addr; }
-      });
-    } catch {}
   }
 
   /* ---------- Bootstrap ---------- */
-  function bootstrap(){
-    initSocket();
-    if (myAddr) setKnownAddress(myAddr);
-    adoptFromSelectedProvider();
-    updateContractLabels();
-  }
-
-  bootstrap();
+  initSocket();
+  if (myAddr) applyKnownAddress(myAddr);
 })();
