@@ -692,7 +692,7 @@ body.age-landing .age-warning { color: #ffffff !important; }
 /* Background table art */
 .table-surface {
   position:absolute; inset:0; border-radius:24px; z-index:1;
-  background: url('../assets/images/table.png') no-repeat center / contain;
+  background: url('../assets/images/poker-table.png') no-repeat center / contain;
   box-shadow: none;
 }
 
