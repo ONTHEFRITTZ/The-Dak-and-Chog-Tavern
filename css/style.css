@@ -844,4 +844,11 @@ body.game [class^="aa-"] {
     bottom: 8px !important;
   }
 }
-/* ============================================================================ */
+/* Poker action bar (bottom-center, above table) */
+.table-canvas .action-bar {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 10px;
+  z-index: 20; /* above seats (2) and center-banner (6) */
+}

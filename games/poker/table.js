@@ -169,37 +169,132 @@
     return 0;
   }
 
-  /* ---------- Seat ring layout (8 spots, even spacing, no overlap) ---------- */
-  function layoutSeats() {
-    const wrap = document.querySelector('.table-canvas');
+/* ---------- Seat ring layout (auto-fit to table image, dealer gap) ---------- */
+(function installSeatRing(){
+  // Read the background image URL from .table-surface so we know its aspect.
+  const tableSurf = document.querySelector('.table-surface');
+  let tableImgUrl = null;
+  try {
+    const bg = getComputedStyle(tableSurf||document.body).backgroundImage || '';
+    const m = bg.match(/url\(["']?(.*?)["']?\)/i);
+    tableImgUrl = m ? m[1] : null;
+  } catch {}
+
+  // Cache natural size once
+  const tableImg = new Image();
+  let naturalW = 1000, naturalH = 700; // sensible fallback
+  if (tableImgUrl) {
+    tableImg.onload = function(){
+      naturalW = tableImg.naturalWidth  || naturalW;
+      naturalH = tableImg.naturalHeight || naturalH;
+      // After we learn the actual aspect, lay out again.
+      requestAnimationFrame(layoutSeats);
+      setTimeout(layoutSeats, 50);
+    };
+    tableImg.src = tableImgUrl;
+  }
+
+  // Compute the rendered table image rect inside the canvas (background-size: contain)
+  function computeRenderedTableRect() {
+    const wrap = canvas;
+    const W = wrap.clientWidth;
+    const H = wrap.clientHeight;
+
+    const imgAspect = naturalW / naturalH;
+    const canAspect = W / H;
+
+    let iw, ih;
+    if (imgAspect >= canAspect) {
+      // Image limited by width
+      iw = W;
+      ih = Math.max(1, Math.round(iw / imgAspect));
+    } else {
+      // Image limited by height
+      ih = H;
+      iw = Math.max(1, Math.round(ih * imgAspect));
+    }
+    const left = Math.round((W - iw) / 2);
+    const top  = Math.round((H - ih) / 2);
+    return { left, top, width: iw, height: ih };
+  }
+
+  // Single source of truth for seat layout
+  window.layoutSeats = function layoutSeats(){
+    const wrap = canvas;
     if (!wrap || !seatEls.length) return;
 
     const W = wrap.clientWidth;
     const H = wrap.clientHeight;
 
+    // Current seat box (use DOM for actual)
     const probe = seatEls[0];
-    const seatW = (probe && probe.offsetWidth)  ? probe.offsetWidth  : 30;
-    const seatH = (probe && probe.offsetHeight) ? probe.offsetHeight : 30;
+    const seatW = (probe && probe.offsetWidth)  ? probe.offsetWidth  : 110;
+    const seatH = (probe && probe.offsetHeight) ? probe.offsetHeight : 130;
 
-    const gap = 20; // px (visual offset from center)
+    // Ellipse inside the rendered table image
+    const trect = computeRenderedTableRect();
+    // Edge padding so seats don’t kiss the rail (as a fraction of image size)
+    const padX = Math.max(12, Math.round(trect.width  * 0.06));
+    const padY = Math.max(12, Math.round(trect.height * 0.10));
 
-    // Radii: keep seats just inside the canvas perimeter
-    const rx = Math.max(0, (W * 0.5) - (seatW * 0.5) + gap);
-    const ry = Math.max(0, (H * 0.5) - (seatH * 0.5) + gap);
+    // Radii derived from the inner image box, minus half seat sizes + padding
+    const rx = Math.max(0, (trect.width  / 2) - (seatW / 2) - padX);
+    const ry = Math.max(0, (trect.height / 2) - (seatH / 2) - padY);
 
-    const N = seatEls.length;
-    const startDeg = 270;
+    const cx = trect.left + (trect.width  / 2);
+    const cy = trect.top  + (trect.height / 2);
 
+    const N = seatEls.length; // 8
+    // We want a dealer gap at the top (12 o’clock). Our polar system uses 270° = top.
+    // Start half a step past the top so no seat lands exactly at 12 o’clock.
+    const stepDeg = 360 / N;
+    const startDeg = 270 + (stepDeg / 2); // dealer gap centered at 12
+
+    // First pass positions (no scaling yet)
+    const pts = [];
     for (let i = 0; i < N; i++) {
-      const ang = (startDeg + (i * 360 / N)) * Math.PI / 180;
-      const x = (W * 0.5) + rx * Math.cos(ang);
-      const y = (H * 0.5) + ry * Math.sin(ang);
-
-      const el = seatEls[i];
-      el.style.left = Math.round(x - seatW / 2) + 'px';
-      el.style.top  = Math.round(y - seatH / 2) + 'px';
+      const ang = (startDeg + i * stepDeg) * Math.PI / 180;
+      const x = cx + rx * Math.cos(ang);
+      const y = cy + ry * Math.sin(ang);
+      pts.push({ x, y });
     }
-  }
+
+    // Compute minimum neighbor distance to prevent overlaps
+    function dist(a, b){
+      const dx = a.x - b.x, dy = a.y - b.y;
+      return Math.hypot(dx, dy);
+    }
+    let minNeighbor = Infinity;
+    for (let i = 0; i < N; i++) {
+      const a = pts[i];
+      const b = pts[(i+1) % N];
+      minNeighbor = Math.min(minNeighbor, dist(a, b));
+    }
+
+    // If neighbors are too close, gently scale seats down so they fit with 8px gap
+    const desired = seatW + 8; // room for two seats to sit side-by-side without overlap
+    const scale = Math.max(0.82, Math.min(1, (minNeighbor / desired)));
+
+    // Apply positions
+    for (let i = 0; i < N; i++) {
+      const el = seatEls[i];
+      const { x, y } = pts[i];
+
+      el.style.left = Math.round(x - (seatW * scale) / 2) + 'px';
+      el.style.top  = Math.round(y - (seatH * scale) / 2) + 'px';
+      el.style.zIndex = '2';
+      el.style.transformOrigin = 'center center';
+      el.style.transform = (scale < 1) ? `scale(${scale})` : 'none';
+    }
+
+    // Keep the action bar bottom-center of the canvas
+    try { positionActionBar && positionActionBar(); } catch {}
+  };
+
+  // Reflow on viewport changes & image load (above already triggers once loaded)
+  window.addEventListener('resize', () => requestAnimationFrame(layoutSeats));
+})();
+
 
   /* ------------------------------ Rendering ------------------------------------ */
   function showCenter(msg, ms=1200){
