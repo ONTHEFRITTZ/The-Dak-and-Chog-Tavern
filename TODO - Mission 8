@@ -1,223 +1,42 @@
-MASTER TODO (persist this)
-S0 — Project plumbing (safe foundation)
+📋 Updated TODO List (where we are + what’s next)
+✅ Done
 
- Add Monad testnet chain config (ID, RPC, explorer) in a central config.
+ZeroDev AA client (aaClient.js) wired with Monad bundler RPC.
 
- Add MetaMask SDK bootstrap (wallet connect UI, chain switch).
+Config updated (config.js) with MONAD_BUNDLER_RPC.
 
- Introduce aa/ folder with:
+UI dual-mode (TABLE_MODE = f2p | onchain) detection in table.js.
 
- aa/config.ts (chain IDs, contract addrs, feature flags)
+renderTableModel modified to branch Sit/Leave → socket only (f2p) vs. socket+AA (onchain).
 
- aa/account.ts (detect EOA vs Smart Account, run EIP-7702)
+agent-ops.js implemented and exposed globally (window.AgentOps) for on-chain calls.
 
- aa/delegation.ts (create/revoke/list delegations; serialize limits)
+Hooked up Sit/Leave to HoldemPoker.joinSeat / unseat / leaveDuringHand.
 
- aa/userop.ts (bundler + paymaster client, sponsor userOps)
+⏩ Next (short-term hackathon goals)
 
- Add a small status pill in the table UI: EOA / Smart Account • Delegation active until HH:MM.
+Wire Ready / Hand start flow:
+Add on-chain calls for beginHand, contribute (for blinds), and settleHand (winners).
 
-S1 — Contracts (robust + minimal blast radius)
+Agent UX panel:
+Add a small banner (“Sponsored by Dak & Chog Tavern”) with status (sponsored active, chain ID, etc).
 
- PokerTable.sol (escrow & hooks; keep your engine off-chain):
+Demo polish:
 
- deposit(uint256 amount) / withdraw(uint256 amount)
+Make sure on-chain table can run through one minimal hand (Sit → Post blinds → Contribute → Settle).
 
- postBlind(uint8 seatId) (no game math on-chain; emits event)
+Record demo showing wallet connection, sponsored seat join, and one round finishing.
 
- placeAction(bytes action) (opaque -> emits event; off-chain engine validates)
+🚀 Later (optional polish / stretch goals)
 
- settle(uint256 handId, Payout[] payouts) (anyone can call; transfers escrowed chips)
+Delegation rules:
+Use ZeroDev session keys so the AA agent can auto-post blinds without repeated signing.
 
- Events: SeatTaken, ActionPlaced, HandSettled, DelegatedAction
+Budget control:
+Daily/hand/session limits if you want to guard against abuse.
 
- PermissionsRegistry.sol (hard security layer for delegations):
+Rake-based gas recoup:
+Update HoldemPoker.sol or pool to skim a portion for covering sponsored gas.
 
- Struct: {contract, selectors[], maxValuePerCall, maxGasPerCall, rateLimitPerMin, expiry, nonce}
-
- grant(address user, address delegate, Constraints c, bytes sig)
-
- revoke(bytes32 delegationId)
-
- isAllowed(user, delegate, target, selector, value, gas) -> bool
-
- Emit: DelegationGranted, DelegationRevoked, DelegationUsed
-
- RakeVault.sol (optional but nice): receive rake; operator can batch distribute.
-
- Deploy all to Monad testnet; record addresses + ABIs in aa/config.ts.
-
-S2 — Delegations end-to-end (deep, not quick)
-
- Integrate MetaMask Delegation Toolkit:
-
- EIP-7702 upgrade flow (same address, smart-account enabled)
-
- Create scoped delegation (user → Pit Boss) with selector limits {postBlind, placeAction}, maxValuePerCall, maxGasPerCall, rateLimit, expiry.
-
- Store active delegation in local storage + show clearly in UI.
-
- Revocation (local UI + on-chain).
-
- Add multiscope presets:
-
- “Play only” (actions & blinds)
-
- “Play + auto top-up” (adds deposit with a tiny cap)
-
- “Observer” (no value, read-only calls if needed)
-
-S3 — Sponsored UX (full AA value)
-
- Configure bundler and paymaster (gasless or ERC-20) for Monad testnet.
-
- Route table actions via sponsored userOps when delegation is active.
-
- Fallback to standard eth_sendTransaction if sponsorship is unavailable (graceful UX).
-
-S4 — Agents (two agents, real autonomy with guardrails)
-
- Pit Boss Agent (Node):
-
- Holds its own key/smart account; uses the user’s delegation (enforced by PermissionsRegistry).
-
- Watches timers (via your socket feed) or Envio stream.
-
- On timeout → calls postBlind() on behalf of user (within caps).
-
- On hand end → batches settle() calls in 1 userOp.
-
- Auto-pause on near-expiry; respects rate limits; logs to audit.
-
- Integrity Agent (Node):
-
- Consumes Envio events to flag collusion/multi-account heuristics.
-
- Can downgrade caps (write to registry) or request re-auth.
-
- Optional: liveness challenge hooks (off-chain captcha/liveness check).
-
-S5 — Envio indexing & dashboards (qualify + bonus)
-
- HyperIndex schema: SeatTaken, ActionPlaced, HandSettled, DelegationGranted/Revoked/Used.
-
- UI page: live event stream, hand history, per-user delegation log.
-
- Agent uses Envio webhooks to trigger actions (timeout, settle).
-
-S6 — Consumer polish (judge-friendly)
-
- CTA guided flow: Connect → Upgrade (7702) → Choose Delegation Preset → Start Session → Play.
-
- Clear explainers: what the agent can do, value/gas caps, expiry time.
-
- Revoke anytime (big button).
-
- Small “What just happened?” log after each agent action.
-
-S7 — Farcaster Mini App (bounty)
-
- Mini app: “Join Monad Freeroll”.
-
- Kicks off “Start Delegated Session” (server signs/deploys delegation scaffold), deep-links to your table.
-
-S8 — Security & abuse hardening
-
- On-chain: nonce per delegation, expiry, rate limits, selector allowlist, target allowlist, maxValuePerCall, maxGasPerCall.
-
- Off-chain: signed job envelopes from agents, request IDs, replay protection.
-
- Revoke cascades: on revoke, terminate agent job & session key.
-
- Audit logs: DelegationUsed with reason codes.
-
-S9 — Testing & demo
-
- Unit tests: registry checks, edge cases (expired, over cap, wrong selector).
-
- Integration: end-to-end sponsored userOps on Monad testnet.
-
- Load test: many table actions per minute with rate limits enforced.
-
- Demo script recorded from clean wallet (fresh onboarding).
-
-IMPLEMENTATION PLAN (expanded, production-minded)
-Phase 1 — AA shell & UI (S0 + part of S2)
-
-Implement aa/config.ts, aa/account.ts, aa/delegation.ts, aa/userop.ts.
-
-Add status pill + 3 buttons in table UI:
-
-“Upgrade to Smart Account”
-
-“Start Delegated Session” (preset selector)
-
-“Revoke Delegation”
-
-Make no changes to your game logic yet; just wire the account/delegation UX.
-
-Phase 2 — Contracts & addresses (S1)
-
-Write PokerTable.sol, PermissionsRegistry.sol, RakeVault.sol (optional).
-
-Keep on-chain logic minimal: trust your off-chain engine; chain is escrow + audit + authorization.
-
-Deploy to Monad testnet; update aa/config.ts with addresses/ABIs.
-
-Phase 3 — Delegated + Sponsored actions (S2 + S3)
-
-In table.js, wrap your action emissions:
-
-If delegation.active && sponsorship.ok → submit userOp calling placeAction(bytes) / postBlind().
-
-Else → fall back to sockets (your engine) but still emit a read-only ActionPlaced for on-chain audit (optional).
-
-Show per-call cost and “sponsored” badge.
-
-Phase 4 — Agents (S4)
-
-Pit Boss microservice:
-
-Subscribes to your existing socket events or Envio (prefer Envio for the bonus).
-
-Uses a service signer; submits actions on behalf of the user only when PermissionsRegistry.isAllowed(...) is true (the registry can be checked on-chain or enforced via modifier in the table contract).
-
-Batches settle() transactions.
-
-Integrity microservice:
-
-Simple heuristics first: timing correlation, multi-seat correlation, impossible reaction times, etc.
-
-Outputs flags to a dashboard; can call into registry to reduce caps (within user-approved revocation policy).
-
-Phase 5 — Envio + dashboards (S5)
-
-Build the Envio indexer config; generate GraphQL/REST endpoint.
-
-Add a Logs panel in your site:
-
-Recent DelegationGranted/Revoked/Used, ActionPlaced, HandSettled.
-
-Wire agent triggers from Envio webhooks (timeout → postBlind).
-
-Phase 6 — Polish + demo (S6, S9)
-
-UX text, tooltips, revoke pathways, clear time-remaining.
-
-Record demo: fresh wallet → upgrade → preset delegation → play with sponsored gas → agent auto-posts blind → settle → revoke.
-
-I’ll insert the small AA status pill and the three buttons in a separate, scoped container so I don’t touch existing layout.
-
-table.js (latest)
-
-I’ll add non-invasive hooks (tiny functions) that your existing action triggers can call:
-
-aa.canUseDelegation()
-
-aa.placeActionDelegated(actionBytes)
-
-aa.postBlindDelegated(seatId)
-
-aa.revokeDelegation()
-
-I will not remove or rewrite current socket flows; we’ll wrap them safely.
+Farcaster mini-app / consumer polish:
+If aiming for extra prize tracks.

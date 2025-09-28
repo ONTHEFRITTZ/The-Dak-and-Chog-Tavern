@@ -2,6 +2,11 @@
 // Keeps your UI, sockets, and rendering intact.
 
 (function(){
+  // --- Table mode (f2p | onchain) ---
+  const htmlMode = (document.documentElement.getAttribute('data-table-mode') || '').toLowerCase();
+  const qpMode = (new URL(location.href)).searchParams.get('mode');
+  const TABLE_MODE = (qpMode ? String(qpMode).toLowerCase() : htmlMode) === 'onchain' ? 'onchain' : 'f2p';
+
   /* -------------------------- Config (sprite + layout) -------------------------- */
   const SPRITE_URL  = '/assets/images/cards/cards-sprite.png';
   const SPRITE_COLS = 13;
@@ -178,6 +183,7 @@
   function renderTableModel(t){
     if (!t || t.id !== tableId) return;
 
+    // seats + buttons
     mySeat = -1;
     const seats = Array.isArray(t.seats) ? t.seats : [];
 
@@ -185,30 +191,49 @@
       const s = seats[i];
       el.innerHTML = '';
 
+      // name / addr
       const head = document.createElement('div');
       head.className = 'addr';
       head.textContent = s ? short(s.addr||('Seat '+i)) : 'Empty';
       el.appendChild(head);
 
+      // cards row (created on demand in drawSeatCards)
       const cardsRow = document.createElement('div');
       cardsRow.className = 'cards';
       el.appendChild(cardsRow);
 
+      // buttons
       const btns = document.createElement('div');
       btns.className = 'btns';
 
       if (s){
+        // me
         if (myAddr && s.addr && lc(s.addr)===lc(myAddr)){
           mySeat = i;
 
+          // Leave
           const bLeave = document.createElement('button');
           bLeave.textContent = 'Leave';
           bLeave.onclick = async ()=> {
-            try { await window.AgentOps?.leaveSeat?.(mySeat); } catch(e){ console.warn(e); showCenter('Leave failed'); }
+            // If this table is on-chain, try to mirror the action via AA first
+            if (TABLE_MODE === 'onchain') {
+              try {
+                if (window.AgentOps?.leaveSeat) {
+                  await window.AgentOps.leaveSeat(mySeat);
+                } else if (window.AgentOps?.unseatSeat) {
+                  await window.AgentOps.unseatSeat(mySeat);
+                }
+              } catch(e){
+                console.warn('AA leaveSeat failed', e);
+                showCenter('Could not leave on-chain (sponsored).', 1200);
+              }
+            }
+            // Always keep the socket model authoritative
             socket?.emit('seat',{ index:-1 });
           };
           btns.appendChild(bLeave);
 
+          // Ready / Unready (UI state is server-driven)
           const bReady = document.createElement('button');
           bReady.textContent = s.ready ? 'Unready' : 'Ready';
           bReady.style.marginLeft='6px';
@@ -216,12 +241,29 @@
           btns.appendChild(bReady);
         }
       } else {
+        // empty seat → Sit
         const bSit = document.createElement('button');
         bSit.textContent = 'Sit';
         if (!myAddr){ bSit.disabled = true; bSit.title = 'Connect wallet'; }
         bSit.onclick = async ()=> {
           if (!myAddr) return;
-          try { await window.AgentOps?.sitSeat?.(i); } catch(e){ console.warn(e); showCenter('Sit failed'); }
+
+          // If this table is on-chain, try to mirror the action via AA first
+          if (TABLE_MODE === 'onchain') {
+            try {
+              if (window.AgentOps?.joinSeat) {
+                await window.AgentOps.joinSeat(i);
+              } else if (window.AgentOps?.sitSeat) {
+                await window.AgentOps.sitSeat(i);
+              }
+            } catch(e){
+              console.warn('AA joinSeat failed', e);
+              showCenter('Could not sit on-chain (sponsored).', 1200);
+              // We still proceed with socket emit; if you want to hard-fail, return instead.
+            }
+          }
+
+          // Always keep the socket model authoritative
           socket?.emit('seat', { index:i });
         };
         btns.appendChild(bSit);
@@ -230,11 +272,13 @@
       el.appendChild(btns);
     });
 
+    // After rebuilding, lay out and re-draw any known cards
     layoutSeats();
     renderBoard();
-    refreshSeatCardBacksFromState();
+    refreshSeatCardBacksFromState(); // opp backs
     if (mySeat >= 0) drawSeatCards(mySeat);
   }
+
 
   function refreshSeatCardBacksFromState(){
     oppHasHole.clear();
@@ -250,54 +294,69 @@
     seatEls.forEach((_, i) => drawSeatCards(i));
   }
 
-  function updateActionBar(){
-    if (mySeat < 0 || !state || !Array.isArray(state.actors)) {
-      if (actionBarEl){ actionBarEl.remove(); actionBarEl = null; }
-      return;
-    }
-    const idx = state.turnIndex|0;
-    const actor = state.actors[idx];
-    if (!actor || actor.seatId !== mySeat || actor.folded){
-      if (actionBarEl){ actionBarEl.remove(); actionBarEl = null; }
-      return;
-    }
+ function updateActionBar(){
+  if (mySeat < 0 || !state || !Array.isArray(state.actors)) {
+    if (actionBarEl){ actionBarEl.remove(); actionBarEl = null; }
+    return;
+  }
 
-    // IMPORTANT: assume state.toCall/state.contrib are wei
-    const need = Math.max(0, Number(state.toCall||0) - Number(actor.contrib||0));
-    const under = seatEls[mySeat];
+  const idx = state.turnIndex|0;
+  const actor = state.actors[idx];
+  if (!actor || actor.seatId !== mySeat || actor.folded){
+    if (actionBarEl){ actionBarEl.remove(); actionBarEl = null; }
+    return;
+  }
 
-    if (!actionBarEl){
-      actionBarEl = document.createElement('div');
-      actionBarEl.className = 'action-bar';
-      canvas.appendChild(actionBarEl);
-    }
-    const r = under.getBoundingClientRect();
-    const c = canvas.getBoundingClientRect();
-    actionBarEl.style.left = (r.left - c.left + r.width/2) + 'px';
-    actionBarEl.style.top  = (r.top  - c.top  + r.height + 10) + 'px';
+  const need = Math.max(0, Number(state.toCall||0) - Number(actor.contrib||0));
+  const under = seatEls[mySeat];
 
-    actionBarEl.innerHTML = '';
-    const bFold = document.createElement('button');
-    bFold.textContent = 'Fold';
-    bFold.onclick = ()=> socket?.emit('poker:act', { action:'fold' });
+  if (!actionBarEl){
+    actionBarEl = document.createElement('div');
+    actionBarEl.className = 'action-bar';
+    canvas.appendChild(actionBarEl);
+  }
+  const r = under.getBoundingClientRect();
+  const c = canvas.getBoundingClientRect();
+  actionBarEl.style.left = (r.left - c.left + r.width/2) + 'px';
+  actionBarEl.style.top  = (r.top  - c.top  + r.height + 10) + 'px';
 
-    const bCheckCall = document.createElement('button');
-    bCheckCall.textContent = (need > 0) ? `Call ${need}` : 'Check';
-    bCheckCall.onclick = async ()=> {
+  actionBarEl.innerHTML = '';
+
+  // ---- Fold ----
+  const bFold = document.createElement('button');
+  bFold.textContent = 'Fold';
+  bFold.onclick = ()=> {
+    socket?.emit('poker:act', { action:'fold' });
+    // no onchain tx for fold
+  };
+  actionBarEl.appendChild(bFold);
+
+  // ---- Check / Call ----
+  const bCheckCall = document.createElement('button');
+  bCheckCall.textContent = (need > 0) ? `Call ${need}` : 'Check';
+  bCheckCall.onclick = async ()=> {
+    socket?.emit('poker:act', { action:(need>0?'call':'check') });
+    if (TABLE_MODE==='onchain' && need>0){
       try {
-        if (need > 0) {
-          // Contribute native coin on-chain before telling server we called
-          await window.AgentOps?.contribute?.(mySeat, need);
-        }
-        socket?.emit('poker:act', { action: (need>0?'call':'check') });
-      } catch (e) {
-        console.warn(e);
-        showCenter('Contribution failed');
-      }
-    };
+        await window.AgentOps?.contribute?.(mySeat, String(need));
+      } catch(e){ console.warn(e); showCenter('Call tx failed'); }
+    }
+  };
+  actionBarEl.appendChild(bCheckCall);
 
-    actionBarEl.appendChild(bFold);
-    actionBarEl.appendChild(bCheckCall);
+  // ---- Bet / Raise (simple fixed raise for demo) ----
+  const bRaise = document.createElement('button');
+  const raiseAmt = need + Number(state.bigBlind||0);
+  bRaise.textContent = `Raise ${raiseAmt}`;
+  bRaise.onclick = async ()=> {
+    socket?.emit('poker:act', { action:'raise', amount:raiseAmt });
+    if (TABLE_MODE==='onchain'){
+      try {
+        await window.AgentOps?.contribute?.(mySeat, String(raiseAmt));
+      } catch(e){ console.warn(e); showCenter('Raise tx failed'); }
+    }
+  };
+  actionBarEl.appendChild(bRaise);
   }
 
   /* ------------------------------ Socket wiring ------------------------------- */

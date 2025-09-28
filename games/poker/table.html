@@ -17,6 +17,18 @@
     }catch(e){}})();
   </script>
   <script>
+  (function(){
+    try {
+      const u = new URL(location.href);
+      const mode = (u.searchParams.get('mode') || '').toLowerCase();
+      if (mode === 'onchain' || mode === 'f2p') {
+        document.documentElement.setAttribute('data-table-mode', mode);
+      }
+    } catch {}
+  })();
+</script>
+
+  <script>
     (async()=>{
       try{
         const b = await fetch('/assets/build.json', { cache:'no-store' }).then(r=>r.ok?r.json():null).catch(()=>null);
@@ -180,7 +192,8 @@
   <!-- Wallet banner + auto-connect like Tavern -->
   <script type="module" src="../../js/tavern.js"></script>
   <script type="module" src="/js/aa/ui.js"></script>
-
+  <!-- Smart Account + on-chain ops for onchain tables -->
+  <script type="module" src="/js/agent-ops.js?v=__BUILD__"></script>
   <!-- Socket.IO (CDN) -->
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
   <!-- Prewarm table background in cache before JS/paint -->
