@@ -7,13 +7,25 @@ let smartAccount;
 export async function initSmartAccount(provider) {
   if (smartAccount) return smartAccount;
 
-  smartAccount = await createSmartAccountClient({
-    chainId: 10143, // Monad testnet
-    bundlerRpc: MONAD_BUNDLER_RPC,
-    provider,
-  });
+  try {
+    smartAccount = await createSmartAccountClient({
+      chainId: 10143, // Monad testnet
+      bundlerRpc: MONAD_BUNDLER_RPC,
+      provider,
+    });
 
-  return smartAccount;
+    // Dispatch sponsorship ON event since we're connected via ZeroDev bundler
+    window.dispatchEvent(new CustomEvent('aa:sponsored', { detail: { active: true } }));
+
+    return smartAccount;
+  } catch (err) {
+    console.error("Failed to init SmartAccount with bundler:", err);
+
+    // Dispatch sponsorship OFF if creation fails
+    window.dispatchEvent(new CustomEvent('aa:sponsored', { detail: { active: false } }));
+
+    throw err;
+  }
 }
 
 export function getSmartAccount() {

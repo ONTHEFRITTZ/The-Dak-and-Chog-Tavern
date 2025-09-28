@@ -1,25 +1,20 @@
-// Poker Table UI (8-max) — proper Texas Hold’em flow with sprite cards, burns (face-down),
-// action buttons, and no auto-simulation. Works with your existing realtime.js events.
+// table.js — drop-in replacement with AA route for chip contributions etc.
+// Keeps your UI, sockets, and rendering intact.
 
 (function(){
   /* -------------------------- Config (sprite + layout) -------------------------- */
   const SPRITE_URL  = '/assets/images/cards/cards-sprite.png';
-  const SPRITE_COLS = 13;     // 13 ranks across
-  const SPRITE_ROWS = 5;      // 4 suits + 1 row for card back
-  const SUIT_ROW = { h:0, d:1, c:2, s:3 };     // hearts, diamonds, clubs, spades
-  const RANKS   = ['2','3','4','5','6','7','8','9','T','J','Q','K','A']; // left→right
-  const BACK_POS = { row: 4, col: 0 };         // back tile on last row, first col
-
-  // Seat ring spacing (bigger ellipse → more room)
-  const RADIUS_X = 0.42;      // 42% of canvas width
-  const RADIUS_Y = 0.38;      // 38% of canvas height
+  const SPRITE_COLS = 13;
+  const SPRITE_ROWS = 5;
+  const SUIT_ROW = { h:0, d:1, c:2, s:3 };
+  const RANKS   = ['2','3','4','5','6','7','8','9','T','J','Q','K','A'];
+  const BACK_POS = { row: 4, col: 0 };
 
   /* ------------------------------- DOM refs ------------------------------------ */
   const canvas     = document.querySelector('.table-canvas');
   const seatEls    = Array.from(document.querySelectorAll('.seat'));
   const centerEl   = document.getElementById('poker-center');
 
-  // We create these containers if not present:
   function ensureOverlayEl(id, className, parent){
     let el = document.getElementById(id);
     if (!el){
@@ -52,15 +47,14 @@
   function short(a){ return a && a.length>10 ? (a.slice(0,6)+'...'+a.slice(-4)) : (a||''); }
   function lc(s){ return (s||'').toLowerCase(); }
 
-  // Compute CSS for a specific card tile
   function cardStylesFromCode(code){
     if (!code || typeof code !== 'string' || code.length < 2){
       return cardBackStyles();
     }
     const r = code[0].toUpperCase();
     const s = code[1].toLowerCase();
-    const col = Math.max(0, RANKS.indexOf(r));     // 0..12
-    const row = (s in SUIT_ROW) ? SUIT_ROW[s] : 0; // 0..3
+    const col = Math.max(0, RANKS.indexOf(r));
+    const row = (s in SUIT_ROW) ? SUIT_ROW[s] : 0;
     return {
       backgroundImage: `url("${SPRITE_URL}")`,
       backgroundSize: `${SPRITE_COLS*100}% ${SPRITE_ROWS*100}%`,
@@ -86,7 +80,6 @@
   }
 
   function burnsForStage(stage){
-    // Visual only: standard Hold’em burns (not revealing identity)
     if (stage === 'flop')  return 1;
     if (stage === 'turn')  return 2;
     if (stage === 'river') return 3;
@@ -101,21 +94,17 @@
     const W = wrap.clientWidth;
     const H = wrap.clientHeight;
 
-    // Use actual seat dimensions; fall back to CSS values if not rendered yet
     const probe = seatEls[0];
     const seatW = (probe && probe.offsetWidth)  ? probe.offsetWidth  : 110;
     const seatH = (probe && probe.offsetHeight) ? probe.offsetHeight : 130;
 
-    // Gap pushes seats away from table center (increase if you want wider spacing)
-    const gap = 50; // px
+    const gap = 28; // px (visual offset from center)
 
-    // Radii ensure each seat’s bounding box stays inside the table-canvas without colliding
-    // Half the container minus half the seat minus our desired gap
-    const rx = Math.max(0, (W * 0.5) - (seatW * 0.5) + gap);
-    const ry = Math.max(0, (H * 0.5) - (seatH * 0.5) + gap);
+    // Radii: keep seats just inside the canvas perimeter
+    const rx = Math.max(0, (W * 0.5) - (seatW * 0.5) - gap);
+    const ry = Math.max(0, (H * 0.5) - (seatH * 0.5) - gap);
 
-    // Evenly spaced seats around an ellipse, starting at 270° (top center) clockwise
-    const N = seatEls.length; // 8 seats in your DOM
+    const N = seatEls.length;
     const startDeg = 270;
 
     for (let i = 0; i < N; i++) {
@@ -124,7 +113,6 @@
       const y = (H * 0.5) + ry * Math.sin(ang);
 
       const el = seatEls[i];
-      // Place by top-left coordinates so the seat's center hits (x, y)
       el.style.left = Math.round(x - seatW / 2) + 'px';
       el.style.top  = Math.round(y - seatH / 2) + 'px';
     }
@@ -148,14 +136,12 @@
     const cards = Array.isArray(state.community) ? state.community.slice(0,5) : [];
     boardEl.innerHTML = '';
 
-    // Flop/turn/river laid out left→right
     cards.forEach((code, i) => {
       const c = makeCardEl(code, false, true);
       c.dataset.slot = String(i);
       boardEl.appendChild(c);
     });
 
-    // Burn pile on left side, face-down backs only
     const nBurns = burnsForStage(state.stage||'');
     burnsEl.innerHTML = '';
     for (let i=0; i<nBurns; i++){
@@ -173,18 +159,16 @@
     if (!row){
       row = document.createElement('div');
       row.className = 'cards';
-      el.insertBefore(row, el.firstChild.nextSibling); // under name
+      el.insertBefore(row, el.firstChild.nextSibling);
     }
     row.innerHTML = '';
 
-    // My seat → show real hole if dealt
     if (seatId === mySeat && myHole && myHole.length){
       row.appendChild(makeCardEl(myHole[0], true, true));
       row.appendChild(makeCardEl(myHole[1], true, true));
       return;
     }
 
-    // Opponents in-hand → show backs; folded/empty → nothing
     if (oppHasHole.has(seatId)){
       row.appendChild(makeCardEl(null, true, false));
       row.appendChild(makeCardEl(null, true, false));
@@ -194,7 +178,6 @@
   function renderTableModel(t){
     if (!t || t.id !== tableId) return;
 
-    // seats + buttons
     mySeat = -1;
     const seats = Array.isArray(t.seats) ? t.seats : [];
 
@@ -202,29 +185,28 @@
       const s = seats[i];
       el.innerHTML = '';
 
-      // name / addr
       const head = document.createElement('div');
       head.className = 'addr';
       head.textContent = s ? short(s.addr||('Seat '+i)) : 'Empty';
       el.appendChild(head);
 
-      // cards row (created on demand in drawSeatCards)
       const cardsRow = document.createElement('div');
       cardsRow.className = 'cards';
       el.appendChild(cardsRow);
 
-      // buttons
       const btns = document.createElement('div');
       btns.className = 'btns';
 
       if (s){
-        // me
         if (myAddr && s.addr && lc(s.addr)===lc(myAddr)){
           mySeat = i;
 
           const bLeave = document.createElement('button');
           bLeave.textContent = 'Leave';
-          bLeave.onclick = ()=> socket?.emit('seat',{ index:-1 });
+          bLeave.onclick = async ()=> {
+            try { await window.AgentOps?.leaveSeat?.(mySeat); } catch(e){ console.warn(e); showCenter('Leave failed'); }
+            socket?.emit('seat',{ index:-1 });
+          };
           btns.appendChild(bLeave);
 
           const bReady = document.createElement('button');
@@ -234,21 +216,23 @@
           btns.appendChild(bReady);
         }
       } else {
-        // empty seat
         const bSit = document.createElement('button');
         bSit.textContent = 'Sit';
         if (!myAddr){ bSit.disabled = true; bSit.title = 'Connect wallet'; }
-        bSit.onclick = ()=> { if (!myAddr) return; socket?.emit('seat', { index:i }); };
+        bSit.onclick = async ()=> {
+          if (!myAddr) return;
+          try { await window.AgentOps?.sitSeat?.(i); } catch(e){ console.warn(e); showCenter('Sit failed'); }
+          socket?.emit('seat', { index:i });
+        };
         btns.appendChild(bSit);
       }
 
       el.appendChild(btns);
     });
 
-    // After rebuilding, lay out and re-draw any known cards
     layoutSeats();
     renderBoard();
-    refreshSeatCardBacksFromState(); // opp backs
+    refreshSeatCardBacksFromState();
     if (mySeat >= 0) drawSeatCards(mySeat);
   }
 
@@ -263,7 +247,6 @@
       oppHasHole.add(a.seatId);
     });
 
-    // Update all seats based on that set
     seatEls.forEach((_, i) => drawSeatCards(i));
   }
 
@@ -279,6 +262,7 @@
       return;
     }
 
+    // IMPORTANT: assume state.toCall/state.contrib are wei
     const need = Math.max(0, Number(state.toCall||0) - Number(actor.contrib||0));
     const under = seatEls[mySeat];
 
@@ -287,7 +271,6 @@
       actionBarEl.className = 'action-bar';
       canvas.appendChild(actionBarEl);
     }
-    // position under my seat panel
     const r = under.getBoundingClientRect();
     const c = canvas.getBoundingClientRect();
     actionBarEl.style.left = (r.left - c.left + r.width/2) + 'px';
@@ -300,7 +283,18 @@
 
     const bCheckCall = document.createElement('button');
     bCheckCall.textContent = (need > 0) ? `Call ${need}` : 'Check';
-    bCheckCall.onclick = ()=> socket?.emit('poker:act', { action: (need>0?'call':'check') });
+    bCheckCall.onclick = async ()=> {
+      try {
+        if (need > 0) {
+          // Contribute native coin on-chain before telling server we called
+          await window.AgentOps?.contribute?.(mySeat, need);
+        }
+        socket?.emit('poker:act', { action: (need>0?'call':'check') });
+      } catch (e) {
+        console.warn(e);
+        showCenter('Contribution failed');
+      }
+    };
 
     actionBarEl.appendChild(bFold);
     actionBarEl.appendChild(bCheckCall);
@@ -332,11 +326,9 @@
       if (actionBarEl){ actionBarEl.remove(); actionBarEl = null; }
     });
 
-    // Model/table updates
     socket.on('table:update', (t)=> renderTableModel(t));
     socket.on('table:state',  (t)=> renderTableModel(t)); // back-compat
 
-    // Hand state (public)
     socket.on('poker:state', (m)=>{
       state = m || null;
       renderBoard();
@@ -347,7 +339,6 @@
         showCenter(`Stage: ${m.stage||'-'} • Pot: ${m.pot}`, 700);
       }
 
-      // If my seat folded (server-side), clear my local hole
       if (state && Array.isArray(state.actors)){
         const me = state.actors.find(a => a && a.seatId === mySeat);
         if (me && me.folded){
@@ -357,20 +348,17 @@
       }
     });
 
-    // My private hole cards
     socket.on('poker:hole', (payload)=>{
       const arr = Array.isArray(payload?.cards) ? payload.cards.slice(0,2) : [];
       myHole = arr;
       if (mySeat >= 0) drawSeatCards(mySeat);
     });
 
-    // Clear my private hole on server request
     socket.on('poker:hole_clear', ()=>{
       myHole = [];
       if (mySeat >= 0) drawSeatCards(mySeat);
     });
 
-    // Showdown / winners
     socket.on('poker:hand', (h)=>{
       try{
         const winners = Array.isArray(h?.winners) ? h.winners : [];
@@ -378,13 +366,10 @@
           const names = winners.map(w=> short(w.addr)).join(', ');
           showCenter(`Hand complete — Winner: ${names}`, 1800);
 
-          // Optional: highlight best 5 for winners if we can map them
-          const usedCommunity = winners[0]?.usedCommunity || []; // [0..4]
-          // highlight board cards
+          const usedCommunity = winners[0]?.usedCommunity || [];
           Array.from(boardEl.children).forEach((el, i)=>{
             if (usedCommunity.includes(i)) el.classList.add('card--win');
           });
-          // If I’m a winner and usedHole is provided, highlight my used holes
           if (mySeat >= 0 && winners.some(w => lc(w.addr)===lc(myAddr))){
             const myW = winners.find(w => lc(w.addr)===lc(myAddr));
             const row = seatEls[mySeat].querySelector('.cards');
@@ -399,14 +384,12 @@
         }
       }catch{}
 
-      // Clear center highlights after a bit; server will send next state
       setTimeout(()=> {
         Array.from(boardEl.children).forEach(el=> el.classList.remove('card--win'));
         if (actionBarEl){ actionBarEl.remove(); actionBarEl = null; }
       }, 1800);
     });
 
-    // Explicit table reset
     socket.on('table:reset', ()=>{
       myHole = [];
       clearBoard();
@@ -419,7 +402,6 @@
   /* ---------------------- Wallet sync from navbar/tavern ----------------------- */
   function setKnownAddress(addr){
     myAddr = lc(addr||'');
-    // save so page reloads keep it
     try{
       if (myAddr){
         localStorage.setItem('walletConnected','true');
@@ -438,11 +420,15 @@
   });
 
   /* ------------------------------- Bootstrap ----------------------------------- */
-  // Reflow seats on viewport changes (safe no-op if already correct)
+  // Resize seats on viewport changes
   window.addEventListener('resize', () => requestAnimationFrame(layoutSeats));
 
   // Preload sprite to avoid first-deal flash
   try{ (new Image()).src = SPRITE_URL; }catch(e){}
+
+  // Initialize AA/execution client (non-blocking)
+  try { window.AgentOps?.init?.(); } catch {}
+
   initSocket();
   if (myAddr) setKnownAddress(myAddr);
 })();
