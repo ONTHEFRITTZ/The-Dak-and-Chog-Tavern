@@ -181,7 +181,7 @@
     const seatW = (probe && probe.offsetWidth)  ? probe.offsetWidth  : 110;
     const seatH = (probe && probe.offsetHeight) ? probe.offsetHeight : 130;
 
-    const gap = 40; // px (visual offset from center)
+    const gap = 60; // px (visual offset from center)
 
     // Radii: keep seats just inside the canvas perimeter
     const rx = Math.max(0, (W * 0.5) - (seatW * 0.5) - gap);
