@@ -742,8 +742,8 @@ body.age-landing .age-warning { color: #ffffff !important; }
   flex-direction:column;
   align-items:center;
   justify-content:flex-start;
-  gap:6px;
-  padding:8px;
+  gap: 25px;
+  padding: 25px;
 }
 .seat .addr {
   font-size:12px;
