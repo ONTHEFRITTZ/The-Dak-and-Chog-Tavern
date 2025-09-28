@@ -101,7 +101,7 @@
     .table-canvas{position:relative;width:min(92vw,860px);height:min(88vw,560px,80vh);margin:0 auto;}
     @media (max-height:720px){.table-canvas{height:min(88vw,520px,76vh);}}
     @media (max-height:640px){.table-canvas{height:min(88vw,480px,72vh);} .seat{width:100px;height:120px;}}
-    .table-surface{position:absolute;inset:0;border-radius:24px;z-index:1;background:url('../../assets/images/table.png') no-repeat center/contain;box-shadow:none;}
+    .table-surface{position:absolute;inset:0;border-radius:24px;z-index:1;background:url('../../assets/images/poker-table.png') no-repeat center/contain;box-shadow:none;}
     .table-glow{position:absolute;inset:0;pointer-events:none;z-index:0;}
     .table-glow::before{content:'';position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:96%;height:96%;border-radius:50%;
       background:radial-gradient(ellipse at center, rgba(255,244,233,.62) 0%, rgba(255,244,233,.34) 52%, rgba(255,244,233,.12) 72%, rgba(0,0,0,0) 92%);filter:blur(16px);}
@@ -170,7 +170,7 @@
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 
   <!-- Prewarm table art -->
-  <script>try{(new Image()).src='../../assets/images/table.png';}catch(e){}</script>
+  <script>try{(new Image()).src='../../assets/images/poker-table.png';}catch(e){}</script>
 
   <!-- Versioned table.js -->
   <script>
