@@ -86,25 +86,25 @@
       background: radial-gradient(ellipse at center, rgba(255,244,233,0.62) 0%, rgba(255,244,233,0.34) 52%, rgba(255,244,233,0.12) 72%, rgba(0,0,0,0) 92%);
       filter: blur(16px);
     }
-.seat .addr { font-size:12px; color:#f4e6d3; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; width: 100%; text-align:center; }
+    .seat .addr { font-size:12px; color:#f4e6d3; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; width: 100%; text-align:center; }
     .seat .btns button { padding:4px 8px; font-size:12px; border-radius:6px; }
     .center-banner { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); background: var(--panel-bg-soft); border:1px solid rgba(255,255,255,0.12); border-radius:14px; padding:16px 18px; color:#f4e6d3; box-shadow:0 24px 60px rgba(0,0,0,0.55); min-width:240px; text-align:center; pointer-events:none; font-weight:600; z-index:6; }
-        .seat {
-          position:absolute;
-          z-index:2;
-          width:110px;
-          height:130px;
-          border-radius:16px;
-          background: var(--panel-bg-soft);
-          border:1px solid rgba(255,255,255,0.18);
-          box-shadow:0 0 26px rgba(255,180,60,0.28);
-          display:flex;
-          flex-direction:column;
-          align-items:center;
-          justify-content:center;
-          gap:6px;
-          padding:8px;
-        }/* Card visuals */
+    .seat {
+      position:absolute;
+      z-index:2;
+      width:110px;
+      height:130px;
+      border-radius:16px;
+      background: var(--panel-bg-soft);
+      border:1px solid rgba(255,255,255,0.18);
+      box-shadow:0 0 26px rgba(255,180,60,0.28);
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:center;
+      gap:6px;
+      padding:8px;
+    }
     /* Card visuals (works for both <img> and sprite-backed <div>) */
     .card { display:block; width:72px; height:104px; border-radius:8px; box-shadow:0 3px 8px rgba(0,0,0,0.25); transform-style:preserve-3d; backface-visibility:hidden; background-repeat:no-repeat; }
     .card--hole { width:60px; height:87px; border-radius:6px; box-shadow:0 2px 6px rgba(0,0,0,0.25); }
@@ -177,6 +177,8 @@
 
   <!-- Wallet banner + auto-connect like Tavern -->
   <script type="module" src="../../js/tavern.js"></script>
+  <script type="module" src="/js/aa/ui.js"></script>
+
   <!-- Socket.IO (CDN) -->
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
   <!-- Prewarm table background in cache before JS/paint -->
@@ -199,6 +201,7 @@
       catch(e){ try { window.__ASSET_TAG = Date.now(); } catch(_){ } load('table.js?v='+Date.now()); }
     })();
   </script>
+
   <!-- Left Sidebar (collapsible) -->
   <script>
     (function(){
@@ -211,10 +214,13 @@
       } catch(e) {}
     })();
   </script>
+
+  <!-- === AA LAYER ADDITIONS (non-invasive) =================================== -->
+  <!-- These two module imports add the Smart Account / Delegation UI & logic. -->
+  <script type="module">
+    import '/js/aa/config.js';
+    import '/js/aa/ui.js';
+  </script>
+  <!-- ======================================================================== -->
 </body>
 </html>
-
-
-
-
-

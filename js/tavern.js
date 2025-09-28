@@ -1,6 +1,11 @@
+// tavern.js (full replacement)
+
 import { ethers } from 'https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.esm.min.js';
 import './bundler.js';
 import { profileLoad } from './profile.js';
+
+// 👇 NEW: wire AA smart account client (you created this file already)
+import { initSmartAccount, getSmartAccount } from './aaClient.js';
 
 const ORIGINAL_ETHEREUM = (function () {
   try { return window.ethereum; } catch (err) { return undefined; }
@@ -127,6 +132,7 @@ try {
     setSelectedProvider(seededProvider, seededKey);
   }
 } catch (err) {}
+
 // Defer loading of config.js with a version tag to avoid stale cache
 let cfgLoaded = false;
 let getAddressFor, detectChainId, getAddress, renderTavernBanner, CONTRACTS, showToast;
@@ -275,6 +281,17 @@ export async function connectWallet(key, injectedOverride) {
     provider = new ethers.providers.Web3Provider(injected, 'any');
     signer = provider.getSigner();
     userAddress = await signer.getAddress();
+
+    // 👇 NEW: initialize the AA smart account client right after signer is ready
+    try {
+      const smartAcc = await initSmartAccount(provider);
+      // expose for convenience
+      window.smartAccount = smartAcc;
+      console.log('✅ Smart Account initialized', smartAcc);
+    } catch (aaErr) {
+      console.error('AA init failed', aaErr);
+    }
+
     try { window.userAddress = userAddress; window.dispatchEvent(new CustomEvent('wallet:connected', { detail: { address: userAddress } })); } catch (err) {}
     try {
       const ts = Date.now();
@@ -386,4 +403,5 @@ try { window.ethers = ethers; } catch (err) {}
 // Expose connect for landing so the click handler can trigger wallet prompt immediately
 try { window.tavernConnectWallet = connectWallet; } catch (err) {}
 
-
+// 👇 NEW: export the AA getter so games/pages can use it
+export { getSmartAccount };
