@@ -1,4 +1,4 @@
-// /js/agentOps.js
+// /js/agent-ops.js
 // Minimal on-chain actions for on-chain poker tables using ZeroDev Smart Accounts
 
 import { ethers } from './tavern.js';
@@ -7,7 +7,7 @@ import { getAddressFor, showToast } from './config.js';
 
 // HoldemPoker ABI must be on window (from HoldemPokerABI.js)
 function getPokerAbi() {
-  const abi = (window && window.HoldemPokerABI);
+  const abi = (typeof window !== 'undefined' && window.HoldemPokerABI);
   if (!abi) throw new Error('HoldemPokerABI not found on window');
   return abi;
 }

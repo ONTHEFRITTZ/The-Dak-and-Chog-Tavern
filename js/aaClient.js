@@ -1,5 +1,7 @@
 // aaClient.js
-import { createSmartAccountClient } from "@zerodev/sdk";
+// NOTE: ZeroDev v4 renamed createSmartAccountClient -> createKernelAccountClient.
+// We alias it here so the rest of your code stays unchanged.
+import { createKernelAccountClient as createSmartAccountClient } from "@zerodev/sdk";
 import {
   MONAD_BUNDLER_RPC,
   ZD_PAYMASTER_RPC,
