@@ -1,5 +1,5 @@
-/* Poker Table UI — OFFCHAIN sim (no auto-sim), Dev Bot toggle (opt-in, hidden with ≥2 humans) */
 (function(){
+  /* ---------- DOM ---------- */
   const centerEl  = document.getElementById('poker-center');
   const seatsEls  = Array.from(document.querySelectorAll('.seat'));
   const wiAddrEl  = document.getElementById('wi-address');
@@ -7,16 +7,23 @@
   const btnDevBot = document.getElementById('toggle-dev-bot');
   const sbWallet  = document.getElementById('sb-wallet');
 
-  function getParam(k){ try{ return new URL(window.location.href).searchParams.get(k); }catch{ return null; } }
+  /* ---------- URL / globals ---------- */
+  function getParam(k){ try{ return new URL(window.location.href).searchParams.get(k) }catch{ return null } }
   const tableId = getParam('table');
 
-  let socket=null, myAddr=(localStorage.getItem('walletAddress')||sessionStorage.getItem('walletAddress')||'').toLowerCase();
+  let socket=null;
+  let myAddr = (localStorage.getItem('walletAddress') || sessionStorage.getItem('walletAddress') || '').toLowerCase();
   let isSim=false, devBotEnabled=false;
+
+  // per-hand UI state
+  let myHole = [];                 // ['As','Kh']
+  let currentActors = [];          // [{seatId, addr, folded, ...}]
+  let turnSeatId = -1;
 
   function short(a){ return a && a.length>10 ? (a.slice(0,6)+'...'+a.slice(-4)) : (a||''); }
   function lc(s){ return (s||'').toLowerCase(); }
 
-  /* ---- Wallet provider from landing choice ---- */
+  /* ---------- Provider chosen on landing ---------- */
   function getSelectedProvider(){
     const key=(sessionStorage.getItem('walletProvider')||'').toLowerCase();
     if (key==='metamask'){
@@ -47,7 +54,7 @@
     }catch{}
     if (socket?.connected && myAddr){ try{ socket.emit('identify',{addr:myAddr}); }catch{} }
   }
-
+  // allow disconnect
   if (btnDisc){
     btnDisc.style.display='inline-block';
     btnDisc.onclick=()=>{ try{
@@ -57,11 +64,10 @@
       window.dispatchEvent(new CustomEvent('wallet:connected',{detail:{address:''}}));
     }catch{} };
   }
-
   (async()=>{ const a=await resolveAddressFromSelection(); if(a) applyKnownAddress(a); })();
   window.addEventListener('wallet:connected',(e)=>{ const a=e?.detail?.address||e?.detail?.addr; if(a) applyKnownAddress(a); });
 
-  /* ---- Layout: roomier oval ---- */
+  /* ---------- Layout (roomier oval) ---------- */
   function layoutSeats(){
     const wrap=document.querySelector('.table-canvas'); if(!wrap) return;
     const W=wrap.clientWidth, H=wrap.clientHeight, cx=W/2, cy=H/2, rx=W*0.46, ry=H*0.44;
@@ -73,24 +79,65 @@
 
   function showCenter(msg,ms=1200){ if(!centerEl) return; centerEl.textContent=msg; centerEl.style.display='block'; if(ms>0) setTimeout(()=> centerEl.style.display='none', ms); }
 
-  /* ---- Render ---- */
+  /* ---------- Card helpers ---------- */
+  function cardText(code){
+    // code like 'Ah', 'Td' — for now just print text; you can swap to sprite later
+    return code || '🂠';
+  }
+  function renderSeatCards(seatEl, seatId){
+    // Show my two cards; for others show backs if they are still alive in actors[]
+    const actor = currentActors.find(a=> a.seatId===seatId);
+    if (!actor) return;
+
+    const holder = document.createElement('div');
+    holder.style.display='flex'; holder.style.gap='6px'; holder.style.marginTop='6px';
+
+    if (myHole.length===2 && actor.addr && lc(actor.addr)===myAddr){
+      // my cards
+      const c1=document.createElement('div'); c1.className='card card--hole'; c1.textContent = cardText(myHole[0]);
+      const c2=document.createElement('div'); c2.className='card card--hole'; c2.textContent = cardText(myHole[1]);
+      holder.appendChild(c1); holder.appendChild(c2);
+    } else {
+      // others: show backs only if not folded
+      if (!actor.folded){
+        const b1=document.createElement('div'); b1.className='card card--hole'; b1.textContent='🂠';
+        const b2=document.createElement('div'); b2.className='card card--hole'; b2.textContent='🂠';
+        holder.appendChild(b1); holder.appendChild(b2);
+      }
+    }
+    seatEl.appendChild(holder);
+  }
+
+  /* ---------- Action buttons (only my turn) ---------- */
+  function renderActionBar(seatEl){
+    const row=document.createElement('div');
+    row.style.display='flex'; row.style.gap='8px'; row.style.marginTop='8px';
+    const bFold=document.createElement('button'); bFold.textContent='Fold';
+    const bCheck=document.createElement('button'); bCheck.textContent='Check';
+    const bCall=document.createElement('button'); bCall.textContent='Call';
+    bFold.onclick=()=> socket?.emit('poker:act',{ action:'fold' });
+    bCheck.onclick=()=> socket?.emit('poker:act',{ action:'check' });
+    bCall.onclick =()=> socket?.emit('poker:act',{ action:'call'  });
+    row.appendChild(bFold); row.appendChild(bCheck); row.appendChild(bCall);
+    seatEl.appendChild(row);
+  }
+
+  /* ---------- Render table + seats ---------- */
   function renderTable(t){
     if (!t || t.id!==tableId) return;
+
     isSim = !!t.simulated;
     devBotEnabled = !!t.devBotEnabled;
 
     const seats = Array.isArray(t.seats)? t.seats : [];
-    // compute human count for button visibility
     const humanCount = seats.filter(s=> s && s.addr && !String(s.addr).startsWith('bot:')).length;
 
-    // Dev Bot button: only when OFFCHAIN & exactly one human
+    // Dev-bot toggle: visible only when sim & exactly one human
     if (btnDevBot){
       if (isSim && humanCount===1){
-        btnDevBot.style.display = 'inline-block';
+        btnDevBot.style.display='inline-block';
         btnDevBot.textContent = devBotEnabled ? 'Disable Dev Bot' : 'Enable Dev Bot';
-        btnDevBot.onclick = ()=>{
-          try { socket?.emit('poker:devbot', { enabled: !devBotEnabled }); } catch {}
-        };
+        btnDevBot.onclick = ()=>{ try{ socket?.emit('poker:devbot',{ enabled: !devBotEnabled }); }catch{} };
       } else {
         btnDevBot.style.display='none';
       }
@@ -114,7 +161,10 @@
           const b1=document.createElement('button'); b1.textContent='Leave'; b1.onclick=()=> socket?.emit('seat',{index:-1}); btns.appendChild(b1);
           const b2=document.createElement('button'); b2.textContent= s.ready?'Unready':'Ready'; b2.style.marginLeft='6px'; b2.onclick=()=> socket?.emit('ready',{ready:!s.ready}); btns.appendChild(b2);
           if (isSim){
-            const b3=document.createElement('button'); b3.textContent='Buy 100'; b3.style.marginLeft='6px'; b3.onclick=()=> socket?.emit('sim:rebuy'); btns.appendChild(b3);
+            const canRebuy = Number(s.chips||0) <= 0;
+            const b3=document.createElement('button'); b3.textContent='Buy 100'; b3.style.marginLeft='6px'; b3.disabled=!canRebuy; b3.title= canRebuy ? '' : 'You must bust to rebuy';
+            b3.onclick=()=> socket?.emit('sim:rebuy');
+            btns.appendChild(b3);
           }
         }
       } else {
@@ -124,13 +174,25 @@
         btns.appendChild(sit);
       }
       el.appendChild(btns);
+
+      // If we have actor info, draw cards/backs now
+      if (s && currentActors.length){
+        renderSeatCards(el, i);
+      }
+
+      // Action bar if it's my turn right now
+      if (s && myAddr && s.addr && lc(s.addr)===myAddr && i===turnSeatId){
+        // Only show if I haven't folded
+        const me = currentActors.find(a=> a.seatId===i);
+        if (me && !me.folded) renderActionBar(el);
+      }
     });
 
     if (sbWallet) sbWallet.textContent = myAddr ? short(myAddr) : '—';
     layoutSeats();
   }
 
-  /* ---- Socket ---- */
+  /* ---------- Socket ---------- */
   function initSocket(){
     try{
       socket=io(window.location.origin,{
@@ -149,17 +211,55 @@
 
     socket.on('disconnect', ()=> showCenter('Disconnected',1000));
 
+    // Base table updates (seats/ready/chips etc.)
     socket.on('table:update', t=> renderTable(t));
     socket.on('table:state',  t=> renderTable(t));
 
-    socket.on('poker:state', (m)=>{ if(typeof m?.pot!=='undefined'){ showCenter(`Stage: ${m.stage||'-'} • Pot: ${m.pot}`, 800); } });
-    socket.on('poker:hand',  (h)=>{ const w=Array.isArray(h?.winners)?h.winners:[]; showCenter(w.length?`Hand complete — Winner: ${w.map(x=>x.addr&&x.addr.length>10? (x.addr.slice(0,6)+'...'+x.addr.slice(-4)) : x.addr).join(', ')}`:'Hand complete', 1400); });
+    // Hand state
+    socket.on('poker:state', (m)=>{
+      try{
+        // track whose turn and actors (for backs & fold visibility)
+        turnSeatId = Number(m?.actors?.[m?.turnIndex||0]?.seatId ?? -1);
+        currentActors = Array.isArray(m?.actors) ? m.actors.map(x=>({seatId:x.seatId, addr:x.addr, folded:!!x.folded})) : [];
+        // banner
+        if(typeof m?.pot!=='undefined'){ showCenter(`Stage: ${m.stage||'-'} • Pot: ${m.pot}`, 800); }
+      }catch{}
+      // redraw seats to reflect backs/turn bar
+      const t = m?.table || null; if (t) renderTable(t);
+    });
 
-    // keep local flag in sync
+    // My private hole cards
+    socket.on('poker:hole', (payload)=>{
+      try{
+        const arr = Array.isArray(payload?.cards) ? payload.cards.slice(0,2) : [];
+        myHole = arr;
+      }catch{ myHole=[]; }
+      // force a redraw
+      const t = payload?.table || null; // server doesn't include; just pull from last table:update next time
+      const cur = document.querySelector('.seat'); // just trigger a render with last known actors
+      // noop; next state tick will render — or we can request state
+    });
+
+    // Clear my hole on explicit signal
+    socket.on('poker:hole_clear', ()=>{
+      myHole = [];
+    });
+
+    // Showdown / end of hand
+    socket.on('poker:hand', (h)=>{
+      try{
+        const w=Array.isArray(h?.winners)?h.winners:[];
+        showCenter(w.length?`Hand complete — Winner: ${w.map(x=> short(x.addr)).join(', ')}`:'Hand complete', 1400);
+      }catch{}
+      // after a short delay, clear local hole
+      setTimeout(()=>{ myHole=[]; currentActors=[]; turnSeatId=-1; }, 600);
+    });
+
+    // keep sim flag in sync (not strictly needed here)
     socket.on('poker:mode', (m)=>{ isSim=!!m?.simulated; });
   }
 
-  /* ---- Bootstrap ---- */
+  /* ---------- Bootstrap ---------- */
   initSocket();
   if (myAddr) applyKnownAddress(myAddr);
 })();

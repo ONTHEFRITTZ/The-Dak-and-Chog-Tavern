@@ -131,8 +131,6 @@ function emitLobby(){
 }
 
 /* ------------------------------ Dev bot policy ----------------------------- */
-// NOTE: No more auto-enabling. Bot seats only when devBotEnabled === true AND exactly 1 human.
-// If ≥2 humans, bot is forcibly removed and devBotEnabled reset to false.
 function humansIn(t){ return t.seats.filter(s=> s && typeof s.addr==='string' && !s.addr.startsWith('bot:')).length; }
 function findBotIndex(t){ return t.seats.findIndex(s=> s && typeof s.addr==='string' && s.addr.startsWith('bot:')); }
 function seatFirstEmpty(t, addr, socketId='bot'){
@@ -168,7 +166,7 @@ function reconcileDevBot(t){
     }
   }
 
-  // No humans: always remove bot, keep flag as-is (user’s preference)
+  // No humans: always remove bot
   if (humans === 0 && botIdx >= 0) {
     t.seats[botIdx] = null;
     try { if (t.poker?.botTimer){ clearTimeout(t.poker.botTimer); t.poker.botTimer=null; } } catch {}
@@ -176,7 +174,6 @@ function reconcileDevBot(t){
 }
 
 /* ------------------------ Poker spawn / prune policy ----------------------- */
-function ensurePokerTable(cat){ const ex=pokerTablesBy(cat); if(ex.length===0){ const id=nextIdFor(idPrefixFor(cat)); return getTable(id);} return ex[0]; }
 function ensureCategoryBaselines(){ if(!gameEnabled('POKER')) return; ensurePokerTable(CAT.ONCHAIN_NL); ensurePokerTable(CAT.ONCHAIN_FL); ensurePokerTable(CAT.OFFCHAIN_NL); }
 function spawnIfCrowded(cat){ const list=pokerTablesBy(cat); if(list.length===0){ ensurePokerTable(cat); return; } const crowded=list.some(t=> seatCount(t)>=6); if(!crowded) return; const hasEmpty=list.some(t=> seatCount(t)===0); if(!hasEmpty){ const id=nextIdFor(idPrefixFor(cat)); getTable(id); } }
 function pruneEmpties(cat){
@@ -273,7 +270,7 @@ function startPokerHand(tableId,t){
     const sbIndex=(dealerIndex+1)%actors.length;
     const bbIndex=(dealerIndex+2)%actors.length;
 
-    // Stacks & blinds (OFFCHAIN only actually subtracts from stacks)
+    // Stacks & blinds (OFFCHAIN subtracts from seat chips; onchain we just track pot)
     const SB=1, BB=2;
     actors.forEach(a=>{
       const seat=t.seats[a.seatId];
@@ -281,7 +278,7 @@ function startPokerHand(tableId,t){
         const base=Number(seat?.chips||0);
         a.stack = Number.isFinite(base)&&base>0 ? base : 100;
       } else {
-        a.stack = Number(seat?.chips||0); // not used for on-chain here
+        a.stack = Number(seat?.chips||0);
       }
     });
     let toCall=BB;
@@ -366,6 +363,8 @@ function applyAction(tableId,t,addrLower,action,isAuto=false){
     if (action==='fold'){
       a.folded=true; a.acted=true;
       const alive=A.filter(x=>!x.folded);
+      // clear private hole immediately on fold
+      try{ clearPrivateHoleForSeat(t, a.seatId); }catch{}
       if (alive.length===1){
         io.to(tableId).emit('poker:hand',{ winners:[{addr:alive[0].addr}], community:Array.from(st.community||[]), pot:st.pot||0, rng:{commit:st.rng?.commit,seed:st.rng?.seed}, table:tablePublic(t) });
         try{ st.actors.forEach(z=> clearPrivateHoleForSeat(t,z.seatId)); }catch{}
@@ -397,11 +396,6 @@ function applyAction(tableId,t,addrLower,action,isAuto=false){
   }catch{}
 }
 
-/* ------------------------------ Dev bot (OFFCHAIN) ------------------------- */
-function maybeTriggerBot(tableId,t){
-  // kept for future; not auto-acting here unless explicitly needed
-}
-
 /* ------------------------------ Connection wiring -------------------------- */
 io.on('connection',(socket)=>{
   let currentTableId=null, addrLower=null, isAdmin=false;
@@ -417,7 +411,6 @@ io.on('connection',(socket)=>{
       if (currentTableId) socket.leave(currentTableId);
       currentTableId=wanted; socket.join(wanted);
 
-      // reattach private hole if needed
       if (isPoker(t) && t.poker && addrLower){
         const seatIdx=t.seats.findIndex(s=> s && s.addr===addrLower);
         if (seatIdx>=0){
@@ -425,7 +418,6 @@ io.on('connection',(socket)=>{
           if (actor?.cards){ try{ t.seats[seatIdx].socketId=socket.id; }catch{} sendPrivateHoleToSeat(t,seatIdx,actor.cards); }
         }
       }
-      // Always reconcile dev bot policy on joins/sits/leaves
       reconcileDevBot(t);
 
       t.lastActive=nowMs(); emitUpdate(t);
@@ -462,7 +454,6 @@ io.on('connection',(socket)=>{
         }
       }
 
-      // Reconcile dev-bot strictly per policy (no auto-enable)
       if (isPoker(t)) reconcileDevBot(t);
 
       const after=seatCount(t);
@@ -532,7 +523,7 @@ io.on('connection',(socket)=>{
         return;
       }
 
-      // POKER: start only when everyone ready and ≥2 seated; dev bot is manual/opt-in (reconcile already applied)
+      // POKER (no simulation): start a hand only when everyone ready & ≥2 players
       if (allReady && active.length>=2 && !t.poker) startPokerHand(currentTableId,t);
     }catch{}
   });
@@ -549,34 +540,24 @@ io.on('connection',(socket)=>{
     }catch{}
   });
 
-  // Explicit Dev Bot toggle (OFFCHAIN only). Not auto; policy reconciles around humans count.
-  socket.on('poker:devbot',(m)=>{
-    try{
-      if(!currentTableId) return;
-      const t=getTable(currentTableId); if(!isPoker(t) || t.category!==CAT.OFFCHAIN_NL) return;
-      const enabled=!!m?.enabled;
-      t.devBotEnabled = enabled;
-      reconcileDevBot(t);
-      t.lastActive=nowMs(); emitUpdate(t); ensureLobbyPolicy(); emitLobby();
-    }catch{}
-  });
-
-  // OFFCHAIN rebuy +100
+  // OFFCHAIN rebuy +100 — ONLY if chips == 0
   socket.on('sim:rebuy', ()=>{
     try{
       if(!currentTableId) return;
       const t=getTable(currentTableId); if(!isPoker(t) || t.category!==CAT.OFFCHAIN_NL) return;
       const sIdx=t.seats.findIndex(s=> s && s.addr===addrLower); if(sIdx<0) return;
-      t.seats[sIdx].chips = Number(t.seats[sIdx].chips||0) + 100;
+      const cur = Number(t.seats[sIdx].chips||0);
+      if (cur > 0) return; // block rebuy unless busted
+      t.seats[sIdx].chips = 100;
       t.lastActive=nowMs(); emitUpdate(t);
     }catch{}
   });
 
-  // Profiles & stats & admin endpoints left as before …
+  // Profiles & stats & admin endpoints (unchanged)
   socket.on('profile_save',(m)=>{ try{ if(!addrLower) return; const cipher=String(m.cipher||''); profiles.set(addrLower,{cipher}); }catch{} });
   socket.on('profile_get',()=>{ try{ const p=profiles.get(addrLower||''); socket.emit('message', JSON.stringify({type:'profile', cipher:p?.cipher||''})); }catch{} });
   socket.on('profile_public',(m)=>{ try{ if(!addrLower) return; const x=String(m?.x||'').slice(0,48); publicProfiles.set(addrLower,{x}); if(currentTableId) emitUpdate(getTable(currentTableId)); }catch{} });
-  socket.on('stat_read',(m)=>{ try{ const a=String(m.addr||'').toLowerCase(); const st=stats.get(a)||{rounds:0,wagered:0,won:0,lost:0}; socket.emit('message', JSON.stringify({type:'stats', addr:a, ...st})); }catch{} });
+  socket.on('stat_read',(m)=>{ try{ const a=String(m.addr||'').toLowerCase(); const st=stats.get(a)||{rounds:0,wagered:0,won:0,lost:0}; socket.emit('message', JSON.stringify({type:'stats', addr:a, ...st })); }catch{} });
 
   socket.on('health', ()=>{ try{ socket.emit('health',{ok:true,now:Date.now(),paused,rakeBps,feesAccrued}); }catch{} });
   socket.on('admin:pause',(m)=>{ try{ if(!admins.has(addrLower)){ socket.emit('error',{message:'not admin'}); return;} paused=!!m?.paused; io.emit('rt:paused',{paused,rakeBps,feesAccrued}); }catch{} });
