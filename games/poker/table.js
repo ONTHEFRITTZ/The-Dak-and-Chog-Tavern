@@ -178,14 +178,14 @@
     const H = wrap.clientHeight;
 
     const probe = seatEls[0];
-    const seatW = (probe && probe.offsetWidth)  ? probe.offsetWidth  : 160;
-    const seatH = (probe && probe.offsetHeight) ? probe.offsetHeight : 140;
+    const seatW = (probe && probe.offsetWidth)  ? probe.offsetWidth  : 50;
+    const seatH = (probe && probe.offsetHeight) ? probe.offsetHeight : 30;
 
-    const gap = 60; // px (visual offset from center)
+    const gap = 40; // px (visual offset from center)
 
     // Radii: keep seats just inside the canvas perimeter
-    const rx = Math.max(0, (W * 0.5) - (seatW * 1) - gap);
-    const ry = Math.max(0, (H * 0.5) - (seatH * 1) - gap);
+    const rx = Math.max(0, (W * 0.5) - (seatW * 0.5) - gap);
+    const ry = Math.max(0, (H * 0.5) - (seatH * 0.5) - gap);
 
     const N = seatEls.length;
     const startDeg = 270;
