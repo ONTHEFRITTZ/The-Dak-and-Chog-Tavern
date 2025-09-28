@@ -94,42 +94,41 @@
   }
 
   /* ---------- Seat ring layout (8 spots, even spacing, no overlap) ---------- */
-function layoutSeats() {
-  const wrap = document.querySelector('.table-canvas');
-  if (!wrap || !seatsEls.length) return;
+  function layoutSeats() {
+    const wrap = document.querySelector('.table-canvas');
+    if (!wrap || !seatEls.length) return;
 
-  const W = wrap.clientWidth;
-  const H = wrap.clientHeight;
+    const W = wrap.clientWidth;
+    const H = wrap.clientHeight;
 
-  // Use actual seat dimensions; fall back to CSS values if not rendered yet
-  const probe = seatsEls[0];
-  const seatW = (probe && probe.offsetWidth)  ? probe.offsetWidth  : 110;
-  const seatH = (probe && probe.offsetHeight) ? probe.offsetHeight : 130;
+    // Use actual seat dimensions; fall back to CSS values if not rendered yet
+    const probe = seatEls[0];
+    const seatW = (probe && probe.offsetWidth)  ? probe.offsetWidth  : 110;
+    const seatH = (probe && probe.offsetHeight) ? probe.offsetHeight : 130;
 
-  // Gap pushes seats away from table center (increase if you want wider spacing)
-  const gap = 28; // px
+    // Gap pushes seats away from table center (increase if you want wider spacing)
+    const gap = 28; // px
 
-  // Radii ensure each seat’s bounding box stays inside the table-canvas without colliding
-  // Half the container minus half the seat minus our desired gap
-  const rx = Math.max(0, (W * 0.5) - (seatW * 0.5) - gap);
-  const ry = Math.max(0, (H * 0.5) - (seatH * 0.5) - gap);
+    // Radii ensure each seat’s bounding box stays inside the table-canvas without colliding
+    // Half the container minus half the seat minus our desired gap
+    const rx = Math.max(0, (W * 0.5) - (seatW * 0.5) - gap);
+    const ry = Math.max(0, (H * 0.5) - (seatH * 0.5) - gap);
 
-  // Evenly spaced seats around an ellipse, starting at 270° (top center) clockwise
-  const N = seatsEls.length; // 8 seats in your DOM
-  const startDeg = 270;
+    // Evenly spaced seats around an ellipse, starting at 270° (top center) clockwise
+    const N = seatEls.length; // 8 seats in your DOM
+    const startDeg = 270;
 
-  for (let i = 0; i < N; i++) {
-    const ang = (startDeg + (i * 360 / N)) * Math.PI / 180;
-    const x = (W * 0.5) + rx * Math.cos(ang);
-    const y = (H * 0.5) + ry * Math.sin(ang);
+    for (let i = 0; i < N; i++) {
+      const ang = (startDeg + (i * 360 / N)) * Math.PI / 180;
+      const x = (W * 0.5) + rx * Math.cos(ang);
+      const y = (H * 0.5) + ry * Math.sin(ang);
 
-    const el = seatsEls[i];
-    // Place by top-left coordinates so the seat's center hits (x, y)
-    el.style.left = Math.round(x - seatW / 2) + 'px';
-    el.style.top  = Math.round(y - seatH / 2) + 'px';
+      const el = seatEls[i];
+      // Place by top-left coordinates so the seat's center hits (x, y)
+      el.style.left = Math.round(x - seatW / 2) + 'px';
+      el.style.top  = Math.round(y - seatH / 2) + 'px';
+    }
   }
-}
-
 
   /* ------------------------------ Rendering ------------------------------------ */
   function showCenter(msg, ms=1200){
@@ -439,6 +438,9 @@ function layoutSeats() {
   });
 
   /* ------------------------------- Bootstrap ----------------------------------- */
+  // Reflow seats on viewport changes (safe no-op if already correct)
+  window.addEventListener('resize', () => requestAnimationFrame(layoutSeats));
+
   // Preload sprite to avoid first-deal flash
   try{ (new Image()).src = SPRITE_URL; }catch(e){}
   initSocket();
