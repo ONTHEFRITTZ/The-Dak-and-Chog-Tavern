@@ -111,8 +111,8 @@
 
     // Radii ensure each seat’s bounding box stays inside the table-canvas without colliding
     // Half the container minus half the seat minus our desired gap
-    const rx = Math.max(0, (W * 0.5) - (seatW * 0.5) - gap);
-    const ry = Math.max(0, (H * 0.5) - (seatH * 0.5) - gap);
+    const rx = Math.max(0, (W * 0.5) - (seatW * 0.5) + gap);
+    const ry = Math.max(0, (H * 0.5) - (seatH * 0.5) + gap);
 
     // Evenly spaced seats around an ellipse, starting at 270° (top center) clockwise
     const N = seatEls.length; // 8 seats in your DOM
