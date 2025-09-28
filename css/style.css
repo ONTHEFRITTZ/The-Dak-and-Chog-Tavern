@@ -788,3 +788,30 @@ body.age-landing .age-warning { color: #ffffff !important; }
 
 /* -------- Seat box stability (ADDED: keeps layout math predictable) ------- */
 .seat { min-width:110px; min-height:130px; }
+/* === AA PANEL: pin bottom-right & hide on free tables ===================== */
+/* Works with the AA UI that renders into #aa-panel / .aa-panel / [data-aa-panel] */
+/* It will auto-hide when <html data-table-mode="f2p"> */
+#aa-panel,
+.aa-panel,
+[data-aa-panel] {
+  position: fixed !important;
+  right: 12px !important;
+  bottom: 12px !important;
+  left: auto !important;
+  top: auto !important;
+  z-index: 12050 !important; /* above nav/sidebar & table UI */
+}
+
+/* Hide completely on free-to-play tables */
+:root[data-table-mode="f2p"] #aa-panel,
+:root[data-table-mode="f2p"] .aa-panel,
+:root[data-table-mode="f2p"] [data-aa-panel] {
+  display: none !important;
+  visibility: hidden !important;
+}
+
+/* Optional: nudge up slightly on very short viewports */
+@media (max-height: 640px) {
+  #aa-panel, .aa-panel, [data-aa-panel] { bottom: 8px !important; right: 8px !important; }
+}
+/* ========================================================================== */

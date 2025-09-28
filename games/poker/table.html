@@ -41,7 +41,7 @@
       }
     } catch {}
   })();
-</script>
+  </script>
 
   <script>
     (async()=>{
@@ -161,6 +161,22 @@
       gap:6px;
     }
     .stats-box .label { font-weight:700; margin-right:4px; }
+
+    /* ===== AA PANEL: bottom-right + hidden on f2p ===== */
+    #aa-panel, .aa-panel, [data-aa-panel] {
+      position: fixed !important;
+      right: 12px !important;
+      bottom: 12px !important;
+      left: auto !important;
+      top: auto !important;
+      z-index: 12050 !important; /* above nav/sidebar */
+    }
+    :root[data-table-mode="f2p"] #aa-panel,
+    :root[data-table-mode="f2p"] .aa-panel,
+    :root[data-table-mode="f2p"] [data-aa-panel] {
+      display: none !important;
+      visibility: hidden !important;
+    }
   </style>
  </head>
  <body class="game">
@@ -233,7 +249,11 @@
   </script>
   <script src="../../js/agent-budget.js" defer></script>
   <script src="../../js/agent-sponsor-indicator.js" defer></script>
-  <script type="module" src="../../js/agent-ops.js" defer></script>
+
+  <!-- keep the second agent-ops include, but guard to avoid double init -->
+  <script type="module" defer>
+    if (!window.AgentOps) { import('../../js/agent-ops.js'); }
+  </script>
 
   <!-- Left Sidebar (collapsible) -->
   <script>
@@ -251,8 +271,10 @@
   <!-- === AA LAYER ADDITIONS (non-invasive) =================================== -->
   <!-- These two module imports add the Smart Account / Delegation UI & logic. -->
   <script type="module">
-    import '../../js/aa/config.js';
-    import '../../js/aa/ui.js';
+    if (!window.__AA_UI_LOADED__) {
+      try { await import('../../js/aa/config.js'); } catch {}
+      try { await import('../../js/aa/ui.js'); } finally { window.__AA_UI_LOADED__ = true; }
+    }
   </script>
   <!-- ======================================================================== -->
 </body>
