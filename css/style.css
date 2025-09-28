@@ -815,3 +815,53 @@ body.age-landing .age-warning { color: #ffffff !important; }
   #aa-panel, .aa-panel, [data-aa-panel] { bottom: 8px !important; right: 8px !important; }
 }
 /* ========================================================================== */
+/* === AA PANEL (bottom-right) =============================================== */
+/* Match common IDs/classes + generic AA-ish prefixes, but scope to this page */
+body.game #aa-panel,
+body.game .aa-panel,
+body.game [data-aa-panel],
+body.game #aa-root,
+body.game .aa-root,
+body.game #agent-panel,
+body.game .agent-panel,
+body.game #agent-sponsor-indicator,
+body.game .agent-sponsor-indicator,
+body.game [id^="aa-"],
+body.game [class^="aa-"] {
+  position: fixed !important;
+  right: 12px !important;
+  bottom: 12px !important;
+  left: auto !important;
+  top: auto !important;
+  z-index: 12050 !important; /* over nav + table */
+}
+
+/* Hide the panel entirely on free-to-play tables */
+:root[data-table-mode="f2p"] body.game #aa-panel,
+:root[data-table-mode="f2p"] body.game .aa-panel,
+:root[data-table-mode="f2p"] body.game [data-aa-panel],
+:root[data-table-mode="f2p"] body.game #aa-root,
+:root[data-table-mode="f2p"] body.game .aa-root,
+:root[data-table-mode="f2p"] body.game #agent-panel,
+:root[data-table-mode="f2p"] body.game .agent-panel,
+:root[data-table-mode="f2p"] body.game #agent-sponsor-indicator,
+:root[data-table-mode="f2p"] body.game .agent-sponsor-indicator,
+:root[data-table-mode="f2p"] body.game [id^="aa-"],
+:root[data-table-mode="f2p"] body.game [class^="aa-"] {
+  display: none !important;
+  visibility: hidden !important;
+}
+
+@media (max-height: 640px) {
+  body.game #aa-panel,
+  body.game .aa-panel,
+  body.game [data-aa-panel],
+  body.game #aa-root,
+  body.game .aa-root,
+  body.game [id^="aa-"],
+  body.game [class^="aa-"] {
+    right: 8px !important;
+    bottom: 8px !important;
+  }
+}
+/* ========================================================================== */
