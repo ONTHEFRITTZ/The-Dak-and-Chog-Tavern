@@ -1,85 +1,111 @@
-// /js/agent-ops.js
-// Sponsored on-chain ops for HoldemPoker (Monad testnet).
-// F2P tables ignore this; onchain tables go via ZeroDev Smart Account.
+// /js/agentOps.js
+// Minimal on-chain actions for on-chain poker tables using ZeroDev Smart Accounts
 
+import { ethers } from './tavern.js';
 import { initSmartAccount } from './aaClient.js';
-import { getAddressFor, detectChainId, showToast } from './config.js';
+import { getAddressFor, showToast } from './config.js';
 
-function lc(x){ try { return String(x||'').toLowerCase(); } catch { return ''; } }
-function mode(){
-  const htmlMode = (document.documentElement.getAttribute('data-table-mode') || '').toLowerCase();
-  const qpMode = (new URL(location.href)).searchParams.get('mode');
-  return (qpMode ? String(qpMode).toLowerCase() : htmlMode) === 'onchain' ? 'onchain' : 'f2p';
-}
-function needEthers(){ if (!window.ethers) throw new Error('ethers missing'); return window.ethers; }
-function iface(){
-  if (!window.HoldemPokerABI) throw new Error('HoldemPokerABI missing (did you load HoldemPokerABI.js?)');
-  const { ethers } = needEthers();
-  return new ethers.utils.Interface(window.HoldemPokerABI);
-}
-async function addr(){ return getAddressFor('pokerTable', window.provider); }
-async function aa(){ return initSmartAccount(window.provider); }
-
-async function sendCall({ target, data, value = 0n, label='' }){
-  await detectChainId(window.provider); // soft check
-  const client = await aa();
-  const res = await client.sendUserOperation({ target, data, value });
-  try { showToast?.(label || 'Sent (sponsored)', 'success'); } catch {}
-  return res;
+// HoldemPoker ABI must be on window (from HoldemPokerABI.js)
+function getPokerAbi() {
+  const abi = (window && window.HoldemPokerABI);
+  if (!abi) throw new Error('HoldemPokerABI not found on window');
+  return abi;
 }
 
-/* ------------------------- Seat / Action ops ------------------------- */
-
-async function joinSeat(seatId){
-  if (mode()!=='onchain') return;
-  const target = await addr();
-  const data = iface().encodeFunctionData('joinSeat',[ seatId ]);
-  return sendCall({ target, data, label:`Sit ${seatId} (sponsored)` });
+// Resolve HoldemPoker address from config per chain
+async function getPokerAddress(provider) {
+  const addr = await getAddressFor('pokerTable', provider);
+  if (!addr) throw new Error('No pokerTable address for this chain');
+  return addr;
 }
 
-async function leaveSeat(seatId){
-  if (mode()!=='onchain') return;
-  const target = await addr();
-  const i = iface();
-  try {
-    const data = i.encodeFunctionData('unseat',[ seatId ]);
-    return await sendCall({ target, data, label:`Leave seat ${seatId} (sponsored)` });
-  } catch {
-    const data = i.encodeFunctionData('leaveDuringHand',[ seatId ]);
-    return sendCall({ target, data, label:`Leave during hand (sponsored)` });
-  }
+// Low-level helper to send a contract call via ZeroDev SA
+async function sendUserOpCall({ provider, to, data, value = 0 }) {
+  const sa = await initSmartAccount(provider);
+  const tx = {
+    to,
+    data,
+    value: ethers.BigNumber.from(value || 0).toHexString(),
+  };
+  const hash = await sa.sendTransaction(tx);
+  // Wait for inclusion (optional but nice for UX)
+  const rcpt = await sa.waitForUserOperationTransaction(hash);
+  return rcpt;
 }
 
-async function contribute(seatId, wei){
-  if (mode()!=='onchain') return;
-  const target = await addr();
-  const data = iface().encodeFunctionData('contribute',[ seatId ]);
-  return sendCall({ target, data, value:BigInt(wei), label:`Contribute ${wei} wei (sponsored)` });
-}
+// Public API we’ll attach to window for table.js to use
+const AgentOps = {
+  /**
+   * Sit in a seat (on-chain) — maps to HoldemPoker.joinSeat(uint8)
+   * Only used on on-chain tables. Off-chain tables skip this and just socket.emit seat.
+   */
+  async sitSeat(seatIndex) {
+    try {
+      const provider = (window && window.ethers && window.provider) || null;
+      if (!provider) throw new Error('Provider not ready');
+      const pokerAddress = await getPokerAddress(provider);
+      const iface = new ethers.utils.Interface(getPokerAbi());
+      const data = iface.encodeFunctionData('joinSeat', [Number(seatIndex) | 0]);
 
-async function beginHand(dealer, sb, bb){
-  if (mode()!=='onchain') return;
-  const target = await addr();
-  const data = iface().encodeFunctionData('beginHand',[ dealer, sb, bb ]);
-  return sendCall({ target, data, label:`Begin hand (sponsored)` });
-}
+      showToast('Requesting on-chain seat…', 'info');
+      await sendUserOpCall({ provider, to: pokerAddress, data });
+      showToast('Seated on-chain ✓', 'success');
+    } catch (e) {
+      console.warn('[AgentOps.sitSeat] failed', e);
+      showToast('On-chain seat failed', 'error');
+      throw e;
+    }
+  },
 
-async function settleHand(winners, payouts){
-  if (mode()!=='onchain') return;
-  const target = await addr();
-  const data = iface().encodeFunctionData('settleHand',[ winners, payouts ]);
-  return sendCall({ target, data, label:`Settle hand (sponsored)` });
-}
+  /**
+   * Leave a seat out of hand (on-chain) — maps to HoldemPoker.unseat(uint8)
+   * If a hand is active and user wants to force-leave, you could call leaveDuringHand(uint8).
+   */
+  async leaveSeat(seatIndex, opts = { force: false }) {
+    try {
+      const provider = (window && window.ethers && window.provider) || null;
+      if (!provider) throw new Error('Provider not ready');
+      const pokerAddress = await getPokerAddress(provider);
+      const iface = new ethers.utils.Interface(getPokerAbi());
 
-/* ------------------------- Expose globally ------------------------- */
+      const fn = opts?.force ? 'leaveDuringHand' : 'unseat';
+      const data = iface.encodeFunctionData(fn, [Number(seatIndex) | 0]);
 
-try {
-  window.AgentOps = window.AgentOps || {};
-  window.AgentOps.joinSeat = joinSeat;
-  window.AgentOps.sitSeat = joinSeat;      // alias
-  window.AgentOps.leaveSeat = leaveSeat;
-  window.AgentOps.unseatSeat = leaveSeat;  // alias
-  window.AgentOps.contribute = contribute;
-  window.AgentOps.beginHand = beginHand;
-  window.AgentOps.settleHand = settleHand;
-} catch {}
+      showToast('Leaving seat on-chain…', 'info');
+      await sendUserOpCall({ provider, to: pokerAddress, data });
+      showToast('Left seat on-chain ✓', 'success');
+    } catch (e) {
+      console.warn('[AgentOps.leaveSeat] failed', e);
+      showToast('On-chain leave failed', 'error');
+      throw e;
+    }
+  },
+
+  /**
+   * Post contribution (blind/call/etc.) — HoldemPoker.contribute(uint8) payable.
+   * For demo we use value in wei. In your current server flow, betting is off-chain,
+   * so you can use this only for on-chain demo tables (optional button).
+   */
+  async contribute(seatIndex, valueWei) {
+    try {
+      const provider = (window && window.ethers && window.provider) || null;
+      if (!provider) throw new Error('Provider not ready');
+      const pokerAddress = await getPokerAddress(provider);
+      const iface = new ethers.utils.Interface(getPokerAbi());
+      const data = iface.encodeFunctionData('contribute', [Number(seatIndex) | 0]);
+
+      showToast('Posting contribution…', 'info');
+      await sendUserOpCall({ provider, to: pokerAddress, data, value: valueWei });
+      showToast('Contribution sent ✓', 'success');
+    } catch (e) {
+      console.warn('[AgentOps.contribute] failed', e);
+      showToast('Contribution failed', 'error');
+      throw e;
+    }
+  },
+};
+
+// Expose globally so table.js can use it without import hassles
+try { window.AgentOps = AgentOps; } catch {}
+
+export default AgentOps;
