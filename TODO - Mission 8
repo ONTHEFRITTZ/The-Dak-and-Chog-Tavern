@@ -206,10 +206,6 @@ UX text, tooltips, revoke pathways, clear time-remaining.
 
 Record demo: fresh wallet → upgrade → preset delegation → play with sponsored gas → agent auto-posts blind → settle → revoke.
 
-FILES I WANT FIRST (so we begin without breaking anything)
-
-Table page HTML/template (where scripts are included)
-
 I’ll insert the small AA status pill and the three buttons in a separate, scoped container so I don’t touch existing layout.
 
 table.js (latest)
@@ -224,24 +220,4 @@ aa.postBlindDelegated(seatId)
 
 aa.revokeDelegation()
 
-I will not remove or rewrite your current socket flows; we’ll wrap them safely.
-
-If you have a global config (e.g., config.js / constants.ts)
-
-I’ll add chain IDs and feature flags there (or in aa/config.ts, whichever you prefer).
-
-package.json / build config
-
-So I can add the minimal deps (MetaMask SDK, viem, and any bundler/paymaster client) without clobbering your stack.
-
-Once I have those four, I’ll:
-
-create aa/ modules (pure additions),
-
-wire the UI affordances,
-
-stub the delegation calls against placeholder addresses (so the UI works immediately),
-
-then move to contracts and replace placeholders with deployed addresses.
-
-If that sounds good, send me (1) table HTML, (2) latest table.js, (3) config file, (4) package.json and I’ll make the first set of surgical changes.
+I will not remove or rewrite current socket flows; we’ll wrap them safely.

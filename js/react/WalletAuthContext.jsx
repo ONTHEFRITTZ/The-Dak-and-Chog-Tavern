@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from "react"
 
 /*
-  WalletAuthContext + Example App
+  WalletAuthContext 
   - Allows user to choose either MetaMask (Ethereum) or Phantom (Solana)
   - Once they choose, the app will *exclusively* use that wallet for all operations
   - Prevents other wallets from being used by our app (cannot prevent other wallets from being "unlocked" in the browser, but the app will refuse to use them)

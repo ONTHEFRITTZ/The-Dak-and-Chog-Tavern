@@ -3,7 +3,7 @@ Deploying The Dak & Chog Tavern
 Contributor Workflow (Codex)
 - Always commit and push changes to `main` on GitHub once the work is ready.
 - After pushing, share the EC2 deploy snippet below so it can be run from the browser terminal.
-- NEVER touch backend/server code unless explicitly instructed; limit updates to the front-end.
+- NEVER touch backend/server code unless explicitly instructed; limit updates to the front-end. Do not remove code unless it conflicts with another segment of code that you are working on.
 
 Stable Snapshot
 - Version tag: `assets/version.txt` contains the current stable label (e.g., `stable-2025-09-11`).
@@ -23,6 +23,8 @@ cd ~/The-Dak-and-Chog-Tavern && git fetch origin && git reset --hard origin/main
 DOMAIN="thedakandchog.xyz" WEBROOT="/var/www/${DOMAIN}/html" UPLOAD="/var/www/${DOMAIN}/html_upload" bash scripts/deploy-ec2.sh
 
 ```
+Poker used to run on 3101 but now I have a single unified backend on port 3100
+
 
 Realtime backend (Socket.IO) – restart after server changes
 - Uses pm2 with `ecosystem.config.js` (PORT 3100 to match NGINX).
@@ -32,31 +34,11 @@ pm2 restart ecosystem.config.js   # or: pm2 restart dakchog-rt
 
 # Quick health check
 curl -s http://127.0.0.1:3100/ | cat   # expect: Tavern realtime OK
-```
 
-Poker realtime (3101)
-
-- If you run the isolated Poker RT (`server/poker-rt.js` on 3101), restart just that app:
 ```
 cd ~/The-Dak-and-Chog-Tavern
 pm2 restart poker-rt
 
-# Quick health check
-curl -s http://127.0.0.1:3101/ | cat   # expect: Poker realtime OK
-```
-
-Optional: split realtime by game (Faro vs Poker)
-
-- Why: independent scaling/restarts or fault isolation per game.
-- How: run a second pm2 app for Poker-only and route a separate Socket.IO path via NGINX.
-
-1) PM2 (already scaffolded in `ecosystem.config.js`)
-```
-# Start Poker-only realtime on 3101
-pm2 start ecosystem.config.js --only dakchog-poker-rt
-
-# Keep Faro+Poker on the main app (3100) or set main to FARO-only:
-# pm2 restart dakchog-rt --update-env -- GAME_TYPES=FARO
 ```
 
 2) NGINX (inside your 443 server block)

@@ -101,10 +101,12 @@
       display:flex;
       flex-direction:column;
       align-items:center;
-      justify-content:center;
+      justify-content:flex-start;
       gap:6px;
       padding:8px;
     }
+    .seat .btns { display:flex; gap:6px; margin-top:auto; }
+    .seat .cards { min-height: var(--card-hole-h); }
     /* Card visuals (works for both <img> and sprite-backed <div>) */
     .card { display:block; width:72px; height:104px; border-radius:8px; box-shadow:0 3px 8px rgba(0,0,0,0.25); transform-style:preserve-3d; backface-visibility:hidden; background-repeat:no-repeat; }
     .card--hole { width:60px; height:87px; border-radius:6px; box-shadow:0 2px 6px rgba(0,0,0,0.25); }

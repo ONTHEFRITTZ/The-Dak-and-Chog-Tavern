@@ -98,7 +98,7 @@
     const seatW = (probe && probe.offsetWidth)  ? probe.offsetWidth  : 110;
     const seatH = (probe && probe.offsetHeight) ? probe.offsetHeight : 130;
 
-    const gap = 28; // px (visual offset from center)
+    const gap = 40; // px (visual offset from center)
 
     // Radii: keep seats just inside the canvas perimeter
     const rx = Math.max(0, (W * 0.5) - (seatW * 0.5) - gap);
@@ -420,8 +420,16 @@
   });
 
   /* ------------------------------- Bootstrap ----------------------------------- */
-  // Resize seats on viewport changes
+    // Reflow seats on viewport changes (safe no-op if already correct)
   window.addEventListener('resize', () => requestAnimationFrame(layoutSeats));
+
+  // Run initial layout before any server state arrives, and re-check after paint
+  requestAnimationFrame(layoutSeats);
+  window.addEventListener('load', () => {
+    layoutSeats();
+    setTimeout(layoutSeats, 50);
+    setTimeout(layoutSeats, 300);
+  });
 
   // Preload sprite to avoid first-deal flash
   try{ (new Image()).src = SPRITE_URL; }catch(e){}
@@ -431,4 +439,6 @@
 
   initSocket();
   if (myAddr) setKnownAddress(myAddr);
+
+  
 })();
