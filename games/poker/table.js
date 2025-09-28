@@ -178,7 +178,7 @@
     const H = wrap.clientHeight;
 
     const probe = seatEls[0];
-    const seatW = (probe && probe.offsetWidth)  ? probe.offsetWidth  : 50;
+    const seatW = (probe && probe.offsetWidth)  ? probe.offsetWidth  : 30;
     const seatH = (probe && probe.offsetHeight) ? probe.offsetHeight : 30;
 
     const gap = 20; // px (visual offset from center)
