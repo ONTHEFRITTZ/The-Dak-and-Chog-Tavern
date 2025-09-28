@@ -6,20 +6,27 @@
   <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <!-- Import map: resolve bare specifiers used by aaClient/AgentOps -->
+
+  <!-- Import map: resolve bare specifiers used by aaClient / AgentOps (must be before any type="module") -->
   <script type="importmap">
   {
-  "imports": {
-    "@zerodev/sdk": "https://esm.sh/@zerodev/sdk@4",
-    "permissionless": "https://esm.sh/permissionless@0.1.34",
-    "viem": "https://esm.sh/viem@2",
-    "viem/chains": "https://esm.sh/viem@2/chains"
-  }
+    "imports": {
+      "@zerodev/sdk": "https://esm.sh/@zerodev/sdk@4",
+      "permissionless": "https://esm.sh/permissionless@0.1.34",
+      "viem": "https://esm.sh/viem@2",
+      "viem/chains": "https://esm.sh/viem@2/chains",
+      "viem/utils": "https://esm.sh/viem@2/utils",
+      "viem/actions": "https://esm.sh/viem@2/actions"
+    }
   }
   </script>
 
+  <!-- gate to landing if not signed -->
   <script>(function(){try{var signed=sessionStorage.getItem('walletSigned')==='true'; if(!signed){ location.replace('/landing.html'); return; }}catch(e){ location.replace('/landing.html'); }})();</script>
+
   <title>Poker Table</title>
+
+  <!-- bfcache/back-forward hard reload -->
   <script>
     (function(){try{
       window.addEventListener('unload', function(){});
@@ -28,35 +35,42 @@
       if (nav && nav[0] && nav[0].type === 'back_forward') { location.reload(); }
     }catch(e){}})();
   </script>
-  <script>
-  (function(){
-    try {
-      const u = new URL(location.href);
-      const mode = (u.searchParams.get('mode') || '').toLowerCase();
-      if (mode === 'onchain' || mode === 'f2p') {
-        document.documentElement.setAttribute('data-table-mode', mode);
-      }
-    } catch {}
-  })();
-</script>
 
+  <!-- reflect ?mode=onchain|f2p into <html data-table-mode="..."> -->
+  <script>
+    (function(){
+      try {
+        const u = new URL(location.href);
+        const mode = (u.searchParams.get('mode') || '').toLowerCase();
+        if (mode === 'onchain' || mode === 'f2p') {
+          document.documentElement.setAttribute('data-table-mode', mode);
+        }
+      } catch {}
+    })();
+  </script>
+
+  <!-- load CSS with cache-bust -->
   <script>
     (async()=>{
       try{
         const b = await fetch('/assets/build.json', { cache:'no-store' }).then(r=>r.ok?r.json():null).catch(()=>null);
         const tag = (b && b.commit) ? String(b.commit).slice(0,12) : Date.now();
         window.__BUILD_TAG = tag;
-        const css = document.createElement('link'); css.rel='stylesheet'; css.href = `../../css/style.css?v=${tag}`;
+        const css = document.createElement('link'); css.rel='stylesheet'; css.href = `/css/style.css?v=${tag}`;
         document.head.appendChild(css);
       }catch(e){ console.error('poker table head loader failed', e); }
     })();
   </script>
+
   <!-- Preload table surface and room background to ensure they paint immediately -->
-  <link rel="preload" as="image" href="../../assets/images/table.png" type="image/png">
-  <link rel="preload" as="image" href="../../assets/images/games-room.png" type="image/png">
+  <link rel="preload" as="image" href="/assets/images/table.png" type="image/png">
+  <link rel="preload" as="image" href="/assets/images/games-room.png" type="image/png">
   <link rel="preload" as="image" href="/assets/images/cards/cards-sprite.png" type="image/png">
-  <link rel="preload" as="image" href="/assets/images/chog_cards/dak-and-chog-cardback.png" type="image/png"> 
-  <script>(function(){ try { var tag=(window.__BUILD_TAG||Date.now()); var s=document.createElement('script'); s.src='../../js/HoldemPokerABI.js?v='+encodeURIComponent(tag); document.head.appendChild(s);} catch(e){} })();</script>
+  <link rel="preload" as="image" href="/assets/images/chog_cards/dak-and-chog-cardback.png" type="image/png">
+
+  <!-- Holdem ABI (classic script is fine) -->
+  <script>(function(){ try { var tag=(window.__BUILD_TAG||Date.now()); var s=document.createElement('script'); s.src='/js/HoldemPokerABI.js?v='+encodeURIComponent(tag); document.head.appendChild(s);} catch(e){} })();</script>
+
   <style>
     /* Full-viewport layout; dead-center the table and seats */
     body.game {
@@ -71,9 +85,9 @@
     }
     body {
       /* Force image to span full viewport width; crop vertically if needed */
-      background: #120c08 url('../../assets/images/games-room.png') no-repeat center center fixed !important;
+      background: #120c08 url('/assets/images/games-room.png') no-repeat center center fixed !important;
       background-size: 100% auto !important;
-      background-image: url('../../assets/images/games-room.png') !important;
+      background-image: url('/assets/images/games-room.png') !important;
     }
     /* Header row: logo (left) + stats (right) */
     .table-header { display:none; }
@@ -97,7 +111,7 @@
     /* Make the table itself pop without filling the container: remove color fill and add a soft backglow */
     .table-surface {
       position:absolute; inset:0; border-radius:24px; z-index:1;
-      background: url('../../assets/images/table.png') no-repeat center / contain;
+      background: url('/assets/images/table.png') no-repeat center / contain;
       box-shadow: none;
     }
     /* Dedicated glow layer sits behind the table image */
@@ -159,9 +173,10 @@
     }
     .stats-box .label { font-weight:700; margin-right:4px; }
   </style>
- </head>
- <body class="game">
+</head>
+<body class="game">
   <script>(function(){try{var signed=sessionStorage.getItem('walletSigned')==='true'; if(!signed){ location.replace('/landing.html'); return; }}catch(e){ location.replace('/landing.html'); }})();</script>
+
   <!-- Inline wallet panel (no banner) -->
   <div id="wallet-inline" style="position:fixed; top:12px; right:12px; z-index:12000; display:flex; align-items:center; gap:8px; background: var(--panel-bg-soft); border:1px solid rgba(255,255,255,0.12); border-radius:12px; padding:6px 10px; color:#f4e6d3;">
     <span id="wi-label" style="font-weight:700;">Wallet:</span>
@@ -179,6 +194,7 @@
       <div><span class="label">Hands Won:</span><span id="sb-hands">0</span></div>
     </div>
   </div>
+
   <div class="table-canvas" style="margin:0 auto;">
     <div class="table-glow"></div>
     <div class="table-surface"></div>
@@ -202,14 +218,23 @@
   </div>
 
   <!-- Wallet banner + auto-connect like Tavern -->
-  <script type="module" src="../../js/tavern.js"></script>
-  <script type="module" src="/js/aa/ui.js"></script>
-  <!-- Smart Account + on-chain ops for onchain tables -->
-  <script type="module" src="/js/agent-ops.js?v=__BUILD__"></script>
+  <script type="module" src="/js/tavern.js"></script>
+
+  <!-- === AA LAYER (order matters: config/ui first, then agent-ops) ============ -->
+  <script type="module">
+    import '/js/aa/config.js';
+    import '/js/aa/ui.js';
+  </script>
+  <script type="module" src="/js/agent-ops.js"></script>
+  <!-- ========================================================================== -->
+
   <!-- Socket.IO (CDN) -->
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+
   <!-- Prewarm table background in cache before JS/paint -->
-  <script>try{(new Image()).src='../../assets/images/table.png';}catch(e){}</script>
+  <script>try{(new Image()).src='/assets/images/table.png';}catch(e){}</script>
+
+  <!-- Load table logic with strong cache-bust -->
   <script>
     (function(){
       function load(src){ try { var s=document.createElement('script'); s.src=src; s.defer=true; document.body.appendChild(s); } catch(e) { console.error('inject failed', e); } }
@@ -221,16 +246,17 @@
             var t = (b&&b.builtAt)?String(b.builtAt):Date.now();
             var tag = c + '-' + t; // include built time to hard-bust caches
             try { window.__ASSET_TAG = tag; } catch(_){ }
-            load('table.js?v='+encodeURIComponent(tag));
+            load('/games/poker/table.js?v='+encodeURIComponent(tag));
           })
-          .catch(()=> { try { window.__ASSET_TAG = Date.now(); } catch(_){ } load('table.js?v='+Date.now()); });
+          .catch(()=> { try { window.__ASSET_TAG = Date.now(); } catch(_){ } load('/games/poker/table.js?v='+Date.now()); });
       }
-      catch(e){ try { window.__ASSET_TAG = Date.now(); } catch(_){ } load('table.js?v='+Date.now()); }
+      catch(e){ try { window.__ASSET_TAG = Date.now(); } catch(_){ } load('/games/poker/table.js?v='+Date.now()); }
     })();
   </script>
+
+  <!-- Optional helpers (exist in /js per your tree). Keep if you use them. -->
   <script src="/js/agent-budget.js" defer></script>
   <script src="/js/agent-sponsor-indicator.js" defer></script>
-  <script type="module" src="/js/agent-ops.js" defer></script>
 
   <!-- Left Sidebar (collapsible) -->
   <script>
@@ -244,13 +270,5 @@
       } catch(e) {}
     })();
   </script>
-
-  <!-- === AA LAYER ADDITIONS (non-invasive) =================================== -->
-  <!-- These two module imports add the Smart Account / Delegation UI & logic. -->
-  <script type="module">
-    import '/js/aa/config.js';
-    import '/js/aa/ui.js';
-  </script>
-  <!-- ======================================================================== -->
 </body>
 </html>
