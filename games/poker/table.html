@@ -8,10 +8,11 @@
   <meta http-equiv="Expires" content="0">
 
   <!-- Import map: resolve bare specifiers used by aaClient/AgentOps -->
-  <script type="importmap">
+    <script type="importmap">
   {
     "imports": {
-      "@zerodev/sdk": "https://esm.sh/@zerodev/sdk@4",
+-     "@zerodev/sdk": "https://esm.sh/@zerodev/sdk@4",
++     "@zerodev/sdk": "https://esm.sh/@zerodev/sdk@3.1.0",
       "permissionless": "https://esm.sh/permissionless@0.1.34",
       "viem": "https://esm.sh/viem@2",
       "viem/chains": "https://esm.sh/viem@2/chains",
@@ -20,6 +21,7 @@
     }
   }
   </script>
+
 
   <script>(function(){try{var signed=sessionStorage.getItem('walletSigned')==='true'; if(!signed){ location.replace('/landing.html'); return; }}catch(e){ location.replace('/landing.html'); }})();</script>
   <title>Poker Table</title>

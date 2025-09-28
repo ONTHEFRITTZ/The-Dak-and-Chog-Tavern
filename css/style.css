@@ -701,7 +701,7 @@ body.age-landing .age-warning { color: #ffffff !important; }
 .table-glow::before {
   content: '';
   position: absolute;
-  left: 50%; top: 50%; transform: translate(-50%, -50%);
+  left: 50%; top: 50%; transform: translate(-50%,-50%);
   width: 96%; height: 96%; border-radius: 50%;
   background: radial-gradient(ellipse at center,
     rgba(255,244,233,0.62) 0%,
@@ -786,37 +786,13 @@ body.age-landing .age-warning { color: #ffffff !important; }
   :root { --card-hole-w: 56px; --card-hole-h: 82px; }
 }
 
-/* -------- Seat box stability (ADDED: keeps layout math predictable) ------- */
+/* -------- Seat box stability (keeps layout math predictable) ------- */
 .seat { min-width:110px; min-height:130px; }
-/* === AA PANEL: pin bottom-right & hide on free tables ===================== */
-/* Works with the AA UI that renders into #aa-panel / .aa-panel / [data-aa-panel] */
-/* It will auto-hide when <html data-table-mode="f2p"> */
-#aa-panel,
-.aa-panel,
-[data-aa-panel] {
-  position: fixed !important;
-  right: 12px !important;
-  bottom: 12px !important;
-  left: auto !important;
-  top: auto !important;
-  z-index: 12050 !important; /* above nav/sidebar & table UI */
-}
 
-/* Hide completely on free-to-play tables */
-:root[data-table-mode="f2p"] #aa-panel,
-:root[data-table-mode="f2p"] .aa-panel,
-:root[data-table-mode="f2p"] [data-aa-panel] {
-  display: none !important;
-  visibility: hidden !important;
-}
+/* =================== AA PANEL (bottom-right & off-chain hide) ================== */
+/* Position **and** hide controls for Smart Account / Agent UI elements.
+   We include the common ids/classes used across your AA files, plus sponsor pill. */
 
-/* Optional: nudge up slightly on very short viewports */
-@media (max-height: 640px) {
-  #aa-panel, .aa-panel, [data-aa-panel] { bottom: 8px !important; right: 8px !important; }
-}
-/* ========================================================================== */
-/* === AA PANEL (bottom-right) =============================================== */
-/* Match common IDs/classes + generic AA-ish prefixes, but scope to this page */
 body.game #aa-panel,
 body.game .aa-panel,
 body.game [data-aa-panel],
@@ -824,6 +800,7 @@ body.game #aa-root,
 body.game .aa-root,
 body.game #agent-panel,
 body.game .agent-panel,
+body.game #sponsor-indicator,
 body.game #agent-sponsor-indicator,
 body.game .agent-sponsor-indicator,
 body.game [id^="aa-"],
@@ -836,7 +813,7 @@ body.game [class^="aa-"] {
   z-index: 12050 !important; /* over nav + table */
 }
 
-/* Hide the panel entirely on free-to-play tables */
+/* Hide the AA/sponsor UI entirely on off-chain (f2p) tables */
 :root[data-table-mode="f2p"] body.game #aa-panel,
 :root[data-table-mode="f2p"] body.game .aa-panel,
 :root[data-table-mode="f2p"] body.game [data-aa-panel],
@@ -844,6 +821,7 @@ body.game [class^="aa-"] {
 :root[data-table-mode="f2p"] body.game .aa-root,
 :root[data-table-mode="f2p"] body.game #agent-panel,
 :root[data-table-mode="f2p"] body.game .agent-panel,
+:root[data-table-mode="f2p"] body.game #sponsor-indicator,
 :root[data-table-mode="f2p"] body.game #agent-sponsor-indicator,
 :root[data-table-mode="f2p"] body.game .agent-sponsor-indicator,
 :root[data-table-mode="f2p"] body.game [id^="aa-"],
@@ -852,16 +830,18 @@ body.game [class^="aa-"] {
   visibility: hidden !important;
 }
 
+/* Nudge in tight viewports */
 @media (max-height: 640px) {
   body.game #aa-panel,
   body.game .aa-panel,
   body.game [data-aa-panel],
   body.game #aa-root,
   body.game .aa-root,
+  body.game #sponsor-indicator,
   body.game [id^="aa-"],
   body.game [class^="aa-"] {
     right: 8px !important;
     bottom: 8px !important;
   }
 }
-/* ========================================================================== */
+/* ============================================================================ */
