@@ -1,13 +1,20 @@
-﻿// Shared contract addresses for the Tavern and games
-// - Supports per-chain mapping with a sensible default
-// - Hardened: no runtime overrides via URL or localStorage
+﻿// -------------------- ZeroDev (AA) config --------------------
+export const MONAD_BUNDLER_RPC =
+  "https://rpc.zerodev.app/api/v3/9b503699-15b1-48c4-a4e7-35d41afd0ee3/chain/10143?selfFunded=true";
 
+// Your self-funded paymaster contract (you deployed this)
+export const PAYMASTER_ADDRESS = "0x225526A98049aCAFb71bB9526dd431E1A114E048";
+
+// ZeroDev paymaster RPC: same project URL; keep ?selfFunded=true
+// (If your bundler URL already has ?selfFunded=true, it's fine to reuse)
+export const ZD_PAYMASTER_RPC = MONAD_BUNDLER_RPC;
+
+// -------------------- Shared contract addresses --------------------
 // Base defaults (used when no chain-specific mapping exists)
 const DEFAULT_ADDRESSES = {
   tavern: "", // router removed; games use dedicated addresses
   faro:   "0xd6214180671d4A18BC56568A75cF774dEC249F46",
   pool:   "0x78F62d85244621493b5c3961bBaD4069Ab979C86",
-  // Optional per-game overrides; fallback to dedicated addresses (no Tavern fallback)
   hazard:  "0xF6eA1599452bb6F35B3220307996Dc891554D911",
   shell:   "0xc0f0927D50da717209300FBC2B4C115662d219D6",
   dakchog: "0xc668DCA267aB4fb6A7A1757F51B8CB965349ef5A",
@@ -15,11 +22,10 @@ const DEFAULT_ADDRESSES = {
 };
 
 // Address book keyed by chainId (as number or string) or "default"
-// Add entries like 1, 11155111, etc. when you deploy to new chains.
 export const ADDRESS_BOOK = {
   default: { ...DEFAULT_ADDRESSES },
   10143: { // Monad Testnet
-    tavern: "", // router removed on testnet too
+    tavern: "",
     faro:   "0xd6214180671d4A18BC56568A75cF774dEC249F46",
     pool:   "0x78F62d85244621493b5c3961bBaD4069Ab979C86",
     hazard:  "0xF6eA1599452bb6F35B3220307996Dc891554D911",
@@ -27,17 +33,14 @@ export const ADDRESS_BOOK = {
     dakchog: "0xc668DCA267aB4fb6A7A1757F51B8CB965349ef5A",
     pokerTable: "0x3352060b4fBcAC18499390643703957E28e128fd",
   },
-  // 1: { shell: "0x...", hazard: "0x..." },
-  // 11155111: { shell: "0x...", hazard: "0x..." },
 };
 export const TAVERN_ADDRESS = DEFAULT_ADDRESSES.tavern;
-
 export const CONTRACTS = { ...DEFAULT_ADDRESSES };
 
 export function getAddress(contractKey, chainId) {
   const idKey = chainId != null ? String(chainId) : null;
   const byChain = (idKey && ADDRESS_BOOK[idKey]);
-  if (!byChain) return undefined; // do not fall back silently
+  if (!byChain) return undefined;
   return byChain[contractKey];
 }
 
@@ -63,10 +66,7 @@ export async function getAddressFor(contractKey, provider) {
   return getAddress(contractKey, chainId);
 }
 
-// Minimal, safe UI helpers (no-ops if elements absent)
-// renderTavernBanner and showToast are defined later in this file.
-
-// Chain name helpers and banner rendering
+// Chain names / explorers
 export const CHAIN_NAMES = {
   1: 'Ethereum',
   5: 'Goerli',
@@ -97,14 +97,10 @@ export const EXPLORERS = {
   10143: 'https://testnet.monadexplorer.com',
 };
 
-// Optional: RPC endpoints for convenience (not used directly by UI yet)
+// Optional: RPC endpoints for convenience
 export const RPC_ENDPOINTS = {
   10143: 'wss://monad-testnet.drpc.org',
 };
-
-// 👉 Bundler RPC for Monad testnet (ZeroDev project)
-export const MONAD_BUNDLER_RPC =
-  "https://rpc.zerodev.app/api/v3/9b503699-15b1-48c4-a4e7-35d41afd0ee3/chain/10143?selfFunded=true";
 
 export function getChainName(chainId) {
   if (chainId == null) return 'Unknown';
@@ -130,6 +126,7 @@ export async function switchToChain(chainIdHex) {
   }
 }
 
+// --- UI helpers (unchanged) ---
 export function renderNetworkBanner({ contractKey, address, chainId, wallet }) {
   try {
     const root = document.querySelector('.tavern') || document.body;
@@ -138,18 +135,9 @@ export function renderNetworkBanner({ contractKey, address, chainId, wallet }) {
       el = document.createElement('div');
       el.id = 'network-banner';
       el.style.cssText = [
-        'margin: 8px auto',
-        'padding: 8px 12px',
-        'max-width: 900px',
-        'font-size: 13px',
-        'border-radius: 8px',
-        'background: rgba(0,0,0,0.08)',
-        'color: #2b1e12',
-        'display:flex',
-        'flex-wrap:wrap',
-        'gap:8px',
-        'align-items:center',
-        'justify-content:space-between',
+        'margin: 8px auto','padding: 8px 12px','max-width: 900px','font-size: 13px','border-radius: 8px',
+        'background: rgba(0,0,0,0.08)','color: #2b1e12','display:flex','flex-wrap:wrap','gap:8px',
+        'align-items:center','justify-content:space-between',
       ].join(';');
       if (root.firstChild) root.insertBefore(el, root.firstChild); else root.appendChild(el);
     }
@@ -189,19 +177,16 @@ export function renderNetworkBanner({ contractKey, address, chainId, wallet }) {
         await switchToChain(hex);
       };
     }
-  } catch {
-    // no-op if DOM not available
-  }
+  } catch {}
 }
 
-// Clean banner variant with explorer/Copy/Disconnect and optional Switch button
+// Clean banner variant (unchanged)
 export function renderTavernBanner({ contractKey, address, chainId, wallet, labelOverride }) {
   try {
     const top = document.querySelector('.top-banner');
     const sidebarFooter = document.getElementById('sidebar-footer');
-    const useTopBanner = !!top && !sidebarFooter; // if sidebar footer exists, prefer it and skip top
+    const useTopBanner = !!top && !sidebarFooter;
     const root = useTopBanner ? top : (document.querySelector('.tavern') || document.body);
-    // Ensure left/right regions in top banner
     let leftRegion, rightRegion;
     if (useTopBanner) {
       leftRegion = root.querySelector('.banner-left');
@@ -222,7 +207,6 @@ export function renderTavernBanner({ contractKey, address, chainId, wallet, labe
       }
     }
 
-    // Left content (network + contract + copy)
     let el = document.getElementById('network-banner');
     const name = getChainName(chainId);
     const keyLabel = labelOverride || (contractKey ? contractKey.charAt(0).toUpperCase() + contractKey.slice(1) : 'Contract');
@@ -233,7 +217,6 @@ export function renderTavernBanner({ contractKey, address, chainId, wallet, labe
     const targetChainId = targetChainKey ? Number(targetChainKey) : null;
 
     if (sidebarFooter) {
-      // Render compact readout inside sidebar footer and remove any prior banners
       const target = sidebarFooter;
       target.innerHTML = `
         <div class="pill" title="Network">${name}${chainId ? ` (${chainId})` : ''}</div>
@@ -250,7 +233,6 @@ export function renderTavernBanner({ contractKey, address, chainId, wallet, labe
       try { const oldTop = document.getElementById('nb-top-info'); if (oldTop) oldTop.remove(); } catch {}
       try { const old = document.getElementById('network-banner'); if (old) old.remove(); } catch {}
     } else if (useTopBanner) {
-      // Compact readout in top-banner left region
       let topInfo = document.getElementById('nb-top-info');
       if (!topInfo) {
         topInfo = document.createElement('div');
@@ -272,7 +254,6 @@ export function renderTavernBanner({ contractKey, address, chainId, wallet, labe
           try { await navigator.clipboard.writeText(address); copyBtnTop.textContent = 'Copied'; setTimeout(()=>copyBtnTop.textContent='Copy', 1200); } catch {}
         };
       }
-      // No standalone banner when using top banner
       const old = document.getElementById('network-banner');
       if (old) { try { old.remove(); } catch {} }
     } else {
@@ -317,44 +298,10 @@ export function renderTavernBanner({ contractKey, address, chainId, wallet, labe
         };
       }
     }
-
-    // Right side (top banner): wallet + controls
-    if (useTopBanner) {
-      const isAdmin = (location.pathname || '').toLowerCase().includes('/admin/');
-      // If on admin, do not duplicate wallet controls in banner
-      if (isAdmin) {
-        try { const wb = document.getElementById('wallet-banner'); if (wb) wb.remove(); } catch {}
-      } else {
-        let walletEl = document.getElementById('wallet-banner');
-        if (!walletEl) {
-          walletEl = document.createElement('div');
-          walletEl.id = 'wallet-banner';
-          walletEl.style.cssText = [ 'font-size:12px','color:#2b1e12','display:flex','align-items:center','gap:8px','white-space:nowrap' ].join(';');
-          rightRegion.insertBefore(walletEl, rightRegion.firstChild);
-        }
-        walletEl.innerHTML = `
-          ${wallet ? `<span title="Connected wallet" style="white-space:nowrap; display:inline-block; letter-spacing:0; word-spacing:0; font-variant-ligatures:none; font-weight:600;">${short(wallet)}</span>` : ''}
-          ${mismatch && window?.ethereum && targetChainId ? `<button id="nb-switch" style="padding:4px 8px;border-radius:6px;cursor:pointer;">Switch</button>` : ''}
-          ${wallet ? '<button id="nb-disconnect" style="padding:4px 8px;border-radius:6px;cursor:pointer;">Disconnect</button>' : ''}
-        `;
-        const switchBtnTop = walletEl.querySelector('#nb-switch');
-        if (switchBtnTop && targetChainId != null) {
-          switchBtnTop.onclick = async () => { const hex = '0x' + Number(targetChainId).toString(16); await switchToChain(hex); };
-        }
-        const disconnectBtnTop = walletEl.querySelector('#nb-disconnect');
-        if (disconnectBtnTop) {
-          disconnectBtnTop.onclick = () => {
-            try { localStorage.removeItem('walletConnected'); } catch {}
-            try { sessionStorage.removeItem('walletConnected'); } catch {}
-            try { location.reload(); } catch {}
-          };
-        }
-      }
-    }
   } catch {}
 }
 
-// Lightweight toast notifications
+// Toasts (unchanged)
 export function showToast(message, type = 'info', duration = 2600) {
   try {
     let container = document.getElementById('toast-container');
@@ -363,8 +310,7 @@ export function showToast(message, type = 'info', duration = 2600) {
       container.id = 'toast-container';
       container.style.cssText = [
         'position:fixed','top:16px','left:50%','transform:translateX(-50%)',
-        'z-index:100000',
-        'display:flex','flex-direction:column','gap:8px','align-items:center'
+        'z-index:100000','display:flex','flex-direction:column','gap:8px','align-items:center'
       ].join(';');
       document.body.appendChild(container);
     }

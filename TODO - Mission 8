@@ -15,9 +15,6 @@ Hooked up Sit/Leave to HoldemPoker.joinSeat / unseat / leaveDuringHand.
 
 ⏩ Next (short-term hackathon goals)
 
-Wire Ready / Hand start flow:
-Add on-chain calls for beginHand, contribute (for blinds), and settleHand (winners).
-
 Agent UX panel:
 Add a small banner (“Sponsored by Dak & Chog Tavern”) with status (sponsored active, chain ID, etc).
 
