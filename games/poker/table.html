@@ -17,32 +17,16 @@
     }catch(e){}})();
   </script>
   <script>
-  (async () => {
-    try {
-      const b = await fetch('/assets/build.json', { cache: 'no-store' })
-        .then(r => r.ok ? r.json() : null)
-        .catch(() => null);
-
-      const tag = (b && b.commit) ? String(b.commit).slice(0, 12) : Date.now();
-      window.__BUILD_TAG = tag;
-
-      const addCss = (href) => {
-        const l = document.createElement('link');
-        l.rel = 'stylesheet';
-        l.href = href + (href.includes('?') ? '&' : '?') + 'v=' + encodeURIComponent(tag);
-        document.head.appendChild(l);
-      };
-
-      // Global styles first
-      addCss('../../css/style.css');
-      // Poker-specific styles (this file lives next to table.html → games/poker/poker.css)
-      addCss('poker.css');
-    } catch (e) {
-      console.error('poker table head loader failed', e);
-    }
-  })();
-</script>
-
+    (async()=>{
+      try{
+        const b = await fetch('/assets/build.json', { cache:'no-store' }).then(r=>r.ok?r.json():null).catch(()=>null);
+        const tag = (b && b.commit) ? String(b.commit).slice(0,12) : Date.now();
+        window.__BUILD_TAG = tag;
+        const css = document.createElement('link'); css.rel='stylesheet'; css.href = `../../css/style.css?v=${tag}`;
+        document.head.appendChild(css);
+      }catch(e){ console.error('poker table head loader failed', e); }
+    })();
+  </script>
   <!-- Preload table surface and room background to ensure they paint immediately -->
   <link rel="preload" as="image" href="../../assets/images/table.png" type="image/png">
   <link rel="preload" as="image" href="../../assets/images/games-room.png" type="image/png">
