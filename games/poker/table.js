@@ -213,8 +213,8 @@ function layoutSeats() {
 
   // seat size
   const probe = seatEls[0];
-  const seatW = (probe && probe.offsetWidth)  ? probe.offsetWidth  : 110;
-  const seatH = (probe && probe.offsetHeight) ? probe.offsetHeight : 130;
+  const seatW = (probe && probe.offsetWidth)  ? probe.offsetWidth  : 50;
+  const seatH = (probe && probe.offsetHeight) ? probe.offsetHeight : 80;
 
   // base radii from the TABLE ellipse (half of table box)
   const baseRx = Math.max(0, tableW * 0.5);
