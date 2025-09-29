@@ -846,9 +846,55 @@ body.game [class^="aa-"] {
 }
 /* Poker action bar (bottom-center, above table) */
 .table-canvas .action-bar {
+  overflow: visible;
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
   bottom: 10px;
   z-index: 20; /* above seats (2) and center-banner (6) */
+}
+/* --- Poker table underglow: match the table image, not the canvas --- */
+
+/* kill the old, oversized glow div if it's still in the DOM */
+.table-glow { display: none !important; }
+
+/* put the glow on the table image itself */
+.table-surface {
+  position: absolute; /* you already have this */
+  /* make sure the pseudo-element can sit behind */
+  z-index: 1;
+}
+
+/* Tuning knobs (feel free to tweak once and forget) */
+:root {
+  --table-glow-scale-x: 0.94; /* 1.00 = full table box width */
+  --table-glow-scale-y: 0.90; /* 1.00 = full table box height */
+  --table-glow-blur: 18px;
+  --table-glow-a1: 0.62; /* center intensity */
+  --table-glow-a2: 0.34;
+  --table-glow-a3: 0.12;
+}
+
+/* The glow itself, sized from the table image’s box */
+.table-surface::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 100%;
+  height: 100%;
+  transform:
+    translate(-50%, -50%)
+    scale(var(--table-glow-scale-x), var(--table-glow-scale-y));
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: -1; /* sits behind the table image */
+  background: radial-gradient(
+    ellipse at center,
+    rgba(255, 244, 233, var(--table-glow-a1)) 0%,
+    rgba(255, 244, 233, var(--table-glow-a2)) 52%,
+    rgba(255, 244, 233, var(--table-glow-a3)) 72%,
+    rgba(0,0,0,0) 92%
+  );
+  filter: blur(var(--table-glow-blur));
 }
