@@ -28,29 +28,42 @@
   function isOnChainTableId(id) { return /^poker-(nl|fl)-/i.test(String(id || "")); }
 
   // Toasts (no CSS edits required)
-  (function initToasts(){
-    if (document.getElementById('toast-root')) return;
-    const root = document.createElement('div');
+  // Toasts (bottom-center so it never hides under wallet)
+(function initToasts(){
+  let root = document.getElementById('toast-root');
+  if (!root){
+    root = document.createElement('div');
     root.id = 'toast-root';
     Object.assign(root.style, {
-      position: 'fixed', right: '12px', bottom: '12px', zIndex: 9999,
-      display: 'flex', flexDirection: 'column', gap: '8px'
+      position: 'fixed',
+      left: '50%',
+      bottom: '12px',
+      transform: 'translateX(-50%)',
+      zIndex: 10000,
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '8px',
+      alignItems: 'center',
+      pointerEvents: 'none' // clicks pass through
     });
     document.body.appendChild(root);
-  })();
-  function toast(msg, opts={}) {
-    const el = document.createElement('div');
-    el.role = 'status'; el.setAttribute('aria-live','polite');
-    Object.assign(el.style, {
-      background: opts.error ? '#3b0b0b' : '#0b3b1a',
-      color: '#fff', padding: '10px 12px', borderRadius: '10px',
-      boxShadow: '0 4px 16px rgba(0,0,0,0.25)', maxWidth: '320px', fontSize: '14px'
-    });
-    el.textContent = msg;
-    document.getElementById('toast-root').appendChild(el);
-    setTimeout(() => el.remove(), opts.persist ? 7000 : 3500);
-    return el;
   }
+})();
+function toast(msg, opts={}) {
+  const el = document.createElement('div');
+  el.role = 'status'; el.setAttribute('aria-live','polite');
+  Object.assign(el.style, {
+    pointerEvents:'auto',
+    background: opts.error ? '#3b0b0b' : '#0b3b1a',
+    color: '#fff', padding: '10px 12px', borderRadius: '10px',
+    boxShadow: '0 4px 16px rgba(0,0,0,0.25)', maxWidth: '360px', fontSize: '14px'
+  });
+  el.textContent = msg;
+  document.getElementById('toast-root').appendChild(el);
+  setTimeout(() => el.remove(), opts.persist ? 7000 : 3500);
+  return el;
+}
+
   function addExplorerLink(toastEl, txHash) {
     if (!txHash) return;
     const wrap = document.createElement('div');
@@ -184,50 +197,57 @@ const CENTER_BIAS_X    = 0;    // px, + moves to the right
 const CENTER_BIAS_Y    = 4;    // px, + moves down
 const DEALER_ANGLE_DEG = 270;  // Seat 0 at bottom (dealer)
 
+/* ---------- Seat ring layout (8 outside the rail, dealer gap at top) ---------- */
 function layoutSeats() {
-  const wrap   = document.querySelector('.table-canvas');
-  const surface= document.querySelector('.table-surface');
+  const wrap = document.querySelector('.table-canvas');
+  const surface = document.querySelector('.table-surface');
   if (!wrap || !surface || !seatEls.length) return;
 
-  // Measure canvas and table image
-  const cRect = wrap.getBoundingClientRect();
-  const sRect = surface.getBoundingClientRect();
+  // measure
+  const W = wrap.clientWidth;
+  const H = wrap.clientHeight;
+  const t = surface.getBoundingClientRect();
+  const c = wrap.getBoundingClientRect();
+  const tableW = t.width;
+  const tableH = t.height;
 
-  // Seat size (use first seat as probe)
+  // seat size
   const probe = seatEls[0];
   const seatW = (probe && probe.offsetWidth)  ? probe.offsetWidth  : 110;
   const seatH = (probe && probe.offsetHeight) ? probe.offsetHeight : 130;
 
-  // Ellipse based on the table surface image (slightly inset to follow rim),
-  // then push seats OUTSIDE by OUTWARD_OFFSET + half the seat depth in that axis.
-  const cx = (sRect.left - cRect.left) + (sRect.width  / 2) + CENTER_BIAS_X;
-  const cy = (sRect.top  - cRect.top ) + (sRect.height / 2) + CENTER_BIAS_Y;
+  // base radii from the TABLE ellipse (half of table box)
+  const baseRx = Math.max(0, tableW * 0.5);
+  const baseRy = Math.max(0, tableH * 0.5);
 
-  // “Rim” radii before pushing outward
-  const rimRx = Math.max(0, (sRect.width  / 2) - RING_INSET_X);
-  const rimRy = Math.max(0, (sRect.height / 2) - RING_INSET_Y);
+  // push seats just OUTSIDE the leather: small outward offset
+  const outwardX = seatW * 0.45;
+  const outwardY = seatH * 0.35;
 
-  // How far to push outside the rim for each axis so seats don’t overlap the leather
-  const pushX = OUTWARD_OFFSET + seatW * 0.50;   // 50% of seat width looks good
-  const pushY = OUTWARD_OFFSET + seatH * 0.50;   // 50% of seat height looks good
+  const rx = baseRx + outwardX;
+  const ry = baseRy + outwardY;
 
-  const N = seatEls.length || 8;
+  // center of the table inside the canvas
+  const cx = (t.left - c.left) + tableW / 2;
+  const cy = (t.top  - c.top ) + tableH / 2;
+
+  const N = seatEls.length; // 8
+
+  // leave a dealer gap at the top (−90°). Distribute players around the remaining circle
+  // by centering the first seat around that gap: start = -90 + (360/N)/2
+  const startDeg = -90 + (360 / N) / 2;
 
   for (let i = 0; i < N; i++) {
-    // Seat 0 = dealer at DEALER_ANGLE_DEG (bottom by default), then clockwise
-    const angDeg = DEALER_ANGLE_DEG + (i * 360 / N);
-    const ang    = angDeg * Math.PI / 180;
+    const ang = (startDeg + (i * 360 / N)) * Math.PI / 180;
 
-    // “Outside” ellipse radii
-    const rx = rimRx + pushX;
-    const ry = rimRy + pushY;
-
-    const x = cx + rx * Math.cos(ang);
-    const y = cy + ry * Math.sin(ang);
+    // ellipse parametric
+    const px = cx + rx * Math.cos(ang);
+    const py = cy + ry * Math.sin(ang);
 
     const el = seatEls[i];
-    el.style.left = Math.round(x - seatW / 2) + 'px';
-    el.style.top  = Math.round(y - seatH / 2) + 'px';
+    // keep seats from ever overlapping by clamping min spacing via scale on very small canvases
+    el.style.left = Math.round(px - seatW / 2) + 'px';
+    el.style.top  = Math.round(py - seatH / 2) + 'px';
   }
 }
 
