@@ -192,7 +192,7 @@ Tuning dials – adjust once to line up with the beer mugs:
 */
 const RING_INSET_X     = 22;   // px inward from the table image on X (positive = slightly tighter)
 const RING_INSET_Y     = 50;   // px inward from the table image on Y (positive = slightly tighter)
-const OUTWARD_OFFSET   = 32;   // px OUTSIDE the table edge
+const OUTWARD_OFFSET   = 15;   // px OUTSIDE the table edge
 const CENTER_BIAS_X    = 0;    // px, + moves to the right
 const CENTER_BIAS_Y    = 4;    // px, + moves down
 const DEALER_ANGLE_DEG = 270;  // Seat 0 at bottom (dealer)
