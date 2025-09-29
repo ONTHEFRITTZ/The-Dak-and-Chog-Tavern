@@ -190,8 +190,8 @@ Tuning dials – adjust once to line up with the beer mugs:
 - CENTER_BIAS_X/Y: small pixel nudges if the table art isn’t perfectly centered.
 - DEALER_ANGLE_DEG: where Seat 0 goes; 270 = bottom, 90 = top, 0 = right.
 */
-const RING_INSET_X     = 18;   // px inward from the table image on X (positive = slightly tighter)
-const RING_INSET_Y     = 34;   // px inward from the table image on Y (positive = slightly tighter)
+const RING_INSET_X     = 22;   // px inward from the table image on X (positive = slightly tighter)
+const RING_INSET_Y     = 50;   // px inward from the table image on Y (positive = slightly tighter)
 const OUTWARD_OFFSET   = 32;   // px OUTSIDE the table edge
 const CENTER_BIAS_X    = 0;    // px, + moves to the right
 const CENTER_BIAS_Y    = 4;    // px, + moves down
@@ -213,8 +213,8 @@ function layoutSeats() {
 
   // seat size
   const probe = seatEls[0];
-  const seatW = (probe && probe.offsetWidth)  ? probe.offsetWidth  : 50;
-  const seatH = (probe && probe.offsetHeight) ? probe.offsetHeight : 80;
+  const seatW = (probe && probe.offsetWidth)  ? probe.offsetWidth  : 110;
+  const seatH = (probe && probe.offsetHeight) ? probe.offsetHeight : 130;
 
   // base radii from the TABLE ellipse (half of table box)
   const baseRx = Math.max(0, tableW * 0.5);
