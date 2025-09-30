@@ -1,324 +1,280 @@
-// table.js — locks DevBot to F2P-solo only; impossible to appear on on-chain
-
 (function () {
-  /* -------------------- utils -------------------- */
-  const htmlMode = (document.documentElement.getAttribute('data-table-mode') || '').toLowerCase();
-  const IS_ONCHAIN = htmlMode === 'onchain';
+  /* -------------------- wiring -------------------- */
+  const q = (s, r=document) => r.querySelector(s);
+  const qa = (s, r=document) => Array.from(r.querySelectorAll(s));
+  const ioReady = () => window.io ? Promise.resolve(window.io) : new Promise(r=>{
+    const i = setInterval(()=>{ if(window.io){ clearInterval(i); r(window.io); } }, 20);
+  });
 
-  function $(q, r = document) { return r.querySelector(q); }
-  function $all(q, r = document) { return Array.from(r.querySelectorAll(q)); }
-  function short(a) { return a && a.length > 10 ? (a.slice(0, 6) + '...' + a.slice(-4)) : (a || ''); }
-  function lc(s) { return (s || '').toLowerCase(); }
+  const tableCanvas = q('.table-canvas');
+  if (!tableCanvas) { console.error('poker table: no .table-canvas'); return; }
 
-  /* -------------------- toasts (bottom-center) -------------------- */
-  (function ensureToastRoot () {
-    if ($('#toast-root')) return;
-    const root = document.createElement('div'); root.id = 'toast-root';
-    document.body.appendChild(root);
-  })();
+  /* Layers for cards */
+  const layer = document.createElement('div'); layer.className='pkr-layer';
+  const deckLayer = document.createElement('div'); deckLayer.className='pkr-deck';
+  const burnLayer = document.createElement('div'); burnLayer.className='pkr-burn';
+  const boardLayer = document.createElement('div'); boardLayer.className='pkr-board';
+  tableCanvas.append(layer, deckLayer, burnLayer, boardLayer);
 
-  function toast(msg, opts = {}) {
-    const root = $('#toast-root');
+  /* Compute geometry once per resize */
+  let G = null;
+  function computeGeom(){
+    const r = tableCanvas.getBoundingClientRect();
+    const cx = r.left + r.width/2, cy = r.top + r.height*0.46;
+    const deck = { x: cx, y: cy };
+    // Board slots across center
+    const spacing = Math.min(r.width, 820) / 7.2;
+    const startX = cx - spacing*2;
+    const by = r.top + r.height*0.30;
+    const board = Array.from({length:5}, (_,i)=>({ x: startX + spacing*i, y: by }));
+    // Burn pile slightly left of deck
+    const burn = { x: cx - Math.min(36, r.width*0.03), y: cy - Math.min(24, r.height*0.04) };
+    // Seat centers (use existing .seat positions)
+    const seats = qa('.seat').map(el=>{
+      const b = el.getBoundingClientRect();
+      return { el, x: b.left + b.width/2, y: b.top + b.height/2 };
+    });
+    G = { deck, burn, board, seats, rect: r };
+  }
+  computeGeom();
+  window.addEventListener('resize', () => { computeGeom(); positionBoardHolders(); });
+
+  /* Board holders (empty slots so the layout is obvious even before flop) */
+  const boardHolders = Array.from({length:5}, ()=> {
+    const h = document.createElement('div'); h.className='pkr-board-slot';
+    boardLayer.appendChild(h); return h;
+  });
+  function positionBoardHolders(){
+    if (!G) computeGeom();
+    boardHolders.forEach((h,i)=>{
+      const p = G.board[i]; if(!p) return;
+      h.style.left = p.x + 'px'; h.style.top = p.y + 'px';
+    });
+  }
+  positionBoardHolders();
+
+  /* -------------------- assets & mapping -------------------- */
+  const IMG_BASE = '/assets/images/chog_cards/';
+  const RANK = { 'A':'ace','K':'king','Q':'queen','J':'jack','T':'ten','9':'nine','8':'eight','7':'seven','6':'six','5':'five','4':'four','3':'three','2':'two' };
+  const SUIT = { 's':'spades','h':'hearts','d':'diamonds','c':'clubs' };
+  function codeToUrl(code){
+    // code like "As", "Td", "Qh"
+    if (!code || code.length<2) return IMG_BASE + 'dak-and-chog-cardback.png';
+    const r = RANK[code[0].toUpperCase()] || 'ace';
+    const s = SUIT[code[1].toLowerCase()] || 'spades';
+    return `${IMG_BASE}chog-${r}-of-${s}.png`;
+  }
+  function makeCard(code, faceDown){
     const el = document.createElement('div');
-    el.className = 'toast' + (opts.error ? ' error' : '');
-    el.textContent = msg;
-    root.appendChild(el);
-    setTimeout(() => el.remove(), opts.persist ? 6500 : 3200);
+    el.className = 'pkr-card' + (faceDown ? ' face-down' : '');
+    el.dataset.code = code || '';
+    if (!faceDown) el.style.backgroundImage = `url("${codeToUrl(code)}")`;
     return el;
   }
+  function setFaceUp(el, code){
+    el.classList.remove('face-down');
+    el.dataset.code = code;
+    el.style.backgroundImage = `url("${codeToUrl(code)}")`;
+  }
 
-  /* -------------------- DOM refs -------------------- */
-  const canvas   = $('.table-canvas');
-  const surface  = $('.table-surface');
-  const centerEl = $('#poker-center');
-  const seatEls  = $all('.seat');
+  /* -------------------- state -------------------- */
+  let socket, tableId=null, myAddrLower=null;
+  let lastStage=null, lastBoardLen=0, dealt=false;
+  let mySeat=-1; // seat index for me
+  let currentActors = []; // from server state
+  let currentDealerSeat = -1;
 
-  /* -------------------- DevBot hard-lock -------------------- */
-  const DEVBTN_ID = 'wi-devbot';
+  /* -------------------- helpers -------------------- */
+  const sleep = (ms)=> new Promise(r=>setTimeout(r,ms));
+  function toDeck(el){ const p=G.deck; el.style.left=p.x+'px'; el.style.top=p.y+'px'; }
+  function flyTo(el, x,y, t=380){ el.style.transitionDuration = (t|0)+'ms'; el.style.left=x+'px'; el.style.top=y+'px'; }
+  function seatCenter(i){ if(!G || !G.seats[i]) computeGeom(); return G.seats[i]||{x:G.deck.x, y:G.deck.y}; }
+  function isMe(addr){ return addr && myAddrLower && addr.toLowerCase()===myAddrLower; }
+  function markTurn(seatIdx){
+    qa('.seat').forEach(n=>n.classList.remove('pkr-turn'));
+    const s = qa('.seat')[seatIdx]; if (s) s.classList.add('pkr-turn');
+  }
+  function clearTurn(){ qa('.seat').forEach(n=>n.classList.remove('pkr-turn')); }
 
-  // Remove any DevBot button(s) immediately
-  function nukeDevBot() {
+  /* Keep card DOMs per seat */
+  const seatCards = new Map(); // seatIdx -> [cardEls]
+  function clearSeatCards(){
+    for (const arr of seatCards.values()){ arr.forEach(n=>n.remove()); }
+    seatCards.clear();
+  }
+  function clearBoardCards(){
+    qa('.pkr-card.board').forEach(n=>n.remove());
+  }
+
+  /* -------------------- animations -------------------- */
+  async function animateDeal(st){
+    if (dealt) return;
+    dealt = true;
+    clearSeatCards(); clearBoardCards(); positionBoardHolders();
+    lastBoardLen = 0;
+
+    // Build dealing order from server actors array (already in order of action)
+    const order = (st.actors||[]).map(a => a.seatId).filter(i => Number.isInteger(i));
+    // Two rounds
+    for (let round=0; round<2; round++){
+      for (const seatIdx of order){
+        const p = seatCenter(seatIdx);
+        const opp = makeCard(null, true);
+        opp.style.opacity = '0';
+        layer.appendChild(opp);
+        toDeck(opp);
+        await sleep(12);
+        opp.style.opacity = '1';
+        flyTo(opp, p.x, p.y, 360);
+        if (!seatCards.has(seatIdx)) seatCards.set(seatIdx, []);
+        seatCards.get(seatIdx).push(opp);
+        await sleep(50);
+      }
+      await sleep(180);
+    }
+  }
+
+  async function animateBurn(){
+    const c = makeCard(null,true);
+    c.style.opacity='0'; layer.appendChild(c);
+    toDeck(c);
+    await sleep(10);
+    c.style.opacity='1';
+    flyTo(c, G.burn.x, G.burn.y, 220);
+    await sleep(240);
+    c.style.opacity='0';
+    await sleep(120);
+    c.remove();
+  }
+
+  async function animateFlop(codes){
+    // Expect 3 codes
+    for (let i=0;i<3;i++){
+      const el = makeCard(codes[i], true); // fly face-down then flip-up
+      el.classList.add('board'); el.style.opacity='0'; layer.appendChild(el);
+      toDeck(el);
+      await sleep(10);
+      el.style.opacity='1';
+      const p = G.board[i];
+      flyTo(el, p.x, p.y, 320);
+      await sleep(340);
+      // flip up
+      el.style.transform += ' scaleX(0.01)';
+      await sleep(90);
+      setFaceUp(el, codes[i]);
+      el.style.transform = el.style.transform.replace(' scaleX(0.01)','');
+      await sleep(60);
+    }
+    lastBoardLen = 3;
+  }
+
+  async function animateTurnOrRiver(code, idx){
+    const el = makeCard(code, true);
+    el.classList.add('board'); el.style.opacity='0'; layer.appendChild(el);
+    toDeck(el);
+    await sleep(10);
+    el.style.opacity='1';
+    const p = G.board[idx];
+    flyTo(el, p.x, p.y, 320);
+    await sleep(340);
+    el.style.transform += ' scaleX(0.01)';
+    await sleep(90);
+    setFaceUp(el, code);
+    el.style.transform = el.style.transform.replace(' scaleX(0.01)','');
+    await sleep(60);
+    lastBoardLen = idx+1;
+  }
+
+  function showMyHole(cards){
+    // Replace my two (if dealt facedown) with face-up at my seat
+    if (mySeat<0) return;
+    const arr = seatCards.get(mySeat) || [];
+    for (let i=0;i<Math.min(2,arr.length);i++){
+      setFaceUp(arr[i], cards[i]);
+      arr[i].classList.remove('dim');
+    }
+  }
+
+  /* -------------------- sockets -------------------- */
+  async function main(){
+    // resolve my wallet address from tavern globals
     try {
-      const btns = Array.from(document.querySelectorAll(`#${CSS.escape(DEVBTN_ID)}`));
-      btns.forEach(b => b.remove());
+      if (window.Tavern?.wallet?.address){ myAddrLower = String(window.Tavern.wallet.address).toLowerCase(); }
     } catch {}
-  }
+    const qp = new URL(location.href).searchParams;
+    tableId = qp.get('table') || 'poker-nl-1';
 
-  // Hide DevBot button if it exists (for F2P we may show/hide by state)
-  function hideDevBot() {
-    const b = document.getElementById(DEVBTN_ID);
-    if (b) b.style.display = 'none';
-  }
+    const io = await ioReady();
+    socket = io({ path: '/socket.io/' });
 
-  // Only show DevBot on F2P when solo (exactly one occupied seat and it's me)
-  function f2pMaybeShowDevBot(seats, myAddr) {
-    const b = document.getElementById(DEVBTN_ID);
-    if (!b) return; // may have been removed on on-chain
-    const arr = Array.isArray(seats) ? seats : [];
-    const occupied = arr.filter(Boolean).length;
-    const meSeated = arr.some(s => s && s.addr && lc(s.addr) === lc(myAddr));
-    const show = !!myAddr && meSeated && occupied === 1;
-    b.style.display = show ? '' : 'none';
-  }
+    socket.on('connect', ()=>{
+      socket.emit('identify', { addr: myAddrLower||'-' });
+      socket.emit('join_table', { table: tableId });
+    });
 
-  // If on-chain, remove and keep removing via MutationObserver
-  if (IS_ONCHAIN) {
-    nukeDevBot();
-    // Mutation observer: kill any resurrection attempts
-    const mo = new MutationObserver((muts) => {
-      let found = false;
-      for (const m of muts) {
-        if (m.type === 'childList') {
-          // new nodes
-          for (const n of m.addedNodes || []) {
-            if (n.nodeType === 1) {
-              if (n.id === DEVBTN_ID || n.querySelector?.(`#${DEVBTN_ID}`)) { found = true; break; }
+    socket.on('system', (m)=>{ /* optional log */ });
+
+    // Whole-table snapshots
+    socket.on('table:update', (t)=>{
+      // find my seat index
+      mySeat = -1;
+      (t.seats||[]).forEach((s,idx)=>{ if (s && s.addr && isMe(s.addr)) mySeat = idx; });
+    });
+
+    // Live poker state (stage & turn)
+    socket.on('poker:state', async (st)=>{
+      currentActors = st.actors||[];
+      currentDealerSeat = st.dealerSeatId ?? -1;
+      markTurn(st.turnSeatId ?? st.actors?.[st.turnIndex||0]?.seatId ?? -1);
+
+      // Start of hand → deal everyone
+      if (st.stage === 'preflop' && !dealt) {
+        await animateDeal(st);
+      }
+
+      // Stage transitions
+      if (st.stage === 'flop' && lastBoardLen < 3 && (st.community||[]).length>=3){
+        await animateBurn();
+        await animateFlop(st.community.slice(0,3));
+      } else if (st.stage === 'turn' && (st.community||[]).length>=4 && lastBoardLen < 4){
+        await animateBurn();
+        await animateTurnOrRiver(st.community[3], 3);
+      } else if (st.stage === 'river' && (st.community||[]).length>=5 && lastBoardLen < 5){
+        await animateBurn();
+        await animateTurnOrRiver(st.community[4], 4);
+      }
+
+      lastStage = st.stage;
+    });
+
+    // Private hole cards (only to me)
+    socket.on('poker:hole', (payload)=>{
+      // payload could be { cards:['As','Kd'], seatId: mySeat }
+      const cards = Array.isArray(payload) ? payload : (payload?.cards||[]);
+      showMyHole(cards);
+    });
+
+    // Showdown & cleanup
+    socket.on('poker:hand', (h)=>{
+      clearTurn();
+      // Optionally reveal exposures (if server sent them)
+      if (h?.exposures){
+        for (const ex of h.exposures){
+          const seatIdx = ex.seatId ?? (currentActors.find(a=>a.addr===ex.addr)?.seatId);
+          if (Number.isInteger(seatIdx)) {
+            const arr = seatCards.get(seatIdx) || [];
+            for (let i=0;i<Math.min(2,arr.length);i++){
+              setFaceUp(arr[i], ex.cards[i]);
             }
           }
-        } else if (m.type === 'attributes' && m.target && m.target.id === DEVBTN_ID) {
-          found = true; break;
         }
-        if (found) break;
       }
-      if (found) nukeDevBot();
-    });
-    try {
-      mo.observe(document.documentElement, { childList: true, subtree: true, attributes: true });
-    } catch {}
-  }
-
-  /* -------------------- layout seats on an outer ellipse -------------------- */
-  function layoutSeats() {
-    if (!canvas || !surface) return;
-
-    const c = canvas.getBoundingClientRect();
-    const s = surface.getBoundingClientRect();
-
-    const rail = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--rail-thickness')) || 70;
-    const gap  = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--seat-gap')) || 18;
-
-    const rx = (s.width / 2) + rail / 2 + gap;
-    const ry = (s.height / 2) + rail / 2 + gap;
-
-    const probe = seatEls[0];
-    const sw = (probe && probe.offsetWidth)  || 150;
-    const sh = (probe && probe.offsetHeight) || 160;
-
-    const base = [60, 15, -20, -60, -120, -165, 160, 120]; // degrees
-
-    seatEls.forEach((el, i) => {
-      const deg = base[i % base.length];
-      const rad = (deg * Math.PI) / 180;
-      const cx = c.width / 2;
-      const cy = c.height / 2;
-
-      const x = cx + rx * Math.cos(rad);
-      const y = cy - ry * Math.sin(rad);
-
-      el.style.left = Math.round(x - sw / 2) + 'px';
-      el.style.top  = Math.round(y - sh / 2) + 'px';
+      // Reset for next hand after a short pause
+      setTimeout(()=>{
+        dealt=false; lastBoardLen=0; clearSeatCards(); clearBoardCards(); positionBoardHolders();
+      }, 2500);
     });
   }
 
-  /* -------------------- center banner -------------------- */
-  function showCenter(msg, ms = 1200) {
-    if (!centerEl) return;
-    centerEl.textContent = msg;
-    centerEl.style.display = 'block';
-    if (ms > 0) setTimeout(() => { centerEl.style.display = 'none'; }, ms);
-  }
-
-  /* -------------------- socket (no auto-sim) -------------------- */
-  let socket, tableId, myAddr = (localStorage.getItem('walletAddress') || sessionStorage.getItem('walletAddress') || '').toLowerCase();
-  let mySeat = -1;
-  let state  = null;
-
-  function initSocket() {
-    try {
-      socket = io(window.location.origin, { path: '/poker.io/', transports: ['websocket', 'polling'] });
-    } catch (e) {
-      showCenter('Socket unavailable', 1500);
-      return;
-    }
-
-    socket.on('connect', () => {
-      try {
-        const u = new URL(location.href);
-        tableId = u.searchParams.get('table');
-        if (myAddr) socket.emit('identify', { addr: myAddr });
-        socket.emit('join_table', { table: tableId });
-        socket.emit('lobby:get');
-      } catch { }
-    });
-
-    socket.on('disconnect', () => { showCenter('Disconnected', 800); });
-
-    // authoritative state
-    socket.on('poker:state', (m) => {
-      state = m || null;
-      renderTableModel(m?.table || null);
-      updateActionBar();
-    });
-
-    socket.on('table:update', (t) => renderTableModel(t));
-    socket.on('poker:hole', () => { updateActionBar(); });
-    socket.on('poker:hand', () => { updateActionBar(); });
-    socket.on('table:reset', () => { updateActionBar(); });
-  }
-
-  /* -------------------- render seats / controls shell -------------------- */
-  function renderTableModel(t) {
-    if (!t) return;
-    const seats = Array.isArray(t.seats) ? t.seats : [];
-    mySeat = -1;
-
-    seatEls.forEach((el, i) => {
-      const s = seats[i];
-      el.innerHTML = '';
-
-      const head = document.createElement('div');
-      head.className = 'addr';
-      head.textContent = s ? short(s.addr || ('Seat ' + i)) : 'Empty';
-      el.appendChild(head);
-
-      const btns = document.createElement('div');
-      btns.className = 'btns';
-
-      if (s) {
-        if (myAddr && s.addr && lc(s.addr) === lc(myAddr)) {
-          mySeat = i;
-
-          const bLeave = document.createElement('button');
-          bLeave.textContent = 'Leave';
-          bLeave.onclick = () => socket?.emit('seat', { index: -1 });
-          btns.appendChild(bLeave);
-
-          const bReady = document.createElement('button');
-          bReady.textContent = s.ready ? 'Unready' : 'Ready';
-          bReady.onclick = () => socket?.emit('ready', { ready: !s.ready });
-          btns.appendChild(bReady);
-        }
-      } else {
-        const bSit = document.createElement('button');
-        bSit.textContent = 'Sit';
-        if (!myAddr) bSit.disabled = true;
-        bSit.onclick = () => socket?.emit('seat', { index: i });
-        btns.appendChild(bSit);
-      }
-
-      el.appendChild(btns);
-    });
-
-    layoutSeats();
-
-    // DevBot visibility:
-    if (IS_ONCHAIN) {
-      nukeDevBot();        // stay gone even if table state changes
-    } else {
-      f2pMaybeShowDevBot(seats, myAddr);
-    }
-  }
-
-  /* -------------------- action bar (under my seat) -------------------- */
-  let actionBarEl = null;
-  function updateActionBar() {
-    if (mySeat < 0 || !state || !Array.isArray(state.actors)) {
-      if (actionBarEl) { actionBarEl.remove(); actionBarEl = null; }
-      return;
-    }
-
-    const idx = state.turnIndex | 0;
-    const actor = state.actors[idx];
-    if (!actor || actor.seatId !== mySeat || actor.folded) {
-      if (actionBarEl) { actionBarEl.remove(); actionBarEl = null; }
-      return;
-    }
-
-    if (!actionBarEl) {
-      actionBarEl = document.createElement('div');
-      actionBarEl.className = 'action-bar';
-      canvas.appendChild(actionBarEl);
-    }
-
-    // anchor just below my seat
-    const me = seatEls[mySeat];
-    const r = me.getBoundingClientRect();
-    const c = canvas.getBoundingClientRect();
-    actionBarEl.style.left = (r.left - c.left + r.width / 2) + 'px';
-    actionBarEl.style.top  = (r.top - c.top + r.height + 8) + 'px';
-
-    const need = Math.max(0, Number(state.toCall || 0) - Number(actor.contrib || 0));
-    actionBarEl.innerHTML = '';
-
-    const bFold = document.createElement('button');
-    bFold.textContent = 'Fold';
-    bFold.onclick = () => socket?.emit('poker:act', { action: 'fold' });
-    actionBarEl.appendChild(bFold);
-
-    const bCC = document.createElement('button');
-    bCC.textContent = need > 0 ? `Call ${need}` : 'Check';
-    bCC.onclick = () => socket?.emit('poker:act', { action: (need > 0 ? 'call' : 'check') });
-    actionBarEl.appendChild(bCC);
-
-    const raiseAmt = need + Number(state.bigBlind || 0);
-    const bRaise = document.createElement('button');
-    bRaise.textContent = `Raise ${raiseAmt}`;
-    bRaise.onclick = () => socket?.emit('poker:act', { action: 'raise', amount: raiseAmt });
-    actionBarEl.appendChild(bRaise);
-  }
-
-  /* -------------------- wallet sync -------------------- */
-  function setKnownAddress(addr) {
-    myAddr = lc(addr || '');
-    try {
-      if (myAddr) {
-        localStorage.setItem('walletConnected', 'true');
-        localStorage.setItem('walletAddress', myAddr);
-        sessionStorage.setItem('walletConnected', 'true');
-        sessionStorage.setItem('walletAddress', myAddr);
-        const wi = $('#wi-address'); if (wi) wi.textContent = short(myAddr);
-        const disc = $('#wi-disconnect'); if (disc) disc.style.display = '';
-      }
-    } catch { }
-    try { if (socket?.connected && myAddr) socket.emit('identify', { addr: myAddr }); } catch { }
-  }
-
-  window.addEventListener('wallet:connected', (e) => {
-    const a = e?.detail?.address || e?.detail?.addr;
-    if (a) setKnownAddress(a);
-  });
-
-  const disc = $('#wi-disconnect');
-  if (disc) disc.onclick = () => {
-    try {
-      localStorage.removeItem('walletConnected');
-      sessionStorage.removeItem('walletConnected');
-    } catch {}
-    location.replace('/landing.html');
-  };
-
-  // Safe DevBot click handler (F2P only)
-  (function attachDevBotHandler(){
-    if (IS_ONCHAIN) return;
-    const b = document.getElementById(DEVBTN_ID);
-    if (!b) return;
-    b.addEventListener('click', () => {
-      try { socket?.emit('devbot:toggle'); } catch {}
-    });
-  })();
-
-  /* -------------------- boot -------------------- */
-  window.addEventListener('resize', () => requestAnimationFrame(layoutSeats));
-  requestAnimationFrame(layoutSeats);
-  window.addEventListener('load', () => {
-    layoutSeats();
-    setTimeout(layoutSeats, 50);
-    setTimeout(layoutSeats, 300);
-    // Just in case someone injected it before our JS ran:
-    if (IS_ONCHAIN) nukeDevBot(); else hideDevBot();
-  });
-
-  initSocket();
-
-  if (myAddr) setKnownAddress(myAddr);
+  main().catch(console.error);
 })();

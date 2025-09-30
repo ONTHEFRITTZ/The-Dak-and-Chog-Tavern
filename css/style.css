@@ -433,3 +433,37 @@ body.game [class^="aa-"] {
 /* Kept to ensure any residual markup doesn't shift layout.
    JS still queries '.top-banner .banner-right' as a mount point. */
 .top-banner { display: none !important; }
+/* ====== Poker cards (CHOG deck) ====== */
+.table-canvas { position: relative; }
+
+.pkr-layer { position:absolute; inset:0; pointer-events:none; z-index: 4; }
+.pkr-card {
+  position:absolute;
+  width: clamp(46px, 6vw, 80px);
+  aspect-ratio: 63 / 88;
+  border-radius: 8px;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.5);
+  background-size: cover;
+  background-position: center center;
+  backface-visibility: hidden;
+  transform: translate(-50%, -50%) scale(1);
+  transition: transform .38s ease, opacity .25s ease, filter .25s ease;
+}
+.pkr-card.face-down {
+  background-image:url('/assets/images/chog_cards/dak-and-chog-cardback.png');
+}
+.pkr-card.dim { filter: brightness(.8) saturate(.9); }
+.pkr-deck, .pkr-burn, .pkr-board { position:absolute; inset:0; pointer-events:none; z-index:3; }
+.pkr-board-slot {
+  position:absolute;
+  width: clamp(46px, 6vw, 80px);
+  aspect-ratio: 63 / 88;
+  border-radius: 8px;
+  background: rgba(0,0,0,0.25);
+  border:1px solid rgba(255,255,255,0.1);
+  transform: translate(-50%, -50%);
+}
+.pkr-turn {
+  outline: 3px solid rgba(146,0,250,.9);
+  box-shadow: 0 0 28px rgba(146,0,250,.45);
+}
