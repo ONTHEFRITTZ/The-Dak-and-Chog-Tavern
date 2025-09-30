@@ -433,7 +433,7 @@ body.game [class^="aa-"] {
 /* Kept to ensure any residual markup doesn't shift layout.
    JS still queries '.top-banner .banner-right' as a mount point. */
 .top-banner { display: none !important; }
-/* ====== Poker cards (CHOG deck) ====== */
+/* ====== Poker cards (CHOG deck overlay) ====== */
 .table-canvas { position: relative; }
 
 .pkr-layer { position:absolute; inset:0; pointer-events:none; z-index: 4; }
@@ -453,6 +453,7 @@ body.game [class^="aa-"] {
   background-image:url('/assets/images/chog_cards/dak-and-chog-cardback.png');
 }
 .pkr-card.dim { filter: brightness(.8) saturate(.9); }
+
 .pkr-deck, .pkr-burn, .pkr-board { position:absolute; inset:0; pointer-events:none; z-index:3; }
 .pkr-board-slot {
   position:absolute;
@@ -463,7 +464,10 @@ body.game [class^="aa-"] {
   border:1px solid rgba(255,255,255,0.1);
   transform: translate(-50%, -50%);
 }
-.pkr-turn {
+
+/* highlight for current turn without breaking your existing seat styles */
+.seat.pkr-turn {
   outline: 3px solid rgba(146,0,250,.9);
   box-shadow: 0 0 28px rgba(146,0,250,.45);
 }
+
