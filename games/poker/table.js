@@ -1,15 +1,14 @@
-// table.js — seat ellipse, sponsored pill gating, bottom-center toasts,
-// and DevBot toggle that appears ONLY on F2P solo tables.
+// table.js — locks DevBot to F2P-solo only; impossible to appear on on-chain
 
 (function () {
   /* -------------------- utils -------------------- */
   const htmlMode = (document.documentElement.getAttribute('data-table-mode') || '').toLowerCase();
   const IS_ONCHAIN = htmlMode === 'onchain';
 
-  const $ = (q, r = document) => r.querySelector(q);
-  const $$ = (q, r = document) => Array.from(r.querySelectorAll(q));
-  const short = (a) => a && a.length > 10 ? (a.slice(0, 6) + '...' + a.slice(-4)) : (a || '');
-  const lc = (s) => (s || '').toLowerCase();
+  function $(q, r = document) { return r.querySelector(q); }
+  function $all(q, r = document) { return Array.from(r.querySelectorAll(q)); }
+  function short(a) { return a && a.length > 10 ? (a.slice(0, 6) + '...' + a.slice(-4)) : (a || ''); }
+  function lc(s) { return (s || '').toLowerCase(); }
 
   /* -------------------- toasts (bottom-center) -------------------- */
   (function ensureToastRoot () {
@@ -29,36 +28,82 @@
   }
 
   /* -------------------- DOM refs -------------------- */
-  const canvas = $('.table-canvas');
-  const surface = $('.table-surface');
+  const canvas   = $('.table-canvas');
+  const surface  = $('.table-surface');
   const centerEl = $('#poker-center');
-  const seatEls = $$('.seat');
+  const seatEls  = $all('.seat');
 
-  // wallet chip UI
-  const wiAddr = $('#wi-address');
-  const wiDisc = $('#wi-disconnect');
-  const wiDevBot = $('#wi-devbot');
+  /* -------------------- DevBot hard-lock -------------------- */
+  const DEVBTN_ID = 'wi-devbot';
+
+  // Remove any DevBot button(s) immediately
+  function nukeDevBot() {
+    try {
+      const btns = Array.from(document.querySelectorAll(`#${CSS.escape(DEVBTN_ID)}`));
+      btns.forEach(b => b.remove());
+    } catch {}
+  }
+
+  // Hide DevBot button if it exists (for F2P we may show/hide by state)
+  function hideDevBot() {
+    const b = document.getElementById(DEVBTN_ID);
+    if (b) b.style.display = 'none';
+  }
+
+  // Only show DevBot on F2P when solo (exactly one occupied seat and it's me)
+  function f2pMaybeShowDevBot(seats, myAddr) {
+    const b = document.getElementById(DEVBTN_ID);
+    if (!b) return; // may have been removed on on-chain
+    const arr = Array.isArray(seats) ? seats : [];
+    const occupied = arr.filter(Boolean).length;
+    const meSeated = arr.some(s => s && s.addr && lc(s.addr) === lc(myAddr));
+    const show = !!myAddr && meSeated && occupied === 1;
+    b.style.display = show ? '' : 'none';
+  }
+
+  // If on-chain, remove and keep removing via MutationObserver
+  if (IS_ONCHAIN) {
+    nukeDevBot();
+    // Mutation observer: kill any resurrection attempts
+    const mo = new MutationObserver((muts) => {
+      let found = false;
+      for (const m of muts) {
+        if (m.type === 'childList') {
+          // new nodes
+          for (const n of m.addedNodes || []) {
+            if (n.nodeType === 1) {
+              if (n.id === DEVBTN_ID || n.querySelector?.(`#${DEVBTN_ID}`)) { found = true; break; }
+            }
+          }
+        } else if (m.type === 'attributes' && m.target && m.target.id === DEVBTN_ID) {
+          found = true; break;
+        }
+        if (found) break;
+      }
+      if (found) nukeDevBot();
+    });
+    try {
+      mo.observe(document.documentElement, { childList: true, subtree: true, attributes: true });
+    } catch {}
+  }
 
   /* -------------------- layout seats on an outer ellipse -------------------- */
   function layoutSeats() {
-    if (!canvas || !surface || seatEls.length === 0) return;
+    if (!canvas || !surface) return;
 
     const c = canvas.getBoundingClientRect();
     const s = surface.getBoundingClientRect();
 
-    // ellipse that follows the *outside* of the leather rail
-    const rail = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--rail-thickness')) || 78;
-    const gap = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--seat-gap')) || 16;
+    const rail = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--rail-thickness')) || 70;
+    const gap  = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--seat-gap')) || 18;
 
-    const rx = (s.width / 2) + rail / 2 + gap;   // slightly outside the image edge
+    const rx = (s.width / 2) + rail / 2 + gap;
     const ry = (s.height / 2) + rail / 2 + gap;
 
-    // seat size for centering
     const probe = seatEls[0];
-    const sw = (probe && probe.offsetWidth) || 150;
+    const sw = (probe && probe.offsetWidth)  || 150;
     const sh = (probe && probe.offsetHeight) || 160;
 
-    // angles are tuned to align with mugs on poker-table.png art
     const base = [60, 15, -20, -60, -120, -165, 160, 120]; // degrees
 
     seatEls.forEach((el, i) => {
@@ -68,10 +113,10 @@
       const cy = c.height / 2;
 
       const x = cx + rx * Math.cos(rad);
-      const y = cy - ry * Math.sin(rad); // screen Y inverted
+      const y = cy - ry * Math.sin(rad);
 
       el.style.left = Math.round(x - sw / 2) + 'px';
-      el.style.top = Math.round(y - sh / 2) + 'px';
+      el.style.top  = Math.round(y - sh / 2) + 'px';
     });
   }
 
@@ -84,13 +129,9 @@
   }
 
   /* -------------------- socket (no auto-sim) -------------------- */
-  let socket, tableId;
-  let myAddr = (localStorage.getItem('walletAddress') || sessionStorage.getItem('walletAddress') || '').toLowerCase();
+  let socket, tableId, myAddr = (localStorage.getItem('walletAddress') || sessionStorage.getItem('walletAddress') || '').toLowerCase();
   let mySeat = -1;
-  let state = null;
-
-  // DevBot local state (F2P only)
-  let devBotEnabled = false;
+  let state  = null;
 
   function initSocket() {
     try {
@@ -107,37 +148,22 @@
         if (myAddr) socket.emit('identify', { addr: myAddr });
         socket.emit('join_table', { table: tableId });
         socket.emit('lobby:get');
-        // Ask backend for current devbot state (harmless if not implemented)
-        if (!IS_ONCHAIN) socket.emit('devbot:status', { table: tableId });
       } catch { }
     });
 
     socket.on('disconnect', () => { showCenter('Disconnected', 800); });
 
-    // authoritative state—no auto-advance/simulation anywhere
+    // authoritative state
     socket.on('poker:state', (m) => {
       state = m || null;
       renderTableModel(m?.table || null);
       updateActionBar();
-      updateDevBotVisibility(m?.table || null);
     });
 
-    socket.on('table:update', (t) => {
-      renderTableModel(t);
-      updateDevBotVisibility(t);
-    });
-
-    // optional devbot state echoes (if server supports)
-    socket.on('devbot:state', (p) => {
-      if (typeof p?.enabled === 'boolean') {
-        devBotEnabled = !!p.enabled;
-        syncDevBotButton();
-      }
-    });
-
-    socket.on('poker:hole', () => updateActionBar());
-    socket.on('poker:hand', () => updateActionBar());
-    socket.on('table:reset', () => updateActionBar());
+    socket.on('table:update', (t) => renderTableModel(t));
+    socket.on('poker:hole', () => { updateActionBar(); });
+    socket.on('poker:hand', () => { updateActionBar(); });
+    socket.on('table:reset', () => { updateActionBar(); });
   }
 
   /* -------------------- render seats / controls shell -------------------- */
@@ -184,6 +210,13 @@
     });
 
     layoutSeats();
+
+    // DevBot visibility:
+    if (IS_ONCHAIN) {
+      nukeDevBot();        // stay gone even if table state changes
+    } else {
+      f2pMaybeShowDevBot(seats, myAddr);
+    }
   }
 
   /* -------------------- action bar (under my seat) -------------------- */
@@ -212,7 +245,7 @@
     const r = me.getBoundingClientRect();
     const c = canvas.getBoundingClientRect();
     actionBarEl.style.left = (r.left - c.left + r.width / 2) + 'px';
-    actionBarEl.style.top = (r.top - c.top + r.height + 8) + 'px';
+    actionBarEl.style.top  = (r.top - c.top + r.height + 8) + 'px';
 
     const need = Math.max(0, Number(state.toCall || 0) - Number(actor.contrib || 0));
     actionBarEl.innerHTML = '';
@@ -234,43 +267,6 @@
     actionBarEl.appendChild(bRaise);
   }
 
-  /* -------------------- DevBot (F2P solo only) -------------------- */
-  function countOtherHumans(table) {
-    if (!table || !Array.isArray(table.seats)) return 0;
-    return table.seats.filter(s =>
-      s && s.addr && lc(s.addr) !== lc(myAddr) && !String(s.addr).toLowerCase().includes('bot')
-    ).length;
-  }
-
-  function updateDevBotVisibility(table) {
-    if (!wiDevBot) return;
-    // Show only when: F2P, I'm seated, and there are NO other humans.
-    const others = countOtherHumans(table);
-    const shouldShow = !IS_ONCHAIN && mySeat >= 0 && others === 0;
-    wiDevBot.style.display = shouldShow ? '' : 'none';
-  }
-
-  function syncDevBotButton() {
-    if (!wiDevBot) return;
-    wiDevBot.textContent = devBotEnabled ? 'Disable DevBot' : 'Enable DevBot';
-    wiDevBot.title = 'F2P solo only';
-  }
-
-  if (wiDevBot) {
-    wiDevBot.addEventListener('click', () => {
-      if (IS_ONCHAIN) return; // guard, though button won’t show on on-chain
-      const next = !devBotEnabled;
-      devBotEnabled = next;
-      syncDevBotButton();
-      try {
-        socket?.emit('devbot:toggle', { table: tableId, enable: next });
-        toast(next ? 'DevBot enabled' : 'DevBot disabled');
-      } catch {
-        toast('DevBot toggle failed', { error: true });
-      }
-    });
-  }
-
   /* -------------------- wallet sync -------------------- */
   function setKnownAddress(addr) {
     myAddr = lc(addr || '');
@@ -280,8 +276,8 @@
         localStorage.setItem('walletAddress', myAddr);
         sessionStorage.setItem('walletConnected', 'true');
         sessionStorage.setItem('walletAddress', myAddr);
-        wiAddr.textContent = short(myAddr);
-        wiDisc.style.display = '';
+        const wi = $('#wi-address'); if (wi) wi.textContent = short(myAddr);
+        const disc = $('#wi-disconnect'); if (disc) disc.style.display = '';
       }
     } catch { }
     try { if (socket?.connected && myAddr) socket.emit('identify', { addr: myAddr }); } catch { }
@@ -292,16 +288,37 @@
     if (a) setKnownAddress(a);
   });
 
-  if (wiDisc) wiDisc.onclick = () => {
-    try { localStorage.removeItem('walletConnected'); sessionStorage.removeItem('walletConnected'); } catch { }
+  const disc = $('#wi-disconnect');
+  if (disc) disc.onclick = () => {
+    try {
+      localStorage.removeItem('walletConnected');
+      sessionStorage.removeItem('walletConnected');
+    } catch {}
     location.replace('/landing.html');
   };
+
+  // Safe DevBot click handler (F2P only)
+  (function attachDevBotHandler(){
+    if (IS_ONCHAIN) return;
+    const b = document.getElementById(DEVBTN_ID);
+    if (!b) return;
+    b.addEventListener('click', () => {
+      try { socket?.emit('devbot:toggle'); } catch {}
+    });
+  })();
 
   /* -------------------- boot -------------------- */
   window.addEventListener('resize', () => requestAnimationFrame(layoutSeats));
   requestAnimationFrame(layoutSeats);
-  window.addEventListener('load', () => { layoutSeats(); setTimeout(layoutSeats, 50); setTimeout(layoutSeats, 300); });
+  window.addEventListener('load', () => {
+    layoutSeats();
+    setTimeout(layoutSeats, 50);
+    setTimeout(layoutSeats, 300);
+    // Just in case someone injected it before our JS ran:
+    if (IS_ONCHAIN) nukeDevBot(); else hideDevBot();
+  });
 
   initSocket();
+
   if (myAddr) setKnownAddress(myAddr);
 })();

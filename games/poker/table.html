@@ -7,6 +7,11 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <title>Poker Table</title>
+  <style>
+  /* Never show DevBot on on-chain tables */
+  :root[data-table-mode="onchain"] #wi-devbot { display:none !important; }
+  </style>
+
 
   <!-- Inline provider-pin (avoid 404s / HTML-as-JS issues) -->
   <script>
