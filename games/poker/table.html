@@ -16,7 +16,10 @@
     (function () {
       try {
         const qp = new URL(location.href).searchParams;
-        const tag = (qp.get('mode') || '').toLowerCase() === 'onchain' ? 'onchain' : 'f2p';
+        const path = location.pathname.toLowerCase();
+        const hintOnchain = /\/(limit|nolimit|onchain)\b/.test(path); // robust path hint
+        const qMode = (qp.get('mode') || '').toLowerCase();
+        const tag = (qMode === 'onchain') ? 'onchain' : (qMode === 'f2p' ? 'f2p' : (hintOnchain ? 'onchain' : 'f2p'));
         document.documentElement.setAttribute('data-table-mode', tag);
         if (tag === 'onchain') {
           const im = document.createElement('script');
@@ -85,17 +88,20 @@
     })();
   </script>
 
-  <!-- Kill any standalone network banner that might overlap/push layout -->
+  <!-- Safety: never let any standalone network banner push layout on this page -->
   <style>
     #network-banner { display:none !important; }
+    /* Absolute kill switch: DevBot shouldn't appear on on-chain even if added */
+    html[data-table-mode="onchain"] #wi-devbot { display:none !important; }
   </style>
 </head>
 
 <body class="game">
-  <!-- Top-right wallet chip (only thing up top). DevBot button is F2P-only -->
+  <!-- Top-right wallet chip (only thing up top) -->
   <div id="wallet-inline" style="position:fixed; top:12px; right:12px; z-index:12000; display:flex; align-items:center; gap:8px; background: var(--panel-bg-soft); border:1px solid rgba(255,255,255,0.12); border-radius:12px; padding:6px 10px; color:#f4e6d3;">
     <span id="wi-label" style="font-weight:700;">Wallet:</span>
     <span id="wi-address">-</span>
+    <!-- DevBot button is injected dynamically for F2P-only (never on on-chain) -->
     <button id="wi-disconnect" style="display:none">Disconnect</button>
   </div>
 
@@ -145,19 +151,34 @@
     if (document.documentElement.getAttribute('data-table-mode') === 'onchain') {
       import('../../js/agent-ops.js').catch(() => { });
       import('../../js/agent-sponsor-indicator.js').catch(() => { });
-      // (agent-budget merged into ops or omit to avoid 404)
+      // import('../../js/agent-budget.js').catch(() => { }); // include only if present
     }
   </script>
 
-  <!-- DevBot (F2P-only): create button only on F2P, hide when another player joins -->
+  <!-- DevBot (F2P-only) with robust on-chain detection -->
   <script>
     (function () {
-      const mode = (document.documentElement.getAttribute('data-table-mode') || 'f2p').toLowerCase();
-      if (mode !== 'f2p') return; // never on on-chain
+      function isOnchain() {
+        try {
+          const attr = (document.documentElement.getAttribute('data-table-mode') || '').toLowerCase();
+          if (attr === 'onchain') return true;
+          const qMode = (new URL(location.href)).searchParams.get('mode');
+          if ((qMode || '').toLowerCase() === 'onchain') return true;
+          // Importmap presence with AA libs is a strong signal of on-chain mode
+          const hasAAImportmap = Array.from(document.querySelectorAll('script[type="importmap"]'))
+            .some(s => (s.textContent || s.text || '').includes('@zerodev/sdk'));
+          if (hasAAImportmap) return true;
+          // Heuristic path hint (limit/nolimit)
+          if (/\/(limit|nolimit)\b/i.test(location.pathname)) return true;
+        } catch {}
+        return false;
+      }
+      if (isOnchain()) return; // hard stop: never show devbot on on-chain
 
       const walletBar = document.getElementById('wallet-inline');
       if (!walletBar) return;
 
+      // Create DevBot button next to Disconnect
       const devBtn = document.createElement('button');
       devBtn.id = 'wi-devbot';
       devBtn.title = 'F2P solo only';
@@ -205,7 +226,7 @@
     })();
   </script>
 
-  <!-- Sidebar pills: network + contract address INSIDE the sidebar footer -->
+  <!-- Sidebar pills: network + contract address INSIDE the sidebar footer (bottom of nav) -->
   <script>
     (function () {
       const CHAIN_ID = 10143;
@@ -214,7 +235,6 @@
       function short(addr) {
         return (addr && addr.length > 10) ? (addr.slice(0, 6) + '...' + addr.slice(-4)) : (addr || '');
       }
-
       async function getPokerTableAddress() {
         try {
           if (typeof window.getAddressFor === 'function') {
@@ -225,59 +245,49 @@
         try { return (window.CONTRACTS && window.CONTRACTS.pokerTable) || null; } catch {}
         return null;
       }
-
-      function ensurePill(text, href, cls) {
-        const pill = document.createElement('span');
-        pill.className = 'pill ' + (cls || '');
+      function pill(text, href, extraCls) {
+        const el = document.createElement('span');
+        el.className = 'pill ' + (extraCls || '');
         if (href) {
           const a = document.createElement('a');
           a.href = href; a.target = '_blank'; a.rel = 'noopener';
           a.textContent = text;
-          pill.appendChild(a);
+          el.appendChild(a);
         } else {
-          pill.textContent = text;
+          el.textContent = text;
         }
-        return pill;
+        return el;
       }
-
-      function removeStrayNetworkBanner() {
-        const nb = document.getElementById('network-banner');
-        if (nb) nb.remove();
-      }
-
-      async function mount() {
-        // Wait for sidebar footer to exist (sidebar.js loads async)
-        const ready = () => document.querySelector('.sidebar .sidebar-footer');
-        if (!ready()) {
-          const mo = new MutationObserver(() => {
-            if (ready()) { mo.disconnect(); mount(); }
-          });
-          mo.observe(document.documentElement, { childList: true, subtree: true });
-          return;
+      function ensureSidebarFooter(sidebar) {
+        let footer = sidebar.querySelector('.sidebar-footer');
+        if (!footer) {
+          footer = document.createElement('div');
+          footer.className = 'sidebar-footer';
+          sidebar.appendChild(footer);
         }
+        return footer;
+      }
+      function mountPills() {
+        const sidebar = document.querySelector('.sidebar');
+        if (!sidebar) return false;
+        const footer = ensureSidebarFooter(sidebar);
 
-        removeStrayNetworkBanner();
-
-        const footer = ready();
-        if (!footer) return;
-
-        // Clean previously injected pills (avoid duplicates on HMR/reloads)
+        // Remove any previous to avoid duplicates (HMR/back nav)
         footer.querySelectorAll('.pill.pill-network, .pill.pill-addr').forEach(n => n.remove());
 
-        // Network pill
-        footer.prepend(ensurePill('Monad Testnet', null, 'pill-network'));
-
-        // Contract pill (if resolvable)
-        const addr = await getPokerTableAddress();
-        if (addr) {
-          footer.prepend(ensurePill(short(addr), `${EXPLORER}/address/${addr}`, 'pill-addr'));
-        }
+        // Append so they sit at the very bottom (after any other footer content)
+        footer.appendChild(pill('Monad Testnet', null, 'pill-network'));
+        getPokerTableAddress().then(addr => {
+          if (!addr) return;
+          footer.appendChild(pill(short(addr), `${EXPLORER}/address/${addr}`, 'pill-addr'));
+        });
+        return true;
       }
 
-      if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', mount);
-      } else {
-        mount();
+      // Wait for sidebar to exist (sidebar.js loads async)
+      if (!mountPills()) {
+        const mo = new MutationObserver(() => { if (mountPills()) mo.disconnect(); });
+        mo.observe(document.documentElement, { childList: true, subtree: true });
       }
     })();
   </script>
