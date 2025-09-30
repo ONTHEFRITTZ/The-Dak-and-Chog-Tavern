@@ -2,52 +2,74 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
-  <script>(function(){try{var signed=sessionStorage.getItem('walletSigned')==='true'; if(!signed){ location.replace('/landing.html'); return; }}catch(e){ location.replace('/landing.html'); }})();</script>
-  <title>Poker Lobby</title>
+  <title>Poker Lobby — Dak & Chog</title>
+
   <!-- Pin the user's chosen wallet across the site (must be before any wallet/AA code) -->
   <script src="/js/provider-pin.js"></script>
+
+  <!-- Versioned CSS -->
   <script>
-    (async()=>{
-      try{
-        const b = await fetch('/assets/build.json',{cache:'no-store'}).then(r=>r.ok?r.json():null).catch(()=>null);
-        const tag = (b && b.commit) ? String(b.commit).slice(0,12) : Date.now();
+    (async () => {
+      try {
+        const b = await fetch('/assets/build.json', { cache: 'no-store' })
+          .then(r => r.ok ? r.json() : null).catch(() => null);
+        const tag = (b && b.commit) ? String(b.commit).slice(0, 12) : Date.now();
         window.__BUILD_TAG = tag;
-        const css = document.createElement('link'); css.rel='stylesheet'; css.href = `../../css/style.css?v=${tag}`;
+        const css = document.createElement('link');
+        css.rel = 'stylesheet';
+        css.href = `../../css/style.css?v=${encodeURIComponent(tag)}`;
         document.head.appendChild(css);
-      }catch(e){ console.error('poker lobby head loader failed', e); }
+      } catch (e) { console.error('poker lobby head loader failed', e); }
     })();
   </script>
 
+  <!-- Preload background -->
   <link rel="preload" as="image" href="../../assets/images/games-room.png" type="image/png" />
 
   <style>
-    .top-banner { display:flex !important; align-items:center; justify-content:space-between; height:var(--banner-h,80px); padding:0 12px; position:sticky; top:0; z-index:12000; }
-    body { background: #120c08 url('../../assets/images/games-room.png') no-repeat center center fixed !important; background-size: 100% auto !important; }
-    body.game { min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; }
-
-    /* Center the lobby always; don't push it because of the sidebar */
-    .lobby-wrap {
-      width: min(50%, 800px);
-      margin: clamp(8px, 4vh, 24px) auto 32px;
-      position: relative;
+    /* Page layout: no top banner; wallet chip only */
+    body {
+      background: #120c08 url('../../assets/images/games-room.png') no-repeat center center fixed !important;
+      background-size: 100% auto !important;
+    }
+    body.game {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding-top: 72px; /* space for wallet chip */
     }
 
+    /* Wallet chip */
+    #wallet-inline {
+      position: fixed; top: 12px; right: 12px; z-index: 12000;
+      display: flex; align-items: center; gap: 8px;
+      background: var(--panel-bg-soft);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 12px; padding: 6px 10px; color: #f4e6d3;
+    }
+    #wallet-inline button { padding:6px 10px; border-radius:8px; font-size:12px; }
+
+    /* Lobby container */
+    .tavern { padding: 0; background: none !important; border: none !important; box-shadow: none !important; }
+    .lobby-wrap {
+      width: min(96vw, 980px);
+      margin: clamp(8px, 4vh, 24px) auto 32px;
+    }
     .lobby-card {
       background: var(--panel-bg-soft);
-      border:1px solid rgba(255,255,255,0.12);
-      border-radius:14px;
-      padding:16px;
-      color:#f4e6d3;
-      box-shadow:0 24px 60px rgba(0,0,0,0.55);
-      margin-bottom:16px;
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 14px;
+      padding: 16px;
+      color: #f4e6d3;
+      box-shadow: 0 24px 60px rgba(0,0,0,0.55);
+      margin-bottom: 16px;
     }
-
     h2 { margin: 6px 0 4px; }
     .section-head { display:flex; align-items:center; justify-content:space-between; gap:8px; margin:8px 0; }
     .lobby-list { display:flex; flex-wrap:wrap; gap:10px; }
@@ -58,74 +80,117 @@
       border: 1px solid rgba(255,255,255,0.12);
       border-radius: 12px;
       padding: 12px;
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:10px;
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
     }
     .lobby-item strong { display:block; margin-bottom:4px; }
     .pill { background: rgba(0,0,0,0.6); color:#fff; padding: 4px 8px; border-radius:999px; font-weight:700; font-size:12px; }
     .muted { opacity:.85; font-size:13px; }
-    @media (max-width: 760px) {
-      .lobby-item { flex-basis: 100%; }
-    }
+    @media (max-width: 760px) { .lobby-item { flex-basis: 100%; } }
+
+    /* Hide any legacy top-banner if a cached CSS tries to show it */
+    .top-banner { display: none !important; }
   </style>
 </head>
 
 <body class="game">
-  <!-- Navbar / top banner -->
-  <div class="top-banner" role="region" aria-label="Wallet and status">
-    <div class="banner-left" style="display:flex; align-items:center; gap:10px;">
-      <div id="status" class="banner-status">Connecting...</div>
-      <div id="network-banner" class="muted">
-        <span class="pill" id="nb-top-info">Monad Testnet</span>
+  <!-- Wallet chip (only element at the top) -->
+  <div id="wallet-inline">
+    <span id="wi-label" style="font-weight:700;">Wallet:</span>
+    <span id="wi-address">-</span>
+    <button id="wi-disconnect" style="display:none;">Disconnect</button>
+  </div>
+
+  <!-- STRICT WALLET GATE (consistent with your other pages) -->
+  <script>
+    ;(() => {
+      function redirect() {
+        const next = encodeURIComponent(location.pathname + location.search + location.hash);
+        location.replace('/landing.html?next=' + next);
+      }
+      function markConnected() {
+        try {
+          sessionStorage.setItem('walletConnected', 'true');
+          localStorage.setItem('walletConnected', 'true');
+        } catch {}
+      }
+      function delay(ms){ return new Promise(r=>setTimeout(r,ms)); }
+      async function hasWalletConnected() {
+        if (sessionStorage.getItem('walletConnected') === 'true' ||
+            localStorage.getItem('walletConnected') === 'true' ||
+            sessionStorage.getItem('walletSigned') === 'true') return true;
+        const until = Date.now() + 1500;
+        while (!(window.ethereum || (window.solana && window.solana.isPhantom)) && Date.now() < until) {
+          await delay(50);
+        }
+        try {
+          if (window.ethereum) {
+            const accs = await window.ethereum.request({ method: 'eth_accounts' }).catch(() => []);
+            if (accs && accs.length) { markConnected(); return true; }
+          }
+        } catch {}
+        try {
+          if (window.solana && window.solana.isPhantom) {
+            await window.solana.connect({ onlyIfTrusted: true }).catch(() => {});
+            if (window.solana.isConnected && window.solana.publicKey) { markConnected(); return true; }
+          }
+        } catch {}
+        return false;
+      }
+      (async function init(){
+        if (!(await hasWalletConnected())) { redirect(); return; }
+        // Live enforcement
+        try {
+          if (window.ethereum) {
+            window.ethereum.on?.('accountsChanged', (a)=>{ if (!Array.isArray(a) || !a.length) redirect(); });
+            window.ethereum.on?.('disconnect', redirect);
+          }
+        } catch {}
+        try { if (window.solana && window.solana.isPhantom) window.solana.on?.('disconnect', redirect); } catch {}
+      })();
+    })();
+  </script>
+
+  <!-- Lobby -->
+  <div class="tavern">
+    <div class="lobby-wrap">
+      <h1 class="visually-hidden">Poker Lobby</h1>
+
+      <!-- ON-CHAIN LIMIT -->
+      <div class="lobby-card" id="sec-onchain-limit">
+        <div class="section-head">
+          <h2>Texas Hold’em — Limit (3 MON / 6 MON)</h2>
+          <span class="muted" id="oclim-note">loading…</span>
+        </div>
+        <div id="list-onchain-limit" class="lobby-list"></div>
       </div>
-    </div>
-    <div class="banner-right">
-      <div id="wallet-banner" class="controls" style="display:flex; align-items:center; gap:8px;">
-        <span title="Connected wallet" id="wb-addr" class="pill">—</span>
-        <button id="connect-wallet">Connect</button>
+
+      <!-- ON-CHAIN NO-LIMIT -->
+      <div class="lobby-card" id="sec-onchain-nl">
+        <div class="section-head">
+          <h2>Texas Hold’em — No-Limit</h2>
+          <span class="muted" id="ocnl-note">loading…</span>
+        </div>
+        <div id="list-onchain-nl" class="lobby-list"></div>
+      </div>
+
+      <!-- FREE-TO-PLAY -->
+      <div class="lobby-card" id="sec-offchain">
+        <div class="section-head">
+          <h2>Free to Play</h2>
+          <span class="muted" id="off-note">loading…</span>
+        </div>
+        <div id="list-offchain" class="lobby-list"></div>
+        <p class="muted" style="margin-top:8px;">DevBot toggles appear in-table for solo F2P only.</p>
       </div>
     </div>
   </div>
 
-  <div class="lobby-wrap">
-    <h1 class="visually-hidden">Poker Lobby</h1>
-
-    <!-- ON-CHAIN LIMIT -->
-    <div class="lobby-card" id="sec-onchain-limit">
-      <div class="section-head">
-        <h2>Texas Hold’em — Limit (3 MON / 6 MON)</h2>
-        <span class="muted" id="oclim-note">loading…</span>
-      </div>
-      <div id="list-onchain-limit" class="lobby-list"></div>
-    </div>
-
-    <!-- ON-CHAIN NO-LIMIT -->
-    <div class="lobby-card" id="sec-onchain-nl">
-      <div class="section-head">
-        <h2>TexasHold’em — No-Limit</h2>
-        <span class="muted" id="ocnl-note">loading…</span>
-      </div>
-      <div id="list-onchain-nl" class="lobby-list"></div>
-    </div>
-
-    <!-- OFF-CHAIN (sim) -->
-    <div class="lobby-card" id="sec-offchain">
-      <div class="section-head">
-        <h2>Free to Play</h2>
-        <span class="muted" id="off-note">loading…</span>
-      </div>
-      <div id="list-offchain" class="lobby-list"></div>
-    </div>
-  </div>
-
-  <!-- Wallet helper + Socket.IO -->
+  <!-- Helpers + Socket.IO + core -->
   <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
   <script type="module" src="../../js/tavern.js"></script>
 
-  <!-- Lobby logic -->
+  <!-- Your lobby logic (unchanged loading pattern) -->
   <script>
     (function(){
       function load(src){
@@ -141,16 +206,107 @@
     })();
   </script>
 
-  <!-- Left Sidebar (collapsible) -->
+  <!-- Wallet chip population -->
   <script>
     (function(){
+      function short(a){ return (a && a.length > 10) ? (a.slice(0,6)+'...'+a.slice(-4)) : (a||''); }
+      function show(addr){
+        try {
+          const span = document.getElementById('wi-address');
+          const disc = document.getElementById('wi-disconnect');
+          if (span) span.textContent = short(String(addr||''));
+          if (disc) {
+            disc.style.display = '';
+            disc.onclick = () => {
+              try {
+                sessionStorage.removeItem('walletConnected');
+                localStorage.removeItem('walletConnected');
+                sessionStorage.removeItem('walletSigned');
+                sessionStorage.removeItem('walletProvider');
+                sessionStorage.removeItem('walletMsg');
+                sessionStorage.removeItem('walletSig');
+              } catch {}
+              location.replace('/landing.html');
+            };
+          }
+        } catch {}
+      }
       try {
-        var t = (window.__BUILD_TAG||Date.now());
-        var s = document.createElement('script');
+        if (window.userAddress) show(window.userAddress);
+        window.addEventListener('wallet:connected', (e)=>{ const a=e?.detail?.address; if(a) show(a); });
+        // Passive account check using pinned provider first
+        let injected = null;
+        try { if (typeof window.__getSelectedProvider === 'function') injected = window.__getSelectedProvider(); } catch {}
+        if (!injected && window.ethereum && typeof window.ethereum.request === 'function') injected = window.ethereum;
+        if (!injected && window.phantom && window.phantom.ethereum && typeof window.phantom.ethereum.request === 'function') injected = window.phantom.ethereum;
+        if (injected && typeof injected.request === 'function' && !window.userAddress) {
+          injected.request({ method:'eth_accounts' }).then((acc)=>{ if (acc && acc[0]) show(acc[0]); });
+        }
+      } catch {}
+    })();
+  </script>
+
+  <!-- Sidebar + force pills into the sidebar footer -->
+  <script>
+    (async () => {
+      try {
+        const t = window.__BUILD_TAG || Date.now();
+        const s = document.createElement('script');
         s.type = 'module';
         s.src = '/js/sidebar.js?v=' + encodeURIComponent(t);
         document.body.appendChild(s);
-      } catch(e) {}
+
+        function short(a){ return (a && a.length>10) ? (a.slice(0,6)+'...'+a.slice(-4)) : (a||''); }
+        function placePills(addr, explorer){
+          const sidebar = document.querySelector('.sidebar');
+          if (!sidebar) return;
+          let footer = sidebar.querySelector('.sidebar-footer');
+          if (!footer) { footer = document.createElement('div'); footer.className = 'sidebar-footer'; sidebar.appendChild(footer); }
+          // Remove previous lobby-injected pills
+          Array.from(footer.querySelectorAll('.pill[data-src="poker-lobby"]')).forEach(n => n.remove());
+
+          const p1 = document.createElement('div');
+          p1.className = 'pill';
+          p1.dataset.src = 'poker-lobby';
+          p1.textContent = 'Monad Testnet';
+
+          const p2 = document.createElement('div');
+          p2.className = 'pill';
+          p2.dataset.src = 'poker-lobby';
+          if (addr) {
+            const a = document.createElement('a');
+            a.textContent = 'PokerTable: ' + short(addr);
+            a.href = (explorer ? (explorer.replace(/\/+$/,'') + '/address/' + addr) : '#');
+            a.target = '_blank'; a.rel = 'noopener';
+            p2.appendChild(a);
+          } else {
+            p2.textContent = 'PokerTable: n/a';
+          }
+          footer.appendChild(p1);
+          footer.appendChild(p2);
+        }
+
+        async function resolveAddr(){
+          let addr = null, explorer = null;
+          try { explorer = (window.EXPLORERS && window.EXPLORERS[10143]) || 'https://testnet.monadexplorer.com'; } catch {}
+          try {
+            if (typeof window.getAddressFor === 'function') {
+              addr = await window.getAddressFor('pokerTable');
+            }
+          } catch {}
+          if (!addr) {
+            try { addr = window?.CONTRACTS?.pokerTable || null; } catch {}
+          }
+          placePills(addr, explorer);
+        }
+
+        // Wait for sidebar to mount, then inject pills once
+        const mo = new MutationObserver(() => {
+          if (document.querySelector('.sidebar')) { mo.disconnect(); resolveAddr(); }
+        });
+        mo.observe(document.body, { childList: true, subtree: true });
+        if (document.querySelector('.sidebar')) { mo.disconnect(); resolveAddr(); }
+      } catch {}
     })();
   </script>
 </body>
