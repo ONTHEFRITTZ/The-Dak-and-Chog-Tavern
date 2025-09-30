@@ -15,7 +15,7 @@
   <link rel="stylesheet" href="/css/style.css" />
 
   <style>
-    /* --- Landing-page scoping (no network/contract pills, no top chrome) --- */
+    /* --- Landing-page scoping (hide network/contract pills & any top chrome) --- */
     body.landing .top-banner,
     body.landing #network-banner,
     body.landing #nb-top-info,
@@ -25,7 +25,7 @@
       visibility: hidden !important;
     }
 
-    /* Small helpers so it still looks right if style.css is stale/cached */
+    /* Minimal safety styles (in case style.css is stale) */
     body.age-landing {
       min-height: 100vh;
       display: flex; align-items: center; justify-content: center;
@@ -49,7 +49,7 @@
     #wallet-choice button { cursor: pointer; }
   </style>
 
-  <!-- Belt-and-suspenders: if something injects pills/banners after load, remove them -->
+  <!-- If anything injects pills/banners after load, remove them -->
   <script>
     const __nukeLandingChrome = () => {
       ['network-banner','nb-top-info','sidebar'].forEach(id => {
@@ -66,7 +66,6 @@
   </script>
 </head>
 
-<!-- Add the 'landing' class so the hide rules above are page-scoped -->
 <body class="age-landing landing">
   <main class="age-hero" aria-label="Age Confirmation">
     <section class="age-card" aria-labelledby="age-title"
@@ -119,40 +118,97 @@
     </section>
   </main>
 
-  <!-- Controller script: wires up buttons and talks to /js/tavern.js -->
+  <!-- Controller script: robust provider selection + session flags -->
   <script type="module">
-    import { connectWallet } from "/js/tavern.js";
+    // Optional: still import your tavern helper; we’ll fall back if absent
+    let connectWallet;
+    try { ({ connectWallet } = await import("/js/tavern.js")); } catch {}
 
     const $ = (id) => document.getElementById(id);
     const statusEl = $("wc-status");
     const phantomMissing = $("phantom-missing");
 
-    function setStatus(msg) {
-      if (!statusEl) return;
-      statusEl.textContent = msg || "";
+    const setStatus = (msg) => { if (statusEl) statusEl.textContent = msg || ""; };
+
+    // Pick a specific injected EIP-1193 provider by brand
+    function getInjectedProvider(kind) {
+      const eth = window.ethereum;
+      if (!eth) return null;
+
+      // Multiple providers scenario
+      const list = Array.isArray(eth.providers) ? eth.providers : [eth];
+      const byMetaMask = list.find(p => p && p.isMetaMask);
+      const byPhantom = list.find(p => p && p.isPhantom && p.isPhantom === true) // older Phantom flag
+                       || list.find(p => p && p.isPhantomEthereum);              // newer EVM flag
+
+      if (kind === 'metamask') return byMetaMask || (eth.isMetaMask ? eth : null);
+      if (kind === 'phantom')  return byPhantom  || null;
+      return null;
     }
 
-    // Show wallet selectors after age confirm
+    async function requestAccounts(provider) {
+      if (!provider || typeof provider.request !== 'function') {
+        throw new Error('Wallet provider not available.');
+      }
+      // IMPORTANT: request must happen inside user gesture (our click handler).
+      const accounts = await provider.request({ method: 'eth_requestAccounts' });
+      if (!accounts || !accounts.length) throw new Error('No account returned');
+      return accounts;
+    }
+
+    function persistSession(addr) {
+      const a = (addr || '').toLowerCase();
+      try {
+        localStorage.setItem('walletConnected', 'true');
+        localStorage.setItem('walletAddress', a);
+        sessionStorage.setItem('walletConnected', 'true');
+        sessionStorage.setItem('walletAddress', a);
+        sessionStorage.setItem('walletSigned', 'true'); // table gate reads this
+      } catch {}
+      // Let other pages know
+      try {
+        window.dispatchEvent(new CustomEvent('wallet:connected', { detail: { address: a } }));
+      } catch {}
+    }
+
     $("enter-tavern")?.addEventListener("click", () => {
       setStatus("");
       const choice = $("wallet-choice");
       if (choice) choice.style.display = "block";
-      // Persist flag that age was confirmed:
       try { sessionStorage.setItem("ageConfirmed", "true"); } catch {}
     });
 
     // MetaMask
     $("btn-metamask")?.addEventListener("click", async () => {
-      setStatus("Opening MetaMask…");
+      setStatus("Connecting to MetaMask…");
       try {
-        await connectWallet("metamask");
+        // Prefer your helper if it exists AND triggers the request in-gesture
+        if (typeof connectWallet === 'function') {
+          await connectWallet("metamask");
+          // If helper didn’t request accounts, harden here:
+          const mm = getInjectedProvider('metamask') || window.ethereum;
+          const accs = await requestAccounts(mm);
+          persistSession(accs[0]);
+          setStatus("");
+          return;
+        }
+
+        // Direct EIP-1193 flow (reliable)
+        const mm = getInjectedProvider('metamask');
+        if (!mm) throw new Error("MetaMask not detected. Please install or enable the extension.");
+
+        // If the site had a default provider set to something else, force MetaMask for this call
+        window.__walletProvider = mm;
+
+        const accs = await requestAccounts(mm);
+        persistSession(accs[0]);
         setStatus("");
-        // Optional: redirect after connect
+        // Optional redirect after connect:
         // location.href = "/";
       } catch (err) {
-        if (err?.code === -32002) {
-          setStatus("MetaMask request already pending — open the extension to continue.");
-        } else if (err?.code === 4001) {
+        if (err && (err.code === -32002 || String(err.message || '').toLowerCase().includes('request already pending'))) {
+          setStatus("MetaMask request already pending — click the MetaMask extension to continue.");
+        } else if (err && err.code === 4001) {
           setStatus("MetaMask request canceled.");
         } else {
           setStatus(err?.message ? ("MetaMask error: " + err.message) : "MetaMask error.");
@@ -160,23 +216,27 @@
       }
     });
 
-    // Phantom — if not installed, show helper text
+    // Phantom — EVM path (if installed)
     $("btn-phantom")?.addEventListener("click", async () => {
       try {
-        const hasPhantom = !!(window.phantom && window.phantom.ethereum && typeof window.phantom.ethereum.request === "function");
-        if (!hasPhantom) {
+        const ph = getInjectedProvider('phantom');
+        if (!ph) {
           if (phantomMissing) phantomMissing.style.display = "block";
           setStatus("Phantom is not installed.");
           return;
         }
-        setStatus("Opening Phantom…");
-        await connectWallet("phantom");
+        setStatus("Connecting to Phantom…");
+        window.__walletProvider = ph; // keep symmetry with MetaMask
+        const accs = await requestAccounts(ph);
+        persistSession(accs[0]);
         setStatus("");
-        // Optional: redirect after connect
+        // Optional redirect:
         // location.href = "/";
       } catch (err) {
-        if (err?.code === 4001) {
+        if (err && err.code === 4001) {
           setStatus("Phantom request canceled.");
+        } else if (err && (err.code === -32002 || String(err.message || '').toLowerCase().includes('request already pending'))) {
+          setStatus("Phantom request already pending — click the Phantom extension to continue.");
         } else {
           setStatus(err?.message ? ("Phantom error: " + err.message) : "Phantom error.");
         }
