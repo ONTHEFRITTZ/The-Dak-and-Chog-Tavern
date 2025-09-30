@@ -1,709 +1,253 @@
-// table.js — drop-in replacement with AA route for chip contributions etc.
-// Keeps your UI, sockets, and rendering intact. Adds AA auto-blinds + sponsor pill (no layout edits).
+// table.js — clean seat layout + no auto-sim + bottom-center toasts
 
-(function(){
-  // --- Table mode (f2p | onchain) ---
+(function () {
+  /* -------------------- utils -------------------- */
   const htmlMode = (document.documentElement.getAttribute('data-table-mode') || '').toLowerCase();
-  const qpMode = (new URL(location.href)).searchParams.get('mode');
-  const TABLE_MODE = (qpMode ? String(qpMode).toLowerCase() : htmlMode) === 'onchain' ? 'onchain' : 'f2p';
+  const IS_ONCHAIN = htmlMode === 'onchain';
 
-  // ----- Minimal AA config / helpers (non-breaking) -----
-  // Feature flag for auto-post blinds (on by default)
-  window.__AA_AUTO_BLINDS = (typeof window.__AA_AUTO_BLINDS === 'boolean') ? window.__AA_AUTO_BLINDS : true;
+  function $(q, r = document) { return r.querySelector(q); }
+  function $all(q, r = document) { return Array.from(r.querySelectorAll(q)); }
+  function short(a) { return a && a.length > 10 ? (a.slice(0, 6) + '...' + a.slice(-4)) : (a || ''); }
+  function lc(s) { return (s || '').toLowerCase(); }
 
-  // Optional config override via table.html:
-  //   <script>window.CONFIG = Object.assign(window.CONFIG||{}, {
-  //     MONAD_EXPLORER_TX_BASE: "https://explorer.monad.xyz/tx/",
-  //     BLINDS_WEI: { sb: "100000000000000", bb: "200000000000000" }
-  //   });</script>
-  const EXPLORER_TX_BASE =
-    (window.CONFIG && window.CONFIG.MONAD_EXPLORER_TX_BASE) ||
-    "https://explorer.monad.xyz/tx/";
-
-  const BLINDS_WEI = (window.CONFIG && window.CONFIG.BLINDS_WEI) || {
-    sb: "100000000000000",   // 0.0001 MON (test-friendly)
-    bb: "200000000000000"    // 0.0002 MON
-  };
-
-  function isOnChainTableId(id) { return /^poker-(nl|fl)-/i.test(String(id || "")); }
-
-  // Toasts (no CSS edits required)
-  // Toasts (bottom-center so it never hides under wallet)
-(function initToasts(){
-  let root = document.getElementById('toast-root');
-  if (!root){
-    root = document.createElement('div');
-    root.id = 'toast-root';
-    Object.assign(root.style, {
-      position: 'fixed',
-      left: '50%',
-      bottom: '12px',
-      transform: 'translateX(-50%)',
-      zIndex: 10000,
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '8px',
-      alignItems: 'center',
-      pointerEvents: 'none' // clicks pass through
-    });
+  /* -------------------- toasts (bottom-center) -------------------- */
+  (function ensureToastRoot () {
+    if ($('#toast-root')) return;
+    const root = document.createElement('div'); root.id = 'toast-root';
     document.body.appendChild(root);
-  }
-})();
-function toast(msg, opts={}) {
-  const el = document.createElement('div');
-  el.role = 'status'; el.setAttribute('aria-live','polite');
-  Object.assign(el.style, {
-    pointerEvents:'auto',
-    background: opts.error ? '#3b0b0b' : '#0b3b1a',
-    color: '#fff', padding: '10px 12px', borderRadius: '10px',
-    boxShadow: '0 4px 16px rgba(0,0,0,0.25)', maxWidth: '360px', fontSize: '14px'
-  });
-  el.textContent = msg;
-  document.getElementById('toast-root').appendChild(el);
-  setTimeout(() => el.remove(), opts.persist ? 7000 : 3500);
-  return el;
-}
-
-  function addExplorerLink(toastEl, txHash) {
-    if (!txHash) return;
-    const wrap = document.createElement('div');
-    wrap.style.marginTop = '6px';
-    const a = document.createElement('a');
-    a.textContent = 'View on Monad Explorer';
-    a.href = EXPLORER_TX_BASE + txHash;
-    a.target = '_blank'; a.rel = 'noopener noreferrer';
-    a.style.fontSize = '12px'; a.style.textDecoration = 'underline';
-    wrap.appendChild(a);
-    toastEl.appendChild(wrap);
-  }
-
-  /* -------------------------- Config (sprite + layout) -------------------------- */
-  const SPRITE_URL  = '/assets/images/cards/cards-sprite.png';
-  const SPRITE_COLS = 13;
-  const SPRITE_ROWS = 5;
-  const SUIT_ROW = { h:0, d:1, c:2, s:3 };
-  const RANKS   = ['2','3','4','5','6','7','8','9','T','J','Q','K','A'];
-  const BACK_POS = { row: 4, col: 0 };
-
-  /* ------------------------------- DOM refs ------------------------------------ */
-  const canvas     = document.querySelector('.table-canvas');
-  const seatEls    = Array.from(document.querySelectorAll('.seat'));
-  const centerEl   = document.getElementById('poker-center');
-
-  function ensureOverlayEl(id, className, parent){
-    let el = document.getElementById(id);
-    if (!el){
-      el = document.createElement('div');
-      el.id = id;
-      if (className) el.className = className;
-      (parent||canvas).appendChild(el);
-    }
-    return el;
-  }
-  const boardEl    = ensureOverlayEl('board-cards', 'board', canvas);
-  const burnsEl    = ensureOverlayEl('burn-pile', 'burn-pile', canvas);
-
-  // Action bar under my seat (created on demand)
-  let actionBarEl = null;
-
-  /* ------------------------------- State --------------------------------------- */
-  function qp(k){ try{ return new URL(window.location.href).searchParams.get(k) }catch{ return null } }
-  const tableId = qp('table');
-  const IS_ONCHAIN = (() => {
-    // Prefer explicit mode, but also treat poker-nl-* / poker-fl-* as on-chain
-    if (TABLE_MODE === 'onchain') return true;
-    return isOnChainTableId(tableId);
   })();
 
-  // Sponsored pill for on-chain tables
-  (function sponsorPill(){
-    if (!IS_ONCHAIN) return;
-    if (document.getElementById('sponsored-pill')) return;
-    const pill = document.createElement('div');
-    pill.id = 'sponsored-pill';
-    pill.textContent = 'Sponsored by Dak & Chog Tavern';
-    Object.assign(pill.style, {
-      position: 'fixed', top: '12px', right: '12px', background: '#111827', color: '#e5e7eb',
-      padding: '8px 12px', borderRadius: '9999px', fontSize: '12px',
-      boxShadow: '0 4px 16px rgba(0,0,0,0.25)', zIndex: 9999, opacity: 0.92
-    });
-    document.body.appendChild(pill);
-  })();
-
-  let socket;
-
-  let myAddr   = (localStorage.getItem('walletAddress') || sessionStorage.getItem('walletAddress') || '').toLowerCase();
-  let mySeat   = -1;
-
-  let state       = null;   // last 'poker:state'
-  let myHole      = [];     // ['As','Kd'] when dealt
-  let oppHasHole  = new Set(); // seatIds of opponents in-hand (we show backs)
-
-  /* ------------------------------- Helpers ------------------------------------- */
-  function short(a){ return a && a.length>10 ? (a.slice(0,6)+'...'+a.slice(-4)) : (a||''); }
-  function lc(s){ return (s||'').toLowerCase(); }
-
-  function cardStylesFromCode(code){
-    if (!code || typeof code !== 'string' || code.length < 2){
-      return cardBackStyles();
-    }
-    const r = code[0].toUpperCase();
-    const s = code[1].toLowerCase();
-    const col = Math.max(0, RANKS.indexOf(r));
-    const row = (s in SUIT_ROW) ? SUIT_ROW[s] : 0;
-    return {
-      backgroundImage: `url("${SPRITE_URL}")`,
-      backgroundSize: `${SPRITE_COLS*100}% ${SPRITE_ROWS*100}%`,
-      backgroundPosition: `${(col/(SPRITE_COLS-1))*100}% ${(row/(SPRITE_ROWS-1))*100}%`
-    };
-  }
-  function cardBackStyles(){
-    return {
-      backgroundImage: `url("${SPRITE_URL}")`,
-      backgroundSize: `${SPRITE_COLS*100}% ${SPRITE_ROWS*100}%`,
-      backgroundPosition: `${(BACK_POS.col/(SPRITE_COLS-1))*100}% ${(BACK_POS.row/(SPRITE_ROWS-1))*100}%`
-    };
-  }
-
-  function makeCardEl(code, hole=false, faceUp=true){
+  function toast(msg, opts = {}) {
+    const root = $('#toast-root');
     const el = document.createElement('div');
-    el.className = 'card' + (hole ? ' card--hole' : '');
-    const styles = faceUp ? cardStylesFromCode(code) : cardBackStyles();
-    el.style.backgroundImage = styles.backgroundImage;
-    el.style.backgroundSize = styles.backgroundSize;
-    el.style.backgroundPosition = styles.backgroundPosition;
+    el.className = 'toast' + (opts.error ? ' error' : '');
+    el.textContent = msg;
+    root.appendChild(el);
+    setTimeout(() => el.remove(), opts.persist ? 6500 : 3200);
     return el;
   }
 
-  function burnsForStage(stage){
-    if (stage === 'flop')  return 1;
-    if (stage === 'turn')  return 2;
-    if (stage === 'river') return 3;
-    return 0;
+  /* -------------------- DOM refs -------------------- */
+  const canvas = $('.table-canvas');
+  const surface = $('.table-surface');
+  const centerEl = $('#poker-center');
+  const seatEls = $all('.seat');
+
+  /* -------------------- layout seats on an outer ellipse -------------------- */
+  function layoutSeats() {
+    if (!canvas || !surface) return;
+
+    const c = canvas.getBoundingClientRect();
+    const s = surface.getBoundingClientRect();
+
+    // ellipse that follows the *outside* of the leather rail
+    const rail = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--rail-thickness')) || 70;
+    const gap = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--seat-gap')) || 18;
+
+    const rx = (s.width / 2) + rail / 2 + gap;   // a bit outside the image edge
+    const ry = (s.height / 2) + rail / 2 + gap;
+
+    // seat size for centering
+    const probe = seatEls[0];
+    const sw = (probe && probe.offsetWidth) || 150;
+    const sh = (probe && probe.offsetHeight) || 160;
+
+    // angles: leave dealer gap at top (90°). Start near top-right and go clockwise.
+    // tweakable to align with mug lugs on your art.
+    const base = [60, 15, -20, -60, -120, -165, 160, 120]; // degrees
+
+    seatEls.forEach((el, i) => {
+      const deg = base[i % base.length];
+      const rad = (deg * Math.PI) / 180;
+      const cx = c.width / 2;
+      const cy = c.height / 2;
+
+      const x = cx + rx * Math.cos(rad);
+      const y = cy - ry * Math.sin(rad); // screen Y is inverted
+
+      el.style.left = Math.round(x - sw / 2) + 'px';
+      el.style.top = Math.round(y - sh / 2) + 'px';
+    });
   }
 
-/* ---------- Seat ring layout (outside the table, 8 spots) ---------- */
-/*
-Tuning dials – adjust once to line up with the beer mugs:
-- RING_INSET_X/Y: shrink (+) or grow (-) the ellipse taken from the table image.
-- OUTWARD_OFFSET: how far OUTSIDE the rim to place seats.
-- CENTER_BIAS_X/Y: small pixel nudges if the table art isn’t perfectly centered.
-- DEALER_ANGLE_DEG: where Seat 0 goes; 270 = bottom, 90 = top, 0 = right.
-*/
-const RING_INSET_X     = 22;   // px inward from the table image on X (positive = slightly tighter)
-const RING_INSET_Y     = 50;   // px inward from the table image on Y (positive = slightly tighter)
-const OUTWARD_OFFSET   = 15;   // px OUTSIDE the table edge
-const CENTER_BIAS_X    = 0;    // px, + moves to the right
-const CENTER_BIAS_Y    = 4;    // px, + moves down
-const DEALER_ANGLE_DEG = 270;  // Seat 0 at bottom (dealer)
-
-/* ---------- Seat ring layout (8 outside the rail, dealer gap at top) ---------- */
-function layoutSeats() {
-  const wrap = document.querySelector('.table-canvas');
-  const surface = document.querySelector('.table-surface');
-  if (!wrap || !surface || !seatEls.length) return;
-
-  // measure
-  const W = wrap.clientWidth;
-  const H = wrap.clientHeight;
-  const t = surface.getBoundingClientRect();
-  const c = wrap.getBoundingClientRect();
-  const tableW = t.width;
-  const tableH = t.height;
-
-  // seat size
-  const probe = seatEls[0];
-  const seatW = (probe && probe.offsetWidth)  ? probe.offsetWidth  : 110;
-  const seatH = (probe && probe.offsetHeight) ? probe.offsetHeight : 130;
-
-  // base radii from the TABLE ellipse (half of table box)
-  const baseRx = Math.max(0, tableW * 0.5);
-  const baseRy = Math.max(0, tableH * 0.5);
-
-  // push seats just OUTSIDE the leather: small outward offset
-  const outwardX = seatW * 0.45;
-  const outwardY = seatH * 0.35;
-
-  const rx = baseRx + outwardX;
-  const ry = baseRy + outwardY;
-
-  // center of the table inside the canvas
-  const cx = (t.left - c.left) + tableW / 2;
-  const cy = (t.top  - c.top ) + tableH / 2;
-
-  const N = seatEls.length; // 8
-
-  // leave a dealer gap at the top (−90°). Distribute players around the remaining circle
-  // by centering the first seat around that gap: start = -90 + (360/N)/2
-  const startDeg = -90 + (360 / N) / 2;
-
-  for (let i = 0; i < N; i++) {
-    const ang = (startDeg + (i * 360 / N)) * Math.PI / 180;
-
-    // ellipse parametric
-    const px = cx + rx * Math.cos(ang);
-    const py = cy + ry * Math.sin(ang);
-
-    const el = seatEls[i];
-    // keep seats from ever overlapping by clamping min spacing via scale on very small canvases
-    el.style.left = Math.round(px - seatW / 2) + 'px';
-    el.style.top  = Math.round(py - seatH / 2) + 'px';
-  }
-}
-
-
-  /* ------------------------------ Rendering ------------------------------------ */
-  function showCenter(msg, ms=1200){
+  /* -------------------- center banner -------------------- */
+  function showCenter(msg, ms = 1200) {
     if (!centerEl) return;
     centerEl.textContent = msg;
     centerEl.style.display = 'block';
-    if (ms>0){ setTimeout(()=>{ centerEl.style.display='none'; }, ms); }
+    if (ms > 0) setTimeout(() => { centerEl.style.display = 'none'; }, ms);
   }
 
-  function clearBoard(){
-    boardEl.innerHTML = '';
-    burnsEl.innerHTML = '';
-  }
+  /* -------------------- socket (no auto-sim) -------------------- */
+  let socket, tableId, myAddr = (localStorage.getItem('walletAddress') || sessionStorage.getItem('walletAddress') || '').toLowerCase();
+  let mySeat = -1;
+  let state = null;
 
-  function renderBoard(){
-    if (!state){ clearBoard(); return; }
-    const cards = Array.isArray(state.community) ? state.community.slice(0,5) : [];
-    boardEl.innerHTML = '';
-
-    cards.forEach((code, i) => {
-      const c = makeCardEl(code, false, true);
-      c.dataset.slot = String(i);
-      boardEl.appendChild(c);
-    });
-
-    const nBurns = burnsForStage(state.stage||'');
-    burnsEl.innerHTML = '';
-    for (let i=0; i<nBurns; i++){
-      const back = makeCardEl(null, false, false);
-      back.classList.add('card--burn');
-      burnsEl.appendChild(back);
-    }
-  }
-
-  function drawSeatCards(seatId){
-    const el = seatEls[seatId];
-    if (!el) return;
-
-    let row = el.querySelector('.cards');
-    if (!row){
-      row = document.createElement('div');
-      row.className = 'cards';
-      el.insertBefore(row, el.firstChild.nextSibling);
-    }
-    row.innerHTML = '';
-
-    if (seatId === mySeat && myHole && myHole.length){
-      row.appendChild(makeCardEl(myHole[0], true, true));
-      row.appendChild(makeCardEl(myHole[1], true, true));
+  function initSocket() {
+    try {
+      socket = io(window.location.origin, { path: '/poker.io/', transports: ['websocket', 'polling'] });
+    } catch (e) {
+      showCenter('Socket unavailable', 1500);
       return;
     }
 
-    if (oppHasHole.has(seatId)){
-      row.appendChild(makeCardEl(null, true, false));
-      row.appendChild(makeCardEl(null, true, false));
-    }
+    socket.on('connect', () => {
+      try {
+        const u = new URL(location.href);
+        tableId = u.searchParams.get('table');
+        if (myAddr) socket.emit('identify', { addr: myAddr });
+        socket.emit('join_table', { table: tableId });
+        socket.emit('lobby:get');
+      } catch { }
+    });
+
+    socket.on('disconnect', () => { showCenter('Disconnected', 800); });
+
+    // authoritative state—no auto-advance/simulation anywhere
+    socket.on('poker:state', (m) => {
+      state = m || null;
+      renderTableModel(m?.table || null);
+      updateActionBar();
+    });
+
+    socket.on('table:update', (t) => renderTableModel(t));
+
+    // dealt hole to me
+    socket.on('poker:hole', (payload) => {
+      // keep UI minimal here; you can extend as needed
+      updateActionBar();
+    });
+
+    socket.on('poker:hand', () => { updateActionBar(); });
+    socket.on('table:reset', () => { updateActionBar(); });
   }
 
-  function renderTableModel(t){
-    if (!t || t.id !== tableId) return;
-
-    // seats + buttons
-    mySeat = -1;
+  /* -------------------- render seats / controls shell -------------------- */
+  function renderTableModel(t) {
+    if (!t) return;
     const seats = Array.isArray(t.seats) ? t.seats : [];
+    mySeat = -1;
 
-    seatEls.forEach((el, i)=>{
+    seatEls.forEach((el, i) => {
       const s = seats[i];
       el.innerHTML = '';
 
-      // name / addr
       const head = document.createElement('div');
       head.className = 'addr';
-      head.textContent = s ? short(s.addr||('Seat '+i)) : 'Empty';
+      head.textContent = s ? short(s.addr || ('Seat ' + i)) : 'Empty';
       el.appendChild(head);
 
-      // cards row (created on demand in drawSeatCards)
-      const cardsRow = document.createElement('div');
-      cardsRow.className = 'cards';
-      el.appendChild(cardsRow);
-
-      // buttons
       const btns = document.createElement('div');
       btns.className = 'btns';
 
-      if (s){
-        // me
-        if (myAddr && s.addr && lc(s.addr)===lc(myAddr)){
+      if (s) {
+        if (myAddr && s.addr && lc(s.addr) === lc(myAddr)) {
           mySeat = i;
 
-          // Leave
           const bLeave = document.createElement('button');
           bLeave.textContent = 'Leave';
-          bLeave.onclick = async ()=> {
-            // If this table is on-chain, try to mirror the action via AA first
-            if (IS_ONCHAIN) {
-              try {
-                if (window.AgentOps?.leaveSeat) {
-                  await window.AgentOps.leaveSeat(mySeat);
-                } else if (window.AgentOps?.unseatSeat) {
-                  await window.AgentOps.unseatSeat(mySeat);
-                }
-                toast('Left seat on-chain ✅');
-              } catch(e){
-                console.warn('AA leaveSeat failed', e);
-                showCenter('Could not leave on-chain (sponsored).', 1200);
-              }
-            }
-            // Always keep the socket model authoritative
-            socket?.emit('seat',{ index:-1 });
-          };
+          bLeave.onclick = () => socket?.emit('seat', { index: -1 });
           btns.appendChild(bLeave);
 
-          // Ready / Unready (UI state is server-driven)
           const bReady = document.createElement('button');
           bReady.textContent = s.ready ? 'Unready' : 'Ready';
-          bReady.style.marginLeft='6px';
-          bReady.onclick = ()=> socket?.emit('ready', { ready: !s.ready });
+          bReady.onclick = () => socket?.emit('ready', { ready: !s.ready });
           btns.appendChild(bReady);
         }
       } else {
-        // empty seat → Sit
         const bSit = document.createElement('button');
         bSit.textContent = 'Sit';
-        if (!myAddr){ bSit.disabled = true; bSit.title = 'Connect wallet'; }
-        bSit.onclick = async ()=> {
-          if (!myAddr) return;
-
-          // If this table is on-chain, try to mirror the action via AA first
-          if (IS_ONCHAIN) {
-            try {
-              if (window.AgentOps?.joinSeat) {
-                const res = await window.AgentOps.joinSeat(i);
-                let txHash = res && (res.hash || res.txHash || res.transactionHash);
-                if (!txHash && res?.wait) { const rcpt = await res.wait(); txHash = rcpt?.transactionHash || rcpt?.hash; }
-                const t = toast('Seated on-chain ✅');
-                addExplorerLink(t, txHash);
-              } else if (window.AgentOps?.sitSeat) {
-                const res = await window.AgentOps.sitSeat(i);
-                let txHash = res && (res.hash || res.txHash || res.transactionHash);
-                if (!txHash && res?.wait) { const rcpt = await res.wait(); txHash = rcpt?.transactionHash || rcpt?.hash; }
-                const t = toast('Seated on-chain ✅');
-                addExplorerLink(t, txHash);
-              }
-            } catch(e){
-              console.warn('AA joinSeat failed', e);
-              showCenter('Could not sit on-chain (sponsored).', 1200);
-              // proceed anyway so server keeps flow moving
-            }
-          }
-
-          // Always keep the socket model authoritative
-          socket?.emit('seat', { index:i });
-        };
+        if (!myAddr) bSit.disabled = true;
+        bSit.onclick = () => socket?.emit('seat', { index: i });
         btns.appendChild(bSit);
       }
 
       el.appendChild(btns);
     });
 
-    // After rebuilding, lay out and re-draw any known cards
     layoutSeats();
-    renderBoard();
-    refreshSeatCardBacksFromState(); // opp backs
-    if (mySeat >= 0) drawSeatCards(mySeat);
   }
 
-
-  function refreshSeatCardBacksFromState(){
-    oppHasHole.clear();
-    if (!state || !Array.isArray(state.actors)) return;
-
-    state.actors.forEach(a => {
-      if (!a) return;
-      if (a.seatId === mySeat) return;
-      if (a.folded) return;
-      oppHasHole.add(a.seatId);
-    });
-
-    seatEls.forEach((_, i) => drawSeatCards(i));
-  }
-
-  function updateActionBar(){
+  /* -------------------- action bar (under my seat) -------------------- */
+  let actionBarEl = null;
+  function updateActionBar() {
     if (mySeat < 0 || !state || !Array.isArray(state.actors)) {
-      if (actionBarEl){ actionBarEl.remove(); actionBarEl = null; }
+      if (actionBarEl) { actionBarEl.remove(); actionBarEl = null; }
       return;
     }
 
-    const idx = state.turnIndex|0;
+    const idx = state.turnIndex | 0;
     const actor = state.actors[idx];
-    if (!actor || actor.seatId !== mySeat || actor.folded){
-      if (actionBarEl){ actionBarEl.remove(); actionBarEl = null; }
+    if (!actor || actor.seatId !== mySeat || actor.folded) {
+      if (actionBarEl) { actionBarEl.remove(); actionBarEl = null; }
       return;
     }
 
-    const need = Math.max(0, Number(state.toCall||0) - Number(actor.contrib||0));
-    const under = seatEls[mySeat];
-
-    if (!actionBarEl){
+    if (!actionBarEl) {
       actionBarEl = document.createElement('div');
       actionBarEl.className = 'action-bar';
       canvas.appendChild(actionBarEl);
     }
-    const r = under.getBoundingClientRect();
-    const c = canvas.getBoundingClientRect();
-    actionBarEl.style.left = (r.left - c.left + r.width/2) + 'px';
-    actionBarEl.style.top  = (r.top  - c.top  + r.height + 10) + 'px';
 
+    // anchor just below my seat
+    const me = seatEls[mySeat];
+    const r = me.getBoundingClientRect();
+    const c = canvas.getBoundingClientRect();
+    actionBarEl.style.left = (r.left - c.left + r.width / 2) + 'px';
+    actionBarEl.style.top = (r.top - c.top + r.height + 8) + 'px';
+
+    const need = Math.max(0, Number(state.toCall || 0) - Number(actor.contrib || 0));
     actionBarEl.innerHTML = '';
 
-    // ---- Fold ----
     const bFold = document.createElement('button');
     bFold.textContent = 'Fold';
-    bFold.onclick = ()=> {
-      socket?.emit('poker:act', { action:'fold' });
-      // no onchain tx for fold
-    };
+    bFold.onclick = () => socket?.emit('poker:act', { action: 'fold' });
     actionBarEl.appendChild(bFold);
 
-    // ---- Check / Call ----
-    const bCheckCall = document.createElement('button');
-    bCheckCall.textContent = (need > 0) ? `Call ${need}` : 'Check';
-    bCheckCall.onclick = async ()=> {
-      socket?.emit('poker:act', { action:(need>0?'call':'check') });
-      if (IS_ONCHAIN && need>0){
-        try {
-          const res = await window.AgentOps?.contribute?.(mySeat, String(need));
-          let txHash = res && (res.hash || res.txHash || res.transactionHash);
-          if (!txHash && res?.wait) { const rcpt = await res.wait(); txHash = rcpt?.transactionHash || rcpt?.hash; }
-          const t = toast('Call posted on-chain ✅');
-          addExplorerLink(t, txHash);
-        } catch(e){ console.warn(e); showCenter('Call tx failed'); }
-      }
-    };
-    actionBarEl.appendChild(bCheckCall);
+    const bCC = document.createElement('button');
+    bCC.textContent = need > 0 ? `Call ${need}` : 'Check';
+    bCC.onclick = () => socket?.emit('poker:act', { action: (need > 0 ? 'call' : 'check') });
+    actionBarEl.appendChild(bCC);
 
-    // ---- Bet / Raise (simple fixed raise for demo) ----
+    const raiseAmt = need + Number(state.bigBlind || 0);
     const bRaise = document.createElement('button');
-    const raiseAmt = need + Number(state.bigBlind||0);
     bRaise.textContent = `Raise ${raiseAmt}`;
-    bRaise.onclick = async ()=> {
-      socket?.emit('poker:act', { action:'raise', amount:raiseAmt });
-      if (IS_ONCHAIN){
-        try {
-          const res = await window.AgentOps?.contribute?.(mySeat, String(raiseAmt));
-          let txHash = res && (res.hash || res.txHash || res.transactionHash);
-          if (!txHash && res?.wait) { const rcpt = await res.wait(); txHash = rcpt?.transactionHash || rcpt?.hash; }
-          const t = toast('Raise posted on-chain ✅');
-          addExplorerLink(t, txHash);
-        } catch(e){ console.warn(e); showCenter('Raise tx failed'); }
-      }
-    };
+    bRaise.onclick = () => socket?.emit('poker:act', { action: 'raise', amount: raiseAmt });
     actionBarEl.appendChild(bRaise);
   }
 
-  /* --------------------------- Auto-blinds plumbing ---------------------------- */
-  async function tryAutoPostBlind(kind, seatIndex, valueWei) {
-    if (!window.AgentOps || typeof window.AgentOps.contribute !== 'function') return;
-    const tag = `[AA:${kind}]`;
-    let t = toast(`${tag} preparing sponsored operation…`, {persist:true});
+  /* -------------------- wallet sync -------------------- */
+  function setKnownAddress(addr) {
+    myAddr = lc(addr || '');
     try {
-      const res = await window.AgentOps.contribute(seatIndex, valueWei);
-      let txHash = res && (res.hash || res.txHash || res.transactionHash);
-      if (!txHash && res && typeof res.wait === 'function') {
-        const rcpt = await res.wait(); txHash = rcpt && (rcpt.transactionHash || rcpt.hash);
-      } else if (!txHash && res && typeof res.waitForTx === 'function') {
-        const rcpt = await res.waitForTx(); txHash = rcpt && (rcpt.transactionHash || rcpt.hash);
-      }
-      t.textContent = `${tag} posted successfully ✅`;
-      addExplorerLink(t, txHash);
-    } catch (err) {
-      console.warn('Auto blind failed', err);
-      t.remove();
-      toast(`${tag} failed: ${err?.shortMessage || err?.message || 'reverted'}`, {error:true});
-    }
-  }
-
-  function installAutoBlinds(socket, getState, opts={}) {
-    const timeoutMs = opts.timeoutMs || 9000;
-
-    function handleMeta(meta) {
-      const st = (typeof getState === 'function') ? getState() : {};
-      if (!IS_ONCHAIN) return;
-      if (!window.__AA_AUTO_BLINDS) return;
-
-      const me = st.mySeat;
-      if (me == null || me === -1) return;
-
-      const sbSeat = meta?.sbSeat ?? meta?.smallBlindSeat ?? meta?.blinds?.sbSeat;
-      const bbSeat = meta?.bbSeat ?? meta?.bigBlindSeat ?? meta?.blinds?.bbSeat;
-      const sbWei = meta?.blinds?.sbWei || BLINDS_WEI.sb;
-      const bbWei = meta?.blinds?.bbWei || BLINDS_WEI.bb;
-
-      if (me === sbSeat) setTimeout(() => tryAutoPostBlind('SB', me, sbWei), 200);
-      if (me === bbSeat) setTimeout(() => tryAutoPostBlind('BB', me, bbWei), 400);
-
-      // server retains authority and will fallback off-chain after timeout
-      setTimeout(() => {}, timeoutMs);
-    }
-
-    // Preferred dedicated meta hook
-    socket.on('table:handMeta', handleMeta);
-
-    // Back-compat: infer from poker:state snapshots
-    socket.on('poker:state', (snap) => {
-      const meta = snap?.handMeta || snap?.hand || snap?.blinds || {};
-      if (meta && (meta.sbSeat != null || meta.bbSeat != null ||
-                   meta.smallBlindSeat != null || meta.bigBlindSeat != null)) {
-        handleMeta(meta);
-      }
-    });
-  }
-
-  /* ------------------------------ Socket wiring ------------------------------- */
-  function initSocket(){
-    try{
-      socket = io(window.location.origin, {
-        path:'/poker.io/',
-        transports:['websocket','polling'],
-        upgrade:true,
-        reconnection:true,
-        reconnectionAttempts:10,
-        reconnectionDelay:800,
-        forceNew:true
-      });
-    }catch(e){ showCenter('Socket unavailable', 1800); return; }
-
-    socket.on('connect', ()=>{
-      try{
-        if (myAddr) socket.emit('identify', { addr: myAddr });
-        socket.emit('join_table', { table: tableId });
-        socket.emit('lobby:get');
-      }catch{}
-    });
-    socket.on('disconnect', ()=> {
-      showCenter('Disconnected', 1000);
-      if (actionBarEl){ actionBarEl.remove(); actionBarEl = null; }
-    });
-
-    socket.on('table:update', (t)=> renderTableModel(t));
-    socket.on('table:state',  (t)=> renderTableModel(t)); // back-compat
-
-    socket.on('poker:state', (m)=>{
-      state = m || null;
-      renderBoard();
-      refreshSeatCardBacksFromState();
-      updateActionBar();
-
-      if (typeof m?.pot !== 'undefined'){
-        showCenter(`Stage: ${m.stage||'-'} • Pot: ${m.pot}`, 700);
-      }
-
-      if (state && Array.isArray(state.actors)){
-        const me = state.actors.find(a => a && a.seatId === mySeat);
-        if (me && me.folded){
-          myHole = [];
-          drawSeatCards(mySeat);
-        }
-      }
-    });
-
-    socket.on('poker:hole', (payload)=>{
-      const arr = Array.isArray(payload?.cards) ? payload.cards.slice(0,2) : [];
-      myHole = arr;
-      if (mySeat >= 0) drawSeatCards(mySeat);
-    });
-
-    socket.on('poker:hole_clear', ()=>{
-      myHole = [];
-      if (mySeat >= 0) drawSeatCards(mySeat);
-    });
-
-    socket.on('poker:hand', (h)=>{
-      try{
-        const winners = Array.isArray(h?.winners) ? h.winners : [];
-        if (winners.length){
-          const names = winners.map(w=> short(w.addr)).join(', ');
-          showCenter(`Hand complete — Winner: ${names}`, 1800);
-
-          const usedCommunity = winners[0]?.usedCommunity || [];
-          Array.from(boardEl.children).forEach((el, i)=>{
-            if (usedCommunity.includes(i)) el.classList.add('card--win');
-          });
-          if (mySeat >= 0 && winners.some(w => lc(w.addr)===lc(myAddr))){
-            const myW = winners.find(w => lc(w.addr)===lc(myAddr));
-            const row = seatEls[mySeat].querySelector('.cards');
-            if (row && Array.isArray(myW?.usedHole)){
-              Array.from(row.children).forEach((el, i)=>{
-                if (myW.usedHole.includes(i)) el.classList.add('card--win');
-              });
-            }
-          }
-        } else {
-          showCenter('Hand complete', 1200);
-        }
-      }catch{}
-
-      setTimeout(()=> {
-        Array.from(boardEl.children).forEach(el=> el.classList.remove('card--win'));
-        if (actionBarEl){ actionBarEl.remove(); actionBarEl = null; }
-      }, 1800);
-    });
-
-    socket.on('table:reset', ()=>{
-      myHole = [];
-      clearBoard();
-      seatEls.forEach((_, i)=> drawSeatCards(i));
-      if (actionBarEl){ actionBarEl.remove(); actionBarEl = null; }
-      showCenter('Table reset', 800);
-    });
-
-    // Install AA auto-blinds once we have the socket; getter supplies live mySeat
-    installAutoBlinds(socket, () => ({ mySeat }));
-  }
-
-  /* ---------------------- Wallet sync from navbar/tavern ----------------------- */
-  function setKnownAddress(addr){
-    myAddr = lc(addr||'');
-    try{
-      if (myAddr){
-        localStorage.setItem('walletConnected','true');
-        sessionStorage.setItem('walletConnected','true');
+      if (myAddr) {
+        localStorage.setItem('walletConnected', 'true');
         localStorage.setItem('walletAddress', myAddr);
+        sessionStorage.setItem('walletConnected', 'true');
         sessionStorage.setItem('walletAddress', myAddr);
+        $('#wi-address').textContent = short(myAddr);
+        $('#wi-disconnect').style.display = '';
       }
-    }catch{}
-    if (socket?.connected && myAddr){
-      try{ socket.emit('identify', { addr: myAddr }); }catch{}
-    }
+    } catch { }
+    try { if (socket?.connected && myAddr) socket.emit('identify', { addr: myAddr }); } catch { }
   }
-  window.addEventListener('wallet:connected', (e)=>{
+
+  window.addEventListener('wallet:connected', (e) => {
     const a = e?.detail?.address || e?.detail?.addr;
     if (a) setKnownAddress(a);
   });
 
-  /* ------------------------------- Bootstrap ----------------------------------- */
-  // Reflow seats on viewport changes (safe no-op if already correct)
+  const disc = $('#wi-disconnect');
+  if (disc) disc.onclick = () => {
+    try { localStorage.removeItem('walletConnected'); sessionStorage.removeItem('walletConnected'); } catch { }
+    location.replace('/landing.html');
+  };
+
+  /* -------------------- boot -------------------- */
   window.addEventListener('resize', () => requestAnimationFrame(layoutSeats));
-
-  // Run initial layout before any server state arrives, and re-check after paint
   requestAnimationFrame(layoutSeats);
-  window.addEventListener('load', () => {
-    layoutSeats();
-    setTimeout(layoutSeats, 50);
-    setTimeout(layoutSeats, 300);
-  });
-
-  // Preload sprite to avoid first-deal flash
-  try{ (new Image()).src = SPRITE_URL; }catch(e){}
-
-  // Initialize AA/execution client (non-blocking)
-  try { window.AgentOps?.init?.(); } catch {}
+  window.addEventListener('load', () => { layoutSeats(); setTimeout(layoutSeats, 50); setTimeout(layoutSeats, 300); });
 
   initSocket();
   if (myAddr) setKnownAddress(myAddr);
-
 })();
