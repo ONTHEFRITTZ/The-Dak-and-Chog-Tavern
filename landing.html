@@ -11,12 +11,12 @@
   <link rel="stylesheet" href="/css/style.css" />
 
   <style>
-    /* Hide any pills/banners/sidebars on landing */
+    /* Hide any network/contract pills or headers on landing */
     .top-banner, #network-banner, #nb-top-info, .contract-pill, #sidebar {
       display: none !important; visibility: hidden !important;
     }
 
-    /* Fail-safe visuals even if style.css is cached oddly */
+    /* Fail-safe visuals even if style.css is cached weirdly */
     body.age-landing {
       min-height: 100vh; display: flex; align-items: center; justify-content: center;
       background: url('/assets/images/tavern-bg.webp') no-repeat center/cover fixed;
@@ -35,11 +35,8 @@
     .age-cta button { padding: 12px 22px; font-size: 18px; border-radius: 10px; }
     #wallet-choice { margin-top: 14px; display: none; }
     #wc-status { margin-top: 12px; font-size: 14px; color: #f4e6d3; min-height: 1.2em; }
-    #wallet-choice button { cursor: pointer; }
-
     .hint { font-size: 12px; opacity: .9; margin-top: 6px; }
     .row { display:flex; gap:18px; justify-content:center; flex-wrap:wrap; align-items:center; }
-
     .wallet-btn {
       padding:10px; border-radius:12px; display:flex; align-items:center; justify-content:center;
       width:64px; height:64px; background:transparent; border:none; box-shadow:none;
@@ -47,7 +44,6 @@
     }
     .wallet-btn:active { transform: translateY(1px); }
     .wallet-btn[disabled] { opacity:.6; pointer-events:none; }
-
     .subnote { font-size: 12px; margin-top: 6px; }
   </style>
 </head>
@@ -112,6 +108,7 @@
 
     function setStatus(msg) { statusEl.textContent = msg || ""; }
     function lock(btn, on) { if (btn) btn.disabled = !!on; }
+    function redirectHome() { location.replace("/index.html"); }
     function setSigned(addr) {
       try {
         sessionStorage.setItem("walletSigned", "true");
@@ -122,6 +119,7 @@
       } catch {}
     }
 
+    // Robust provider detection (MetaMask first, then multi-provider array)
     function getMetaMaskProvider() {
       const eth = window.ethereum;
       if (!eth) return null;
@@ -130,89 +128,73 @@
         const mm = eth.providers.find(p => p && p.isMetaMask);
         if (mm) return mm;
       }
-      return eth;
+      return null;
     }
-
     function getPhantomEvmProvider() {
-      // Phantom’s EVM provider is exposed at window.phantom.ethereum
       const ph = window.phantom && window.phantom.ethereum;
       return ph && typeof ph.request === "function" ? ph : null;
     }
 
-    async function connectMetaMask() {
-      const mm = getMetaMaskProvider();
-      pendingHint.style.display = "none";
-      if (!mm || !mm.request) {
-        setStatus("MetaMask not detected. Please install the extension.");
-        return;
-      }
-      if (window.top !== window.self) {
-        setStatus("Open this page in a tab (not an iframe).");
-        return;
-      }
-      lock(btnMM, true);
-      setStatus("Connecting to MetaMask…");
+    async function ensureAccount(provider, walletName) {
+      // If already authorized, skip popup and go
       try {
-        const accounts = await mm.request({ method: "eth_requestAccounts" });
-        const addr = accounts && accounts[0];
-        if (!addr) throw new Error("No account returned.");
-        setSigned(addr);
-        setStatus("");
-        // Optional redirect:
-        // location.href = "/index.html";
+        const pre = await provider.request({ method: "eth_accounts" });
+        if (Array.isArray(pre) && pre[0]) return pre[0];
+      } catch {}
+
+      // Otherwise trigger the permission prompt
+      try {
+        const accounts = await provider.request({ method: "eth_requestAccounts" });
+        return (accounts && accounts[0]) || null;
       } catch (err) {
         if (err && (err.code === -32002 ||
             String(err.message||"").toLowerCase().includes("request already pending"))) {
-          setStatus("MetaMask request already pending.");
+          setStatus(`${walletName} request already pending.`);
           pendingHint.style.display = "block";
-        } else if (err && err.code === 4001) {
-          setStatus("MetaMask request canceled.");
-        } else {
-          setStatus(err?.message ? ("MetaMask error: " + err.message) : "MetaMask error.");
-          console.error("MetaMask connect error:", err);
+          // We’ll rely on accountsChanged to complete later.
+          return null;
         }
-      } finally {
-        lock(btnMM, false);
+        if (err && err.code === 4001) {
+          setStatus(`${walletName} request canceled.`);
+          return null;
+        }
+        setStatus(err?.message ? `${walletName} error: ${err.message}` : `${walletName} error.`);
+        console.error(`${walletName} connect error:`, err);
+        return null;
       }
     }
 
-    async function connectPhantom() {
-      const ph = getPhantomEvmProvider();
+    async function connectMetaMask() {
       pendingHint.style.display = "none";
+      const mm = getMetaMaskProvider();
+      if (!mm) {
+        setStatus("MetaMask not detected. Please install the extension.");
+        return;
+      }
+      if (window.top !== window.self) { setStatus("Open this page in a tab (not an iframe)."); return; }
+
+      lock(btnMM, true);
+      setStatus("Connecting to MetaMask…");
+      const addr = await ensureAccount(mm, "MetaMask");
+      lock(btnMM, false);
+      if (addr) { setSigned(addr); redirectHome(); }
+    }
+
+    async function connectPhantom() {
+      pendingHint.style.display = "none";
+      const ph = getPhantomEvmProvider();
       if (!ph) {
         setStatus("Phantom (EVM) not detected.");
         if (phMissing) phMissing.style.display = "block";
         return;
       }
-      if (window.top !== window.self) {
-        setStatus("Open this page in a tab (not an iframe).");
-        return;
-      }
+      if (window.top !== window.self) { setStatus("Open this page in a tab (not an iframe)."); return; }
+
       lock(btnPH, true);
       setStatus("Connecting to Phantom…");
-      try {
-        // Phantom EVM also supports eth_requestAccounts
-        const accounts = await ph.request({ method: "eth_requestAccounts" });
-        const addr = accounts && accounts[0];
-        if (!addr) throw new Error("No account returned.");
-        setSigned(addr);
-        setStatus("");
-        // Optional redirect:
-        // location.href = "/index.html";
-      } catch (err) {
-        if (err && (err.code === -32002 ||
-            String(err.message||"").toLowerCase().includes("request already pending"))) {
-          setStatus("Phantom request already pending.");
-          pendingHint.style.display = "block";
-        } else if (err && err.code === 4001) {
-          setStatus("Phantom request canceled.");
-        } else {
-          setStatus(err?.message ? ("Phantom error: " + err.message) : "Phantom error.");
-          console.error("Phantom connect error:", err);
-        }
-      } finally {
-        lock(btnPH, false);
-      }
+      const addr = await ensureAccount(ph, "Phantom");
+      lock(btnPH, false);
+      if (addr) { setSigned(addr); redirectHome(); }
     }
 
     // Reveal wallet choices after age confirm
@@ -225,9 +207,19 @@
       if (!hasPh && phMissing) phMissing.style.display = "block";
     });
 
+    // If an approval happens later (e.g., user clicks extension icon), finish the flow
+    function wireAccountsChanged(provider, name) {
+      if (!provider || typeof provider.on !== "function") return;
+      provider.on("accountsChanged", (accs) => {
+        if (Array.isArray(accs) && accs[0]) { setSigned(accs[0]); redirectHome(); }
+      });
+    }
+    wireAccountsChanged(getMetaMaskProvider(), "MetaMask");
+    wireAccountsChanged(getPhantomEvmProvider(), "Phantom");
+
     // Button handlers (one request per click)
-    btnMM?.addEventListener("click", connectMetaMask);
-    btnPH?.addEventListener("click", connectPhantom);
+    $("btn-metamask")?.addEventListener("click", connectMetaMask);
+    $("btn-phantom")?.addEventListener("click", connectPhantom);
   </script>
 </body>
 </html>
