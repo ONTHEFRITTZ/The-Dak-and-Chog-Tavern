@@ -11,14 +11,26 @@
   <meta http-equiv="Expires" content="0">
   <title>Dak & Chog Tavern — Enter</title>
 
-  <!-- Your site CSS (unchanged path) -->
+  <!-- Site CSS -->
   <link rel="stylesheet" href="/css/style.css" />
 
   <style>
-    /* Small helpers to make the card look good even if style.css is cached-stale */
+    /* --- Landing-page scoping (no network/contract pills, no top chrome) --- */
+    body.landing .top-banner,
+    body.landing #network-banner,
+    body.landing #nb-top-info,
+    body.landing .contract-pill,
+    body.landing #sidebar {
+      display: none !important;
+      visibility: hidden !important;
+    }
+
+    /* Small helpers so it still looks right if style.css is stale/cached */
     body.age-landing {
-      min-height: 100vh; display: flex; align-items: center; justify-content: center;
-      text-align: center; background: url('/assets/images/tavern-bg.webp') no-repeat center/cover fixed;
+      min-height: 100vh;
+      display: flex; align-items: center; justify-content: center;
+      text-align: center;
+      background: url('/assets/images/tavern-bg.webp') no-repeat center/cover fixed;
       margin: 0;
       font-family: 'Morris', 'Morris Alt', serif;
     }
@@ -36,12 +48,27 @@
     #wc-status { margin-top: 12px; font-size: 14px; color: #f4e6d3; text-align: center; min-height: 1.2em; }
     #wallet-choice button { cursor: pointer; }
   </style>
+
+  <!-- Belt-and-suspenders: if something injects pills/banners after load, remove them -->
+  <script>
+    const __nukeLandingChrome = () => {
+      ['network-banner','nb-top-info','sidebar'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.remove();
+      });
+      document.querySelectorAll('.contract-pill,.top-banner').forEach(el => el.remove());
+    };
+    document.addEventListener('DOMContentLoaded', () => {
+      __nukeLandingChrome();
+      setTimeout(__nukeLandingChrome, 150);
+      setTimeout(__nukeLandingChrome, 600);
+    });
+  </script>
 </head>
 
-<body class="age-landing">
+<!-- Add the 'landing' class so the hide rules above are page-scoped -->
+<body class="age-landing landing">
   <main class="age-hero" aria-label="Age Confirmation">
-    <!-- You can keep your sign/logo above if you had one -->
-
     <section class="age-card" aria-labelledby="age-title"
       style="background: var(--panel-bg-soft); border:1px solid rgba(255,255,255,0.12); box-shadow:0 24px 60px rgba(0,0,0,0.55); color:#ffffff;">
       <h1 id="age-title" class="visually-hidden">Age Confirmation</h1>
@@ -110,19 +137,19 @@
       setStatus("");
       const choice = $("wallet-choice");
       if (choice) choice.style.display = "block";
-      // (Optional) Persist flag that age was confirmed:
+      // Persist flag that age was confirmed:
       try { sessionStorage.setItem("ageConfirmed", "true"); } catch {}
     });
 
-    // MetaMask — ensures we call in a user-gesture to allow unlock prompt
+    // MetaMask
     $("btn-metamask")?.addEventListener("click", async () => {
       setStatus("Opening MetaMask…");
       try {
         await connectWallet("metamask");
-        setStatus(""); // success; route if you want
-        // location.href = "/"; // optional redirect after connect
+        setStatus("");
+        // Optional: redirect after connect
+        // location.href = "/";
       } catch (err) {
-        // Common UX cases
         if (err?.code === -32002) {
           setStatus("MetaMask request already pending — open the extension to continue.");
         } else if (err?.code === 4001) {
@@ -145,7 +172,8 @@
         setStatus("Opening Phantom…");
         await connectWallet("phantom");
         setStatus("");
-        // location.href = "/"; // optional redirect after connect
+        // Optional: redirect after connect
+        // location.href = "/";
       } catch (err) {
         if (err?.code === 4001) {
           setStatus("Phantom request canceled.");
@@ -155,7 +183,7 @@
       }
     });
 
-    // Fix any garbled apostrophes if the file got saved in a weird encoding
+    // Fix apostrophe if encoding gets weird
     if (phantomMissing) {
       phantomMissing.innerHTML = `Don’t have Phantom? <a href="https://phantom.app/download" target="_blank" rel="noopener">Get Phantom</a>`;
     }
