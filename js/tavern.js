@@ -54,6 +54,50 @@ function setSelectedProvider(provider, key) {
 try { window.__getSelectedProvider = (k) => resolveSelectedProvider(k); } catch {}
 try { window.__setSelectedProvider = setSelectedProvider; } catch {}
 try { const seeded = resolveSelectedProvider(); if (seeded) setSelectedProvider(seeded, readStoredProviderKey()); } catch {}
+// --- MetaMask helpers (robust unlock flow) ---
+async function getMetaMaskProvider() {
+  try {
+    const seed = resolveSelectedProvider('metamask');
+    // In case of multi-provider injection
+    if (seed?.providers?.length) {
+      const mm = seed.providers.find(p => p && p.isMetaMask);
+      if (mm) return mm;
+    }
+    if (seed?.isMetaMask) return seed;
+  } catch {}
+  // Last chance: window.ethereum?.providers or window.ethereum
+  try {
+    if (window.ethereum?.providers?.length) {
+      const mm = window.ethereum.providers.find(p => p && p.isMetaMask);
+      if (mm) return mm;
+    }
+    if (window.ethereum?.isMetaMask) return window.ethereum;
+  } catch {}
+  return null;
+}
+
+async function isMetaMaskUnlocked(mm) {
+  try {
+    // This is a commonly used MetaMask helper; returns Promise<boolean>
+    if (mm && mm._metamask && typeof mm._metamask.isUnlocked === 'function') {
+      return !!(await mm._metamask.isUnlocked());
+    }
+  } catch {}
+  // Fallback heuristic: if we can get accounts without error
+  try {
+    const accs = await mm.request({ method: 'eth_accounts' });
+    return Array.isArray(accs) && accs.length > 0;
+  } catch {}
+  return false;
+}
+
+// Clear "connecting..." label if we error out
+function setStatus(msg) {
+  try {
+    const statusEl = document.getElementById('status');
+    if (statusEl) statusEl.innerText = msg || '';
+  } catch {}
+}
 
 // --- config lazy-loader (same as before) ------------------------------------
 let cfgLoaded = false;
@@ -143,70 +187,125 @@ function setConnectButtonAsConnect() {
 }
 
 // --- connect flow ------------------------------------------------------------
-export async function connectWallet(key, injectedOverride) {
-  let providerKey = '';
-  try { providerKey = String(key || '').toLowerCase(); } catch {}
+export async function connectWallet(key = 'metamask', injectedOverride) {
+  // Always prefer the MetaMask provider for this button
+  const mm = injectedOverride || await getMetaMaskProvider();
 
-  const injected = resolveSelectedProvider(providerKey, injectedOverride);
-  if (!injected?.request) { alert('Wallet not detected. Please install a wallet extension.'); return; }
+  if (!mm) {
+    alert('MetaMask not detected. Please install MetaMask and try again.');
+    return;
+  }
 
-  providerKey = detectProviderKey(injected, providerKey || 'injected');
-  setSelectedProvider(injected, providerKey);
+  // Mark selection so the rest of your code picks it up
+  setSelectedProvider(mm, 'metamask');
 
+  // This whole function runs in a user-gesture (button click) context,
+  // so MM should be allowed to open its unlock UI.
   try {
-    await injected.request({ method: 'eth_requestAccounts' });
-    provider = new ethers.providers.Web3Provider(injected, 'any');
-    signer = provider.getSigner();
-    userAddress = await signer.getAddress();
+    // If locked, request accounts will open unlock UI
+    let unlocked = await isMetaMaskUnlocked(mm);
+    if (!unlocked) {
+      try {
+        await mm.request({ method: 'eth_requestAccounts' });
+      } catch (err) {
+        // -32002 = request already pending; instruct the user
+        if (err && (err.code === -32002)) {
+          showToast('MetaMask request is already pending — open the extension to continue.', 'info', 4000);
+          setStatus('');
+          return;
+        }
+        // 4001 = user rejected the request
+        if (err && (err.code === 4001)) {
+          showToast('MetaMask unlock canceled.', 'error');
+          setStatus('');
+          return;
+        }
+        // Other errors: surface and bail
+        console.warn('eth_requestAccounts failed', err);
+        showToast('MetaMask error: ' + (err?.message || 'request failed'), 'error');
+        setStatus('');
+        return;
+      }
+      // After the prompt, verify again
+      unlocked = await isMetaMaskUnlocked(mm);
+      if (!unlocked) {
+        showToast('Please unlock MetaMask to continue.', 'info');
+        setStatus('');
+        return;
+      }
+    } else {
+      // Even if unlocked, you still want to ensure account access is granted
+      // (some browsers/extensions need this to surface the account list)
+      try { await mm.request({ method: 'eth_requestAccounts' }); } catch {}
+    }
 
-    // 🔑 Only initialize AA on on-chain pages
-    await maybeInitAA(provider);
+    // By here we should be unlocked + authorized → proceed to ethers
+    const _ethers = window.ethers || (await import('https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.esm.min.js')).ethers;
+    const provider = new _ethers.providers.Web3Provider(mm, 'any');
+    const signer = provider.getSigner();
+    const userAddress = await signer.getAddress();
+
+    // 👇 (same as your existing flow)
+    try {
+      const ts = Date.now();
+      const nonce = (Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2)).slice(0, 24);
+      const msg = 'Dak & Chog Tavern\n\nSign-In: ' + nonce + '\nTime: ' + new Date(ts).toISOString() + '\nAddress: ' + userAddress + '\nWallet: metamask';
+      const sig = await signer.signMessage(msg);
+      const rec = _ethers.utils.verifyMessage(msg, sig);
+      if (!rec || String(rec).toLowerCase() !== String(userAddress).toLowerCase()) throw new Error('Signature verification failed');
+      try {
+        sessionStorage.setItem('walletSigned','true');
+        sessionStorage.setItem('walletProvider', 'metamask');
+        sessionStorage.setItem('walletSig', sig);
+        sessionStorage.setItem('walletMsg', msg);
+      } catch {}
+    } catch (e) {
+      showToast('Signature required to enter', 'error');
+      setStatus('');
+      return;
+    }
+
+    // Load config + render banners/UI
+    try {
+      await (await import(`./config.js?v=${encodeURIComponent(window.__BUILD_TAG || Date.now())}`));
+    } catch {}
 
     try {
+      // Fire your existing connected event so table.js picks it up
       window.userAddress = userAddress;
       window.dispatchEvent(new CustomEvent('wallet:connected', { detail: { address: userAddress } }));
     } catch {}
 
-    // lightweight SIW-style signature gate
+    // Persist & update UI
     try {
-      const ts = Date.now();
-      const nonce = (Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2)).slice(0, 24);
-      const msg = 'Dak & Chog Tavern\n\nSign-In: ' + nonce + '\nTime: ' + new Date(ts).toISOString() + '\nAddress: ' + userAddress + '\nWallet: ' + providerKey;
-      const sig = await signer.signMessage(msg);
-      const rec = ethers.utils.verifyMessage(msg, sig);
-      if (!rec || String(rec).toLowerCase() !== String(userAddress).toLowerCase()) throw new Error('Signature verification failed');
-      sessionStorage.setItem('walletSigned','true');
-      sessionStorage.setItem('walletProvider', providerKey);
-      sessionStorage.setItem('walletSig', sig);
-      sessionStorage.setItem('walletMsg', msg);
-    } catch (e) { throw new Error('Signature required to enter'); }
-
-    await ensureConfig();
-    setConnectButtonAsDisconnect();
-    hideInlineConnectIfBannerPresent();
-    try { statusEl && (statusEl.innerText = ''); } catch {}
-    try { showToast && showToast('Wallet connected', 'success'); } catch {}
-
-    try {
-      const chainId = await detectChainId(provider);
-      const tavernAddress = await getAddressFor('tavern', provider);
-      renderTavernBanner && renderTavernBanner({ contractKey: 'tavern', address: tavernAddress, chainId, wallet: userAddress, labelOverride: 'Address' });
-
-      // Admin link logic (optional)
-      try {
-        const poolAddr = await getAddressFor('pool', provider);
-        if (poolAddr && window.PoolABI) {
-          const pool = new ethers.Contract(poolAddr, window.PoolABI, signer);
-          const owner = await pool.owner();
-          const me = String(userAddress || '').toLowerCase();
-          ensureAdminLink( String(owner).toLowerCase() === me || ['0x8ba35eca0fe68787b275c6ed065675829843adf5'].includes(me) );
-        } else {
-          ensureAdminLink(false);
-        }
-      } catch { ensureAdminLink(false); }
+      localStorage.setItem('walletConnected','true');
+      sessionStorage.setItem('walletConnected','true');
+      localStorage.setItem('walletAddress', userAddress.toLowerCase());
+      sessionStorage.setItem('walletAddress', userAddress.toLowerCase());
     } catch {}
-  } catch (err) {
-    try { statusEl && (statusEl.innerText = 'Connection failed: ' + err.message); } catch {}
+
+    // Wire the Disconnect button as before
+    (function setDisconnectUI(){
+      try {
+        const btn = document.getElementById('wi-disconnect') || document.getElementById('nb-disconnect');
+        if (btn) {
+          btn.style.display = '';
+          btn.onclick = () => {
+            try { localStorage.removeItem('walletConnected'); } catch {}
+            try { sessionStorage.removeItem('walletConnected'); } catch {}
+            try { location.replace('/landing.html'); } catch { location.href = '/landing.html'; }
+          };
+        }
+      } catch {}
+    })();
+
+    showToast('Wallet connected', 'success');
+    setStatus('');
+
+  } catch (outerErr) {
+    console.warn('connectWallet failed', outerErr);
+    showToast(outerErr?.message || 'Connection failed', 'error');
+    setStatus('');
   }
 }
 
