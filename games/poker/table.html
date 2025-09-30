@@ -7,61 +7,35 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <title>Poker Table</title>
-  <style>
-  /* Never show DevBot on on-chain tables */
-  :root[data-table-mode="onchain"] #wi-devbot { display:none !important; }
-  </style>
 
+  <!-- Pin the user's chosen wallet across the site (must be before any wallet/AA code) -->
+  <script src="/js/provider-pin.js"></script>
 
-  <!-- Inline provider-pin (avoid 404s / HTML-as-JS issues) -->
-  <script>
-  ;(function () {
-    try {
-      const KEY = 'walletProvider';
-      window.__getSelectedProvider = function () {
-        try {
-          const pref = (sessionStorage.getItem(KEY) || localStorage.getItem(KEY) || '').toLowerCase();
-          if (pref === 'phantom' && window.phantom && window.phantom.ethereum) return window.phantom.ethereum;
-          if (pref === 'metamask' && window.ethereum) return window.ethereum;
-          if (window.ethereum) return window.ethereum;
-          if (window.phantom && window.phantom.ethereum) return window.phantom.ethereum;
-        } catch {}
-        return null;
-      };
-    } catch {}
-  })();
-  </script>
-  <script>
-  (function () {
-    try {
-      if (document.documentElement.getAttribute('data-table-mode') === 'onchain') {
-        // remove if it’s there
-        var b = document.getElementById('wi-devbot');
-        if (b) b.remove();
-
-        // if any script tries to re-add it later, remove it again
-        const mo = new MutationObserver(function () {
-          var d = document.getElementById('wi-devbot');
-          if (d) d.remove();
-        });
-        mo.observe(document.body, { childList: true, subtree: true, attributes: true });
-      }
-    } catch {}
-  })();
-  </script>
-
-  <!-- Decide mode early. Only inject importmap when mode=onchain -->
+  <!-- Decide mode EARLY (onchain/f2p). Accept ?mode=onchain OR infer from ?table= id. -->
   <script>
     (function () {
       try {
-        const qp = new URL(location.href).searchParams;
-        const path = location.pathname.toLowerCase();
-        const hintOnchain = /\/(limit|nolimit|onchain)\b/.test(path);
-        const qMode = (qp.get('mode') || '').toLowerCase();
-        const tag = (qMode === 'onchain') ? 'onchain'
-                  : (qMode === 'f2p') ? 'f2p'
-                  : (hintOnchain ? 'onchain' : 'f2p');
+        const u = new URL(location.href);
+        const qpMode = (u.searchParams.get('mode') || '').toLowerCase();
+        const tableId = (u.searchParams.get('table') || '').toLowerCase();
+
+        function inferFromTable(t) {
+          // Treat common onchain table id formats as onchain even if mode is missing
+          // e.g. poker-nl-1, poker-limit-2, poker-l-*, holdem-nl-*
+          if (/poker[-_]?nl[-_]?/i.test(t)) return 'onchain';
+          if (/poker[-_]?no[-_]?limit/i.test(t)) return 'onchain';
+          if (/poker[-_]?limit/i.test(t)) return 'onchain';
+          if (/holdem[-_]?nl/i.test(t)) return 'onchain';
+          return 'f2p';
+        }
+
+        const tag = qpMode === 'onchain' ? 'onchain'
+                  : qpMode === 'f2p'     ? 'f2p'
+                  : inferFromTable(tableId);
+
         document.documentElement.setAttribute('data-table-mode', tag);
+
+        // Only inject the importmap when onchain
         if (tag === 'onchain') {
           const im = document.createElement('script');
           im.type = 'importmap';
@@ -83,7 +57,7 @@
     })();
   </script>
 
-  <!-- Gate by sign-in -->
+  <!-- Gate by sign-in (keeps your flow) -->
   <script>
     (function () {
       try {
@@ -112,10 +86,10 @@
     })();
   </script>
 
-  <!-- Preloads / Prefetch -->
+  <!-- Preloads (poker uses poker-table.png) -->
   <link rel="preload" as="image" href="../../assets/images/poker-table.png" type="image/png">
-  <link rel="prefetch" href="/assets/images/cards/cards-sprite.png">
-  <link rel="prefetch" href="/assets/images/chog_cards/dak-and-chog-cardback.png">
+  <link rel="preload" as="image" href="/assets/images/cards/cards-sprite.png" type="image/png">
+  <link rel="preload" as="image" href="/assets/images/chog_cards/dak-and-chog-cardback.png" type="image/png">
 
   <!-- Holdem ABI helper -->
   <script>
@@ -129,23 +103,40 @@
     })();
   </script>
 
-  <!-- Page-specific safety -->
+  <!-- HARD LOCK: DevBot must never show on onchain tables -->
   <style>
-    /* Never let a standalone network banner push layout on this page */
-    #network-banner { display:none !important; }
-    /* DevBot absolute kill switch on on-chain tables */
-    html[data-table-mode="onchain"] #wi-devbot { display:none !important; }
+    html[data-table-mode="onchain"] #wi-devbot {
+      display: none !important;
+      visibility: hidden !important;
+    }
   </style>
 </head>
 
 <body class="game">
-  <!-- Top-right wallet chip (only thing up top) -->
-  <div id="wallet-inline" style="position:fixed; top:12px; right:12px; z-index:12000; display:flex; align-items:center; gap:8px; background: var(--panel-bg-soft); border:1px solid rgba(255,255,255,0.12); border-radius:12px; padding:6px 10px; color:#f4e6d3;">
-    <span id="wi-label" style="font-weight:700;">Wallet:</span>
+  <!-- Top-right wallet chip (only thing up top). DevBot button is F2P solo only -->
+  <div id="wallet-inline">
+    <span id="wi-label">Wallet:</span>
     <span id="wi-address">-</span>
-    <!-- DevBot button is injected in F2P-only script below -->
+    <button id="wi-devbot" style="display:none" title="F2P solo only">Enable DevBot</button>
     <button id="wi-disconnect" style="display:none">Disconnect</button>
   </div>
+
+  <!-- Extra guard: if page is ONCHAIN, nuke any attempt to show or recreate DevBot -->
+  <script>
+    (function () {
+      try {
+        if (document.documentElement.getAttribute('data-table-mode') === 'onchain') {
+          const kill = () => {
+            const b = document.getElementById('wi-devbot');
+            if (b) b.remove();
+          };
+          kill();
+          const mo = new MutationObserver(kill);
+          mo.observe(document.body, { childList: true, subtree: true, attributes: true });
+        }
+      } catch {}
+    })();
+  </script>
 
   <!-- Table canvas -->
   <div class="table-canvas">
@@ -193,145 +184,31 @@
     if (document.documentElement.getAttribute('data-table-mode') === 'onchain') {
       import('../../js/agent-ops.js').catch(() => { });
       import('../../js/agent-sponsor-indicator.js').catch(() => { });
-      // import('../../js/agent-budget.js').catch(() => { }); // include only if present
+      import('../../js/agent-budget.js').catch(() => { });
     }
   </script>
 
-  <!-- DevBot (F2P-only; appears when solo and hides when others join) -->
-  <script>
-    (function () {
-      function isOnchain() {
-        try {
-          const attr = (document.documentElement.getAttribute('data-table-mode') || '').toLowerCase();
-          if (attr === 'onchain') return true;
-          const qMode = (new URL(location.href)).searchParams.get('mode');
-          if ((qMode || '').toLowerCase() === 'onchain') return true;
-          const hasAA = Array.from(document.querySelectorAll('script[type="importmap"]'))
-            .some(s => (s.textContent || s.text || '').includes('@zerodev/sdk'));
-          if (hasAA) return true;
-          if (/\/(limit|nolimit)\b/i.test(location.pathname)) return true;
-        } catch {}
-        return false;
-      }
-      if (isOnchain()) return; // never on on-chain tables
-
-      const walletBar = document.getElementById('wallet-inline');
-      if (!walletBar) return;
-
-      const devBtn = document.createElement('button');
-      devBtn.id = 'wi-devbot';
-      devBtn.title = 'F2P solo only';
-      devBtn.style.display = 'none';
-      devBtn.textContent = (sessionStorage.getItem('devbotEnabled') === 'true') ? 'Disable DevBot' : 'Enable DevBot';
-      walletBar.insertBefore(devBtn, document.getElementById('wi-disconnect'));
-
-      function countPlayers() {
-        try {
-          let n = 0;
-          document.querySelectorAll('.seat .addr').forEach(h => {
-            const t = (h.textContent || '').trim();
-            if (t && t.toLowerCase() !== 'empty') n++;
-          });
-          return n;
-        } catch { return 0; }
-      }
-
-      function updateDevBotVisibility() {
-        const solo = countPlayers() <= 1;
-        devBtn.style.display = solo ? '' : 'none';
-        if (!solo && sessionStorage.getItem('devbotEnabled') === 'true') {
-          sessionStorage.removeItem('devbotEnabled');
-          devBtn.textContent = 'Enable DevBot';
-          window.dispatchEvent(new CustomEvent('devbot:toggle', { detail: { active: false } }));
-        }
-      }
-
-      const host = document.querySelector('.table-canvas');
-      if (host) {
-        const mo = new MutationObserver(updateDevBotVisibility);
-        mo.observe(host, { childList: true, subtree: true, characterData: true });
-      }
-      window.addEventListener('load', updateDevBotVisibility);
-      window.addEventListener('resize', updateDevBotVisibility);
-
-      devBtn.addEventListener('click', () => {
-        const active = sessionStorage.getItem('devbotEnabled') === 'true';
-        const next = !active;
-        sessionStorage.setItem('devbotEnabled', next ? 'true' : 'false');
-        devBtn.textContent = next ? 'Disable DevBot' : 'Enable DevBot';
-        window.dispatchEvent(new CustomEvent('devbot:toggle', { detail: { active: next } }));
-      });
-    })();
-  </script>
-
-  <!-- Sidebar pills: network + contract address INSIDE the sidebar footer -->
-  <script>
-    (function () {
-      const CHAIN_ID = 10143;
-      const EXPLORER = (window.EXPLORERS && window.EXPLORERS[CHAIN_ID]) || 'https://testnet.monadexplorer.com';
-
-      function short(addr) {
-        return (addr && addr.length > 10) ? (addr.slice(0, 6) + '...' + addr.slice(-4)) : (addr || '');
-      }
-      async function getPokerTableAddress() {
-        try {
-          if (typeof window.getAddressFor === 'function') {
-            const a = await window.getAddressFor('pokerTable');
-            if (a) return a;
-          }
-        } catch {}
-        try { return (window.CONTRACTS && window.CONTRACTS.pokerTable) || null; } catch {}
-        return null;
-      }
-      function pill(text, href, extraCls) {
-        const el = document.createElement('span');
-        el.className = 'pill ' + (extraCls || '');
-        if (href) {
-          const a = document.createElement('a');
-          a.href = href; a.target = '_blank'; a.rel = 'noopener';
-          a.textContent = text;
-          el.appendChild(a);
-        } else {
-          el.textContent = text;
-        }
-        return el;
-      }
-      function ensureSidebarFooter(sidebar) {
-        let footer = sidebar.querySelector('.sidebar-footer');
-        if (!footer) {
-          footer = document.createElement('div');
-          footer.className = 'sidebar-footer';
-          sidebar.appendChild(footer);
-        }
-        return footer;
-      }
-      function mountPills() {
-        const sidebar = document.querySelector('.sidebar');
-        if (!sidebar) return false;
-        const footer = ensureSidebarFooter(sidebar);
-
-        // Dedup on hot reload/back nav
-        footer.querySelectorAll('.pill.pill-network, .pill.pill-addr').forEach(n => n.remove());
-
-        footer.appendChild(pill('Monad Testnet', null, 'pill-network'));
-        getPokerTableAddress().then(addr => {
-          if (!addr) return;
-          footer.appendChild(pill(short(addr), `${EXPLORER}/address/${addr}`, 'pill-addr'));
-        });
-        return true;
-      }
-      if (!mountPills()) {
-        const mo = new MutationObserver(() => { if (mountPills()) mo.disconnect(); });
-        mo.observe(document.documentElement, { childList: true, subtree: true });
-      }
-    })();
-  </script>
-
-  <!-- Optional sidebar (unchanged) -->
+  <!-- Optional sidebar -->
   <script type="module">
     try {
       const t = window.__BUILD_TAG || Date.now();
-      import('../../js/sidebar.js?v=' + encodeURIComponent(t));
+      import('../../js/sidebar.js?v=' + encodeURIComponent(t)).then(() => {
+        // If any network/contract pills are rendered outside the footer, relocate them.
+        const movePills = () => {
+          const footer = document.querySelector('.sidebar-footer');
+          if (!footer) return;
+          const maybePills = [
+            document.getElementById('network-banner'),
+            document.getElementById('nb-top-info'),
+            document.querySelector('[data-network-pill]'),
+          ].filter(Boolean);
+          maybePills.forEach(el => { if (!footer.contains(el)) footer.appendChild(el); });
+        };
+        movePills();
+        // Re-try a couple times in case sidebar paints later
+        setTimeout(movePills, 200);
+        setTimeout(movePills, 800);
+      });
     } catch { }
   </script>
 </body>
