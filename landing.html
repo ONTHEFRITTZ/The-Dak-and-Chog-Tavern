@@ -2,77 +2,50 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1, viewport-fit=cover"
-  />
-  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
-  <meta http-equiv="Pragma" content="no-cache">
-  <meta http-equiv="Expires" content="0">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
   <title>Dak & Chog Tavern — Enter</title>
 
-  <!-- Site CSS -->
   <link rel="stylesheet" href="/css/style.css" />
 
   <style>
-    /* --- Landing-page scoping (hide network/contract pills & any top chrome) --- */
-    body.landing .top-banner,
-    body.landing #network-banner,
-    body.landing #nb-top-info,
-    body.landing .contract-pill,
-    body.landing #sidebar {
-      display: none !important;
-      visibility: hidden !important;
+    /* Hide any site chrome on landing */
+    .top-banner, #network-banner, #nb-top-info, .contract-pill, #sidebar {
+      display: none !important; visibility: hidden !important;
     }
 
-    /* Minimal safety styles (in case style.css is stale) */
+    /* Fail-safe visuals even if style.css is cached weirdly */
     body.age-landing {
-      min-height: 100vh;
-      display: flex; align-items: center; justify-content: center;
-      text-align: center;
+      min-height: 100vh; display: flex; align-items: center; justify-content: center;
       background: url('/assets/images/tavern-bg.webp') no-repeat center/cover fixed;
-      margin: 0;
-      font-family: 'Morris', 'Morris Alt', serif;
+      margin: 0; text-align: center; font-family: 'Morris','Morris Alt',serif;
     }
     .age-card {
       background: var(--panel-bg-soft);
-      border: 1px solid rgba(255,255,255,0.12);
+      border: 1px solid rgba(255,255,255,.12);
       border-radius: 16px;
-      box-shadow: 0 24px 60px rgba(0,0,0,0.55);
+      box-shadow: 0 24px 60px rgba(0,0,0,.55);
       padding: 22px;
       width: min(92%, 820px);
       color: #f4e6d3;
     }
-    .age-warning { margin: 0 0 12px 0; font-size: clamp(16px, 2.2vw, 22px); color: #fff; }
+    .age-warning { margin: 0 0 12px; font-size: clamp(16px,2.2vw,22px); color: #fff; }
     .age-cta button { padding: 12px 22px; font-size: 18px; border-radius: 10px; }
-    #wc-status { margin-top: 12px; font-size: 14px; color: #f4e6d3; text-align: center; min-height: 1.2em; }
+    #wallet-choice { margin-top: 14px; display: none; }
+    #wc-status { margin-top: 12px; font-size: 14px; color: #f4e6d3; min-height: 1.2em; }
     #wallet-choice button { cursor: pointer; }
+    .hint { font-size: 12px; opacity: .9; margin-top: 6px; }
   </style>
-
-  <!-- If anything injects pills/banners after load, remove them -->
-  <script>
-    const __nukeLandingChrome = () => {
-      ['network-banner','nb-top-info','sidebar'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.remove();
-      });
-      document.querySelectorAll('.contract-pill,.top-banner').forEach(el => el.remove());
-    };
-    document.addEventListener('DOMContentLoaded', () => {
-      __nukeLandingChrome();
-      setTimeout(__nukeLandingChrome, 150);
-      setTimeout(__nukeLandingChrome, 600);
-    });
-  </script>
 </head>
 
-<body class="age-landing landing">
+<body class="age-landing">
   <main class="age-hero" aria-label="Age Confirmation">
-    <section class="age-card" aria-labelledby="age-title"
-      style="background: var(--panel-bg-soft); border:1px solid rgba(255,255,255,0.12); box-shadow:0 24px 60px rgba(0,0,0,0.55); color:#ffffff;">
+    <section class="age-card" aria-labelledby="age-title">
       <h1 id="age-title" class="visually-hidden">Age Confirmation</h1>
 
-      <p class="age-warning" style="color:#ffffff;">
+      <p class="age-warning">
         There's gambling beyond these doors. Ye must be 19+ to enter!
       </p>
 
@@ -83,170 +56,113 @@
       </div>
 
       <!-- Wallet choice row (hidden until “Let me in!” is clicked) -->
-      <div id="wallet-choice" style="display:none; margin-top:14px;">
+      <div id="wallet-choice">
         <div style="margin-bottom:8px; font-weight:700;">Choose a wallet</div>
 
         <div style="display:flex; gap:18px; justify-content:center; flex-wrap:wrap;">
-          <!-- MetaMask -->
+          <!-- MetaMask only (keep Phantom out to reduce conflicts) -->
           <button id="btn-metamask" type="button" aria-label="Connect with MetaMask" title="MetaMask"
             style="padding:10px; border-radius:12px; display:flex; align-items:center; justify-content:center; width:64px; height:64px; background:transparent; border:none; box-shadow:none;">
-            <img id="logo-metamask" src="/assets/images/logos/metamask.png" alt="MetaMask" width="48" height="48"
+            <img src="/assets/images/logos/metamask.png" alt="MetaMask" width="48" height="48"
               loading="eager" decoding="async" fetchpriority="high"
               style="width:48px; height:48px; object-fit:contain;" />
           </button>
-
-          <!-- Phantom (optional) -->
-          <div style="display:flex; flex-direction:column; align-items:center; gap:6px;">
-            <button id="btn-phantom" type="button" aria-label="Connect with Phantom" title="Phantom"
-              style="padding:10px; border-radius:12px; display:flex; align-items:center; justify-content:center; width:64px; height:64px; background:transparent; border:none; box-shadow:none;">
-              <img id="logo-phantom" src="/assets/images/logos/phantom.png" alt="Phantom" width="48" height="48"
-                loading="eager" decoding="async" fetchpriority="high"
-                style="width:48px; height:48px; object-fit:contain;" />
-            </button>
-            <div id="phantom-missing" style="display:none; font-size:12px;">
-              Don’t have Phantom? <a href="https://phantom.app/download" target="_blank" rel="noopener">Get Phantom</a>
-            </div>
-          </div>
         </div>
 
-        <!-- Status line the script will update -->
         <div id="wc-status"></div>
-
-        <!-- If you mount any React wallet UIs later -->
-        <div id="react-wallet-root"></div>
+        <div class="hint" id="pending-hint" style="display:none;">
+          Request sent — if you don’t see the popup, click the MetaMask extension icon in your browser toolbar.
+        </div>
       </div>
     </section>
   </main>
 
-  <!-- Controller script: robust provider selection + session flags -->
-  <script type="module">
-    // Optional: still import your tavern helper; we’ll fall back if absent
-    let connectWallet;
-    try { ({ connectWallet } = await import("/js/tavern.js")); } catch {}
-
-    const $ = (id) => document.getElementById(id);
+  <script>
+    // Basic DOM helpers
+    const $ = id => document.getElementById(id);
     const statusEl = $("wc-status");
-    const phantomMissing = $("phantom-missing");
+    const pendingHint = $("pending-hint");
 
-    const setStatus = (msg) => { if (statusEl) statusEl.textContent = msg || ""; };
+    function setStatus(msg) {
+      if (statusEl) statusEl.textContent = msg || "";
+    }
 
-    // Pick a specific injected EIP-1193 provider by brand
-    function getInjectedProvider(kind) {
+    // Resolve the real MetaMask provider (handles multi-inject environments)
+    function getMetaMaskProvider() {
       const eth = window.ethereum;
       if (!eth) return null;
-
-      // Multiple providers scenario
-      const list = Array.isArray(eth.providers) ? eth.providers : [eth];
-      const byMetaMask = list.find(p => p && p.isMetaMask);
-      const byPhantom = list.find(p => p && p.isPhantom && p.isPhantom === true) // older Phantom flag
-                       || list.find(p => p && p.isPhantomEthereum);              // newer EVM flag
-
-      if (kind === 'metamask') return byMetaMask || (eth.isMetaMask ? eth : null);
-      if (kind === 'phantom')  return byPhantom  || null;
-      return null;
-    }
-
-    async function requestAccounts(provider) {
-      if (!provider || typeof provider.request !== 'function') {
-        throw new Error('Wallet provider not available.');
+      if (eth.isMetaMask) return eth;
+      if (Array.isArray(eth.providers)) {
+        const mm = eth.providers.find(p => p && p.isMetaMask);
+        if (mm) return mm;
       }
-      // IMPORTANT: request must happen inside user gesture (our click handler).
-      const accounts = await provider.request({ method: 'eth_requestAccounts' });
-      if (!accounts || !accounts.length) throw new Error('No account returned');
-      return accounts;
+      // Brave sometimes hides MM under _events; last resort is the base object
+      return eth;
     }
 
-    function persistSession(addr) {
-      const a = (addr || '').toLowerCase();
+    async function connectMetaMask() {
+      const mm = getMetaMaskProvider();
+      if (!mm || !mm.request) {
+        setStatus("MetaMask not detected. Please install the extension.");
+        return;
+      }
+
+      setStatus("Connecting to MetaMask…");
+      pendingHint.style.display = "none";
+
       try {
-        localStorage.setItem('walletConnected', 'true');
-        localStorage.setItem('walletAddress', a);
-        sessionStorage.setItem('walletConnected', 'true');
-        sessionStorage.setItem('walletAddress', a);
-        sessionStorage.setItem('walletSigned', 'true'); // table gate reads this
-      } catch {}
-      // Let other pages know
-      try {
-        window.dispatchEvent(new CustomEvent('wallet:connected', { detail: { address: a } }));
-      } catch {}
+        // Ensure we're not inside an iframe (extension popups won't open)
+        if (window.top !== window.self) {
+          throw new Error("This page is inside an iframe. Open it in a new tab.");
+        }
+
+        // Primary request that triggers the popup
+        const accounts = await mm.request({ method: "eth_requestAccounts" });
+
+        const addr = (accounts && accounts[0]) ? String(accounts[0]) : null;
+        if (!addr) throw new Error("No account returned.");
+
+        // Persist flags used by the rest of your app
+        try {
+          sessionStorage.setItem("walletSigned", "true");
+          sessionStorage.setItem("walletConnected", "true");
+          sessionStorage.setItem("walletAddress", addr);
+          localStorage.setItem("walletConnected", "true");
+          localStorage.setItem("walletAddress", addr);
+        } catch {}
+
+        setStatus("");
+        // Optional: redirect to home or lobby
+        // location.href = "/index.html";
+      } catch (err) {
+        // -32002 = request already pending (user must click the extension icon)
+        if (err && (err.code === -32002 || String(err.message || "").toLowerCase().includes("request already pending"))) {
+          setStatus("MetaMask request already pending.");
+          pendingHint.style.display = "block";
+          return;
+        }
+        // 4001 = user rejected
+        if (err && err.code === 4001) {
+          setStatus("MetaMask request canceled.");
+          return;
+        }
+        setStatus(err && err.message ? ("MetaMask error: " + err.message) : "MetaMask error.");
+        console.error("MetaMask connect error:", err);
+      }
     }
 
+    // Show wallet selectors after age confirm
     $("enter-tavern")?.addEventListener("click", () => {
       setStatus("");
-      const choice = $("wallet-choice");
-      if (choice) choice.style.display = "block";
+      $("wallet-choice").style.display = "block";
       try { sessionStorage.setItem("ageConfirmed", "true"); } catch {}
     });
 
-    // MetaMask
-    $("btn-metamask")?.addEventListener("click", async () => {
-      setStatus("Connecting to MetaMask…");
-      try {
-        // Prefer your helper if it exists AND triggers the request in-gesture
-        if (typeof connectWallet === 'function') {
-          await connectWallet("metamask");
-          // If helper didn’t request accounts, harden here:
-          const mm = getInjectedProvider('metamask') || window.ethereum;
-          const accs = await requestAccounts(mm);
-          persistSession(accs[0]);
-          setStatus("");
-          return;
-        }
-
-        // Direct EIP-1193 flow (reliable)
-        const mm = getInjectedProvider('metamask');
-        if (!mm) throw new Error("MetaMask not detected. Please install or enable the extension.");
-
-        // If the site had a default provider set to something else, force MetaMask for this call
-        window.__walletProvider = mm;
-
-        const accs = await requestAccounts(mm);
-        persistSession(accs[0]);
-        setStatus("");
-        // Optional redirect after connect:
-        // location.href = "/";
-      } catch (err) {
-        if (err && (err.code === -32002 || String(err.message || '').toLowerCase().includes('request already pending'))) {
-          setStatus("MetaMask request already pending — click the MetaMask extension to continue.");
-        } else if (err && err.code === 4001) {
-          setStatus("MetaMask request canceled.");
-        } else {
-          setStatus(err?.message ? ("MetaMask error: " + err.message) : "MetaMask error.");
-        }
-      }
+    // MetaMask button – make the request directly in this click handler
+    $("btn-metamask")?.addEventListener("click", () => {
+      // IMPORTANT: call inside the handler — Chrome blocks popups otherwise
+      connectMetaMask();
     });
-
-    // Phantom — EVM path (if installed)
-    $("btn-phantom")?.addEventListener("click", async () => {
-      try {
-        const ph = getInjectedProvider('phantom');
-        if (!ph) {
-          if (phantomMissing) phantomMissing.style.display = "block";
-          setStatus("Phantom is not installed.");
-          return;
-        }
-        setStatus("Connecting to Phantom…");
-        window.__walletProvider = ph; // keep symmetry with MetaMask
-        const accs = await requestAccounts(ph);
-        persistSession(accs[0]);
-        setStatus("");
-        // Optional redirect:
-        // location.href = "/";
-      } catch (err) {
-        if (err && err.code === 4001) {
-          setStatus("Phantom request canceled.");
-        } else if (err && (err.code === -32002 || String(err.message || '').toLowerCase().includes('request already pending'))) {
-          setStatus("Phantom request already pending — click the Phantom extension to continue.");
-        } else {
-          setStatus(err?.message ? ("Phantom error: " + err.message) : "Phantom error.");
-        }
-      }
-    });
-
-    // Fix apostrophe if encoding gets weird
-    if (phantomMissing) {
-      phantomMissing.innerHTML = `Don’t have Phantom? <a href="https://phantom.app/download" target="_blank" rel="noopener">Get Phantom</a>`;
-    }
   </script>
 </body>
 </html>
