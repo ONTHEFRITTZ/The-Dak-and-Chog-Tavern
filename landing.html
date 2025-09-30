@@ -11,12 +11,12 @@
   <link rel="stylesheet" href="/css/style.css" />
 
   <style>
-    /* Hide any site chrome on landing */
+    /* Hide any pills/banners/sidebars on landing */
     .top-banner, #network-banner, #nb-top-info, .contract-pill, #sidebar {
       display: none !important; visibility: hidden !important;
     }
 
-    /* Fail-safe visuals even if style.css is cached weirdly */
+    /* Fail-safe visuals even if style.css is cached oddly */
     body.age-landing {
       min-height: 100vh; display: flex; align-items: center; justify-content: center;
       background: url('/assets/images/tavern-bg.webp') no-repeat center/cover fixed;
@@ -36,7 +36,19 @@
     #wallet-choice { margin-top: 14px; display: none; }
     #wc-status { margin-top: 12px; font-size: 14px; color: #f4e6d3; min-height: 1.2em; }
     #wallet-choice button { cursor: pointer; }
+
     .hint { font-size: 12px; opacity: .9; margin-top: 6px; }
+    .row { display:flex; gap:18px; justify-content:center; flex-wrap:wrap; align-items:center; }
+
+    .wallet-btn {
+      padding:10px; border-radius:12px; display:flex; align-items:center; justify-content:center;
+      width:64px; height:64px; background:transparent; border:none; box-shadow:none;
+      transition: transform .06s ease;
+    }
+    .wallet-btn:active { transform: translateY(1px); }
+    .wallet-btn[disabled] { opacity:.6; pointer-events:none; }
+
+    .subnote { font-size: 12px; margin-top: 6px; }
   </style>
 </head>
 
@@ -59,35 +71,57 @@
       <div id="wallet-choice">
         <div style="margin-bottom:8px; font-weight:700;">Choose a wallet</div>
 
-        <div style="display:flex; gap:18px; justify-content:center; flex-wrap:wrap;">
-          <!-- MetaMask only (keep Phantom out to reduce conflicts) -->
-          <button id="btn-metamask" type="button" aria-label="Connect with MetaMask" title="MetaMask"
-            style="padding:10px; border-radius:12px; display:flex; align-items:center; justify-content:center; width:64px; height:64px; background:transparent; border:none; box-shadow:none;">
+        <div class="row">
+          <!-- MetaMask -->
+          <button id="btn-metamask" type="button" class="wallet-btn"
+                  aria-label="Connect with MetaMask" title="MetaMask">
             <img src="/assets/images/logos/metamask.png" alt="MetaMask" width="48" height="48"
-              loading="eager" decoding="async" fetchpriority="high"
-              style="width:48px; height:48px; object-fit:contain;" />
+                 loading="eager" decoding="async" fetchpriority="high"
+                 style="width:48px; height:48px; object-fit:contain;" />
           </button>
+
+          <!-- Phantom (EVM) -->
+          <div style="display:flex; flex-direction:column; align-items:center;">
+            <button id="btn-phantom" type="button" class="wallet-btn"
+                    aria-label="Connect with Phantom" title="Phantom (EVM)">
+              <img src="/assets/images/logos/phantom.png" alt="Phantom" width="48" height="48"
+                   loading="eager" decoding="async" fetchpriority="high"
+                   style="width:48px; height:48px; object-fit:contain;" />
+            </button>
+            <div id="phantom-missing" class="subnote" style="display:none;">
+              Don’t have Phantom? <a href="https://phantom.app/download" target="_blank" rel="noopener">Get Phantom</a>
+            </div>
+          </div>
         </div>
 
         <div id="wc-status"></div>
         <div class="hint" id="pending-hint" style="display:none;">
-          Request sent — if you don’t see the popup, click the MetaMask extension icon in your browser toolbar.
+          Request sent — if you don’t see the popup, click the wallet’s extension icon in your browser toolbar.
         </div>
       </div>
     </section>
   </main>
 
   <script>
-    // Basic DOM helpers
     const $ = id => document.getElementById(id);
     const statusEl = $("wc-status");
     const pendingHint = $("pending-hint");
+    const btnMM = $("btn-metamask");
+    const btnPH = $("btn-phantom");
+    const phMissing = $("phantom-missing");
 
-    function setStatus(msg) {
-      if (statusEl) statusEl.textContent = msg || "";
+    function setStatus(msg) { statusEl.textContent = msg || ""; }
+    function lock(btn, on) { if (btn) btn.disabled = !!on; }
+    function setSigned(addr) {
+      try {
+        sessionStorage.setItem("walletSigned", "true");
+        sessionStorage.setItem("walletConnected", "true");
+        sessionStorage.setItem("walletAddress", addr);
+        localStorage.setItem("walletConnected", "true");
+        localStorage.setItem("walletAddress", addr);
+      } catch {}
     }
 
-    // Resolve the real MetaMask provider (handles multi-inject environments)
     function getMetaMaskProvider() {
       const eth = window.ethereum;
       if (!eth) return null;
@@ -96,73 +130,104 @@
         const mm = eth.providers.find(p => p && p.isMetaMask);
         if (mm) return mm;
       }
-      // Brave sometimes hides MM under _events; last resort is the base object
       return eth;
+    }
+
+    function getPhantomEvmProvider() {
+      // Phantom’s EVM provider is exposed at window.phantom.ethereum
+      const ph = window.phantom && window.phantom.ethereum;
+      return ph && typeof ph.request === "function" ? ph : null;
     }
 
     async function connectMetaMask() {
       const mm = getMetaMaskProvider();
+      pendingHint.style.display = "none";
       if (!mm || !mm.request) {
         setStatus("MetaMask not detected. Please install the extension.");
         return;
       }
-
+      if (window.top !== window.self) {
+        setStatus("Open this page in a tab (not an iframe).");
+        return;
+      }
+      lock(btnMM, true);
       setStatus("Connecting to MetaMask…");
-      pendingHint.style.display = "none";
-
       try {
-        // Ensure we're not inside an iframe (extension popups won't open)
-        if (window.top !== window.self) {
-          throw new Error("This page is inside an iframe. Open it in a new tab.");
-        }
-
-        // Primary request that triggers the popup
         const accounts = await mm.request({ method: "eth_requestAccounts" });
-
-        const addr = (accounts && accounts[0]) ? String(accounts[0]) : null;
+        const addr = accounts && accounts[0];
         if (!addr) throw new Error("No account returned.");
-
-        // Persist flags used by the rest of your app
-        try {
-          sessionStorage.setItem("walletSigned", "true");
-          sessionStorage.setItem("walletConnected", "true");
-          sessionStorage.setItem("walletAddress", addr);
-          localStorage.setItem("walletConnected", "true");
-          localStorage.setItem("walletAddress", addr);
-        } catch {}
-
+        setSigned(addr);
         setStatus("");
-        // Optional: redirect to home or lobby
+        // Optional redirect:
         // location.href = "/index.html";
       } catch (err) {
-        // -32002 = request already pending (user must click the extension icon)
-        if (err && (err.code === -32002 || String(err.message || "").toLowerCase().includes("request already pending"))) {
+        if (err && (err.code === -32002 ||
+            String(err.message||"").toLowerCase().includes("request already pending"))) {
           setStatus("MetaMask request already pending.");
           pendingHint.style.display = "block";
-          return;
-        }
-        // 4001 = user rejected
-        if (err && err.code === 4001) {
+        } else if (err && err.code === 4001) {
           setStatus("MetaMask request canceled.");
-          return;
+        } else {
+          setStatus(err?.message ? ("MetaMask error: " + err.message) : "MetaMask error.");
+          console.error("MetaMask connect error:", err);
         }
-        setStatus(err && err.message ? ("MetaMask error: " + err.message) : "MetaMask error.");
-        console.error("MetaMask connect error:", err);
+      } finally {
+        lock(btnMM, false);
       }
     }
 
-    // Show wallet selectors after age confirm
+    async function connectPhantom() {
+      const ph = getPhantomEvmProvider();
+      pendingHint.style.display = "none";
+      if (!ph) {
+        setStatus("Phantom (EVM) not detected.");
+        if (phMissing) phMissing.style.display = "block";
+        return;
+      }
+      if (window.top !== window.self) {
+        setStatus("Open this page in a tab (not an iframe).");
+        return;
+      }
+      lock(btnPH, true);
+      setStatus("Connecting to Phantom…");
+      try {
+        // Phantom EVM also supports eth_requestAccounts
+        const accounts = await ph.request({ method: "eth_requestAccounts" });
+        const addr = accounts && accounts[0];
+        if (!addr) throw new Error("No account returned.");
+        setSigned(addr);
+        setStatus("");
+        // Optional redirect:
+        // location.href = "/index.html";
+      } catch (err) {
+        if (err && (err.code === -32002 ||
+            String(err.message||"").toLowerCase().includes("request already pending"))) {
+          setStatus("Phantom request already pending.");
+          pendingHint.style.display = "block";
+        } else if (err && err.code === 4001) {
+          setStatus("Phantom request canceled.");
+        } else {
+          setStatus(err?.message ? ("Phantom error: " + err.message) : "Phantom error.");
+          console.error("Phantom connect error:", err);
+        }
+      } finally {
+        lock(btnPH, false);
+      }
+    }
+
+    // Reveal wallet choices after age confirm
     $("enter-tavern")?.addEventListener("click", () => {
       setStatus("");
       $("wallet-choice").style.display = "block";
       try { sessionStorage.setItem("ageConfirmed", "true"); } catch {}
+      // Show Phantom helper if not installed
+      const hasPh = !!getPhantomEvmProvider();
+      if (!hasPh && phMissing) phMissing.style.display = "block";
     });
 
-    // MetaMask button – make the request directly in this click handler
-    $("btn-metamask")?.addEventListener("click", () => {
-      // IMPORTANT: call inside the handler — Chrome blocks popups otherwise
-      connectMetaMask();
-    });
+    // Button handlers (one request per click)
+    btnMM?.addEventListener("click", connectMetaMask);
+    btnPH?.addEventListener("click", connectPhantom);
   </script>
 </body>
 </html>
