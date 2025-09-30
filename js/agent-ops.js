@@ -1,210 +1,134 @@
-// js/agent-ops.js
-// On-chain helpers for poker tables — ZERO direct ZeroDev imports here.
-// Uses aaClient.js (if present) to get a Smart Account client, or window.smartAccount.
+// agent-ops.js — UI panel for sponsor toggle, session (delegation) grant/revoke, budget
+import { AA, defaultAllowlist } from './aa-client.js';
 
-import { ethers } from './tavern.js';
-import { getAddressFor, showToast } from './config.js';
+(function () {
+  const htmlMode = (document.documentElement.getAttribute('data-table-mode') || '').toLowerCase();
+  if (htmlMode !== 'onchain') return; // never show on F2P/off-chain
 
-// ---- local state ------------------------------------------------------------
-let _isOnChain = false;
-let _initialized = false;
-
-// Determine table mode from <html data-table-mode> or ?mode=onchain
-function detectOnChain() {
-  try {
-    const htmlMode = (document.documentElement.getAttribute('data-table-mode') || '').toLowerCase();
-    const urlMode = (new URL(location.href)).searchParams.get('mode') || '';
-    if (urlMode.toLowerCase() === 'onchain') return true;
-    if (htmlMode === 'onchain') return true;
-    // also allow naming convention poker-nl-* / poker-fl-* to imply on-chain
-    const tableId = (new URL(location.href)).searchParams.get('table') || '';
-    if (/^poker-(nl|fl)-/i.test(tableId)) return true;
-  } catch {}
-  return false;
-}
-
-// Provider resolution that doesn't assume tavern.js export timing
-function getProvider() {
-  try {
-    // preferred: tavern.js may have exported provider to window
-    if (window.provider && typeof window.provider.getNetwork === 'function') return window.provider;
-  } catch {}
-  try {
-    // fallback: construct from injected
-    if (window.ethereum && ethers?.providers?.Web3Provider) {
-      return new ethers.providers.Web3Provider(window.ethereum, 'any');
-    }
-  } catch {}
-  return null;
-}
-
-function getPokerAbi() {
-  const abi = (window && window.HoldemPokerABI);
-  if (!abi) throw new Error('HoldemPokerABI not found on window');
-  return abi;
-}
-
-async function getPokerAddress(provider) {
-  const addr = await getAddressFor('pokerTable', provider);
-  if (!addr) throw new Error('No pokerTable address for this chain');
-  return addr;
-}
-
-// Prefer an already-initialized smart account on window; otherwise try aaClient.initSmartAccount
-async function getSmartAccount(provider) {
-  // If tavern init already placed an SA on window, use it
-  try { if (window.smartAccount?.sendTransaction) return window.smartAccount; } catch {}
-  // Try lazy init via aaClient.js if present (no direct zerodev import here)
-  try {
-    const tag = (window.__BUILD_TAG ? String(window.__BUILD_TAG) : String(Date.now()));
-    const aa = await import(`./aaClient.js?v=${encodeURIComponent(tag)}`).catch(()=>null);
-    if (aa && typeof aa.initSmartAccount === 'function') {
-      const sa = await aa.initSmartAccount(provider);
-      if (sa?.sendTransaction) {
-        try { window.smartAccount = sa; } catch {}
-        return sa;
-      }
-    }
-  } catch (e) {
-    // surface once in console; UI toasts handled by callers
-    console.warn('[AgentOps] Smart account init failed', e);
+  let root = document.getElementById('aa-panel');
+  if (!root) {
+    root = document.createElement('div');
+    root.id = 'aa-panel';
+    root.style.cssText = [
+      'position:fixed','right:12px','bottom:12px','z-index:12050',
+      'background:rgba(26,14,8,0.9)','border:1px solid rgba(255,255,255,0.12)',
+      'border-radius:14px','padding:10px 12px','color:#f4e6d3',
+      'box-shadow:0 18px 40px rgba(0,0,0,0.45)','min-width:220px'
+    ].join(';');
+    document.body.appendChild(root);
   }
-  return null;
-}
 
-async function sendUserOpCall({ provider, to, data, value = 0 }) {
-  const sa = await getSmartAccount(provider);
-  if (!sa) throw new Error('Smart Account unavailable (aaClient init failed)');
-  const tx = {
-    to,
-    data,
-    value: ethers.BigNumber.from(value || 0).toHexString(),
-  };
-  const uoHash = await sa.sendTransaction(tx);
-  // Try to normalize a receipt wait method across SDK variants
-  if (typeof sa.waitForUserOperationTransaction === 'function') {
-    const mined = await sa.waitForUserOperationTransaction(uoHash);
-    return mined || { hash: uoHash };
+  function row(label, el) {
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'display:flex; align-items:center; justify-content:space-between; gap:8px; margin:6px 0;';
+    const lab = document.createElement('div'); lab.textContent = label; lab.style.fontWeight = '700';
+    wrap.appendChild(lab); wrap.appendChild(el);
+    return wrap;
   }
-  if (typeof sa.waitForTx === 'function') {
-    const mined = await sa.waitForTx(uoHash);
-    return mined || { hash: uoHash };
+
+  function btn(txt, id) {
+    const b = document.createElement('button');
+    b.textContent = txt;
+    b.id = id || '';
+    b.style.cssText = 'background:#9200fa;color:#fff;border:none;border-radius:10px;padding:6px 10px;cursor:pointer;';
+    b.onmouseenter = () => (b.style.background = '#7800cd');
+    b.onmouseleave = () => (b.style.background = '#9200fa');
+    return b;
   }
-  // Fallback: return the hash if no waiter available
-  return { hash: uoHash };
-}
 
-// ---- public API -------------------------------------------------------------
-const AgentOps = {
-  /**
-   * Initialize on first use; detects table mode and warms SA (best-effort).
-   */
-  async init() {
-    if (_initialized) return _isOnChain;
-    _initialized = true;
-    _isOnChain = detectOnChain();
-    if (!_isOnChain) return false;
+  function pill(txt) {
+    const el = document.createElement('span');
+    el.textContent = txt;
+    el.style.cssText = 'background:rgba(0,0,0,0.6); padding:3px 8px; border-radius:999px; font-size:12px;';
+    return el;
+  }
 
-    // Best-effort warmup: creates provider and smart account so first click is fast
+  // Build skeleton UI
+  const head = document.createElement('div');
+  head.textContent = 'Smart Account';
+  head.style.cssText = 'font-weight:800; margin-bottom:6px;';
+  root.appendChild(head);
+
+  const sponsorToggle = document.createElement('input');
+  sponsorToggle.type = 'checkbox';
+  sponsorToggle.id = 'aa-sponsor-toggle';
+
+  const sponsorRow = document.createElement('div');
+  sponsorRow.style.cssText = 'display:flex; align-items:center; justify-content:space-between; gap:8px;';
+  const sponsorLabel = document.createElement('label'); sponsorLabel.textContent = 'Gas Sponsor'; sponsorLabel.htmlFor = sponsorToggle.id; sponsorLabel.style.fontWeight = '700';
+  sponsorRow.appendChild(sponsorLabel); sponsorRow.appendChild(sponsorToggle);
+  root.appendChild(sponsorRow);
+
+  // Budget
+  const budgetField = document.createElement('input');
+  budgetField.type = 'number'; budgetField.min = '0'; budgetField.step = '0.001'; budgetField.value = (localStorage.getItem('aa:budget')||'0');
+  budgetField.style.cssText = 'width:92px; text-align:center; background:rgba(0,0,0,0.35); border:1px solid rgba(255,255,255,0.16); color:#f4e6d3; border-radius:8px; padding:4px 6px;';
+  root.appendChild(row('Budget (MON)', budgetField));
+
+  const grants = document.createElement('div');
+  grants.style.cssText = 'display:flex; gap:8px; align-items:center; justify-content:flex-end;';
+  const grantBtn = btn('Grant Session', 'aa-grant');
+  const revokeBtn = btn('Revoke', 'aa-revoke');
+  revokeBtn.style.background = '#444';
+  revokeBtn.onmouseenter = () => (revokeBtn.style.background = '#333');
+  revokeBtn.onmouseleave = () => (revokeBtn.style.background = '#444');
+  grants.appendChild(grantBtn); grants.appendChild(revokeBtn);
+  root.appendChild(grants);
+
+  const stateLine = document.createElement('div');
+  stateLine.style.cssText = 'font-size:12px; opacity:.95; margin-top:6px;';
+  root.appendChild(stateLine);
+
+  // Live status pill used by sponsor indicator too
+  const sponsorPill = pill('Gas: Off');
+  sponsorPill.id = 'aa-sponsor-pill';
+  sponsorPill.style.marginTop = '6px';
+  root.appendChild(sponsorPill);
+
+  // Init client
+  (async () => {
     try {
-      const provider = getProvider();
-      if (!provider) return true; // still on-chain, but wallet not connected yet
-      await getSmartAccount(provider); // ignore result; just warming
-    } catch {}
-    return true;
-  },
+      await AA.init();
+      sponsorToggle.checked = AA.sponsored;
+      updatePill();
 
-  /**
-   * Join/sit a seat on-chain (HoldemPoker.joinSeat(uint8)).
-   * Off-chain tables: this is a no-op (your socket flow remains the authority).
-   */
-  async sitSeat(seatIndex) {
-    if (!_isOnChain) return null;
-    const i = Number(seatIndex) | 0;
-    try {
-      const provider = getProvider();
-      if (!provider) throw new Error('Wallet provider not ready');
-      const pokerAddress = await getPokerAddress(provider);
-      const iface = new ethers.utils.Interface(getPokerAbi());
-      const data = iface.encodeFunctionData('joinSeat', [i]);
-
-      showToast('Requesting on-chain seat…', 'info');
-      const rcpt = await sendUserOpCall({ provider, to: pokerAddress, data });
-      showToast('Seated on-chain ✓', 'success');
-      return rcpt;
-    } catch (e) {
-      console.warn('[AgentOps.sitSeat] failed', e);
-      showToast(e?.message || 'On-chain seat failed', 'error');
-      throw e;
-    }
-  },
-
-  // Alias for API symmetry with some callers
-  async joinSeat(seatIndex) {
-    return this.sitSeat(seatIndex);
-  },
-
-  /**
-   * Leave a seat (unseat) — HoldemPoker.unseat(uint8)
-   * If you need a forced variant during a hand, pass { force:true } to call leaveDuringHand(uint8).
-   */
-  async leaveSeat(seatIndex, opts = { force: false }) {
-    if (!_isOnChain) return null;
-    const i = Number(seatIndex) | 0;
-    try {
-      const provider = getProvider();
-      if (!provider) throw new Error('Wallet provider not ready');
-      const pokerAddress = await getPokerAddress(provider);
-      const iface = new ethers.utils.Interface(getPokerAbi());
-      const fn = opts?.force ? 'leaveDuringHand' : 'unseat';
-      const data = iface.encodeFunctionData(fn, [i]);
-
-      showToast('Leaving seat on-chain…', 'info');
-      const rcpt = await sendUserOpCall({ provider, to: pokerAddress, data });
-      showToast('Left seat on-chain ✓', 'success');
-      return rcpt;
-    } catch (e) {
-      console.warn('[AgentOps.leaveSeat] failed', e);
-      showToast(e?.message || 'On-chain leave failed', 'error');
-      throw e;
-    }
-  },
-
-  /**
-   * Post contribution (blind/call/raise) — HoldemPoker.contribute(uint8) payable.
-   * valueWei is a decimal/hex string or number (wei).
-   */
-  async contribute(seatIndex, valueWei) {
-    if (!_isOnChain) return null;
-    const i = Number(seatIndex) | 0;
-    try {
-      const provider = getProvider();
-      if (!provider) throw new Error('Wallet provider not ready');
-      const pokerAddress = await getPokerAddress(provider);
-      const iface = new ethers.utils.Interface(getPokerAbi());
-      const data = iface.encodeFunctionData('contribute', [i]);
-
-      showToast('Posting contribution…', 'info');
-      const rcpt = await sendUserOpCall({
-        provider,
-        to: pokerAddress,
-        data,
-        value: String(valueWei ?? '0'),
+      budgetField.addEventListener('change', () => {
+        const v = Number(budgetField.value || 0);
+        AA.setBudget(v);
+        localStorage.setItem('aa:budget', String(v||0));
+        stateLine.textContent = `Budget set to ${v.toFixed(3)} MON`;
       });
-      showToast('Contribution sent ✓', 'success');
-      return rcpt;
+
+      sponsorToggle.addEventListener('change', () => {
+        AA.setSponsored(sponsorToggle.checked);
+        stateLine.textContent = sponsorToggle.checked ? 'Gas sponsorship: ON' : 'Gas sponsorship: OFF';
+        updatePill();
+      });
+
+      grantBtn.addEventListener('click', async () => {
+        const allow = await defaultAllowlist();
+        const cap = Number(localStorage.getItem('aa:budget') || '0') || 0.05;
+        const sess = await AA.grantSessionKey({ minutes: 120, monCap: cap, allowlist: allow });
+        stateLine.textContent = `Session granted (cap ${cap} MON, expires in ~2h)`;
+        updatePill();
+      });
+
+      revokeBtn.addEventListener('click', () => {
+        AA.revokeSession();
+        stateLine.textContent = 'Session revoked';
+        updatePill();
+      });
+
+      window.__aa = AA; // handy for quick console testing
     } catch (e) {
-      console.warn('[AgentOps.contribute] failed', e);
-      showToast(e?.message || 'Contribution failed', 'error');
-      throw e;
+      stateLine.textContent = 'Smart Account unavailable';
+      root.style.opacity = '.6';
     }
-  },
-};
+  })();
 
-// Expose globally so table.js can call it without imports
-try { window.AgentOps = AgentOps; } catch {}
-
-// Kick a best-effort init, but don’t block page
-AgentOps.init().catch(()=>{});
-
-export default AgentOps;
+  function updatePill() {
+    sponsorPill.textContent = 'Gas: ' + (AA.sponsored ? 'Sponsored' : 'Off');
+    // Also ping the global pill listener (keeps the tiny banner in sync)
+    window.dispatchEvent(new CustomEvent('aa:sponsored', { detail: { active: AA.sponsored } }));
+  }
+})();

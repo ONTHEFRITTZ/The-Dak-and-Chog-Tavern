@@ -7,8 +7,10 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <title>Poker Table</title>
+
   <!-- Pin the user's chosen wallet across the site (must be before any wallet/AA code) -->
   <script src="/js/provider-pin.js"></script>
+
   <!-- Decide mode early. Only inject the importmap when mode=onchain -->
   <script>
     (function () {
@@ -85,9 +87,9 @@
 </head>
 
 <body class="game">
-  <!-- Top-right wallet chip (only thing up top). DevBot button appears here when F2P solo -->
-  <div id="wallet-inline">
-    <span id="wi-label">Wallet:</span>
+  <!-- Top-right wallet chip (only thing up top). DevBot button appears when F2P solo -->
+  <div id="wallet-inline" style="position:fixed; top:12px; right:12px; z-index:12000; display:flex; align-items:center; gap:8px; background: var(--panel-bg-soft); border:1px solid rgba(255,255,255,0.12); border-radius:12px; padding:6px 10px; color:#f4e6d3;">
+    <span id="wi-label" style="font-weight:700;">Wallet:</span>
     <span id="wi-address">-</span>
     <button id="wi-devbot" style="display:none" title="F2P solo only">Enable DevBot</button>
     <button id="wi-disconnect" style="display:none">Disconnect</button>
@@ -139,8 +141,61 @@
     if (document.documentElement.getAttribute('data-table-mode') === 'onchain') {
       import('../../js/agent-ops.js').catch(() => { });
       import('../../js/agent-sponsor-indicator.js').catch(() => { });
-      import('../../js/agent-budget.js').catch(() => { });
+      /* agent-budget now built into agent-ops; keep import removed to avoid 404 */
     }
+  </script>
+
+  <!-- DevBot visibility (F2P solo only) + simple toggle event -->
+  <script>
+    (function () {
+      const mode = (document.documentElement.getAttribute('data-table-mode') || 'f2p').toLowerCase();
+      const devBtn = document.getElementById('wi-devbot');
+      if (!devBtn) return;
+
+      function countPlayers() {
+        try {
+          let n = 0;
+          document.querySelectorAll('.seat .addr').forEach(h => {
+            const t = (h.textContent || '').trim();
+            if (t && t.toLowerCase() !== 'empty') n++;
+          });
+          return n;
+        } catch { return 0; }
+      }
+
+      function updateDevBotVisibility() {
+        if (mode !== 'f2p') { devBtn.style.display = 'none'; return; }
+        const players = countPlayers();
+        const solo = players <= 1;
+        devBtn.style.display = solo ? '' : 'none';
+        if (!solo && sessionStorage.getItem('devbotEnabled') === 'true') {
+          sessionStorage.removeItem('devbotEnabled');
+          devBtn.textContent = 'Enable DevBot';
+          window.dispatchEvent(new CustomEvent('devbot:toggle', { detail: { active: false } }));
+        }
+      }
+
+      // Observe seat changes rendered by table.js
+      const host = document.querySelector('.table-canvas');
+      if (host) {
+        const mo = new MutationObserver(updateDevBotVisibility);
+        mo.observe(host, { childList: true, subtree: true, characterData: true });
+      }
+      window.addEventListener('load', updateDevBotVisibility);
+      window.addEventListener('resize', updateDevBotVisibility);
+
+      // Toggle state (UI + broadcast event that your backend/logic can hook into)
+      devBtn.addEventListener('click', () => {
+        const active = sessionStorage.getItem('devbotEnabled') === 'true';
+        const next = !active;
+        sessionStorage.setItem('devbotEnabled', next ? 'true' : 'false');
+        devBtn.textContent = next ? 'Disable DevBot' : 'Enable DevBot';
+        window.dispatchEvent(new CustomEvent('devbot:toggle', { detail: { active: next } }));
+      });
+
+      // Initialize label from prior session
+      devBtn.textContent = (sessionStorage.getItem('devbotEnabled') === 'true') ? 'Disable DevBot' : 'Enable DevBot';
+    })();
   </script>
 
   <!-- Optional sidebar (unchanged) -->
