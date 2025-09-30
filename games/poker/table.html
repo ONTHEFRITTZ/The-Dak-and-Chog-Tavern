@@ -31,6 +31,24 @@
     } catch {}
   })();
   </script>
+  <script>
+  (function () {
+    try {
+      if (document.documentElement.getAttribute('data-table-mode') === 'onchain') {
+        // remove if it’s there
+        var b = document.getElementById('wi-devbot');
+        if (b) b.remove();
+
+        // if any script tries to re-add it later, remove it again
+        const mo = new MutationObserver(function () {
+          var d = document.getElementById('wi-devbot');
+          if (d) d.remove();
+        });
+        mo.observe(document.body, { childList: true, subtree: true, attributes: true });
+      }
+    } catch {}
+  })();
+  </script>
 
   <!-- Decide mode early. Only inject importmap when mode=onchain -->
   <script>

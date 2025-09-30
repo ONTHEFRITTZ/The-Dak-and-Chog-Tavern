@@ -275,6 +275,12 @@ body.age-landing {
 /* ==========================================================================
    POKER TABLE (games/poker/*.html)
    ========================================================================== */
+/* Hard-lock DevBot to F2P only — never show on ONCHAIN tables */
+html[data-table-mode="onchain"] #wi-devbot,
+:root[data-table-mode="onchain"] #wi-devbot {
+  display: none !important;
+  visibility: hidden !important;
+}
 
 /* Canvas holds the art + seat positioning */
 .table-canvas {
