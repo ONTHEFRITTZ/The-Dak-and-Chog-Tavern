@@ -10,7 +10,8 @@
   <meta http-equiv="Expires" content="0" />
   <script>(function(){try{var signed=sessionStorage.getItem('walletSigned')==='true'; if(!signed){ location.replace('/landing.html'); return; }}catch(e){ location.replace('/landing.html'); }})();</script>
   <title>Poker Lobby</title>
-
+  <!-- Pin the user's chosen wallet across the site (must be before any wallet/AA code) -->
+  <script src="/js/provider-pin.js"></script>
   <script>
     (async()=>{
       try{

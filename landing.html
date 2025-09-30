@@ -16,7 +16,6 @@
       display: none !important; visibility: hidden !important;
     }
 
-    /* Fail-safe visuals even if style.css is cached weirdly */
     body.age-landing {
       min-height: 100vh; display: flex; align-items: center; justify-content: center;
       background: url('/assets/images/tavern-bg.webp') no-repeat center/cover fixed;
@@ -46,6 +45,9 @@
     .wallet-btn[disabled] { opacity:.6; pointer-events:none; }
     .subnote { font-size: 12px; margin-top: 6px; }
   </style>
+
+  <!-- Pin the chosen wallet as early as possible on this page too -->
+  <script src="/js/provider-pin.js"></script>
 </head>
 
 <body class="age-landing">
@@ -63,7 +65,6 @@
         </button>
       </div>
 
-      <!-- Wallet choice row (hidden until “Let me in!” is clicked) -->
       <div id="wallet-choice">
         <div style="margin-bottom:8px; font-weight:700;">Choose a wallet</div>
 
@@ -109,55 +110,51 @@
     function setStatus(msg) { statusEl.textContent = msg || ""; }
     function lock(btn, on) { if (btn) btn.disabled = !!on; }
     function redirectHome() { location.replace("/index.html"); }
-    function setSigned(addr) {
+    function markSigned(addr, which) {
       try {
         sessionStorage.setItem("walletSigned", "true");
         sessionStorage.setItem("walletConnected", "true");
         sessionStorage.setItem("walletAddress", addr);
         localStorage.setItem("walletConnected", "true");
         localStorage.setItem("walletAddress", addr);
+        // >>> THIS is the sticky choice <<<
+        sessionStorage.setItem("walletProvider", which);
+        localStorage.setItem("walletProvider", which);
+        // Also tell provider-pin live on this page
+        if (window.walletChoice?.save) window.walletChoice.save(which);
       } catch {}
     }
 
-    // Robust provider detection (MetaMask first, then multi-provider array)
     function getMetaMaskProvider() {
-      const eth = window.ethereum;
-      if (!eth) return null;
-      if (eth.isMetaMask) return eth;
-      if (Array.isArray(eth.providers)) {
-        const mm = eth.providers.find(p => p && p.isMetaMask);
+      const eth = window.ethereumAll?.metamask || (window.ethereum?.isMetaMask ? window.ethereum : null);
+      if (eth) return eth;
+      if (Array.isArray(window.ethereumAll?.providers)) {
+        const mm = window.ethereumAll.providers.find(p => p && p.isMetaMask);
         if (mm) return mm;
       }
       return null;
     }
     function getPhantomEvmProvider() {
-      const ph = window.phantom && window.phantom.ethereum;
-      return ph && typeof ph.request === "function" ? ph : null;
+      const ph = window?.phantom?.ethereum;
+      return (ph && typeof ph.request === "function") ? ph : null;
     }
 
     async function ensureAccount(provider, walletName) {
-      // If already authorized, skip popup and go
       try {
         const pre = await provider.request({ method: "eth_accounts" });
         if (Array.isArray(pre) && pre[0]) return pre[0];
       } catch {}
-
-      // Otherwise trigger the permission prompt
       try {
-        const accounts = await provider.request({ method: "eth_requestAccounts" });
-        return (accounts && accounts[0]) || null;
+        const accs = await provider.request({ method: "eth_requestAccounts" });
+        return (accs && accs[0]) || null;
       } catch (err) {
         if (err && (err.code === -32002 ||
             String(err.message||"").toLowerCase().includes("request already pending"))) {
           setStatus(`${walletName} request already pending.`);
           pendingHint.style.display = "block";
-          // We’ll rely on accountsChanged to complete later.
           return null;
         }
-        if (err && err.code === 4001) {
-          setStatus(`${walletName} request canceled.`);
-          return null;
-        }
+        if (err && err.code === 4001) { setStatus(`${walletName} request canceled.`); return null; }
         setStatus(err?.message ? `${walletName} error: ${err.message}` : `${walletName} error.`);
         console.error(`${walletName} connect error:`, err);
         return null;
@@ -167,57 +164,46 @@
     async function connectMetaMask() {
       pendingHint.style.display = "none";
       const mm = getMetaMaskProvider();
-      if (!mm) {
-        setStatus("MetaMask not detected. Please install the extension.");
-        return;
-      }
+      if (!mm) { setStatus("MetaMask not detected. Please install the extension."); return; }
       if (window.top !== window.self) { setStatus("Open this page in a tab (not an iframe)."); return; }
 
-      lock(btnMM, true);
-      setStatus("Connecting to MetaMask…");
+      lock(btnMM, true); setStatus("Connecting to MetaMask…");
       const addr = await ensureAccount(mm, "MetaMask");
       lock(btnMM, false);
-      if (addr) { setSigned(addr); redirectHome(); }
+      if (addr) { markSigned(addr, "metamask"); redirectHome(); }
     }
 
     async function connectPhantom() {
       pendingHint.style.display = "none";
       const ph = getPhantomEvmProvider();
-      if (!ph) {
-        setStatus("Phantom (EVM) not detected.");
-        if (phMissing) phMissing.style.display = "block";
-        return;
-      }
+      if (!ph) { setStatus("Phantom (EVM) not detected."); if (phMissing) phMissing.style.display = "block"; return; }
       if (window.top !== window.self) { setStatus("Open this page in a tab (not an iframe)."); return; }
 
-      lock(btnPH, true);
-      setStatus("Connecting to Phantom…");
+      lock(btnPH, true); setStatus("Connecting to Phantom…");
       const addr = await ensureAccount(ph, "Phantom");
       lock(btnPH, false);
-      if (addr) { setSigned(addr); redirectHome(); }
+      if (addr) { markSigned(addr, "phantom"); redirectHome(); }
     }
 
     // Reveal wallet choices after age confirm
     $("enter-tavern")?.addEventListener("click", () => {
-      setStatus("");
-      $("wallet-choice").style.display = "block";
+      setStatus(""); $("wallet-choice").style.display = "block";
       try { sessionStorage.setItem("ageConfirmed", "true"); } catch {}
-      // Show Phantom helper if not installed
       const hasPh = !!getPhantomEvmProvider();
       if (!hasPh && phMissing) phMissing.style.display = "block";
     });
 
-    // If an approval happens later (e.g., user clicks extension icon), finish the flow
-    function wireAccountsChanged(provider, name) {
+    // If an approval happens later (user clicks extension icon), finish the flow
+    function wireAccountsChanged(provider, name, tag) {
       if (!provider || typeof provider.on !== "function") return;
       provider.on("accountsChanged", (accs) => {
-        if (Array.isArray(accs) && accs[0]) { setSigned(accs[0]); redirectHome(); }
+        if (Array.isArray(accs) && accs[0]) { markSigned(accs[0], tag); redirectHome(); }
       });
     }
-    wireAccountsChanged(getMetaMaskProvider(), "MetaMask");
-    wireAccountsChanged(getPhantomEvmProvider(), "Phantom");
+    wireAccountsChanged(getMetaMaskProvider(), "MetaMask", "metamask");
+    wireAccountsChanged(getPhantomEvmProvider(), "Phantom", "phantom");
 
-    // Button handlers (one request per click)
+    // Button handlers
     $("btn-metamask")?.addEventListener("click", connectMetaMask);
     $("btn-phantom")?.addEventListener("click", connectPhantom);
   </script>
