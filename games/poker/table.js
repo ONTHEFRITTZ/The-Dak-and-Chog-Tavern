@@ -1,14 +1,15 @@
-// table.js — clean seat layout + no auto-sim + bottom-center toasts
+// table.js — seat ellipse, sponsored pill gating, bottom-center toasts,
+// and DevBot toggle that appears ONLY on F2P solo tables.
 
 (function () {
   /* -------------------- utils -------------------- */
   const htmlMode = (document.documentElement.getAttribute('data-table-mode') || '').toLowerCase();
   const IS_ONCHAIN = htmlMode === 'onchain';
 
-  function $(q, r = document) { return r.querySelector(q); }
-  function $all(q, r = document) { return Array.from(r.querySelectorAll(q)); }
-  function short(a) { return a && a.length > 10 ? (a.slice(0, 6) + '...' + a.slice(-4)) : (a || ''); }
-  function lc(s) { return (s || '').toLowerCase(); }
+  const $ = (q, r = document) => r.querySelector(q);
+  const $$ = (q, r = document) => Array.from(r.querySelectorAll(q));
+  const short = (a) => a && a.length > 10 ? (a.slice(0, 6) + '...' + a.slice(-4)) : (a || '');
+  const lc = (s) => (s || '').toLowerCase();
 
   /* -------------------- toasts (bottom-center) -------------------- */
   (function ensureToastRoot () {
@@ -31,20 +32,25 @@
   const canvas = $('.table-canvas');
   const surface = $('.table-surface');
   const centerEl = $('#poker-center');
-  const seatEls = $all('.seat');
+  const seatEls = $$('.seat');
+
+  // wallet chip UI
+  const wiAddr = $('#wi-address');
+  const wiDisc = $('#wi-disconnect');
+  const wiDevBot = $('#wi-devbot');
 
   /* -------------------- layout seats on an outer ellipse -------------------- */
   function layoutSeats() {
-    if (!canvas || !surface) return;
+    if (!canvas || !surface || seatEls.length === 0) return;
 
     const c = canvas.getBoundingClientRect();
     const s = surface.getBoundingClientRect();
 
     // ellipse that follows the *outside* of the leather rail
-    const rail = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--rail-thickness')) || 70;
-    const gap = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--seat-gap')) || 18;
+    const rail = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--rail-thickness')) || 78;
+    const gap = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--seat-gap')) || 16;
 
-    const rx = (s.width / 2) + rail / 2 + gap;   // a bit outside the image edge
+    const rx = (s.width / 2) + rail / 2 + gap;   // slightly outside the image edge
     const ry = (s.height / 2) + rail / 2 + gap;
 
     // seat size for centering
@@ -52,8 +58,7 @@
     const sw = (probe && probe.offsetWidth) || 150;
     const sh = (probe && probe.offsetHeight) || 160;
 
-    // angles: leave dealer gap at top (90°). Start near top-right and go clockwise.
-    // tweakable to align with mug lugs on your art.
+    // angles are tuned to align with mugs on poker-table.png art
     const base = [60, 15, -20, -60, -120, -165, 160, 120]; // degrees
 
     seatEls.forEach((el, i) => {
@@ -63,7 +68,7 @@
       const cy = c.height / 2;
 
       const x = cx + rx * Math.cos(rad);
-      const y = cy - ry * Math.sin(rad); // screen Y is inverted
+      const y = cy - ry * Math.sin(rad); // screen Y inverted
 
       el.style.left = Math.round(x - sw / 2) + 'px';
       el.style.top = Math.round(y - sh / 2) + 'px';
@@ -79,9 +84,13 @@
   }
 
   /* -------------------- socket (no auto-sim) -------------------- */
-  let socket, tableId, myAddr = (localStorage.getItem('walletAddress') || sessionStorage.getItem('walletAddress') || '').toLowerCase();
+  let socket, tableId;
+  let myAddr = (localStorage.getItem('walletAddress') || sessionStorage.getItem('walletAddress') || '').toLowerCase();
   let mySeat = -1;
   let state = null;
+
+  // DevBot local state (F2P only)
+  let devBotEnabled = false;
 
   function initSocket() {
     try {
@@ -98,6 +107,8 @@
         if (myAddr) socket.emit('identify', { addr: myAddr });
         socket.emit('join_table', { table: tableId });
         socket.emit('lobby:get');
+        // Ask backend for current devbot state (harmless if not implemented)
+        if (!IS_ONCHAIN) socket.emit('devbot:status', { table: tableId });
       } catch { }
     });
 
@@ -108,18 +119,25 @@
       state = m || null;
       renderTableModel(m?.table || null);
       updateActionBar();
+      updateDevBotVisibility(m?.table || null);
     });
 
-    socket.on('table:update', (t) => renderTableModel(t));
-
-    // dealt hole to me
-    socket.on('poker:hole', (payload) => {
-      // keep UI minimal here; you can extend as needed
-      updateActionBar();
+    socket.on('table:update', (t) => {
+      renderTableModel(t);
+      updateDevBotVisibility(t);
     });
 
-    socket.on('poker:hand', () => { updateActionBar(); });
-    socket.on('table:reset', () => { updateActionBar(); });
+    // optional devbot state echoes (if server supports)
+    socket.on('devbot:state', (p) => {
+      if (typeof p?.enabled === 'boolean') {
+        devBotEnabled = !!p.enabled;
+        syncDevBotButton();
+      }
+    });
+
+    socket.on('poker:hole', () => updateActionBar());
+    socket.on('poker:hand', () => updateActionBar());
+    socket.on('table:reset', () => updateActionBar());
   }
 
   /* -------------------- render seats / controls shell -------------------- */
@@ -216,6 +234,43 @@
     actionBarEl.appendChild(bRaise);
   }
 
+  /* -------------------- DevBot (F2P solo only) -------------------- */
+  function countOtherHumans(table) {
+    if (!table || !Array.isArray(table.seats)) return 0;
+    return table.seats.filter(s =>
+      s && s.addr && lc(s.addr) !== lc(myAddr) && !String(s.addr).toLowerCase().includes('bot')
+    ).length;
+  }
+
+  function updateDevBotVisibility(table) {
+    if (!wiDevBot) return;
+    // Show only when: F2P, I'm seated, and there are NO other humans.
+    const others = countOtherHumans(table);
+    const shouldShow = !IS_ONCHAIN && mySeat >= 0 && others === 0;
+    wiDevBot.style.display = shouldShow ? '' : 'none';
+  }
+
+  function syncDevBotButton() {
+    if (!wiDevBot) return;
+    wiDevBot.textContent = devBotEnabled ? 'Disable DevBot' : 'Enable DevBot';
+    wiDevBot.title = 'F2P solo only';
+  }
+
+  if (wiDevBot) {
+    wiDevBot.addEventListener('click', () => {
+      if (IS_ONCHAIN) return; // guard, though button won’t show on on-chain
+      const next = !devBotEnabled;
+      devBotEnabled = next;
+      syncDevBotButton();
+      try {
+        socket?.emit('devbot:toggle', { table: tableId, enable: next });
+        toast(next ? 'DevBot enabled' : 'DevBot disabled');
+      } catch {
+        toast('DevBot toggle failed', { error: true });
+      }
+    });
+  }
+
   /* -------------------- wallet sync -------------------- */
   function setKnownAddress(addr) {
     myAddr = lc(addr || '');
@@ -225,8 +280,8 @@
         localStorage.setItem('walletAddress', myAddr);
         sessionStorage.setItem('walletConnected', 'true');
         sessionStorage.setItem('walletAddress', myAddr);
-        $('#wi-address').textContent = short(myAddr);
-        $('#wi-disconnect').style.display = '';
+        wiAddr.textContent = short(myAddr);
+        wiDisc.style.display = '';
       }
     } catch { }
     try { if (socket?.connected && myAddr) socket.emit('identify', { addr: myAddr }); } catch { }
@@ -237,8 +292,7 @@
     if (a) setKnownAddress(a);
   });
 
-  const disc = $('#wi-disconnect');
-  if (disc) disc.onclick = () => {
+  if (wiDisc) wiDisc.onclick = () => {
     try { localStorage.removeItem('walletConnected'); sessionStorage.removeItem('walletConnected'); } catch { }
     location.replace('/landing.html');
   };

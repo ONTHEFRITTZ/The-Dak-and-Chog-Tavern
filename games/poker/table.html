@@ -66,8 +66,7 @@
   </script>
 
   <!-- Preloads -->
-  <link rel="preload" as="image" href="../../assets/images/table.png" type="image/png">
-  <link rel="preload" as="image" href="../../assets/images/games-room.png" type="image/png">
+  <link rel="preload" as="image" href="../../assets/images/poker-table.png" type="image/png">
   <link rel="preload" as="image" href="/assets/images/cards/cards-sprite.png" type="image/png">
   <link rel="preload" as="image" href="/assets/images/chog_cards/dak-and-chog-cardback.png" type="image/png">
 
@@ -85,10 +84,11 @@
 </head>
 
 <body class="game">
-  <!-- Always-visible wallet chip -->
+  <!-- Top-right wallet chip (only thing up top). DevBot button appears here when F2P solo -->
   <div id="wallet-inline">
     <span id="wi-label">Wallet:</span>
     <span id="wi-address">-</span>
+    <button id="wi-devbot" style="display:none" title="F2P solo only">Enable DevBot</button>
     <button id="wi-disconnect" style="display:none">Disconnect</button>
   </div>
 
