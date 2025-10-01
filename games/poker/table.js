@@ -1,6 +1,6 @@
-/* Dak & Chog — Poker Table (surface-anchored layout, CHOG cards, animations) */
+/* Dak & Chog — Poker Table (ellipse-anchored seats, CHOG cards, burn+flop/turn/river animations) */
 (function () {
-  /* ---------- tiny helpers ---------- */
+  /* ---------- helpers ---------- */
   const q  = (s, r=document) => r.querySelector(s);
   const qa = (s, r=document) => Array.from(r.querySelectorAll(s));
   const sleep = (ms)=> new Promise(r=>setTimeout(r,ms));
@@ -18,7 +18,7 @@
   if (!canvas) { console.error('[poker/table] .table-canvas missing'); return; }
   if (getComputedStyle(canvas).position === 'static') canvas.style.position = 'relative';
 
-  /* ---------- CSS (seat + card layer) ---------- */
+  /* ---------- minimal CSS for seats/cards ---------- */
   (function injectCSS(){
     const style = document.createElement('style');
     style.textContent = `
@@ -45,49 +45,42 @@
     document.head.appendChild(style);
   })();
 
-  /* ---------- seat layout anchored to SURFACE ---------- */
-  // 8-seat oval (percent of surface box)
-  const SEAT_PCT = [
-    { x:50, y:15 }, // 0 top
-    { x:77, y:22 }, // 1 top-right
-    { x:89, y:44 }, // 2 right
-    { x:77, y:68 }, // 3 bottom-right
-    { x:50, y:80 }, // 4 bottom
-    { x:23, y:68 }, // 5 bottom-left
-    { x:11, y:44 }, // 6 left
-    { x:23, y:22 }, // 7 top-left
-  ];
-  const seats = qa('.seat');
+  /* ---------- card layer + state maps (declare early!) ---------- */
+  const layer = document.createElement('div'); layer.className='pkr-layer'; canvas.appendChild(layer);
+  const seatCards = new Map(); // seatIdx -> [el, el]
+  let lastBoardCount = 0;
+  let dealt = false;
 
-  // compute coords relative to canvas (absolute parent), but based on surface rect
+  /* ---------- geometry (ellipse around the felt) ---------- */
+  const seats = qa('.seat');
   let GEO = { cRect:null, sRect:null, deck:null, burn:null, board:[], seats:[] };
 
   function recomputeGeom(){
     const cRect = canvas.getBoundingClientRect();
     const sRect = surface.getBoundingClientRect();
-    // if surface not ready yet, try again shortly
     if (sRect.width < 50 || sRect.height < 50) { setTimeout(recomputeGeom, 60); return; }
 
     const offX = sRect.left - cRect.left;
     const offY = sRect.top  - cRect.top;
+    const cx   = offX + sRect.width/2;
+    const cy   = offY + sRect.height/2;
 
-    const seatsPx = SEAT_PCT.map(p => ({
-      x: offX + sRect.width*(p.x/100),
-      y: offY + sRect.height*(p.y/100)
-    }));
+    // Ellipse radii tuned to your felt
+    const rx = sRect.width  * 0.40;
+    const ry = sRect.height * 0.36;
 
-    const cx = offX + sRect.width/2, cy = offY + sRect.height/2;
+    // 8 seats, 45° apart, starting at top center (90°), clockwise
+    const ANG = [90, 45, 0, -45, -90, -135, 180, 135].map(a => a * Math.PI/180);
+    const seatsPx = ANG.map(a => ({ x: cx + rx*Math.cos(a), y: cy - ry*Math.sin(a) }));
+
+    // card origins
     const deck = { x: cx + Math.min(40, sRect.width*0.03), y: cy + Math.min(10, sRect.height*0.02) };
     const burn = { x: cx - Math.min(44, sRect.width*0.035), y: cy - Math.min(22, sRect.height*0.035) };
 
-    // center the 5 board spots horizontally; invisible until cards exist
-    const topPct = 38;                // % down the surface
-    const spacingPct = 8.7;           // % of SURFACE width between cards
-    const startX = 50 - (spacingPct*2);
-    const board = Array.from({length:5}, (_,i)=>({
-      x: offX + sRect.width*((startX + i*spacingPct)/100),
-      y: offY + sRect.height*(topPct/100)
-    }));
+    // Five community card anchor points (we DO NOT render placeholders)
+    const spacing = Math.min(96, sRect.width*0.09);
+    const startX  = cx - spacing*2;
+    const board   = Array.from({length:5}, (_,i)=>({ x: startX + i*spacing, y: cy - Math.min(12, sRect.height*0.02) }));
 
     GEO = { cRect, sRect, deck, burn, board, seats:seatsPx };
     placeSeats();
@@ -103,14 +96,30 @@
     });
   }
 
+  function reanchorLiveCards(){
+    if (!GEO?.seats?.length) return;
+    for (const [i, arr] of seatCards.entries()){
+      const p = GEO.seats[i] || GEO.deck || {x:0,y:0};
+      arr.forEach((el,k)=>{
+        const off = (k===0 ? -1 : 1) * (el.offsetWidth * 0.55);
+        el.style.left = (p.x + off) + 'px';
+        el.style.top  = (p.y) + 'px';
+      });
+    }
+    qa('.pkr-card.board', layer).forEach((el)=>{
+      const idx = Number(el.dataset.boardIndex||0);
+      const p = GEO.board[idx]; if (p){ el.style.left = p.x+'px'; el.style.top = p.y+'px'; }
+    });
+  }
+
   recomputeGeom();
-  const ro1 = new ResizeObserver(()=>{ recomputeGeom(); });
-  const ro2 = new ResizeObserver(()=>{ recomputeGeom(); });
+  const ro1 = new ResizeObserver(recomputeGeom);
+  const ro2 = new ResizeObserver(recomputeGeom);
   ro1.observe(canvas);
   ro2.observe(surface);
   window.addEventListener('resize', recomputeGeom);
 
-  /* ---------- wallet / my address ---------- */
+  /* ---------- wallet/my address ---------- */
   let myAddrLower = null;
   try {
     const a = window.Tavern?.wallet?.address || (q('#wi-address')?.textContent||'');
@@ -126,7 +135,7 @@
     const s = window.io({ path:'/socket.io/' }); s.__standalone = true; return s;
   }
 
-  /* ---------- rendering seats ---------- */
+  /* ---------- render seats ---------- */
   const seatState = Array.from({length:8}, ()=> null);
   function renderSeat(idx, data){
     const root = seats[idx]; if (!root) return;
@@ -181,17 +190,12 @@
     devbotBtn.style.display = (htmlMode==='onchain' || !isSim) ? 'none' : '';
   }
 
-  /* ---------- cards/animations ---------- */
+  /* ---------- cards & animations ---------- */
   const IMG_BASE = '/assets/images/chog_cards/';
   const RANK = { A:'ace', K:'king', Q:'queen', J:'jack', T:'ten','9':'nine','8':'eight','7':'seven','6':'six','5':'five','4':'four','3':'three','2':'two' };
   const SUIT = { s:'spades', h:'hearts', d:'diamonds', c:'clubs' };
   const codeToUrl = (code)=> (!code||code.length<2) ? (IMG_BASE+'dak-and-chog-cardback.png')
     : `${IMG_BASE}chog-${RANK[code[0].toUpperCase()]||'ace'}-of-${SUIT[code[1].toLowerCase()]||'spades'}.png`;
-
-  const layer = document.createElement('div'); layer.className='pkr-layer'; canvas.appendChild(layer);
-  const seatCards = new Map(); // seatIdx -> [el, el]
-  let lastBoardCount = 0;
-  let dealt = false;
 
   function makeCard(code, faceDown){
     const el = document.createElement('div');
@@ -210,24 +214,10 @@
     el.style.transitionDuration = (ms|0)+'ms';
     el.style.left = x+'px'; el.style.top = y+'px';
   }
-  const seatPt = (i)=> (GEO.seats[i] || GEO.deck);
+  const seatPt = (i)=> (GEO.seats[i] || GEO.deck || {x:0,y:0});
 
   function clearSeatCards(){ for (const arr of seatCards.values()) arr.forEach(n=>n.remove()); seatCards.clear(); }
   function clearBoardCards(){ qa('.pkr-card.board', layer).forEach(n=>n.remove()); }
-
-  function reanchorLiveCards(){
-    for (const [i, arr] of seatCards.entries()){
-      const p = seatPt(i);
-      arr.forEach((el,k)=>{
-        const off = (k===0 ? -1 : 1) * (el.offsetWidth * 0.55);
-        moveTo(el, p.x + off, p.y, 0);
-      });
-    }
-    qa('.pkr-card.board', layer).forEach((el)=>{
-      const idx = Number(el.dataset.boardIndex||0);
-      const p = GEO.board[idx]; if (p) moveTo(el, p.x, p.y, 0);
-    });
-  }
 
   function markTurn(seatIdx){
     qa('.seat').forEach(n=>n.classList.remove('pkr-turn'));
@@ -328,6 +318,7 @@
     });
     socket.on('table:update', (t)=>{ renderAllSeats(t); updateDevBotVisibility(t); });
     socket.on('table:started', ()=>{
+      if (!centerBanner) return;
       centerBanner.style.display='block';
       centerBanner.textContent='New hand starting…';
       setTimeout(()=>{ centerBanner.style.display='none'; }, 1000);
@@ -374,12 +365,12 @@
       }
       try{
         const winners = (h?.winners||[]).map(w=>short(w.addr)).join(', ');
-        if (winners){
+        if (winners && centerBanner){
           centerBanner.style.display='block';
           centerBanner.textContent = `Pot ${Number(h.pot||0)} — Winner: ${winners}`;
         }
       }catch{}
-      setTimeout(()=>{ centerBanner.style.display='none'; dealt=false; lastBoardCount=0; clearSeatCards(); clearBoardCards(); reanchorLiveCards(); }, 2500);
+      setTimeout(()=>{ if(centerBanner) centerBanner.style.display='none'; dealt=false; lastBoardCount=0; clearSeatCards(); clearBoardCards(); reanchorLiveCards(); }, 2500);
     });
 
     // F2P rebuy helper
