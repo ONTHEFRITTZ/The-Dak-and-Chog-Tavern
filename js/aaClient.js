@@ -1,6 +1,7 @@
 // aa-client.js — minimal AA/session-key client w/ budget guardrails (onchain mode only)
 // Works with your importmap (viem/permissionless) if present; otherwise falls back to injected.
-import { MONAD, AA_FEATURES, getPokerTableAddress } from './config.js';
+import { MONAD, AA_FEATURES, getPokerTableAddress, MONAD_BUNDLER_RPC, ZD_PAYMASTER_RPC } from './config.js';
+import { ethers } from './tavern.js';
 
 const LS = {
   SESSION: 'aa:session',
@@ -64,6 +65,9 @@ export const AA = {
     this.session = readSession();
     this.budgetWei = BigInt(Math.floor(readBudget() * 1e18));
 
+    try { window.dispatchEvent(new CustomEvent('aa:budget', { detail: { budgetWei: this.budgetWei } })); } catch {}
+    try { window.dispatchEvent(new CustomEvent('aa:session', { detail: { session: this.session } })); } catch {}
+
     // Resolve primary address (used for from:)
     try {
       const accs = await this.provider.request({ method: 'eth_accounts' });
@@ -88,6 +92,7 @@ export const AA = {
     const n = Number(monFloat || 0);
     this.budgetWei = BigInt(Math.max(0, Math.floor(n * 1e18)));
     try { localStorage.setItem(LS.BUDGET, String(n)); } catch {}
+    try { window.dispatchEvent(new CustomEvent('aa:budget', { detail: { budgetWei: this.budgetWei } })); } catch {}
   },
 
   // Create a simple local session w/ allowlist + cap (valid for ~2 hours by default)
@@ -102,12 +107,14 @@ export const AA = {
     };
     this.session = sess;
     writeSession(sess);
+    try { window.dispatchEvent(new CustomEvent('aa:session', { detail: { session: this.session } })); } catch {}
     return sess;
   },
 
   revokeSession() {
     this.session = null;
     writeSession(null);
+    try { window.dispatchEvent(new CustomEvent('aa:session', { detail: { session: this.session } })); } catch {}
   },
 
   // Guard check for a tx against session + budget
@@ -143,6 +150,7 @@ export const AA = {
       const v = BigInt(valueWei||0n);
       this.session.spentWei = '0x' + (spent + v).toString(16);
       writeSession(this.session);
+      try { window.dispatchEvent(new CustomEvent('aa:session', { detail: { session: this.session } })); } catch {}
     } catch {}
   },
 
@@ -188,3 +196,117 @@ export async function defaultAllowlist() {
   } catch {}
   return out;
 }
+
+// ---------------------------------------------------------------------------
+// ZeroDev / Smart Account bootstrap
+// ---------------------------------------------------------------------------
+
+let aaSmartAccount = null;
+let aaSigner = null;
+let aaReady = false;
+let lastBundlerUrl = null;
+
+async function resolveInjectedProvider(override) {
+  if (override && typeof override.request === 'function') return override;
+  if (AA.provider) return AA.provider;
+  await AA.init();
+  return AA.provider;
+}
+
+async function createFallbackSmartAccount(injected) {
+  const web3 = new ethers.providers.Web3Provider(injected, 'any');
+  const signer = web3.getSigner();
+  const address = await signer.getAddress();
+  return {
+    address,
+    provider: web3,
+    signer,
+    getAddress: async () => address,
+    sendTransaction: (tx) => signer.sendTransaction(tx)
+  };
+}
+
+async function tryInitZeroDev(injected, { bundlerUrl, paymasterUrl }) {
+  try {
+    const sdk = await import('@zerodev/sdk');
+    if (!sdk) return null;
+
+    const { createSmartAccountClient } = sdk;
+    const CandidateSigner = sdk?.MetaMaskSigner || sdk?.ZerodevSigner || null;
+    if (typeof createSmartAccountClient !== 'function' || !CandidateSigner) return null;
+
+    const mmSigner = new CandidateSigner({
+      projectId: bundlerUrl,
+      chainId: MONAD.id,
+      transport: injected
+    });
+
+    const client = await createSmartAccountClient({
+      signer: mmSigner,
+      chain: { id: MONAD.id, rpcUrl: bundlerUrl },
+      bundlerUrl,
+      paymasterUrl
+    });
+
+    if (!client) return null;
+
+    return {
+      smartAccount: client,
+      signer: typeof client.getSigner === 'function' ? await client.getSigner() : mmSigner
+    };
+  } catch (err) {
+    console.warn('[aaClient] ZeroDev init failed, using fallback signer', err);
+    return null;
+  }
+}
+
+export async function initAA({ bundlerUrl = MONAD_BUNDLER_RPC, paymasterUrl = ZD_PAYMASTER_RPC, provider } = {}) {
+  const injected = await resolveInjectedProvider(provider);
+  if (!injected) throw new Error('No provider available for AA');
+
+  if (aaReady && aaSmartAccount && lastBundlerUrl === bundlerUrl) {
+    return aaSmartAccount;
+  }
+
+  let created = await tryInitZeroDev(injected, { bundlerUrl, paymasterUrl });
+  if (!created) {
+    const fallback = await createFallbackSmartAccount(injected);
+    created = { smartAccount: fallback, signer: fallback.signer };
+  }
+
+  aaSmartAccount = created.smartAccount;
+  aaSigner = created.signer;
+  aaReady = true;
+  lastBundlerUrl = bundlerUrl;
+
+  try { window.smartAccount = aaSmartAccount; } catch {}
+  return aaSmartAccount;
+}
+
+export async function initSmartAccount(provider) {
+  return initAA({ provider });
+}
+
+export async function getAASigner() {
+  if (!aaReady || !aaSigner) {
+    await initAA({});
+  }
+  return aaSigner;
+}
+
+export function isAAReady() {
+  return aaReady;
+}
+
+export const client = {
+  getSigner: () => getAASigner(),
+  get smartAccount() { return aaSmartAccount; },
+  async sendTransaction(tx) {
+    const smart = await initAA({});
+    if (smart && typeof smart.sendTransaction === 'function') {
+      return smart.sendTransaction(tx);
+    }
+    const signer = await getAASigner();
+    return signer.sendTransaction(tx);
+  }
+};

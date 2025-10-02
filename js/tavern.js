@@ -130,11 +130,13 @@ async function maybeInitAA(provider) {
   try {
     const { initSmartAccount } = await import('./aaClient.js'); // <-- lazy import
     const smartAcc = await initSmartAccount(provider);
+    smartAccount = smartAcc;
     try { window.smartAccount = smartAcc; } catch {}
     console.log('✅ Smart Account initialized');
     return smartAcc;
   } catch (e) {
     console.warn('[tavern] AA init skipped/failed', e);
+    smartAccount = null;
     return null;
   }
 }
@@ -144,7 +146,7 @@ const connectButton = document.getElementById('connect-wallet');
 const statusEl = document.getElementById('status');
 const topRightControls = document.querySelector('.top-banner .controls');
 
-let provider, signer, userAddress;
+let provider, signer, userAddress, smartAccount;
 const OWNER_WALLET_ALLOWLIST = [ '0x8ba35eca0fe68787b275c6ed065675829843adf5' ];
 
 function hideInlineConnectIfBannerPresent() {
@@ -241,9 +243,9 @@ export async function connectWallet(key = 'metamask', injectedOverride) {
 
     // By here we should be unlocked + authorized → proceed to ethers
     const _ethers = window.ethers || (await import('https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.esm.min.js')).ethers;
-    const provider = new _ethers.providers.Web3Provider(mm, 'any');
-    const signer = provider.getSigner();
-    const userAddress = await signer.getAddress();
+    provider = new _ethers.providers.Web3Provider(mm, 'any');
+    signer = provider.getSigner();
+    userAddress = await signer.getAddress();
 
     // 👇 (same as your existing flow)
     try {
@@ -275,6 +277,13 @@ export async function connectWallet(key = 'metamask', injectedOverride) {
       window.userAddress = userAddress;
       window.dispatchEvent(new CustomEvent('wallet:connected', { detail: { address: userAddress } }));
     } catch {}
+
+    if (isOnchainPage()) {
+      try { await maybeInitAA(mm); } catch (aaErr) { console.warn('AA init failed', aaErr); }
+    } else {
+      smartAccount = null;
+      try { delete window.smartAccount; } catch {}
+    }
 
     // Persist & update UI
     try {
@@ -329,7 +338,11 @@ if (document.getElementById('connect-wallet')) {
   document.getElementById('connect-wallet').addEventListener('click', connectWallet);
 }
 
+export function getSmartAccount() {
+  return smartAccount || null;
+}
+
 // Expose for other modules/pages
-export { signer, provider, userAddress, ethers };
+export { signer, provider, userAddress, smartAccount, ethers };
 try { window.ethers = ethers; } catch {}
 try { window.tavernConnectWallet = connectWallet; } catch {}
