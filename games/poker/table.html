@@ -137,25 +137,33 @@
       } catch {}
     })();
   </script>
+<!-- Table canvas -->
+<div class="table-canvas">
+  <!-- REMOVE these two lines -->
+  <!-- <div class="table-glow"></div> -->
+  <!-- <div class="table-surface"></div> -->
 
-  <!-- Table canvas -->
-  <div class="table-canvas">
-    <div class="table-glow"></div>
-    <div class="table-surface"></div>
+  <!-- ADD this felt image (the data-role is what table.js looks for) -->
+  <img
+    src="/assets/images/poker-table.png"
+    alt="Poker table"
+    id="poker-felt"
+    data-role="poker-felt"
+  />
 
-    <!-- Center messages -->
-    <div id="poker-center" class="center-banner" style="display:none"></div>
+  <!-- Center messages -->
+  <div id="poker-center" class="center-banner" style="display:none"></div>
 
-    <!-- 8 seats – absolutely positioned by table.js -->
-    <div class="seat" data-index="0"></div>
-    <div class="seat" data-index="1"></div>
-    <div class="seat" data-index="2"></div>
-    <div class="seat" data-index="3"></div>
-    <div class="seat" data-index="4"></div>
-    <div class="seat" data-index="5"></div>
-    <div class="seat" data-index="6"></div>
-    <div class="seat" data-index="7"></div>
-  </div>
+  <!-- 8 seats – keep these exactly like this -->
+  <div class="seat" data-index="0"></div>
+  <div class="seat" data-index="1"></div>
+  <div class="seat" data-index="2"></div>
+  <div class="seat" data-index="3"></div>
+  <div class="seat" data-index="4"></div>
+  <div class="seat" data-index="5"></div>
+  <div class="seat" data-index="6"></div>
+  <div class="seat" data-index="7"></div>
+</div>
 
   <!-- Last hand (debug) -->
   <div id="last-hand">

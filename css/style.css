@@ -470,4 +470,37 @@ body.game [class^="aa-"] {
   outline: 3px solid rgba(146,0,250,.9);
   box-shadow: 0 0 28px rgba(146,0,250,.45);
 }
+/* Poker table anchoring */
+.table-canvas {
+  position: relative;
+  width: min(92vw, 1100px);
+  margin: 0 auto;
+  background: transparent !important;
+}
+
+.table-canvas .table-glow,
+.table-canvas .table-surface {
+  display: none !important;
+}
+
+#poker-felt {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* Seats are absolutely positioned by JS relative to the felt */
+.table-canvas .seat {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  will-change: transform, top, left;
+}
+
+/* Community cards: hidden until there’s an actual card */
+.community-slot {
+  display: none;
+}
+.community-slot.has-card {
+  display: block;
+}
 
