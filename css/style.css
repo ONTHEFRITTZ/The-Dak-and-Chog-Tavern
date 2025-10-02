@@ -271,19 +271,15 @@ body.age-landing {
   border: 1px solid rgba(255,255,255,0.12);
   border-radius: 12px; padding: 6px 10px;
 }
-
 /* ==========================================================================
-   POKER TABLE (games/poker/*.html) — CLEAN RESET
+   POKER TABLE — MINIMAL, IMAGE-ONLY SURFACE, NO ORANGE TOKENS
    ========================================================================== */
 
 /* DevBot must never appear on on-chain tables */
 html[data-table-mode="onchain"] #wi-devbot,
-:root[data-table-mode="onchain"] #wi-devbot {
-  display: none !important;
-  visibility: hidden !important;
-}
+:root[data-table-mode="onchain"] #wi-devbot { display:none !important; visibility:hidden !important; }
 
-/* Canvas holds the table art and absolute-positioned seats */
+/* Canvas holds the table art + absolutely positioned seats */
 .table-canvas {
   position: relative;
   width: min(92vw, 1000px);
@@ -291,156 +287,96 @@ html[data-table-mode="onchain"] #wi-devbot,
   margin: 0 auto;
 }
 
-/* Table art: use the single poker-table image, nothing else */
+/* Table art: restore the single PNG */
 .table-surface {
   position: absolute;
   inset: 0;
   z-index: 1;
   background: url('/assets/images/poker-table.png') center / contain no-repeat;
-  border-radius: 0;
-  box-shadow: none;
 }
 
-/* Center banner (pot/winner/phase text) */
-.center-banner {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  background: var(--panel-bg-soft);
-  border: 1px solid rgba(255,255,255,0.12);
-  border-radius: 14px;
-  padding: 16px 18px;
-  box-shadow: 0 24px 60px rgba(0,0,0,0.55);
-  min-width: 240px;
-  text-align: center;
-  pointer-events: none;
-  font-weight: 600;
-  z-index: 4;
-}
+/* Remove any previous felt/glow/overlays */
+.table-glow { display: none !important; }
 
-/* Seats — positioned by table.js around the rail */
+/* Seats are positioned by table.js around the rail */
 .seat {
   position: absolute;
   z-index: 3;
-  transform: translate(-50%, -50%); /* JS sets left/top as ellipse points */
+  transform: translate(-50%, -50%); /* JS sets left/top */
   background: transparent;
   border: 0;
   box-shadow: none;
   padding: 0;
 }
+
+/* Basic inner bits the JS adds */
 .seat .addr {
   font-size: 12px;
-  width: 100%;
+  width: 120px;
   text-align: center;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 2px auto;
 }
-.seat .btns { display: flex; gap: 6px; margin-top: 6px; }
+.seat .btns { display: flex; gap: 6px; justify-content: center; margin-top: 6px; }
 .seat .btns button { padding: 4px 8px; font-size: 12px; border-radius: 6px; }
 
-/* Optional hole-cards container inside a seat (used by JS when present) */
-.seat .cards {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  justify-content: center;
-  min-height: var(--card-hole-h, 82px);
-}
+.seat .cards { display:flex; gap:6px; align-items:center; justify-content:center; min-height: 88px; }
 
-/* Generic card tiles (if your JS uses them) */
+/* Small card tiles */
 .card {
-  display: block;
-  width: var(--card-tile-w, 80px);
-  height: var(--card-tile-h, 112px);
-  border-radius: 8px;
-  box-shadow: 0 3px 8px rgba(0,0,0,0.25);
-  background-repeat: no-repeat;
-  background-position: center center;
-  background-size: cover;
-}
-.card--hole {
-  width: var(--card-hole-w, 64px);
-  height: var(--card-hole-h, 88px);
+  display:block;
+  width: 64px; height: 88px;
   border-radius: 6px;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+  box-shadow: 0 2px 6px rgba(0,0,0,.25);
+  background: center / cover no-repeat;
 }
 
-/* Action bar anchored near the active player's seat (JS positions it) */
-.table-canvas .action-bar {
-  position: absolute;
-  z-index: 5;
-  display: flex;
-  gap: 8px;
+/* Center banner (pot/winner/phase) */
+.center-banner {
+  position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
   background: var(--panel-bg-soft);
-  color: #f4e6d3;
-  border: 1px solid rgba(255,255,255,0.12);
+  border: 1px solid rgba(255,255,255,.12);
   border-radius: 12px;
-  padding: 8px 10px;
-  box-shadow: 0 18px 40px rgba(0,0,0,0.45);
+  padding: 12px 14px;
+  box-shadow: 0 18px 40px rgba(0,0,0,.45);
+  z-index: 4;
 }
 
-/* Toasts */
-#toast-root {
-  position: fixed;
-  left: 50%;
-  bottom: var(--edge-pad);
-  transform: translateX(-50%);
-  z-index: 11000;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  align-items: center;
-}
-#toast-root .toast {
-  background: #0b3b1a; color: #fff; padding: 10px 12px;
-  border-radius: 10px; box-shadow: 0 4px 16px rgba(0,0,0,.25);
-}
-#toast-root .toast.error { background: #3b0b0b; }
-
-/* AA / Sponsor UI cluster (kept; auto-hidden on F2P) */
-body.game #aa-panel,
-body.game .aa-panel,
-body.game [data-aa-panel],
-body.game #aa-root,
-body.game .aa-root,
-body.game #agent-panel,
-body.game .agent-panel,
-body.game #sponsor-indicator,
-body.game #agent-sponsor-indicator,
-body.game .agent-sponsor-indicator,
-body.game [id^="aa-"],
-body.game [class^="aa-"] {
-  position: fixed !important;
-  right: var(--edge-pad) !important;
-  bottom: var(--edge-pad) !important;
-  z-index: 12050 !important;
+/* Action bar placed by JS near the active seat */
+.table-canvas .action-bar {
+  position: absolute; z-index: 5;
+  display: flex; gap: 8px;
+  background: var(--panel-bg-soft); color: #f4e6d3;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 10px; padding: 8px 10px;
+  box-shadow: 0 18px 40px rgba(0,0,0,.45);
 }
 
-/* Hide AA/sponsor layer on off-chain (F2P) tables */
-:root[data-table-mode="f2p"] body.game #aa-panel,
-:root[data-table-mode="f2p"] body.game .aa-panel,
-:root[data-table-mode="f2p"] body.game [data-aa-panel],
-:root[data-table-mode="f2p"] body.game #aa-root,
-:root[data-table-mode="f2p"] body.game .aa-root,
-:root[data-table-mode="f2p"] body.game #agent-panel,
-:root[data-table-mode="f2p"] body.game .agent-panel,
-:root[data-table-mode="f2p"] body.game #sponsor-indicator,
-:root[data-table-mode="f2p"] body.game #agent-sponsor-indicator,
-:root[data-table-mode="f2p"] body.game .agent-sponsor-indicator,
-:root[data-table-mode="f2p"] body.game [id^="aa-"],
-:root[data-table-mode="f2p"] body.game [class^="aa-"] {
-  display: none !important;
-  visibility: hidden !important;
+/* Hide any AA/sponsor widgets on F2P */
+:root[data-table-mode="f2p"] #aa-panel,
+:root[data-table-mode="f2p"] .aa-panel,
+:root[data-table-mode="f2p"] #aa-root,
+:root[data-table-mode="f2p"] .aa-root,
+:root[data-table-mode="f2p"] #agent-panel,
+:root[data-table-mode="f2p"] .agent-panel,
+:root[data-table-mode="f2p"] #sponsor-indicator,
+:root[data-table-mode="f2p"] .agent-sponsor-indicator,
+:root[data-table-mode="f2p"] [id^="aa-"],
+:root[data-table-mode="f2p"] [class^="aa-"] {
+  display:none !important; visibility:hidden !important;
 }
+
+/* Community cards: we don’t show empty “slots” — cards are injected only when needed */
+#board { position:absolute; left:50%; top:50%; transform: translate(-50%,-50%); z-index: 3; pointer-events: none; }
+#board .card { margin: 0 6px; }
 
 /* Short viewport tweaks */
 @media (max-height: 720px) {
-  .table-canvas { height: min(88vw, 520px, 76vh); }
+  .table-canvas { height: min(88vw, 520px); }
 }
 @media (max-height: 640px) {
-  .table-canvas { height: min(88vw, 480px, 72vh); }
-  .seat { width: 100px; height: 120px; }
-  :root { --card-hole-w: 56px; --card-hole-h: 82px; }
+  .table-canvas { height: min(88vw, 480px); }
+  .seat .cards .card { width: 56px; height: 82px; }
 }
