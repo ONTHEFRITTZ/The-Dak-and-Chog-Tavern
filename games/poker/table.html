@@ -9,7 +9,7 @@
   <title>Poker Table</title>
 
   <!-- Pin the user's chosen wallet across the site (must be before any wallet/AA code) -->
-  <script src="../../js/provider-pin.js?v=20251001a"></script>
+  <script src="/js/provider-pin.js"></script>
 
   <!-- Decide mode EARLY (onchain/f2p). Accept ?mode=onchain OR infer from ?table= id. -->
   <script>
@@ -87,7 +87,7 @@
   </script>
 
   <!-- Preloads (poker uses poker-table.png) -->
-  <link rel="preload" as="image" href="../../assets/images/poker-table.png" type="image/png">
+  <link rel="preload" as="image" href="/assets/images/poker-table.png" type="image/png">
   <link rel="preload" as="image" href="/assets/images/cards/cards-sprite.png" type="image/png">
   <link rel="preload" as="image" href="/assets/images/chog_cards/dak-and-chog-cardback.png" type="image/png">
 
@@ -139,17 +139,9 @@
   </script>
 <!-- Table canvas -->
 <div class="table-canvas">
-  <!-- REMOVE these two lines -->
-  <!-- <div class="table-glow"></div> -->
-  <!-- <div class="table-surface"></div> -->
-
-  <!-- ADD this felt image (the data-role is what table.js looks for) -->
-  <img
-    src="/assets/images/poker-table.png"
-    alt="Poker table"
-    id="poker-felt"
-    data-role="poker-felt"
-  />
+  <div class="table-surface" role="presentation">
+    <img src="/assets/images/poker-table.png" alt="Poker table surface" loading="eager" decoding="async">
+  </div>
 
   <!-- Center messages -->
   <div id="poker-center" class="center-banner" style="display:none"></div>
@@ -172,18 +164,26 @@
   </div>
 
   <!-- Core libs -->
-  <script type="module" src="../../js/tavern.js"></script>
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <script type="module" src="/js/tavern.js"></script>
 
   <!-- Table logic -->
   <script>
     (function () {
-      function load(src) { var s = document.createElement('script'); s.src = src; s.defer = true; document.body.appendChild(s); }
-      fetch('/assets/build.json', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(b => {
-        var tag = (b && b.commit ? String(b.commit).slice(0, 12) : Date.now()) + '-' + (b && b.builtAt || Date.now());
-        window.__ASSET_TAG = tag;
-        load('table.js?v=' + encodeURIComponent(tag));
-      }).catch(() => load('table.js?v=' + Date.now()));
+      function inject(tag) {
+        const s = document.createElement('script');
+        s.type = 'module';
+        s.src = `./table.js?v=${encodeURIComponent(tag)}`;
+        document.body.appendChild(s);
+      }
+      fetch('/assets/build.json', { cache: 'no-store' })
+        .then(r => r.ok ? r.json() : null)
+        .then(b => {
+          const tag = (b && b.commit ? String(b.commit).slice(0, 12) : Date.now()) + '-' + (b && b.builtAt || Date.now());
+          window.__ASSET_TAG = tag;
+          inject(tag);
+        })
+        .catch(() => inject(Date.now()));
     })();
   </script>
 

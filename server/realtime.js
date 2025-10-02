@@ -326,14 +326,18 @@ function cmpRank(a,b){
 function sendPrivateHoleToSeat(t, seatIndex, cardsCodes){
   try{
     const s = t.seats[seatIndex]; if (!s || !s.socketId) return;
-    const payload = { cards: cardsCodes.map(chogNamePng) };
-    io.to(s.socketId).emit('poker:hole', payload);
+    const payload = {
+      seatId: seatIndex,
+      addr: s.addr,
+      cards: Array.isArray(cardsCodes) ? cardsCodes.map(code => String(code)) : []
+    };
+    io.to(s.socketId).emit('poker:private', payload);
   }catch{}
 }
 function clearPrivateHoleForSeat(t, seatIndex){
   try{
     const s = t.seats[seatIndex]; if (!s || !s.socketId) return;
-    io.to(s.socketId).emit('poker:hole', { cards: [] });
+    io.to(s.socketId).emit('poker:private', { seatId: seatIndex, addr: s.addr, cards: [] });
   }catch{}
 }
 function sendAllPrivateHoles(t){
@@ -354,12 +358,20 @@ function emitPokerState(tableId, t){
     if (!st) return;
     const m = {
       stage: st.stage,
-      community: (st.community||[]).map(chogNamePng),
+      community: Array.from(st.community||[]).map(code => String(code)),
       pot: Number(st.pot||0),
       toCall: Number(st.toCall||0),
-      turnIndex: Number(st.turnIndex||0),
+      turnIndex: Number.isFinite(st.turnIndex) ? Number(st.turnIndex) : -1,
       dealerSeatId: st.dealerSeatId,
-      rng: { commit: st.rng?.commit } // seed revealed at showdown
+      actors: st.actors.map(a => ({
+        seatId: a.seatId,
+        addr: a.addr,
+        contrib: Number(a.contrib||0),
+        folded: !!a.folded,
+        acted: !!a.acted,
+        stack: Number.isFinite(a.stack) ? Number(a.stack) : undefined
+      })),
+      rng: { commit: st.rng?.commit }
     };
     io.to(tableId).emit('poker:state', m);
   }catch(e){ console.error('emitPokerState', e); }
@@ -370,7 +382,7 @@ function scheduleTurnTimer(tableId,t){
     clearTurnTimer(t);
     const st=t.poker; if(!st) return;
     const A=st.actors, i=st.turnIndex; if(i<0||i>=A.length) return;
-    const actor=A[i]; if(!actor || actor.folded) return;
+    const actor=A[i]; if(!actor || actor.folded || actor.allIn) return;
 
     // Simple bot brain for dev bot
     const isBot = (actor.addr||'').startsWith('bot:');
@@ -390,7 +402,7 @@ function scheduleTurnTimer(tableId,t){
             act = 'fold';
           }
         }
-        applyAction(tableId,t,actor.addr,act,true);
+        applyAction(tableId,t,actor.addr,act,true,null);
       }catch(e){ console.error('timer auto-act', e); }
     }, wait);
   }catch{}
@@ -400,7 +412,7 @@ function scheduleTurnTimer(tableId,t){
 function nextAliveIndexFrom(A, start){
   let i = start, loop=0;
   while (loop < A.length){
-    if (A[i] && !A[i].folded) return i;
+    if (A[i] && !A[i].folded && !A[i].allIn) return i;
     i = (i+1) % A.length; loop++;
   }
   return -1;
@@ -444,7 +456,7 @@ async function startPokerHand(tableId,t){
     shuffleDeterministic(deck, seedBytes);
 
     // Deal holes (round-robin 2 each)
-    const actors = order.map(x=>({ seatId:x.seatId, addr:String(x.addr||'').toLowerCase(), socketId:x.socketId||null, cards:[], folded:false, contrib:0, acted:false, stack:0 }));
+    const actors = order.map(x=>({ seatId:x.seatId, addr:String(x.addr||'').toLowerCase(), socketId:x.socketId||null, cards:[], folded:false, contrib:0, acted:false, stack:0, allIn:false }));
     for(let r=0;r<2;r++){
       for (const a of actors){ a.cards.push(deck.pop()); }
     }
@@ -466,7 +478,11 @@ async function startPokerHand(tableId,t){
     function postBlind(i, amt){
       const a=actors[i];
       let pay=amt;
-      if (t.category===CAT.OFFCHAIN_NL){ pay=Math.min(amt, Math.max(0, Number(a.stack||0))); a.stack=Math.max(0, Number(a.stack||0)-pay); }
+      if (t.category===CAT.OFFCHAIN_NL){
+        pay=Math.min(amt, Math.max(0, Number(a.stack||0)));
+        a.stack=Math.max(0, Number(a.stack||0)-pay);
+        if (a.stack<=0 && pay>0) a.allIn=true;
+      }
       a.contrib = (a.contrib||0) + pay;
       pot += pay;
       toCall = Math.max(toCall, a.contrib);
@@ -499,9 +515,21 @@ async function startPokerHand(tableId,t){
 }
 
 function roundResetForNextStage(st){
-  st.actors.forEach(a=>{ a.acted=false; a.contrib=0; });
+  st.actors.forEach(a=>{ a.acted = !!a.allIn; a.contrib=0; });
   st.toCall = 0;
   st.turnIndex = firstToActIndex(st);
+  return st.turnIndex;
+}
+
+function maybeAutoAdvance(tableId, t){
+  try{
+    const st=t?.poker; if(!st) return;
+    if (st.turnIndex < 0){
+      setTimeout(()=>{
+        if (t.poker === st) advancePokerStage(tableId,t);
+      }, 250);
+    }
+  }catch{}
 }
 
 async function advancePokerStage(tableId,t){
@@ -517,6 +545,7 @@ async function advancePokerStage(tableId,t){
       audit(tableId,'flop',{board:st.community.map(chogNamePng)});
       emitPokerState(tableId,t);
       scheduleTurnTimer(tableId,t);
+      maybeAutoAdvance(tableId,t);
       return;
     }
     if (st.stage==='flop'){
@@ -527,6 +556,7 @@ async function advancePokerStage(tableId,t){
       audit(tableId,'turn',{board:st.community.map(chogNamePng)});
       emitPokerState(tableId,t);
       scheduleTurnTimer(tableId,t);
+      maybeAutoAdvance(tableId,t);
       return;
     }
     if (st.stage==='turn'){
@@ -537,6 +567,7 @@ async function advancePokerStage(tableId,t){
       audit(tableId,'river',{board:st.community.map(chogNamePng)});
       emitPokerState(tableId,t);
       scheduleTurnTimer(tableId,t);
+      maybeAutoAdvance(tableId,t);
       return;
     }
     if (st.stage==='river'){
@@ -568,13 +599,25 @@ async function advancePokerStage(tableId,t){
         });
       }
 
-      const exposures = alive.map(a=>({ addr:a.addr, hole:a.cards.map(chogNamePng) }));
-      io.to(tableId).emit('poker:hand',{ winners: winners.map(w=>({addr:w.addr, seatId:w.seatId})), community: board.map(chogNamePng), exposures, pot: total, rng:{commit:st.rng?.commit,seed:st.rng?.seed}, table:tablePublic(t) });
+      const winnerPayouts = winners.map((a,idx)=>({
+        addr: a.addr,
+        seatId: a.seatId,
+        amount: split + (idx===0?remainder:0)
+      }));
+      const exposures = alive.map(a=>({ addr:a.addr, seatId:a.seatId, cards: Array.from(a.cards) }));
+      io.to(tableId).emit('poker:hand',{
+        winners: winnerPayouts,
+        community: board.map(code => String(code)),
+        exposures,
+        pot: total,
+        rng:{commit:st.rng?.commit,seed:st.rng?.seed},
+        table:tablePublic(t)
+      });
       audit(tableId,'showdown',{ winners:winners.map(w=>w.addr), board:board.map(chogNamePng), pot:total, rngReveal:st.rng });
 
       // Onchain settle
       if (t.category!==CAT.OFFCHAIN_NL){
-        try { await onSettleHand(tableId,t,winners,board); } catch(e){ console.error('onSettleHand failed',e); }
+        try { await onSettleHand(tableId,t,winnerPayouts,board); } catch(e){ console.error('onSettleHand failed',e); }
       }
 
       try{ st.actors.forEach(z=> clearPrivateHoleForSeat(t,z.seatId)); }catch{}
@@ -589,9 +632,16 @@ async function advancePokerStage(tableId,t){
 /* ----------------------------- Betting / actions --------------------------- */
 function bettingRoundComplete(st){
   const target = Number(st.toCall||0);
-  return st.actors.filter(a=>!a.folded).every(a=> a.acted && Number(a.contrib||0)===target);
+  return st.actors
+    .filter(a=>!a.folded && !a.allIn)
+    .every(a=> a.acted && Number(a.contrib||0)===target);
 }
-function applyAction(tableId,t,addrLower,action,isAuto=false){
+function parseAmount(value){
+  const n = Number(value);
+  if (!Number.isFinite(n)) return null;
+  return n;
+}
+function applyAction(tableId,t,addrLower,action,isAuto=false,amountRaw=null){
   try{
     if (!t?.poker) return;
     const st=t.poker; const i=st.turnIndex; const A=st.actors; if(i<0||i>=A.length) return;
@@ -610,7 +660,19 @@ function applyAction(tableId,t,addrLower,action,isAuto=false){
         if (t.category===CAT.OFFCHAIN_NL){
           const s=t.seats[last.seatId]; if (s) s.chips = Number(s.chips||0) + total;
         }
-        io.to(tableId).emit('poker:hand',{ winners:[{addr:last.addr, seatId:last.seatId}], community:Array.from(st.community||[]).map(chogNamePng), exposures:[{addr:last.addr,hole:last.cards.map(chogNamePng)}], pot:total, rng:{commit:st.rng?.commit,seed:st.rng?.seed}, table:tablePublic(t) });
+        const community = Array.from(st.community||[]).map(code => String(code));
+        const winner = { addr:last.addr, seatId:last.seatId, amount: total };
+        io.to(tableId).emit('poker:hand',{
+          winners:[winner],
+          community,
+          exposures:[{addr:last.addr, seatId:last.seatId, cards:Array.from(last.cards)}],
+          pot:total,
+          rng:{commit:st.rng?.commit,seed:st.rng?.seed},
+          table:tablePublic(t)
+        });
+        if (t.category!==CAT.OFFCHAIN_NL){
+          try { await onSettleHand(tableId,t,[winner],community); } catch(e){ console.error('onSettleHand failed',e); }
+        }
         try{ st.actors.forEach(z=> clearPrivateHoleForSeat(t,z.seatId)); }catch{}
         t.poker=null; try{ t.seats.filter(Boolean).forEach(s=> s.ready=false); }catch{}
         emitUpdate(t); return;
@@ -624,17 +686,61 @@ function applyAction(tableId,t,addrLower,action,isAuto=false){
       if (t.category===CAT.OFFCHAIN_NL){
         pay=Math.min(need, Math.max(0, Number(a.stack||0)));
         a.stack=Math.max(0, Number(a.stack||0)-pay);
+        if (a.stack<=0 && pay>0) a.allIn=true;
       }
       a.contrib=Number(a.contrib||0)+pay; st.pot=Number(st.pot||0)+pay; a.acted=true;
+      st.toCall = Math.max(Number(st.toCall||0), Number(a.contrib||0));
+    } else if (action==='bet' || action==='raise') {
+      const parsed = parseAmount(amountRaw);
+      if (parsed===null) return;
+      const currentMax = Number(st.toCall||0);
+      const already = Number(a.contrib||0);
+      let target;
+      if (action==='bet' && currentMax<=0){
+        target = parsed;
+      } else {
+        // treat as raise-to amount
+        target = parsed;
+        if (target <= currentMax) target = currentMax + Math.max(parsed, 1);
+      }
+      if (!Number.isFinite(target) || target <= already) return;
+      let add = target - already;
+      if (t.category===CAT.OFFCHAIN_NL){
+        const available = Math.max(0, Number(a.stack||0));
+        if (available <= 0){ a.allIn=true; add=0; }
+        if (add > available){ add = available; target = already + add; a.allIn=true; }
+        a.stack = Math.max(0, available - add);
+      }
+      if (add <= 0){
+        if (currentMax <= already){
+          a.acted = true;
+        }
+      } else {
+        a.contrib = already + add;
+        st.pot = Number(st.pot||0) + add;
+        st.toCall = Math.max(Number(st.toCall||0), Number(a.contrib||0));
+        a.acted = true;
+        if (t.category===CAT.OFFCHAIN_NL && a.stack<=0) a.allIn=true;
+        // everyone else must respond unless folded or all-in
+        st.actors.forEach((other, idx)=>{
+          if (idx!==i && other){
+            other.acted = !!other.allIn;
+          }
+        });
+      }
     } else {
-      // no raises implemented in this lightweight demo
+      // Unknown action
       a.acted=true;
     }
 
     // advance turn
     let next=(st.turnIndex+1)%A.length, loop=0;
-    while(A[next] && A[next].folded && loop<A.length){ next=(next+1)%A.length; loop++; }
-    st.turnIndex=next;
+    while(A[next] && (A[next].folded || A[next].allIn) && loop<A.length){ next=(next+1)%A.length; loop++; }
+    if (loop>=A.length || (A[next] && (A[next].folded || A[next].allIn))){
+      st.turnIndex = -1;
+    } else {
+      st.turnIndex=next;
+    }
 
     if (bettingRoundComplete(st)){
       audit(tableId,'roundComplete',{stage:st.stage,pot:st.pot});
@@ -642,6 +748,7 @@ function applyAction(tableId,t,addrLower,action,isAuto=false){
     }
     emitPokerState(tableId,t);
     scheduleTurnTimer(tableId,t);
+    maybeAutoAdvance(tableId,t);
   }catch(e){ console.error('applyAction', e); }
 }
 
@@ -771,7 +878,7 @@ io.on('connection',(socket)=>{
     if(idx<0||idx>=A.length) return; const a=A[idx]; if(!a) return;
     if(a.addr!==addrLower) return;
     const action=String(m?.action||'').toLowerCase();
-    applyAction(currentTableId,t,addrLower,action,false);
+    applyAction(currentTableId,t,addrLower,action,false,m?.amount);
   }catch{} });
 
   // F2P only rebuy

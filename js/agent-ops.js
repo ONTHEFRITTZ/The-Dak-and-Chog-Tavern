@@ -1,5 +1,5 @@
 // agent-ops.js — UI panel for sponsor toggle, session (delegation) grant/revoke, budget
-import { AA, defaultAllowlist } from './aa-client.js';
+import { AA, defaultAllowlist } from './aaClient.js';
 
 (function () {
   const htmlMode = (document.documentElement.getAttribute('data-table-mode') || '').toLowerCase();

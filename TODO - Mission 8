@@ -1,39 +1,20 @@
-📋 Updated TODO List (where we are + what’s next)
-✅ Done
+📋 Hackathon TODO Snapshot (Poker AA build)
 
-ZeroDev AA client (aaClient.js) wired with Monad bundler RPC.
+✅ Completed recently
+- ZeroDev / smart-account bootstrap lives in `js/aaClient.js` with Monad bundler + paymaster defaults wired up.  【F:js/aaClient.js†L1-L180】
+- Poker table client rebuilt in `games/poker/table.js` with seat layout, card animations, private hole handling, timers, and DevBot control. 【F:games/poker/table.js†L1-L368】
+- Realtime server streams private cards, enforces betting rounds, and triggers on-chain begin/settle hooks for poker tables. 【F:server/realtime.js†L325-L627】
+- Dealer bridge submits begin/settle transactions when a signer is configured, otherwise logs and no-ops safely. 【F:server/dealeronchain.js†L1-L77】
+- AA sponsor, budget, and session widgets (`agent-ops.js`, `agent-budget.js`, sponsor indicator) broadcast state to the UI on on-chain tables only. 【F:js/agent-ops.js†L1-L134】【F:js/agent-budget.js†L1-L145】
+- Nginx config now hard-stops SPA fallbacks for `/js`, `/css`, and `/assets`, keeping JS/CSS served with correct MIME types. 【F:server/nginx/thedakandchog.xyz.conf†L1-L96】
 
-Config updated (config.js) with MONAD_BUNDLER_RPC.
+⏩ Still to do before demo
+- **End-to-end verification:** Run live hands on F2P and on-chain tables against the realtime server to confirm seating, dealing, DevBot toggle, and sponsored ops behave correctly.
+- **On-chain funding check:** Ensure the configured bundler/paymaster sponsors a full on-chain hand (seat → blinds → actions → settle) with the deployed HoldemPoker contract.
+- **Demo capture:** Record or script the hackathon walkthrough showing wallet connect, sponsored seating, and a complete hand resolution.
 
-UI dual-mode (TABLE_MODE = f2p | onchain) detection in table.js.
-
-renderTableModel modified to branch Sit/Leave → socket only (f2p) vs. socket+AA (onchain).
-
-agent-ops.js implemented and exposed globally (window.AgentOps) for on-chain calls.
-
-Hooked up Sit/Leave to HoldemPoker.joinSeat / unseat / leaveDuringHand.
-
-⏩ Next (short-term hackathon goals)
-
-Agent UX panel:
-Add a small banner (“Sponsored by Dak & Chog Tavern”) with status (sponsored active, chain ID, etc).
-
-Demo polish:
-
-Make sure on-chain table can run through one minimal hand (Sit → Post blinds → Contribute → Settle).
-
-Record demo showing wallet connection, sponsored seat join, and one round finishing.
-
-🚀 Later (optional polish / stretch goals)
-
-Delegation rules:
-Use ZeroDev session keys so the AA agent can auto-post blinds without repeated signing.
-
-Budget control:
-Daily/hand/session limits if you want to guard against abuse.
-
-Rake-based gas recoup:
-Update HoldemPoker.sol or pool to skim a portion for covering sponsored gas.
-
-Farcaster mini-app / consumer polish:
-If aiming for extra prize tracks.
+🚀 Optional polish / stretch goals
+- Introduce delegated session keys so blinds/post actions can auto-fire without repeated prompts.
+- Add configurable spend caps or cooldowns beyond the current session-budget helper.
+- Explore rake/fee logic to replenish the sponsorship pool.
+- Prep Farcaster/consumer surfaces if chasing side prizes.

@@ -253,7 +253,7 @@
       }
     });
 
-    socket.on('poker:hole', (payload)=>{
+    socket.on('poker:private', (payload)=>{
       const cards = Array.isArray(payload) ? payload : (payload?.cards||[]);
       showMyHole(cards);
     });

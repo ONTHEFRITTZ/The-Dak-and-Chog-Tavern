@@ -292,7 +292,13 @@ html[data-table-mode="onchain"] #wi-devbot,
   position: absolute;
   inset: 0;
   z-index: 1;
-  background: url('/assets/images/poker-table.png') center / contain no-repeat;
+}
+
+.table-surface img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
 }
 
 /* Remove any previous felt/glow/overlays */
@@ -307,6 +313,12 @@ html[data-table-mode="onchain"] #wi-devbot,
   border: 0;
   box-shadow: none;
   padding: 0;
+  width: var(--seat-w);
+  height: var(--seat-h);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
 }
 
 /* Basic inner bits the JS adds */
@@ -319,10 +331,41 @@ html[data-table-mode="onchain"] #wi-devbot,
   text-overflow: ellipsis;
   margin: 2px auto;
 }
-.seat .btns { display: flex; gap: 6px; justify-content: center; margin-top: 6px; }
+.seat .btns { display: flex; gap: 6px; justify-content: center; margin-top: 6px; pointer-events:auto; }
 .seat .btns button { padding: 4px 8px; font-size: 12px; border-radius: 6px; }
 
 .seat .cards { display:flex; gap:6px; align-items:center; justify-content:center; min-height: 88px; }
+
+.seat .timer {
+  position: relative;
+  width: 88px;
+  height: 6px;
+  background: rgba(0,0,0,0.45);
+  border-radius: 999px;
+  overflow: hidden;
+  margin: 2px auto 0;
+}
+
+.seat .timer .fill {
+  display: block;
+  width: 0%;
+  height: 100%;
+  background: linear-gradient(90deg, #ffe27a, #ff8b3d);
+  transition: width .2s linear;
+}
+
+.seat.turn .timer .fill {
+  box-shadow: 0 0 6px rgba(255, 210, 120, 0.85);
+}
+
+.seat.folded { opacity: 0.55; }
+.seat.winner { animation: seatWinnerFlash 1s ease-in-out 2; }
+
+@keyframes seatWinnerFlash {
+  0% { filter: drop-shadow(0 0 0 rgba(255,215,120,0)); }
+  50% { filter: drop-shadow(0 0 12px rgba(255,215,120,0.9)); }
+  100% { filter: drop-shadow(0 0 0 rgba(255,215,120,0)); }
+}
 
 /* Small card tiles */
 .card {
@@ -330,8 +373,12 @@ html[data-table-mode="onchain"] #wi-devbot,
   width: 64px; height: 88px;
   border-radius: 6px;
   box-shadow: 0 2px 6px rgba(0,0,0,.25);
-  background: center / cover no-repeat;
+  object-fit: cover;
+  background: none;
 }
+
+.card.deal { opacity: 0; transform: translateY(-12px) scale(0.95); }
+.card.deal.show { opacity: 1; transform: translateY(0) scale(1); transition: transform .25s ease, opacity .25s ease; }
 
 /* Center banner (pot/winner/phase) */
 .center-banner {
@@ -354,6 +401,17 @@ html[data-table-mode="onchain"] #wi-devbot,
   box-shadow: 0 18px 40px rgba(0,0,0,.45);
 }
 
+.table-canvas .action-bar.hidden { display: none; }
+.table-canvas .action-bar .bet-input {
+  width: 76px;
+  background: rgba(0,0,0,0.45);
+  border: 1px solid rgba(255,255,255,0.18);
+  border-radius: 6px;
+  color: #f4e6d3;
+  padding: 4px 6px;
+  font-family: inherit;
+}
+
 /* Hide any AA/sponsor widgets on F2P */
 :root[data-table-mode="f2p"] #aa-panel,
 :root[data-table-mode="f2p"] .aa-panel,
@@ -369,8 +427,32 @@ html[data-table-mode="onchain"] #wi-devbot,
 }
 
 /* Community cards: we don’t show empty “slots” — cards are injected only when needed */
-#board { position:absolute; left:50%; top:50%; transform: translate(-50%,-50%); z-index: 3; pointer-events: none; }
+#board { position:absolute; left:50%; top:50%; transform: translate(-50%,-50%); z-index: 3; pointer-events: none; display:flex; align-items:center; }
+#board.empty { display: none; }
 #board .card { margin: 0 6px; }
+
+.burn-pile {
+  position: absolute;
+  right: 18%;
+  top: 42%;
+  width: 70px;
+  height: 95px;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.burn-pile .card {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transform: translate(16px, -16px) rotate(-14deg) scale(0.9);
+  transition: opacity .18s ease, transform .18s ease;
+}
+
+.burn-pile .card.show {
+  opacity: 1;
+  transform: translate(0,0) rotate(-6deg) scale(1);
+}
 
 /* Short viewport tweaks */
 @media (max-height: 720px) {
