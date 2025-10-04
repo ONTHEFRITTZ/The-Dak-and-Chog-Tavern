@@ -57,6 +57,8 @@
   const seats = Array.from(document.querySelectorAll('.seat'));
   if (!seats.length) return;
 
+  let autoBotArmed = false;
+
   let board = canvas.querySelector('#board');
   if (!board) {
     board = document.createElement('div');
@@ -440,11 +442,14 @@
     const me = (currentAddr() || '').toLowerCase();
     mySeat = -1;
     const list = table.seats || [];
+    let humanCount = 0;
     list.forEach((seatData, idx) => {
       const meta = seatMeta[idx];
       if (!meta) return;
-      if (seatData && seatData.addr && seatData.addr.toLowerCase() === me) mySeat = idx;
-      meta.addr.textContent = seatData ? `${short(seatData.addr)}${seatData.ready ? ' ✅' : ''}` : '';
+      const seatAddr = (seatData && seatData.addr ? seatData.addr : '').toLowerCase();
+      if (seatData && seatAddr === me) mySeat = idx;
+      if (seatData && !/^bot:/i.test(seatAddr)) humanCount += 1;
+      meta.addr.textContent = seatData ? `${short(seatData.addr)}${seatData.ready ? ' [ready]' : ''}` : '';
       meta.seat.classList.toggle('occupied', !!seatData);
       meta.seat.classList.toggle('ready', !!(seatData && seatData.ready));
       meta.btns.innerHTML = '';
@@ -457,7 +462,7 @@
         });
         meta.btns.appendChild(sit);
         meta.cards.innerHTML = '';
-      } else if (seatData.addr && seatData.addr.toLowerCase() === me) {
+      } else if (seatAddr === me) {
         const ready = document.createElement('button');
         ready.textContent = seatData.ready ? 'Unready' : 'Ready';
         ready.addEventListener('click', () => socket.emit('ready', { ready: !seatData.ready }));
@@ -468,6 +473,21 @@
       }
     });
     updateDevBotButton(table);
+
+    if (humanCount !== 1) {
+      autoBotArmed = false;
+    }
+
+    if (table.simulated && !table.devBotEnabled && humanCount === 1 && !autoBotArmed) {
+      autoBotArmed = true;
+      setTimeout(() => {
+        try {
+          socket.emit('devbot:set', { table: tableId, enabled: true });
+        } catch (err) {
+          console.warn('devbot:set failed', err);
+        }
+      }, 150);
+    }
   }
 
   socket.on('connect', () => {
@@ -518,7 +538,9 @@
 
   socket.on('poker:private', (msg) => {
     const seatId = Number.isFinite(msg?.seatId) ? msg.seatId : seatIndexForAddr(msg?.addr);
-    if (seatId < 0 || seatId !== mySeat) return;
+    if (!Number.isInteger(seatId) || seatId < 0) return;
+    if (mySeat < 0) mySeat = seatId;
+    if (seatId !== mySeat) return;
     const cards = (msg.cards || []).slice(0, 2);
     setSeatCards(seatId, cards, { faceDown: false });
   });

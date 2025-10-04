@@ -8,8 +8,70 @@
   <meta http-equiv="Expires" content="0">
   <title>Poker Table</title>
 
-  <!-- Pin the user's chosen wallet across the site (must be before any wallet/AA code) -->
-  <script src="/js/provider-pin.js"></script>
+  <!-- Pin the user's chosen wallet across the site (inline to avoid CDN rewrites) -->
+  <script>
+    (function () {
+      try {
+        const lc = (v) => String(v || '').toLowerCase();
+        const readPref = () => {
+          try { return lc(sessionStorage.getItem('walletProvider') || localStorage.getItem('walletProvider')); }
+          catch { return ''; }
+        };
+        const savePref = (v) => {
+          try {
+            sessionStorage.setItem('walletProvider', lc(v));
+            localStorage.setItem('walletProvider', lc(v));
+          } catch {}
+        };
+
+        function pickProvider() {
+          const pref = readPref();
+          const phantom = window?.phantom?.ethereum;
+          const eth = window.ethereum;
+
+          if (pref === 'phantom' && phantom) return { name: 'phantom', provider: phantom };
+          if (pref === 'metamask' && eth) return { name: 'metamask', provider: eth };
+
+          if (phantom && !eth) return { name: 'phantom', provider: phantom };
+          if (eth && !phantom) return { name: 'metamask', provider: eth };
+
+          if (eth?.isMetaMask) return { name: 'metamask', provider: eth };
+          if (phantom) return { name: 'phantom', provider: phantom };
+          if (eth) return { name: 'metamask', provider: eth };
+
+          return { name: '', provider: null };
+        }
+
+        const choice = pickProvider();
+        window.walletChoice = {
+          name: choice.name,
+          provider: choice.provider,
+          save: savePref
+        };
+        window.__getSelectedProvider = function () { return window.walletChoice?.provider || null; };
+
+        try {
+          window.ethereum = choice.provider || window.ethereum;
+        } catch {}
+
+        function watch(accountsProvider, tag) {
+          if (!accountsProvider || typeof accountsProvider.on !== 'function') return;
+          try {
+            accountsProvider.on('accountsChanged', (accs) => {
+              if (Array.isArray(accs) && accs[0]) savePref(tag);
+            });
+          } catch {}
+        }
+        watch(choice.provider, choice.name);
+        watch(window?.phantom?.ethereum, 'phantom');
+        watch(window.ethereum, 'metamask');
+
+        window.dispatchEvent(new CustomEvent('wallet:provider:pinned', {
+          detail: { pinned: !!choice.provider, name: choice.name }
+        }));
+      } catch {}
+    })();
+  </script>
 
   <!-- Decide mode EARLY (onchain/f2p). Accept ?mode=onchain OR infer from ?table= id. -->
   <script>
@@ -87,9 +149,9 @@
   </script>
 
   <!-- Preloads (poker uses poker-table.png) -->
-  <link rel="preload" as="image" href="/assets/images/poker-table.png" type="image/png">
-  <link rel="preload" as="image" href="/assets/images/cards/cards-sprite.png" type="image/png">
-  <link rel="preload" as="image" href="/assets/images/chog_cards/dak-and-chog-cardback.png" type="image/png">
+  <link rel="preload" as="image" href="../../assets/images/poker-table.png" type="image/png">
+  <link rel="preload" as="image" href="../../assets/images/cards/cards-sprite.png" type="image/png">
+  <link rel="preload" as="image" href="../../assets/images/chog_cards/dak-and-chog-cardback.png" type="image/png">
 
   <!-- Holdem ABI helper -->
   <script>
@@ -170,7 +232,16 @@
 
   <!-- Core libs -->
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-  <script type="module" src="/js/tavern.js"></script>
+  <script type="module">
+    (async () => {
+      const tag = window.__BUILD_TAG || Date.now();
+      try {
+        await import(`/js/tavern.js?v=${encodeURIComponent(tag)}`);
+      } catch (err) {
+        console.error('Failed to load tavern.js', err);
+      }
+    })();
+  </script>
 
   <!-- Table logic -->
   <script>
