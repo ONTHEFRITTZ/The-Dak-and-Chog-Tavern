@@ -1,6 +1,6 @@
 // Realtime server: Faro + Poker (offchain/onchain), fairness, auditing, dev bot (opt-in), private hole cards
 // ENV: PORT (default 3000) GAME_TYPES (comma-separated: FARO,POKER; default FARO,POKER) ADMIN_ADDR RT_RAKE_BPS MONAD_BUNDLER_RPC
-// Socket.IO path is /socket.io/ (nginx proxies /poker.io/ → /socket.io/ upstream)
+// Socket.IO path is /socket.io/ (nginx proxies /poker.io/ â†’ /socket.io/ upstream)
 
 const http = require('http');
 const { Server } = require('socket.io');
@@ -223,7 +223,7 @@ function ensureLobbyPolicy(){
 const RANKS = ['2','3','4','5','6','7','8','9','T','J','Q','K','A'];
 const SUITS = ['c','d','h','s']; // clubs, diamonds, hearts, spades
 function chogNamePng(code){
-  // e.g., 'Ah' → 'chog-ace-of-hearts.png'
+  // e.g., 'Ah' â†’ 'chog-ace-of-hearts.png'
   const r=code[0], s=code[1];
   const rn = ({A:'ace',K:'king',Q:'queen',J:'jack',T:'ten','9':'nine','8':'eight','7':'seven','6':'six','5':'five','4':'four','3':'three','2':'two'})[r];
   const sn = ({h:'hearts',d:'diamonds',c:'clubs',s:'spades'})[s];
@@ -638,7 +638,6 @@ async function advancePokerStage(tableId,t){
 
       try{ st.actors.forEach(z=> clearPrivateHoleForSeat(t,z.seatId)); }catch{}
       clearTurnTimer(t); t.poker=null;
-      try{ t.seats.filter(Boolean).forEach(s=> s.ready=false); }catch{}
       emitUpdate(t);
       return;
     }
@@ -690,12 +689,12 @@ function applyAction(tableId,t,addrLower,action,isAuto=false,amountRaw=null){
           try { await onSettleHand(tableId,t,[winner],community); } catch(e){ console.error('onSettleHand failed',e); }
         }
         try{ st.actors.forEach(z=> clearPrivateHoleForSeat(t,z.seatId)); }catch{}
-        t.poker=null; try{ t.seats.filter(Boolean).forEach(s=> s.ready=false); }catch{}
+        t.poker=null;
         emitUpdate(t); return;
       }
     } else if (action==='check'){
       const need=Math.max(0, Number(st.toCall||0)-Number(a.contrib||0));
-      if (need<=0){ a.acted=true; } else { return; } // illegal check → ignore
+      if (need<=0){ a.acted=true; } else { return; } // illegal check â†’ ignore
     } else if (action==='call'){
       const need=Math.max(0, Number(st.toCall||0)-Number(a.contrib||0));
       let pay=need;
@@ -866,19 +865,6 @@ io.on('connection',(socket)=>{
     ensureLobbyPolicy(); emitLobby();
   }catch{} });
 
-  socket.on('ready',(m)=>{ try{
-    if(!allow(socket.id,'ready')){ socket.emit('error',{message:'rate limit'}); return; }
-    if(!currentTableId) return;
-    const t=getTable(currentTableId);
-    const s=t.seats.find(x=> x && x.addr===addrLower);
-    if (s){ s.ready=!!m.ready; s.lastActive=nowMs(); s.socketId=socket.id; }
-    t.lastActive=nowMs(); emitUpdate(t);
-    if (t.kind==='FARO'){
-      // TODO: faro resolution logic (unchanged)
-      return;
-    }
-    maybeStartHand(currentTableId, t);
-  }catch{} });
 
   socket.on('poker:act',(m)=>{ try{
     if(!allow(socket.id,'poker:act')){ socket.emit('error',{message:'rate limit'}); return; }
@@ -920,7 +906,7 @@ setInterval(()=>{ try{
     for (let i=0;i<t.seats.length;i++){
       const s=t.seats[i]; if(!s) continue;
       const last=Number(s.lastActive||0);
-      if (!s.ready && last && (now-last)>IDLE_EJECT_MS){
+      if (last && (now-last)>IDLE_EJECT_MS){
         if (t.kind==='FARO'){ try{ t.bets.delete(String(s.addr||'').toLowerCase()); }catch{} }
         try{ clearPrivateHoleForSeat(t,i); }catch{}
         t.seats[i]=null; changed=true;
@@ -943,4 +929,3 @@ setInterval(saveState, SAVE_INTERVAL_MS);
 /* ------------------------------ Server listen ------------------------------ */
 const PORT=process.env.PORT||3000;
 server.listen(PORT, ()=>{ console.log('RT server on',PORT,'| enabled games:', Array.from(enabledGames).join(',')); });
-
