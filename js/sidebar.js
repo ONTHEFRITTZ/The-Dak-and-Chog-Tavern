@@ -83,7 +83,7 @@
     btn.type = 'button';
     btn.setAttribute('aria-label', 'Toggle navigation');
     btn.title = 'Toggle navigation';
-    btn.textContent = '☰';
+    btn.textContent = 'â˜°';
     header.appendChild(btn);
 
     const list = document.createElement('ul');
@@ -139,7 +139,7 @@
     const footer = document.createElement('div');
     footer.className = 'sidebar-footer';
     footer.id = 'sidebar-footer';
-    footer.innerHTML = '<div class="sb-net">Loading network…</div>';
+    footer.innerHTML = '<div class="sb-net">Loading networkâ€¦</div>';
     nav.appendChild(footer);
     document.body.appendChild(nav);
 
@@ -228,7 +228,7 @@
         if (!pill){
           pill = document.createElement('div');
           pill.id = 'wallet-inline';
-          pill.style.cssText = 'position:fixed;top:12px;right:12px;z-index:12000;display:flex;align-items:center;gap:8px;background: var(--panel-bg-soft); border:1px solid rgba(255,255,255,0.12); border-radius:12px; padding:6px 10px; color:#f4e6d3;';
+          pill.style.cssText = 'position:fixed;top:12px;right:12px;z-index:12000;display:flex;align-items:center;gap:8px;background: var(--panel-bg-soft); border:1px solid rgba(255,255,255,0.12); border-radius:12px; padding:6px 10px; color:#f4e6d3;'
           pill.innerHTML = '<span id="wi-balance"></span><span id="wi-label">Wallet:</span><span id="wi-address">-</span><button id="wi-disconnect" style="display:none">Disconnect</button>';
           document.body.appendChild(pill);
         } else {
