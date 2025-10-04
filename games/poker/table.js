@@ -203,6 +203,7 @@
   let currentState = null;
   let currentTurnSeat = -1;
   let timerRaf = null;
+  let autoReadySent = false;
 
   function ensureIdentify() {
     const addr = currentAddr();
@@ -311,9 +312,20 @@
   function anchorActionBar() {
     const canvasRect = canvas.getBoundingClientRect();
     const boardRect = board.getBoundingClientRect();
-    const desiredTop = (boardRect.bottom - canvasRect.top) + 16;
-    const maxTop = canvasRect.height - actionBar.offsetHeight - 24;
-    const top = Math.min(Math.max(desiredTop, canvasRect.height * 0.45), maxTop);
+    const desiredTop = (boardRect.bottom - canvasRect.top) + 20;
+    const canvasHeight = canvasRect.height;
+    const actionHeight = actionBar.offsetHeight || 0;
+    let maxTop = canvasHeight - actionHeight - 24;
+    const bottomMost = seatMeta.reduce((max, meta) => {
+      if (!meta || !meta.seat) return max;
+      const rect = meta.seat.getBoundingClientRect();
+      return Math.max(max, rect.bottom - canvasRect.top);
+    }, 0);
+    if (bottomMost > 0) {
+      maxTop = Math.min(maxTop, bottomMost - actionHeight - 24);
+    }
+    const minTop = Math.max((boardRect.bottom - canvasRect.top) + 12, 12);
+    const top = Math.min(Math.max(minTop, desiredTop), maxTop);
     actionBar.style.top = `${top}px`;
   }
 
@@ -450,7 +462,17 @@
       const meta = seatMeta[idx];
       if (!meta) return;
       const seatAddr = (seatData && seatData.addr ? seatData.addr : '').toLowerCase();
-      if (seatData && seatAddr === me) mySeat = idx;
+      if (seatData && seatAddr === me) {
+        mySeat = idx;
+        if (table.simulated && !seatData.ready && !autoReadySent) {
+          ensureIdentify();
+          socket.emit('ready', { ready: true });
+          autoReadySent = true;
+        }
+        if (seatData.ready && autoReadySent) {
+          autoReadySent = false;
+        }
+      }
       if (seatData && !/^bot:/i.test(seatAddr)) humanCount += 1;
       meta.addr.textContent = seatData ? `${short(seatData.addr)}${seatData.ready ? ' [ready]' : ''}` : '';
       meta.seat.classList.toggle('occupied', !!seatData);
@@ -479,6 +501,10 @@
 
     if (humanCount !== 1) {
       autoBotArmed = false;
+    }
+
+    if (mySeat === -1) {
+      autoReadySent = false;
     }
 
     if (table.simulated && !table.devBotEnabled && humanCount === 1 && !autoBotArmed) {

@@ -147,7 +147,17 @@ function seatFirstEmpty(t, addr, socketId='bot'){
   }
   return -1;
 }
-function reconcileDevBot(t){
+function maybeStartHand(tableId, t){
+  try{
+    if (paused) return;
+    if (!isPoker(t)) return;
+    const active = t.seats.filter(Boolean);
+    if (active.length >= 2 && active.every(x => !!x.ready) && !t.poker){
+      startPokerHand(tableId, t);
+    }
+  }catch(e){ console.error('maybeStartHand', e); }
+}
+function reconcileDevBot(tableId, t){
   if (!isPoker(t) || t.category!==CAT.OFFCHAIN_NL) return;
   const humans = humansIn(t);
   const botIdx = findBotIndex(t);
@@ -176,6 +186,8 @@ function reconcileDevBot(t){
     t.seats[botIdx] = null;
     try { if (t.poker?.botTimer){ clearTimeout(t.poker.botTimer); t.poker.botTimer=null; } } catch {}
   }
+
+  maybeStartHand(tableId || t?.id, t);
 }
 
 /* ------------------------ Poker spawn / prune policy ----------------------- */
@@ -784,7 +796,7 @@ io.on('connection',(socket)=>{
       if (si>=0){ t.seats[si].socketId = socket.id; }
     }
 
-    reconcileDevBot(t);
+    reconcileDevBot(wanted, t);
     t.lastActive=nowMs();
     emitUpdate(t);
     io.to(wanted).emit('system', `${short(socket.id)} joined ${wanted}`);
@@ -825,7 +837,7 @@ io.on('connection',(socket)=>{
         audit(currentTableId,'seat',{addr:addrLower,index:idx});
       }
     }
-    if (isPoker(t)) reconcileDevBot(t);
+    if (isPoker(t)) reconcileDevBot(currentTableId, t);
     const after=seatCount(t);
     if(!t.started && before===0 && after>0 && !paused){
       t.started=true;
@@ -834,7 +846,7 @@ io.on('connection',(socket)=>{
       t.lastActive=nowMs();
       io.to(currentTableId).emit('table:started', tablePublic(t));
     }
-    t.lastActive=nowMs(); emitUpdate(t); ensureLobbyPolicy(); emitLobby();
+    t.lastActive=nowMs(); emitUpdate(t); maybeStartHand(currentTableId, t); ensureLobbyPolicy(); emitLobby();
   }catch{} });
 
   socket.on('disconnect',()=>{ try{
@@ -848,7 +860,7 @@ io.on('connection',(socket)=>{
           t.seats[i]=null; changed=true;
         }
       }
-      if (isPoker(t) && changed) reconcileDevBot(t);
+      if (isPoker(t) && changed) reconcileDevBot(t.id, t);
       if (changed){ t.lastActive=nowMs(); emitUpdate(t); }
     }
     ensureLobbyPolicy(); emitLobby();
@@ -861,16 +873,11 @@ io.on('connection',(socket)=>{
     const s=t.seats.find(x=> x && x.addr===addrLower);
     if (s){ s.ready=!!m.ready; s.lastActive=nowMs(); s.socketId=socket.id; }
     t.lastActive=nowMs(); emitUpdate(t);
-    if (paused) return;
-
-    const active=t.seats.filter(Boolean);
-    const allReady=active.length && active.every(x=>!!x.ready);
-
     if (t.kind==='FARO'){
       // TODO: faro resolution logic (unchanged)
       return;
     }
-    if (allReady && active.length>=2 && !t.poker) startPokerHand(currentTableId,t);
+    maybeStartHand(currentTableId, t);
   }catch{} });
 
   socket.on('poker:act',(m)=>{ try{
@@ -900,7 +907,7 @@ io.on('connection',(socket)=>{
     if(!currentTableId) return; const t=getTable(currentTableId);
     if(!isPoker(t) || t.category!==CAT.OFFCHAIN_NL) return;
     t.devBotEnabled = !!(m && m.enabled);
-    reconcileDevBot(t); emitUpdate(t);
+    reconcileDevBot(currentTableId, t); emitUpdate(t);
   }catch{} });
 });
 
@@ -919,7 +926,7 @@ setInterval(()=>{ try{
         t.seats[i]=null; changed=true;
       }
     }
-    if (isPoker(t) && changed) reconcileDevBot(t);
+    if (isPoker(t) && changed) reconcileDevBot(t.id, t);
     if (changed){ t.lastActive=nowMs(); emitUpdate(t); }
   }
 }catch{} }, 7_000);
