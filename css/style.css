@@ -263,8 +263,16 @@ body.age-landing {
 #wallet-inline {
   position: fixed; top: var(--edge-pad); right: var(--edge-pad);
   z-index: 12000; display: flex; align-items: center; gap: 8px;
+  background: var(--panel-bg-soft);
+  color: #f4e6d3;
   border: 1px solid rgba(255,255,255,0.12);
-  border-radius: 12px;  8px;
+  border-radius: 12px;
+  padding: 6px 10px;
+}
+html[data-table-mode="onchain"] #wallet-inline,
+:root[data-table-mode="onchain"] #wallet-inline {
+  background: rgba(12, 24, 38, 0.85);
+  border-color: rgba(120,200,255,0.22);
 }
 /* ==========================================================================
    POKER TABLE — MINIMAL, IMAGE-ONLY SURFACE, NO ORANGE TOKENS
@@ -283,7 +291,7 @@ html[data-table-mode="onchain"] #wi-devbot,
   --ring-rotation: -90;
   aspect-ratio: 1000 / 680;
   width: min(80vw, 1100px);
-  max-height: 80vh;`r`n  height: auto;
+  max-height: 80vh; height: auto;
   margin: 0 auto;
 }
 
@@ -420,7 +428,8 @@ html[data-table-mode="onchain"] #wi-devbot,
   color: #f4e6d3;
   border: 0;
   border-radius: 14px;
-   8px;
+  padding: 8px;
+  background: var(--panel-bg-strong);
   box-shadow: 0 24px 48px rgba(0,0,0,.45);
   min-width: clamp(220px, 28vw, 360px);
 }
@@ -438,7 +447,8 @@ html[data-table-mode="onchain"] #wi-devbot,
   border: 1px solid rgba(255,255,255,0.18);
   border-radius: 8px;
   color: #f4e6d3;
-   8px;
+  padding: 6px 8px;
+  background: rgba(0,0,0,0.2);
   font-family: inherit;
 }
 .table-canvas .action-bar button { padding: 6px 14px; }
@@ -470,7 +480,8 @@ html[data-table-mode="onchain"] #wi-devbot,
   z-index: 9000;
   border: 1px solid rgba(255,255,255,0.14);
   border-radius: 999px;
-   8px;
+  padding: 6px 12px;
+  background: var(--panel-bg-strong);
   color: #f4e6d3;
   font-size: 12px;
   line-height: 1.2;
@@ -508,10 +519,10 @@ html[data-table-mode="onchain"] #wi-devbot,
 
 /* Short viewport tweaks */
 @media (max-height: 720px) { .table-canvas { max-height: 80vh; height: auto; } }
-@media (max-height: 640px) { .table-canvas { max-height: 80vh; height: auto; } }.seat .cards .card { width: 56px; height: 82px; }
-}
-
-#wi-address { display:none !important; }
+@media (max-height: 640px) { .table-canvas { max-height: 80vh; height: auto; } }
+.seat .cards .card { width: 56px; height: 82px; }
 .sidebar-footer { display:none !important; visibility:hidden !important; }
 .table-canvas .card { width: 60px; height: 84px; }
 .table-canvas #board .card { margin: 0 4px; }
+/* Override corrupted bullet content if present */
+.sidebar.collapsed .sidebar-links li a::after { content: '•' !important; }

@@ -480,11 +480,17 @@
         });
         meta.btns.appendChild(sit);
         meta.cards.innerHTML = '';
-      } else if (seatAddr === me) {\r\n        meta.btns.append(leave);\r\n
+      } else if (seatAddr === me) {
+        const leaveBtn = document.createElement('button');
+        leaveBtn.textContent = 'Leave';
+        leaveBtn.addEventListener('click', () => {
+          ensureIdentify();
+          socket.emit('leave_seat', { index: idx });
+        });
+        meta.btns.appendChild(leaveBtn);
       }
     });
-    updateDevBotButton(table);\r\n  }\r\n, 150);
-    }
+    updateDevBotButton(table);
   }
 
   socket.on('connect', () => {
@@ -503,7 +509,15 @@
 
     if (state?.stage !== lastStage) {
       if (state?.stage === 'preflop' && lastTable) {
-        (lastTable.seats || []).forEach((seatData, idx) => {\r\n        const saddr = seatData && String(seatData.addr||'').toLowerCase();\r\n        const me = (currentAddr()||'').toLowerCase();\r\n        if (seatData && saddr !== me) {\r\n          setSeatCards(idx, [null, null], { faceDown: true });\r\n        } else if (!(seatData && seatData.addr)) {\r\n          clearSeatCards(idx);\r\n        }\r\n      });
+        (lastTable.seats || []).forEach((seatData, idx) => {
+        const saddr = seatData && String(seatData.addr||'').toLowerCase();
+        const me = (currentAddr()||'').toLowerCase();
+        if (seatData && saddr !== me) {
+          setSeatCards(idx, [null, null], { faceDown: true });
+        } else if (!(seatData && seatData.addr)) {
+          clearSeatCards(idx);
+        }
+      });
         board.innerHTML = '';
         burnPile.innerHTML = '';
         lastCommunity = [];
