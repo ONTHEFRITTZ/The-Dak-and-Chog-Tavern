@@ -69,15 +69,15 @@ function getTable(id){
   const low=String(id||'').toLowerCase();
 
   if (low.startsWith('poker-nl-')) {
-    const t={ id, kind:'POKER', seats:Array.from({length:POKER_SEATS},()=>null), started:false, lastActive:nowMs(), category:'ONCHAIN_NL', limit:'NL', simulated:false, devBotEnabled:false, poker:null };
+    const t={ id, kind:'POKER', seats:Array.from({length:POKER_SEATS},()=>null), started:false, lastActive:nowMs(), category:'ONCHAIN_NL', limit:'NL', simulated:false, devBotEnabled:false, devBotUserToggled:false, poker:null };
     tables.set(id,t); return t;
   }
   if (low.startsWith('poker-fl-')) {
-    const t={ id, kind:'POKER', seats:Array.from({length:POKER_SEATS},()=>null), started:false, lastActive:nowMs(), category:'ONCHAIN_FL', limit:'FL', stakes:'3/6 MON', simulated:false, devBotEnabled:false, poker:null };
+    const t={ id, kind:'POKER', seats:Array.from({length:POKER_SEATS},()=>null), started:false, lastActive:nowMs(), category:'ONCHAIN_FL', limit:'FL', stakes:'3/6 MON', simulated:false, devBotEnabled:false, devBotUserToggled:false, poker:null };
     tables.set(id,t); return t;
   }
   if (low.startsWith('poker-sim-')) {
-    const t={ id, kind:'POKER', seats:Array.from({length:POKER_SEATS},()=>null), started:false, lastActive:nowMs(), category:'OFFCHAIN_NL', limit:'NL', simulated:true, devBotEnabled:false, poker:null };
+    const t={ id, kind:'POKER', seats:Array.from({length:POKER_SEATS},()=>null), started:false, lastActive:nowMs(), category:'OFFCHAIN_NL', limit:'NL', simulated:true, devBotEnabled:false, devBotUserToggled:false, poker:null };
     tables.set(id,t); return t;
   }
 
@@ -162,23 +162,30 @@ function reconcileDevBot(tableId, t){
   const humans = humansIn(t);
   const botIdx = findBotIndex(t);
 
+  // Never allow dev bot when 2+ humans
   if (humans >= 2) {
     if (botIdx >= 0) {
       t.seats[botIdx] = null;
       try { if (t.poker?.botTimer){ clearTimeout(t.poker.botTimer); t.poker.botTimer=null; } } catch {}
     }
     t.devBotEnabled = false;
+    t.devBotUserToggled = !!t.devBotUserToggled; // keep flag but force off
     return;
   }
 
   if (humans === 1) {
-    if (t.devBotEnabled && botIdx === -1) seatFirstEmpty(t, 'bot:dev', 'bot');
-    if (t.devBotEnabled && botIdx >= 0) {
-      t.seats[botIdx].ready = true;
-    }
-    if (!t.devBotEnabled && botIdx >= 0) {
-      t.seats[botIdx] = null;
-      try { if (t.poker?.botTimer){ clearTimeout(t.poker.botTimer); t.poker.botTimer=null; } } catch {}
+    // Only seat bot if user has explicitly toggled DevBot on
+    if (t.devBotEnabled && t.devBotUserToggled) {
+      if (botIdx === -1) seatFirstEmpty(t, 'bot:dev', 'bot');
+      if (findBotIndex(t) >= 0) {
+        try { const bi=findBotIndex(t); if (bi>=0) t.seats[bi].ready = true; } catch {}
+      }
+    } else {
+      if (botIdx >= 0) {
+        t.seats[botIdx] = null;
+        try { if (t.poker?.botTimer){ clearTimeout(t.poker.botTimer); t.poker.botTimer=null; } } catch {}
+      }
+      t.devBotEnabled = false;
     }
   }
 
@@ -779,6 +786,12 @@ io.on('connection',(socket)=>{
     if (wanted && !tables.has(wanted)) getTable(wanted);
     const t=getTable(wanted);
 
+    // For F2P poker, ensure DevBot is OFF unless explicitly toggled
+    if (isPoker(t) && t.category===CAT.OFFCHAIN_NL && !t.devBotUserToggled) {
+      t.devBotEnabled = false;
+      const bi=findBotIndex(t); if (bi>=0) t.seats[bi]=null;
+    }
+
     if (currentTableId) socket.leave(currentTableId);
     currentTableId=wanted; socket.join(wanted);
 
@@ -829,7 +842,9 @@ io.on('connection',(socket)=>{
       }
     } else if (idx>=0 && idx<t.seats.length){
       if (!t.seats[idx]){
-        t.seats[idx]={ id:idx, addr:addrLower, balance:0, lastActive:nowMs(), socketId:socket.id };
+        let who = addrLower;
+        if (!who) { try { who = 'guest:' + (socket.id ? String(socket.id).slice(-6) : Math.random().toString(36).slice(2,8)); } catch { who = 'guest:' + Math.random().toString(36).slice(2,8); } }
+        t.seats[idx]={ id:idx, addr:String(who||'').toLowerCase(), balance:0, lastActive:nowMs(), socketId:socket.id };
         if (isPoker(t) && t.category===CAT.OFFCHAIN_NL){
           if(!Number.isFinite(t.seats[idx].chips)||t.seats[idx].chips<=0) t.seats[idx].chips=100;
         }
@@ -893,6 +908,10 @@ io.on('connection',(socket)=>{
     if(!currentTableId) return; const t=getTable(currentTableId);
     if(!isPoker(t) || t.category!==CAT.OFFCHAIN_NL) return;
     t.devBotEnabled = !!(m && m.enabled);
+    t.devBotUserToggled = true;
+    if (!t.devBotEnabled) {
+      const bi=findBotIndex(t); if (bi>=0) t.seats[bi]=null;
+    }
     reconcileDevBot(currentTableId, t); emitUpdate(t);
   }catch{} });
 });
