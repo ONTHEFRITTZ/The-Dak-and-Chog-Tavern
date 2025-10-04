@@ -289,11 +289,11 @@ html[data-table-mode="onchain"] #wi-devbot,
 .table-canvas {
   position: relative;
   /* Maintain intrinsic table image aspect for correct seat placement */
-  --ring-rx: 54;
-  --ring-ry: 46;
+  --ring-rx: 50;
+  --ring-ry: 42;
   --ring-rotation: -90;
   aspect-ratio: 1000 / 680;
-  width: min(88vw, 1200px);
+  width: min(82vw, 1100px);
   height: auto;
   margin: 0 auto;
 }
@@ -400,7 +400,7 @@ html[data-table-mode="onchain"] #wi-devbot,
 /* Small card tiles */
 .card {
   display:block;
-  width: 64px; height: 88px;
+  width: 60px; height: 84px;
   border-radius: 6px;
   box-shadow: 0 2px 6px rgba(0,0,0,.25);
   object-fit: cover;
@@ -426,32 +426,32 @@ html[data-table-mode="onchain"] #wi-devbot,
   position: absolute;
   left: 50%;
   transform: translate(-50%, 0);
-  bottom: clamp(6%, 10vh, 14%);
+  bottom: clamp(4%, 8vh, 12%);
   z-index: 5;
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
   align-items: center;
   justify-content: center;
-  background: rgba(24, 14, 8, 0.92);
+  background: transparent;
   color: #f4e6d3;
-  border: 1px solid rgba(255,255,255,.15);
+  border: 0;
   border-radius: 14px;
-  padding: 12px 18px;
+  padding: 6px 10px;
   box-shadow: 0 24px 48px rgba(0,0,0,.45);
-  min-width: clamp(260px, 32vw, 420px);
+  min-width: clamp(220px, 28vw, 360px);
 }
 
 .table-canvas .action-bar.hidden { display: none; }
 .table-canvas .action-bar .info {
   flex: 1 1 100%;
   text-align: center;
-  font-size: clamp(0.9rem, 0.8rem + 0.3vw, 1.2rem);
-  font-weight: 600;
+  font-size: clamp(0.9rem, 0.8rem + 0.2vw, 1.1rem);
+  font-weight: 700;
   color: #ffe7a8;
 }
 .table-canvas .action-bar .bet-input {
-  width: clamp(120px, 18vw, 160px);
+  width: clamp(110px, 16vw, 150px);
   background: rgba(0,0,0,0.45);
   border: 1px solid rgba(255,255,255,0.18);
   border-radius: 8px;
@@ -459,7 +459,7 @@ html[data-table-mode="onchain"] #wi-devbot,
   padding: 6px 10px;
   font-family: inherit;
 }
-.table-canvas .action-bar button { padding: 8px 18px; }
+.table-canvas .action-bar button { padding: 6px 14px; }
 
 /* Hide any AA/sponsor widgets on F2P */
 :root[data-table-mode="f2p"] #aa-panel,
@@ -478,7 +478,7 @@ html[data-table-mode="onchain"] #wi-devbot,
 /* Community cards: we don’t show empty “slots” — cards are injected only when needed */
 #board { position:absolute; left:50%; top:50%; transform: translate(-50%,-50%); z-index: 3; pointer-events: none; display:flex; align-items:center; }
 #board.empty { display: none; }
-#board .card { margin: 0 6px; }
+#board .card { margin: 0 4px; }
 
 .last-hand-pill,
 #last-hand {

@@ -293,6 +293,53 @@
     } catch { }
   </script>
 
+  <!-- On-chain extras: MON balance + sponsored gas note under wallet pill -->
+  <script type="module">
+    (function () {
+      if (document.documentElement.getAttribute('data-table-mode') !== 'onchain') return;
+      try {
+        const pill = document.getElementById('wallet-inline');
+        if (!pill) return;
+        let row = document.getElementById('wi-extra');
+        if (!row) {
+          row = document.createElement('div');
+          row.id = 'wi-extra';
+          row.style.cssText = 'display:flex;gap:8px;align-items:center;justify-content:flex-end;width:100%;font-size:12px;opacity:.95;';
+          pill.appendChild(row);
+        }
+        let bal = document.getElementById('wi-balance');
+        if (!bal) { bal = document.createElement('span'); bal.id = 'wi-balance'; bal.title = 'MON Balance'; row.appendChild(bal); }
+        let note = document.getElementById('wi-sponsor');
+        if (!note) { note = document.createElement('span'); note.id = 'wi-sponsor'; note.style.color = '#9ef89e'; row.appendChild(note); }
+
+        function fmt(x){ try { const n = Number(x); if (!Number.isFinite(n)) return ''; if (n>=1) return n.toFixed(3); return n.toFixed(5); } catch { return ''; } }
+
+        async function refreshBalance(){
+          try {
+            const addr = (sessionStorage.getItem('walletAddress') || localStorage.getItem('walletAddress') || '').toLowerCase();
+            if (!addr) return;
+            const ethers = window.ethers || (await import('https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.esm.min.js')).ethers;
+            let prov = null;
+            try { prov = window.__getSelectedProvider ? window.__getSelectedProvider() : null; } catch {}
+            if (!prov && window.ethereum) prov = window.ethereum;
+            if (!prov) return;
+            const provider = new ethers.providers.Web3Provider(prov, 'any');
+            const wei = await provider.getBalance(addr);
+            const mon = Number(ethers.utils.formatEther(wei));
+            bal.textContent = mon ? (fmt(mon) + ' MON') : '';
+          } catch {}
+        }
+
+        function updateSponsor(e){ try { note.textContent = e?.detail?.active ? 'Gas sponsored by The Dak & Chog' : ''; } catch {} }
+
+        window.addEventListener('aa:sponsored', updateSponsor);
+        refreshBalance();
+        setTimeout(refreshBalance, 2500);
+        setInterval(refreshBalance, 30000);
+      } catch {}
+    })();
+  </script>
+
   <!-- Wallet pill sync -->
   <script>
     (function () {
