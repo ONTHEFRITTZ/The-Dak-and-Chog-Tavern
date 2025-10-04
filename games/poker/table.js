@@ -441,6 +441,20 @@
     const needText = toCall > 0 ? `To call: ${formatChips(toCall)}` : 'Check or bet';
     infoText.textContent = `Your turn - ${needText}`;
     actionBar.classList.remove('hidden');
+    // Enhance placeholder/min suggestions and button enablement
+    try {
+      const min = raiseAction === 'raise' ? Math.max(target * 2, 2) : 1;
+      betInput.min = String(min);
+      betInput.step = '1';
+      betInput.placeholder = raiseAction === 'raise' ? `Raise to ${formatChips(min)}` : 'Bet amount';
+      const enableCheck = () => {
+        const v = Number(betInput.value);
+        const ok = Number.isFinite(v) && v >= min;
+        betBtn.disabled = (raiseAction === 'raise') ? !ok : false;
+      };
+      betInput.oninput = enableCheck;
+      enableCheck();
+    } catch {}
     currentTurnSeat = turnSeat;
     anchorActionBar();
   }
@@ -505,6 +519,7 @@
         sit.textContent = 'Sit';
         sit.addEventListener('click', () => {
           ensureIdentify();
+          try { sit.disabled = true; sit.textContent = 'Seating…'; } catch {}
           socket.emit('seat', { index: idx });
         });
         meta.btns.appendChild(sit);
@@ -520,6 +535,7 @@
         meta.btns.appendChild(leaveBtn);
       }
     });
+    try { seatMeta.forEach((m, i) => m.seat.classList.toggle('me', i === mySeat)); } catch {}
     updateDevBotButton(table);
   }
 

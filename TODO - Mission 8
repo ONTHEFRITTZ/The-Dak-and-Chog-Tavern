@@ -1,22 +1,24 @@
-📋 Hackathon TODO Snapshot (Poker AA build)
+Mission 8 — Poker AA Build
 
-✅ Completed recently
-- ZeroDev / smart-account bootstrap lives in `js/aaClient.js` with Monad bundler + paymaster defaults wired up.  【F:js/aaClient.js†L1-L180】
-- Poker table client rebuilt in `games/poker/table.js` with seat layout, card animations, private hole handling, timers, and DevBot control. 【F:games/poker/table.js†L1-L368】
-- Realtime server streams private cards, enforces betting rounds, and triggers on-chain begin/settle hooks for poker tables. 【F:server/realtime.js†L325-L627】
-- Dealer bridge submits begin/settle transactions when a signer is configured, otherwise logs and no-ops safely. 【F:server/dealeronchain.js†L1-L77】
-- AA sponsor, budget, and session widgets (`agent-ops.js`, `agent-budget.js`, sponsor indicator) broadcast state to the UI on on-chain tables only. 【F:js/agent-ops.js†L1-L134】【F:js/agent-budget.js†L1-L145】
-- Nginx config now hard-stops SPA fallbacks for `/js`, `/css`, and `/assets`, keeping JS/CSS served with correct MIME types. 【F:server/nginx/thedakandchog.xyz.conf†L1-L96】
+Completed
+- AA client bootstrap in `js/aaClient.js` with Monad bundler + paymaster defaults.
+- Poker table client in `games/poker/table.js`: seat layout, private hole handling, timers, action bar, DevBot control (F2P solo only).
+- Realtime poker server (`server/realtime.js`): private cards stream, betting rounds, turn order, burn/flop/turn/river, showdown, and automatic hand start when 2+ players are seated.
+- Dealer bridge (`server/dealeronchain.js`): begin/settle hooks (safe no-op without signer).
+- On-chain widgets (`js/agent-ops.js`, `js/agent-budget.js`, sponsor indicator) broadcast state to UI on on-chain tables only; sponsor note appears under wallet pill when active.
+- Nginx config prevents SPA fallback for `/js`, `/css`, `/assets`.
 
-⏩ Still to do before demo
-- **End-to-end verification:** Run live hands on F2P and on-chain tables against the realtime server to confirm seating, dealing, DevBot toggle, and sponsored ops behave correctly.
-- **On-chain funding check:** Ensure the configured bundler/paymaster sponsors a full on-chain hand (seat → blinds → actions → settle) with the deployed HoldemPoker contract.
-- **Demo capture:** Record or script the hackathon walkthrough showing wallet connect, sponsored seating, and a complete hand resolution.
+Ready To Verify
+- End-to-end: play live hands on F2P and on-chain (seating, DevBot toggle, sponsored ops).
+- On-chain funding: bundler/paymaster sponsors a full on-chain hand (seat + blinds + actions + settle).
+- Demo capture: walkthrough from connect → sponsored seating → full hand.
 
-🚀 Optional polish / stretch goals
-- Introduce delegated session keys so blinds/post actions can auto-fire without repeated prompts.
-- Add configurable spend caps or cooldowns beyond the current session-budget helper.
-- Explore rake/fee logic to replenish the sponsorship pool.
-- Prep Farcaster/consumer surfaces if chasing side prizes.
-- Design a mobile-first UI pass so Tavern, Faro, Poker flows scale cleanly on phones (prep for Farcaster launch).
-- Polish poker UX: stronger turn cues, streamlined action bar, hand recap ready for Farcaster clips.
+Polish (in progress)
+- Stronger turn cues and streamlined action bar, with dynamic min-raise suggestion and validation.
+- Seat UX: “you” highlight, hover cues.
+- Hand recap pill improvements.
+- Robust reconnect: auto-identify and recover private holes.
+
+Removed
+- Farcaster-related surfaces (not part of Mission 8).
+
