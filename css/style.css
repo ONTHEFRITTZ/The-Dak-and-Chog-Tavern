@@ -282,8 +282,10 @@ html[data-table-mode="onchain"] #wi-devbot,
 /* Canvas holds the table art + absolutely positioned seats */
 .table-canvas {
   position: relative;
+  /* Maintain intrinsic table image aspect for correct seat placement */
+  aspect-ratio: 1000 / 680;
   width: min(92vw, 1000px);
-  height: min(88vw, 680px);
+  height: auto;
   margin: 0 auto;
 }
 

@@ -150,7 +150,8 @@
   const qp = new URL(location.href).searchParams;
   const tableId = qp.get('table') || 'poker-sim-1';
 
-  const socket = window.io ? window.io({ path: '/socket.io/' }) : null;
+  // Use the poker socket path per deployment config
+  const socket = window.io ? window.io({ path: '/poker.io' }) : null;
   if (!socket) {
     console.error('Socket.IO missing');
     return;
