@@ -56,8 +56,8 @@ body {
   color: #f4e6d3;
   text-align: center;
   background: url('../assets/images/tavern-bg.webp') no-repeat center center fixed;
-  background-size: cover;
-  font-size: clamp(16px, 0.6vw + 12px, 22px);
+  
+  padding-left: var(--sidebar-left, 0px);
 }
 
 /* Generic page frames */
