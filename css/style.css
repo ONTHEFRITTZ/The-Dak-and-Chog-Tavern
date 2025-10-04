@@ -282,8 +282,8 @@ html[data-table-mode="onchain"] #wi-devbot,
   --ring-ry: 42;
   --ring-rotation: -90;
   aspect-ratio: 1000 / 680;
-  width: min(82vw, 1100px);
-  height: auto;
+  width: min(80vw, 1100px);
+  max-height: 80vh;`r`n  height: auto;
   margin: 0 auto;
 }
 
@@ -507,12 +507,8 @@ html[data-table-mode="onchain"] #wi-devbot,
 }
 
 /* Short viewport tweaks */
-@media (max-height: 720px) {
-  .table-canvas { height: min(88vw, 520px); }
-}
-@media (max-height: 640px) {
-  .table-canvas { height: min(88vw, 480px); }
-  .seat .cards .card { width: 56px; height: 82px; }
+@media (max-height: 720px) { .table-canvas { max-height: 80vh; height: auto; } }
+@media (max-height: 640px) { .table-canvas { max-height: 80vh; height: auto; } }.seat .cards .card { width: 56px; height: 82px; }
 }
 
 #wi-address { display:none !important; }
