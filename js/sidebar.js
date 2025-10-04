@@ -83,7 +83,7 @@
     btn.type = 'button';
     btn.setAttribute('aria-label', 'Toggle navigation');
     btn.title = 'Toggle navigation';
-    btn.textContent = 'â˜°';
+    btn.textContent = 'Menu';
     header.appendChild(btn);
 
     const list = document.createElement('ul');
@@ -139,8 +139,9 @@
     const footer = document.createElement('div');
     footer.className = 'sidebar-footer';
     footer.id = 'sidebar-footer';
-    footer.innerHTML = '<div class="sb-net">Loading networkâ€¦</div>';
+    footer.innerHTML = '<div class=" sb-net\>Loading network…</div>';
     nav.appendChild(footer);
+    try { footer.innerHTML = '<div class="sb-net">Loading network…</div>'; } catch {}
     document.body.appendChild(nav);
 
     // Initial state: default to collapsed on small screens if no prior choice

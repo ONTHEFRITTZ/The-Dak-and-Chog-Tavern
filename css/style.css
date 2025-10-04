@@ -146,11 +146,10 @@ button:hover { background: #7800cd; }
   transition: background .12s ease, transform .12s ease;
 }
 .sidebar-links li a:hover {  transform: translateX(2px); }
-
-/* collapsed labels → dot */
+/* collapsed labels + dot */
 .sidebar.collapsed .sidebar-links li a { text-indent: -9999px; position: relative; }
 .sidebar.collapsed .sidebar-links li a::after {
-  content: '•'; text-indent: 0;
+  content: '\2022'; text-indent: 0; /* bullet */
   position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%);
 }
 
