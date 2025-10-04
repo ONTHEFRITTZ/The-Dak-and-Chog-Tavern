@@ -1,4 +1,4 @@
-﻿// -------------------- ZeroDev (AA) config --------------------
+// -------------------- ZeroDev (AA) config --------------------
 export const MONAD_BUNDLER_RPC =
   "https://rpc.zerodev.app/api/v3/9b503699-15b1-48c4-a4e7-35d41afd0ee3/chain/10143?selfFunded=true";
 
