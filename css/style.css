@@ -55,21 +55,20 @@ body {
   font-family: 'Morris', 'Morris Alt', serif;
   color: #f4e6d3;
   text-align: center;
-  background: url('../assets/images/tavern-bg.webp') no-repeat center center fixed;
   
-  padding-left: var(--sidebar-left, 0px);
+  background-size: cover;
 }
 
 /* Generic page frames */
 body.home {
   min-height: 100vh;
-  display: inline-flex;
+  display: flex;
   flex-direction: column;
   align-items: center;
 }
 body.game {
   min-height: 100vh;
-  display: inline-flex;
+  display: flex;
   align-items: center;
   justify-content: center;
 }
@@ -85,7 +84,8 @@ body.game {
 
 /* ------------------------------ Buttons ----------------------------------- */
 button {
-  background: #9200fa;
+  
+  background-size: cover;
   border: none;
   padding: clamp(8px, 0.6vw + 6px, 16px) clamp(16px, 1vw + 14px, 28px);
   margin: clamp(8px, 0.6vw + 6px, 16px);
@@ -95,19 +95,21 @@ button {
   border-radius: 10px;
   cursor: pointer;
 }
-button:hover { background: #7800cd; }
+button:hover { 
+  background-size: cover; }
 
 /* ------------------------------ Sidebar ----------------------------------- */
 .sidebar {
   position: fixed; inset: 0 auto 0 0;
   width: 240px;
-  background: var(--panel-bg-strong);
+  
+  background-size: cover;
   border-right: 1px solid rgba(255,255,255,0.12);
   box-shadow: 6px 0 18px rgba(0, 0, 0, 0.35);
   padding: 10px;
   color: #f4e6d3;
   z-index: 11000;
-  display: inline-flex;
+  display: flex;
   flex-direction: column;
   gap: 8px;
   transition: width .18s ease, transform .18s ease;
@@ -115,7 +117,7 @@ button:hover { background: #7800cd; }
 }
 .sidebar.collapsed { width: 64px; overflow: hidden; }
 
-.sidebar-header { display: inline-flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.sidebar-header { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
 .sidebar-header .title { font-weight: 900; letter-spacing: .5px; }
 
 .sidebar-logo {
@@ -135,20 +137,23 @@ button:hover { background: #7800cd; }
 .sidebar.collapsed .sidebar-logo { display: none; }
 
 .sidebar-toggle {
-  background: url('../assets/images/nav-gem.png') no-repeat center / 100% 100% !important;
+  
+  background-size: cover;
   border: none; color: #fff; font-weight: 700;
   height: 2.4em; padding: 0 14px; cursor: pointer; align-self: flex-start;
 }
 
-.sidebar-links { list-style: none; margin: 6px 0 0; padding: 0; display: inline-flex; flex-direction: column; gap: 6px; }
+.sidebar-links { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .sidebar-links li a {
   display: block; text-align: left; text-decoration: none; color: #f4e6d3;
-  background: rgba(0,0,0,0.25);
+  
+  background-size: cover;
   border: 1px solid rgba(255,255,255,0.12);
   border-radius: 10px; padding: 10px 12px;
   transition: background .12s ease, transform .12s ease;
 }
-.sidebar-links li a:hover { background: rgba(0,0,0,0.35); transform: translateX(2px); }
+.sidebar-links li a:hover { 
+  background-size: cover; transform: translateX(2px); }
 
 /* collapsed labels → dot */
 .sidebar.collapsed .sidebar-links li a { text-indent: -9999px; position: relative; }
@@ -165,7 +170,8 @@ button:hover { background: #7800cd; }
 
 /* ------------------------------- Home Card -------------------------------- */
 .tavern {
-  background: var(--panel-bg-soft);
+  
+  background-size: cover;
   padding: var(--content-pad);
   border: 1px solid rgba(255,255,255,0.12);
   border-radius: 15px;
@@ -191,14 +197,16 @@ button:hover { background: #7800cd; }
 .game-links a {
   display: inline-block;
   margin: 10px; padding: 15px 30px;
-  background: #9200fa; color: #fff; text-decoration: none;
+  
+  background-size: cover; color: #fff; text-decoration: none;
   border-radius: 10px; font-size: 20px;
 }
-.game-links a:hover { background: #7800cd; }
+.game-links a:hover { 
+  background-size: cover; }
 
 /* Game logo grid */
 .game-logos {
-  display: inline-flex; flex-wrap: wrap; justify-content: center; align-items: center;
+  display: flex; flex-wrap: wrap; justify-content: center; align-items: center;
   gap: clamp(12px, 2vw, 20px); margin-top: 12px;
 }
 .game-logo-link { display: block; flex: 0 0 calc(33.333% - 20px); max-width: calc(33.333% - 20px);
@@ -215,10 +223,11 @@ button:hover { background: #7800cd; }
 }
 
 /* ------------------------------ Shell Game -------------------------------- */
-.shells { display: inline-flex; justify-content: space-evenly; gap: 24px; margin-top: 20px; cursor: pointer; }
+.shells { display: flex; justify-content: space-evenly; gap: 24px; margin-top: 20px; cursor: pointer; }
 .shell {
   width: 100px; height: 100px;
-  background: url('../../assets/images/cup.png') no-repeat center center;
+  
+  background-size: cover;
   background-size: contain; transition: transform .3s;
 }
 .shell:hover { transform: scale(1.1); }
@@ -231,12 +240,13 @@ button:hover { background: #7800cd; }
 
 /* ------------------------------ Age Landing ------------------------------- */
 body.age-landing {
-  min-height: 100vh; display: inline-flex; align-items: center; justify-content: center; text-align: center;
+  min-height: 100vh; display: flex; align-items: center; justify-content: center; text-align: center;
 }
-.age-hero { width: 100%; max-width: 1200px; margin: 0 auto; padding: 24px 16px; display: inline-flex; flex-direction: column; align-items: center; gap: 24px; }
+.age-hero { width: 100%; max-width: 1200px; margin: 0 auto; padding: 24px 16px; display: flex; flex-direction: column; align-items: center; gap: 24px; }
 .age-logo { width: clamp(360px, 60vw, 980px); height: auto; display: block; filter: drop-shadow(0 8px 18px rgba(0,0,0,0.28)); }
 .age-card {
-  background: var(--panel-bg-soft);
+  
+  background-size: cover;
   border: 1px solid rgba(255,255,255,0.12);
   border-radius: 16px; box-shadow: 0 24px 60px rgba(0,0,0,0.55);
   padding: 20px 22px; width: min(92%, 820px);
@@ -258,13 +268,15 @@ body.age-landing {
 #profile-modal input[type="text"],
 #profile-modal input[type="number"],
 #profile-modal textarea {
-  color: #f4e6d3; background: rgba(0,0,0,0.35); border: 1px solid rgba(255,255,255,0.16);
+  color: #f4e6d3; 
+  background-size: cover; border: 1px solid rgba(255,255,255,0.16);
 }
 #profile-modal button { color: #f4e6d3; }
 
 /* -------------------------- Standalone Net Banner -------------------------- */
 #network-banner .pill {
-  background: rgba(0,0,0,0.6); color: #fff; padding: 4px 8px;
+  
+  background-size: cover; color: #fff; padding: 4px 8px;
   border-radius: 999px; font-weight: 700; display: inline-block; margin-right: 8px;
 }
 #network-banner .pill a { color: #fff; text-decoration: none; }
@@ -272,8 +284,9 @@ body.age-landing {
 /* ------------------------------- Wallet chip ------------------------------- */
 #wallet-inline {
   position: fixed; top: var(--edge-pad); right: var(--edge-pad);
-  z-index: 12000; display: inline-flex; align-items: center; gap: 8px;
-  background: var(--panel-bg-soft);
+  z-index: 12000; display: flex; align-items: center; gap: 8px;
+  
+  background-size: cover;
   border: 1px solid rgba(255,255,255,0.12);
   border-radius: 12px;  8px;
 }
@@ -320,13 +333,14 @@ html[data-table-mode="onchain"] #wi-devbot,
   position: absolute;
   z-index: 3;
   transform: translate(-50%, -50%); /* JS sets left/top */
-  background: transparent;
+  
+  background-size: cover;
   border: 0;
   box-shadow: none;
   padding: 0;
   width: var(--seat-w);
   height: var(--seat-h);
-  display: inline-flex;
+  display: flex;
   flex-direction: column;
   align-items: center;
   gap: 4px;
@@ -342,16 +356,17 @@ html[data-table-mode="onchain"] #wi-devbot,
   text-overflow: ellipsis;
   margin: 2px auto;
 }
-.seat .btns { display: inline-flex; gap: 6px; justify-content: center; margin-top: 6px; pointer-events:auto; }
+.seat .btns { display: flex; gap: 6px; justify-content: center; margin-top: 6px; pointer-events:auto; }
 .seat .btns button { padding: 4px 8px; font-size: 12px; border-radius: 6px; }
 
-.seat .cards { display: inline-flex; gap:6px; align-items:center; justify-content:center; min-height: 88px; }
+.seat .cards { display: flex; gap:6px; align-items:center; justify-content:center; min-height: 88px; }
 
 .seat .timer {
   position: relative;
   width: 88px;
   height: 6px;
-  background: rgba(0,0,0,0.45);
+  
+  background-size: cover;
   border-radius: 999px;
   overflow: hidden;
   margin: 2px auto 0;
@@ -361,7 +376,8 @@ html[data-table-mode="onchain"] #wi-devbot,
   display: block;
   width: 0%;
   height: 100%;
-  background: linear-gradient(90deg, #ffe27a, #ff8b3d);
+  
+  background-size: cover;
   transition: width .2s linear;
 }
 
@@ -404,7 +420,8 @@ html[data-table-mode="onchain"] #wi-devbot,
   border-radius: 6px;
   box-shadow: 0 2px 6px rgba(0,0,0,.25);
   object-fit: cover;
-  background: none;
+  
+  background-size: cover;
 }
 
 .card.deal { opacity: 0; transform: translateY(-12px) scale(0.95); }
@@ -413,7 +430,8 @@ html[data-table-mode="onchain"] #wi-devbot,
 /* Center banner (pot/winner/phase) */
 .center-banner {
   position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
-  background: var(--panel-bg-soft);
+  
+  background-size: cover;
   border: 1px solid rgba(255,255,255,.12);
   border-radius: 12px;
   padding: 12px 14px;
@@ -428,12 +446,13 @@ html[data-table-mode="onchain"] #wi-devbot,
   transform: translate(-50%, 0);
   bottom: clamp(4%, 8vh, 12%);
   z-index: 5;
-  display: inline-flex;
+  display: flex;
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
   justify-content: center;
-  background: transparent;
+  
+  background-size: cover;
   color: #f4e6d3;
   border: 0;
   border-radius: 14px;
@@ -452,7 +471,8 @@ html[data-table-mode="onchain"] #wi-devbot,
 }
 .table-canvas .action-bar .bet-input {
   width: clamp(110px, 16vw, 150px);
-  background: rgba(0,0,0,0.45);
+  
+  background-size: cover;
   border: 1px solid rgba(255,255,255,0.18);
   border-radius: 8px;
   color: #f4e6d3;
@@ -476,7 +496,7 @@ html[data-table-mode="onchain"] #wi-devbot,
 }
 
 /* Community cards: we don’t show empty “slots” — cards are injected only when needed */
-#board { position:absolute; left:50%; top:50%; transform: translate(-50%,-50%); z-index: 3; pointer-events: none; display: inline-flex; align-items:center; }
+#board { position:absolute; left:50%; top:50%; transform: translate(-50%,-50%); z-index: 3; pointer-events: none; display: flex; align-items:center; }
 #board.empty { display: none; }
 #board .card { margin: 0 4px; }
 
@@ -486,7 +506,8 @@ html[data-table-mode="onchain"] #wi-devbot,
   right: var(--edge-pad);
   bottom: calc(var(--edge-pad) + 12px);
   z-index: 9000;
-  background: rgba(24,14,8,0.9);
+  
+  background-size: cover;
   border: 1px solid rgba(255,255,255,0.14);
   border-radius: 999px;
    8px;
