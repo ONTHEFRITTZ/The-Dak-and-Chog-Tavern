@@ -189,8 +189,18 @@
   const qp = new URL(location.href).searchParams;
   const tableId = qp.get('table') || 'poker-sim-1';
 
-  // Use the poker socket path per deployment config
-  const socket = window.io ? window.io({ path: '/poker.io' }) : null;
+  // Connect socket with environment-aware path
+  const socket = (() => {
+    if (!window.io) return null;
+    try {
+      const host = (location.hostname || '').toLowerCase();
+      const isLocal = host === 'localhost' || host === '127.0.0.1';
+      const path = isLocal ? '/socket.io/' : '/poker.io';
+      return window.io({ path });
+    } catch {
+      try { return window.io(); } catch { return null; }
+    }
+  })();
   if (!socket) {
     console.error('Socket.IO missing');
     return;
@@ -435,12 +445,15 @@
 
   function updateDevBotButton(table) {
     if (!devBotBtn) return;
-    if (table && table.simulated) {
-      devBotBtn.style.display = 'inline-flex';
-      devBotBtn.textContent = table.devBotEnabled ? 'Disable DevBot' : 'Enable DevBot';
-    } else {
-      devBotBtn.style.display = 'none';
-    }
+    try {
+      const seatsList = Array.isArray(table?.seats) ? table.seats : [];
+      const humans = seatsList.filter(s => s && typeof s.addr === 'string' && !/^bot:/i.test(String(s.addr))).length;
+      const soloHuman = humans === 1;
+      const f2p = !!table?.simulated;
+      const show = f2p && soloHuman;
+      devBotBtn.style.display = show ? 'inline-flex' : 'none';
+      if (show) devBotBtn.textContent = table.devBotEnabled ? 'Disable DevBot' : 'Enable DevBot';
+    } catch { devBotBtn.style.display = 'none'; }
   }
 
   if (devBotBtn && !devBotBtn.dataset.bound) {
@@ -485,7 +498,8 @@
         leaveBtn.textContent = 'Leave';
         leaveBtn.addEventListener('click', () => {
           ensureIdentify();
-          socket.emit('leave_seat', { index: idx });
+          // Server expects 'seat' with index -1 to leave current seat
+          socket.emit('seat', { index: -1 });
         });
         meta.btns.appendChild(leaveBtn);
       }
