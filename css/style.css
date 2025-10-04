@@ -480,6 +480,28 @@ html[data-table-mode="onchain"] #wi-devbot,
 #board.empty { display: none; }
 #board .card { margin: 0 6px; }
 
+.last-hand-pill,
+#last-hand {
+  position: fixed;
+  right: var(--edge-pad);
+  bottom: calc(var(--edge-pad) + 12px);
+  z-index: 9000;
+  background: rgba(24,14,8,0.9);
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: 999px;
+  padding: 6px 10px;
+  color: #f4e6d3;
+  font-size: 12px;
+  line-height: 1.2;
+  box-shadow: 0 12px 30px rgba(0,0,0,0.45);
+  display: none;
+  pointer-events: none;
+  white-space: nowrap;
+  max-width: 60vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .burn-pile {
   position: absolute;
   right: 18%;

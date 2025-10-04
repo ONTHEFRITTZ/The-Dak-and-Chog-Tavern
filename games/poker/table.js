@@ -76,6 +76,7 @@
   }
 
   const centerBanner = document.getElementById('poker-center');
+  const lastHandBox = document.getElementById('last-hand');
   const lastHandEl = document.getElementById('lh-content');
   const devBotBtn = document.getElementById('wi-devbot');
 
@@ -578,13 +579,15 @@
 
     if (lastHandEl) {
       try {
-        lastHandEl.textContent = JSON.stringify({
-          community: msg?.community || [],
-          winners: msg?.winners || [],
-          exposures: msg?.exposures || []
-        }, null, 2);
+        const winners = Array.isArray(msg?.winners) ? msg.winners : [];
+        const names = winners.map(w => short(w?.addr || ''))
+                             .filter(Boolean)
+                             .join(', ');
+        const pot = Number.isFinite(msg?.pot) ? (' +' + formatChips(msg.pot)) : '';
+        lastHandEl.textContent = names ? ('Last: ' + names + pot) : 'Hand complete';
+        if (lastHandBox) lastHandBox.style.display = '';
       } catch {
-        lastHandEl.textContent = 'Hand complete';
+        try { if (lastHandBox) lastHandBox.style.display = 'none'; } catch {}
       }
     }
 
