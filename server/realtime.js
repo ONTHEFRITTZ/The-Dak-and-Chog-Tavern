@@ -59,7 +59,7 @@ function logFileName(){ const d=new Date(), y=d.getUTCFullYear(), m=String(d.get
 function audit(tableId,type,payload){ fs.appendFile(logFileName(), JSON.stringify({ts:new Date().toISOString(),tableId,type,payload})+'\n', ()=>{} ); }
 
 /* ------------------------------ Rate limiting ------------------------------ */
-const RLIMIT={ chat:{limit:8,windowMs:5000}, seat:{limit:8,windowMs:5000}, ready:{limit:8,windowMs:5000}, 'poker:act':{limit:20,windowMs:10000}, 'devbot:set':{limit:6,windowMs:5000} };
+const RLIMIT={ chat:{limit:8,windowMs:5000}, seat:{limit:8,windowMs:5000}, 'poker:act':{limit:20,windowMs:10000}, 'devbot:set':{limit:6,windowMs:5000} };
 const buckets=new Map();
 function allow(sid,ev){ const cfg=RLIMIT[ev]; if(!cfg) return true; const now=Date.now(); if(!buckets.has(sid)) buckets.set(sid,{}); const slot=buckets.get(sid); const keep=(slot[ev]||[]).filter(t=>now-t<cfg.windowMs); keep.push(now); slot[ev]=keep; return keep.length<=cfg.limit; }
 
@@ -102,7 +102,7 @@ function tablePublic(t){
     return {
       id:t.id,
       seats:t.seats.map(s=> s && {
-        id:s.id, addr:s.addr, ready:!!s.ready, balance:Number(s.balance||0), lastActive:Number(s.lastActive||0),
+        id:s.id, addr:s.addr, balance:Number(s.balance||0), lastActive:Number(s.lastActive||0),
         betTotal:(()=>{try{const bs=t.bets.get(String(s.addr||'').toLowerCase())||[]; return bs.reduce((a,b)=>a+Number(b?.amount||0),0);}catch{return 0;}})(),
         betCount:(()=>{try{const bs=t.bets.get(String(s.addr||'').toLowerCase())||[]; return bs.length;}catch{return 0;}})(),
         x:(publicProfiles.get(s.addr||'')||{}).x||null
@@ -113,7 +113,7 @@ function tablePublic(t){
   return {
     id:t.id,
     seats:t.seats.map(s=> s && ({
-      id:s.id, addr:s.addr, ready:!!s.ready, balance:Number(s.balance||0), lastActive:Number(s.lastActive||0),
+      id:s.id, addr:s.addr, balance:Number(s.balance||0), lastActive:Number(s.lastActive||0),
       x:(publicProfiles.get(s.addr||'')||{}).x||null, chips:Number(s.chips||0)
     })),
     started:!!t.started, devBotEnabled:!!t.devBotEnabled, simulated:!!t.simulated,
@@ -141,7 +141,7 @@ function seatFirstEmpty(t, addr, socketId='bot'){
   const i=t.seats.findIndex(s=>!s);
   if (i>=0){
     const isBot = typeof addr === 'string' && addr.startsWith('bot:');
-    t.seats[i]={ id:i, addr, ready:isBot, balance:0, lastActive:nowMs(), socketId };
+    t.seats[i]={ id:i, addr, balance:0, lastActive:nowMs(), socketId };
     if (t.category===CAT.OFFCHAIN_NL && !Number.isFinite(t.seats[i].chips)) t.seats[i].chips=100;
     return i;
   }
@@ -829,7 +829,7 @@ io.on('connection',(socket)=>{
       }
     } else if (idx>=0 && idx<t.seats.length){
       if (!t.seats[idx]){
-        t.seats[idx]={ id:idx, addr:addrLower, ready:true, balance:0, lastActive:nowMs(), socketId:socket.id };
+        t.seats[idx]={ id:idx, addr:addrLower, balance:0, lastActive:nowMs(), socketId:socket.id };
         if (isPoker(t) && t.category===CAT.OFFCHAIN_NL){
           if(!Number.isFinite(t.seats[idx].chips)||t.seats[idx].chips<=0) t.seats[idx].chips=100;
         }
@@ -920,7 +920,7 @@ setInterval(()=>{ try{
 function saveState(){ try{
   const out=[];
   for (const t of tables.values()){
-    out.push({ id:t.id, kind:t.kind, seats:t.seats.map(s=> s && { id:s.id, addr:s.addr, ready:!!s.ready, balance:s.balance||0, lastActive:s.lastActive||0, chips:Number(s.chips||0) }), started:!!t.started, lastActive:t.lastActive||0, category:t.category||null, limit:t.limit||null, stakes:t.stakes||null, simulated:!!t.simulated, devBotEnabled:!!t.devBotEnabled, emptySince:t.emptySince||null });
+    out.push({ id:t.id, kind:t.kind, seats:t.seats.map(s=> s && { id:s.id, addr:s.addr, balance:s.balance||0, lastActive:s.lastActive||0, chips:Number(s.chips||0) }), started:!!t.started, lastActive:t.lastActive||0, category:t.category||null, limit:t.limit||null, stakes:t.stakes||null, simulated:!!t.simulated, devBotEnabled:!!t.devBotEnabled, emptySince:t.emptySince||null });
   }
   fs.writeFile(STATE_FN, JSON.stringify({savedAt:Date.now(),tables:out},null,2), ()=>{});
 }catch{} }

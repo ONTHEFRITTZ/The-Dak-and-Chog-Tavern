@@ -536,3 +536,5 @@ html[data-table-mode="onchain"] #wi-devbot,
 
 #wi-address { display:none !important; }
 .sidebar-footer { display:none !important; visibility:hidden !important; }
+.table-canvas .card { width: 60px; height: 84px; }
+.table-canvas #board .card { margin: 0 4px; }
