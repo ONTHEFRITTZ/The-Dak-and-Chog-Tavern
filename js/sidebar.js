@@ -208,6 +208,62 @@
     }
     updateSidebarOffset();
 
+    // Relocate any stray network/contract pills into the footer
+    function movePills(){
+      try {
+        const targets = [
+          document.getElementById('network-banner'),
+          document.getElementById('nb-top-info'),
+          document.querySelector('[data-network-pill]'),
+        ].filter(Boolean);
+        targets.forEach(el => { if (el && !footer.contains(el)) footer.appendChild(el); });
+      } catch {}
+    }
+    movePills(); setTimeout(movePills, 300); setTimeout(movePills, 1000);
+
+    // Ensure a top-right wallet pill exists and stays updated across pages
+    (function walletPill(){
+      try {
+        let pill = document.getElementById('wallet-inline');
+        if (!pill){
+          pill = document.createElement('div');
+          pill.id = 'wallet-inline';
+          pill.style.cssText = 'position:fixed;top:12px;right:12px;z-index:12000;display:flex;align-items:center;gap:8px;background: var(--panel-bg-soft); border:1px solid rgba(255,255,255,0.12); border-radius:12px; padding:6px 10px; color:#f4e6d3;';
+          pill.innerHTML = '<span id="wi-balance"></span><span id="wi-label">Wallet:</span><span id="wi-address">-</span><button id="wi-disconnect" style="display:none">Disconnect</button>';
+          document.body.appendChild(pill);
+        } else {
+          if (!document.getElementById('wi-balance')){
+            const bal = document.createElement('span'); bal.id = 'wi-balance';
+            pill.prepend(bal);
+          }
+        }
+        function short(a){ try { return (a && a.length>10) ? (a.slice(0,6)+'...'+a.slice(-4)) : (a||''); } catch { return a||''; } }
+        function parseSavedAddress(){ try { var msg=sessionStorage.getItem('walletMsg')||localStorage.getItem('walletMsg')||''; var m=msg.match(/Address:\s*(0x[a-fA-F0-9]{40})/); return m?m[1]:''; } catch { return ''; } }
+        async function refreshBalance(addr){
+          try {
+            if (!addr) return;
+            const _ethers = window.ethers || (await import('https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.esm.min.js')).ethers;
+            let prov=null; try{ prov = window.__getSelectedProvider? window.__getSelectedProvider(): null; }catch{}
+            if(!prov && window.ethereum) prov=window.ethereum;
+            if(!prov) return;
+            const provider = new _ethers.providers.Web3Provider(prov,'any');
+            const wei = await provider.getBalance(addr);
+            const mon = Number(_ethers.utils.formatEther(wei));
+            const el=document.getElementById('wi-balance'); if (el) el.textContent = isFinite(mon) ? (mon.toFixed(mon>=1?3:5) + ' MON') : '';
+          } catch {}
+        }
+        function render(addr){
+          try {
+            const span=document.getElementById('wi-address'); if (span) span.textContent = short(String(addr||''));
+            const btn=document.getElementById('wi-disconnect'); if (btn) { btn.style.display=''; btn.onclick=function(){ try{ localStorage.removeItem('walletConnected'); sessionStorage.removeItem('walletConnected'); sessionStorage.removeItem('walletProvider'); sessionStorage.removeItem('walletMsg'); sessionStorage.removeItem('walletSig'); }catch(_){} try{ location.replace('/landing.html'); }catch(_){} }; }
+            refreshBalance(addr);
+          } catch {}
+        }
+        try { var saved = (sessionStorage.getItem('walletAddress')||localStorage.getItem('walletAddress')||''); if(saved) render(saved); else { var b=parseSavedAddress(); if(b) render(b); } } catch {}
+        window.addEventListener('wallet:connected', function(ev){ try { var a=String(ev?.detail?.address||''); if (a) render(a); } catch {} });
+      } catch {}
+    })();
+
     // Toggle handler
     btn.addEventListener('click', function(){
       const next = !nav.classList.contains('collapsed');

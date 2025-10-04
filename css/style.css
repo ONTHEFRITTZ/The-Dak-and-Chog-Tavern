@@ -173,11 +173,9 @@ button:hover { background: #7800cd; }
 }
 
 /* Tavern sign (kept lean) */
-.tavern-sign {
-  display: block;
-  height: auto;
-  transform-origin: top center;
-  position: relative;
+
+  margin-left: auto;
+  margin-right: auto;
   margin-bottom: 4px;
   transform: scale(clamp(0.5, 0.32 + 0.12vw, 0.75));
   top: clamp(24px, 2vh + 12px, 44px);
