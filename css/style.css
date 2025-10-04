@@ -23,6 +23,9 @@
   /* Panels / glass */
   --panel-bg-soft: rgba(42, 26, 16, 0.72);
   --panel-bg-strong: rgba(24, 14, 8, 0.88);
+  /* Layout sizing */
+  --content-max: clamp(960px, 80vw, 1480px);
+  --content-pad: clamp(20px, 3vw, 48px);
 
   /* Poker seat ring tuning (JS reads these) */
   --rail-thickness: 78px;        /* leather rail thickness on poker-table.png */
@@ -54,6 +57,7 @@ body {
   text-align: center;
   background: url('../assets/images/tavern-bg.webp') no-repeat center center fixed;
   background-size: cover;
+  font-size: clamp(16px, 0.6vw + 12px, 22px);
 }
 
 /* Generic page frames */
@@ -83,10 +87,10 @@ body.game {
 button {
   background: #9200fa;
   border: none;
-  padding: 10px 20px;
-  margin: 10px;
+  padding: clamp(8px, 0.6vw + 6px, 16px) clamp(16px, 1vw + 14px, 28px);
+  margin: clamp(8px, 0.6vw + 6px, 16px);
   color: #fff;
-  font-size: 18px;
+  font-size: clamp(1rem, 0.9rem + 0.4vw, 1.6rem);
   font-family: inherit;
   border-radius: 10px;
   cursor: pointer;
@@ -162,23 +166,25 @@ button:hover { background: #7800cd; }
 /* ------------------------------- Home Card -------------------------------- */
 .tavern {
   background: var(--panel-bg-soft);
-  padding: 24px;
+  padding: var(--content-pad);
   border: 1px solid rgba(255,255,255,0.12);
   border-radius: 15px;
-  max-width: 1000px; width: 95%;
+  max-width: var(--content-max);
+  width: min(95%, var(--content-max));
   margin: 8px auto 16px;
   box-shadow: 0 24px 60px rgba(0,0,0,0.55);
+  gap: clamp(12px, 1.6vw, 32px);
 }
 
 /* Tavern sign (kept lean) */
 .tavern-sign {
-  display: block; height: auto;
-  transform: scale(0.6);
+  display: block;
+  height: auto;
   transform-origin: top center;
-  position: relative; top: 36px; margin-bottom: 4px;
-}
-@media (max-width: 600px) {
-  .tavern-sign { transform: scale(0.52); top: 24px; }
+  position: relative;
+  margin-bottom: 4px;
+  transform: scale(clamp(0.5, 0.32 + 0.12vw, 0.75));
+  top: clamp(24px, 2vh + 12px, 44px);
 }
 
 /* ------------------------------ Game links -------------------------------- */
@@ -283,8 +289,11 @@ html[data-table-mode="onchain"] #wi-devbot,
 .table-canvas {
   position: relative;
   /* Maintain intrinsic table image aspect for correct seat placement */
+  --ring-rx: 54;
+  --ring-ry: 46;
+  --ring-rotation: -90;
   aspect-ratio: 1000 / 680;
-  width: min(92vw, 1000px);
+  width: min(88vw, 1200px);
   height: auto;
   margin: 0 auto;
 }
@@ -358,6 +367,19 @@ html[data-table-mode="onchain"] #wi-devbot,
 
 .seat.turn .timer .fill {
   box-shadow: 0 0 6px rgba(255, 210, 120, 0.85);
+}
+
+@media (min-width: 1400px) {
+  :root {
+    --ring-rx: 58;
+    --ring-ry: 50;
+    --seat-w: 170px;
+    --seat-h: 182px;
+  }
+
+  .table-canvas {
+    width: min(80vw, 1280px);
+  }
 }
 
 .seat.folded { opacity: 0.55; }

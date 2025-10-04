@@ -224,5 +224,86 @@
       });
     } catch { }
   </script>
+
+  <!-- Wallet pill sync -->
+  <script>
+    (function () {
+      function short(addr) {
+        try {
+          return addr && addr.length > 10 ? addr.slice(0, 6) + '...' + addr.slice(-4) : (addr || '');
+        } catch { return addr || ''; }
+      }
+
+      function savedAddress() {
+        try {
+          const direct = sessionStorage.getItem('walletAddress') || localStorage.getItem('walletAddress');
+          if (direct && /^0x[0-9a-fA-F]{40}$/i.test(direct)) return direct;
+        } catch {}
+        try {
+          const msg = sessionStorage.getItem('walletMsg') || localStorage.getItem('walletMsg') || '';
+          const match = msg.match(/Address:\s*(0x[0-9a-fA-F]{40})/i);
+          if (match && match[1]) return match[1];
+        } catch {}
+        return '';
+      }
+
+      function render(addr) {
+        try {
+          const span = document.getElementById('wi-address');
+          if (span) span.textContent = short(addr);
+          const btn = document.getElementById('wi-disconnect');
+          if (btn) {
+            btn.style.display = addr ? '' : 'none';
+            btn.onclick = function () {
+              try {
+                localStorage.removeItem('walletConnected');
+                sessionStorage.removeItem('walletConnected');
+                sessionStorage.removeItem('walletProvider');
+                sessionStorage.removeItem('walletMsg');
+                sessionStorage.removeItem('walletSig');
+              } catch {}
+              try { location.replace('/landing.html'); } catch { location.href = '/landing.html'; }
+            };
+          }
+        } catch {}
+      }
+
+      try {
+        if (window.userAddress) render(String(window.userAddress));
+        window.addEventListener('wallet:connected', function (ev) {
+          try {
+            const addr = String(ev?.detail?.address || '');
+            if (addr) render(addr);
+          } catch {}
+        });
+
+        let provider = null;
+        try { if (typeof window.__getSelectedProvider === 'function') provider = window.__getSelectedProvider(); } catch {}
+        if (!provider) {
+          try { if (window.ethereum?.request) provider = window.ethereum; } catch {}
+        }
+        if (!provider) {
+          try { if (window.phantom?.ethereum?.request) provider = window.phantom.ethereum; } catch {}
+        }
+
+        if (provider && !(window.userAddress && String(window.userAddress))) {
+          provider.request({ method: 'eth_accounts' })
+            .then(function (acc) {
+              const addr = Array.isArray(acc) && acc[0] ? String(acc[0]) : '';
+              if (addr) { render(addr); return; }
+              const saved = savedAddress();
+              if (saved) render(saved);
+            })
+            .catch(function () {
+              const saved = savedAddress();
+              if (saved) render(saved);
+            });
+        } else {
+          const saved = savedAddress();
+          if (saved) render(saved);
+        }
+      } catch {}
+    })();
+  </script>
 </body>
 </html>

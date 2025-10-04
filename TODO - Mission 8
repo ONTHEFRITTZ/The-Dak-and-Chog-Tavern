@@ -18,3 +18,4 @@
 - Add configurable spend caps or cooldowns beyond the current session-budget helper.
 - Explore rake/fee logic to replenish the sponsorship pool.
 - Prep Farcaster/consumer surfaces if chasing side prizes.
+- Design a mobile-first UI pass so Tavern, Faro, Poker flows scale cleanly on phones (prep for Farcaster launch).

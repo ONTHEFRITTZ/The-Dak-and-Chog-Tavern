@@ -20,16 +20,36 @@
     river: 'River'
   };
 
-  const SEAT_POS = [
-    [50, 12],
-    [78, 22],
-    [90, 50],
-    [78, 78],
-    [50, 88],
-    [22, 78],
-    [10, 50],
-    [22, 22]
-  ];
+  function readRingValue(name, fallback) {
+    try {
+      const cs = getComputedStyle(canvas);
+      const raw = cs.getPropertyValue(name);
+      const parsed = parseFloat(raw);
+      return Number.isFinite(parsed) ? parsed : fallback;
+    } catch {
+      return fallback;
+    }
+  }
+
+  function seatPosition(index, total) {
+    const rx = readRingValue('--ring-rx', 54);
+    const ry = readRingValue('--ring-ry', 46);
+    const rotation = readRingValue('--ring-rotation', -90);
+    const angleDeg = rotation + (360 / total) * index;
+    const rad = angleDeg * Math.PI / 180;
+    const left = 50 + rx * Math.cos(rad);
+    const top = 50 + ry * Math.sin(rad);
+    return { left, top };
+  }
+
+  function positionSeats() {
+    const total = seats.length || 8;
+    seats.forEach((seat, idx) => {
+      const { left, top } = seatPosition(idx, total);
+      seat.style.left = `${left}%`;
+      seat.style.top = `${top}%`;
+    });
+  }
 
   const canvas = document.querySelector('.table-canvas');
   if (!canvas) return;
@@ -57,10 +77,9 @@
   const lastHandEl = document.getElementById('lh-content');
   const devBotBtn = document.getElementById('wi-devbot');
 
-  const seatMeta = seats.map((seat, idx) => {
-    const [x, y] = SEAT_POS[idx] || [50, 50];
-    seat.style.left = x + '%';
-    seat.style.top = y + '%';
+  positionSeats();
+
+  const seatMeta = seats.map((seat) => {
 
     let timer = seat.querySelector('.timer');
     if (!timer) {
@@ -137,11 +156,26 @@
     if (Math.abs(n) >= 1) return n.toString();
     return n.toFixed(2);
   };
-  const short = (addr) => addr ? addr.slice(0, 6) + '…' + addr.slice(-4) : '—';
+  const short = (addr) => addr ? addr.slice(0, 6) + '...' + addr.slice(-4) : '-';
+
+  function storedAddr() {
+    try {
+      const direct = sessionStorage.getItem('walletAddress') || localStorage.getItem('walletAddress');
+      if (direct && /^0x[0-9a-fA-F]{4,}$/.test(direct)) return direct;
+    } catch {}
+    try {
+      const msg = sessionStorage.getItem('walletMsg') || localStorage.getItem('walletMsg') || '';
+      const match = msg.match(/Address:\s*(0x[0-9a-fA-F]{4,})/i);
+      if (match && match[1]) return match[1];
+    } catch {}
+    return null;
+  }
 
   function currentAddr() {
     const badge = ($('#wi-address')?.textContent || '').trim();
     if (/^0x[0-9a-fA-F]{4,}$/.test(badge)) return badge;
+    const saved = storedAddr();
+    if (saved) return saved;
     if (window.__ADDR && /^0x/i.test(window.__ADDR)) return window.__ADDR;
     if (window.tavern && /^0x/i.test(window.tavern.addr || '')) return window.tavern.addr;
     return null;
@@ -547,12 +581,14 @@
   });
 
   window.addEventListener('resize', () => {
+    positionSeats();
     if (!actionBar.classList.contains('hidden') && currentTurnSeat >= 0) {
       anchorActionBar(currentTurnSeat);
     }
   });
 
   const ro = new ResizeObserver(() => {
+    positionSeats();
     if (!actionBar.classList.contains('hidden') && currentTurnSeat >= 0) {
       anchorActionBar(currentTurnSeat);
     }
