@@ -152,7 +152,7 @@ function maybeStartHand(tableId, t){
     if (paused) return;
     if (!isPoker(t)) return;
     const active = t.seats.filter(Boolean);
-    if (active.length >= 2 && active.every(x => !!x.ready) && !t.poker){
+    if (active.length >= 2 && !t.poker){
       startPokerHand(tableId, t);
     }
   }catch(e){ console.error('maybeStartHand', e); }
@@ -830,7 +830,7 @@ io.on('connection',(socket)=>{
       }
     } else if (idx>=0 && idx<t.seats.length){
       if (!t.seats[idx]){
-        t.seats[idx]={ id:idx, addr:addrLower, ready:false, balance:0, lastActive:nowMs(), socketId:socket.id };
+        t.seats[idx]={ id:idx, addr:addrLower, ready:true, balance:0, lastActive:nowMs(), socketId:socket.id };
         if (isPoker(t) && t.category===CAT.OFFCHAIN_NL){
           if(!Number.isFinite(t.seats[idx].chips)||t.seats[idx].chips<=0) t.seats[idx].chips=100;
         }

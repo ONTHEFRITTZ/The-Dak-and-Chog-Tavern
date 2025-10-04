@@ -203,7 +203,7 @@
   let currentState = null;
   let currentTurnSeat = -1;
   let timerRaf = null;
-  let autoReadySent = false;
+  
 
   function ensureIdentify() {
     const addr = currentAddr();
@@ -464,14 +464,7 @@
       const seatAddr = (seatData && seatData.addr ? seatData.addr : '').toLowerCase();
       if (seatData && seatAddr === me) {
         mySeat = idx;
-        if (table.simulated && !seatData.ready && !autoReadySent) {
-          ensureIdentify();
-          socket.emit('ready', { ready: true });
-          autoReadySent = true;
-        }
-        if (seatData.ready && autoReadySent) {
-          autoReadySent = false;
-        }
+        
       }
       if (seatData && !/^bot:/i.test(seatAddr)) humanCount += 1;
       meta.addr.textContent = seatData ? `${short(seatData.addr)}${seatData.ready ? ' [ready]' : ''}` : '';
@@ -487,35 +480,10 @@
         });
         meta.btns.appendChild(sit);
         meta.cards.innerHTML = '';
-      } else if (seatAddr === me) {
-        const ready = document.createElement('button');
-        ready.textContent = seatData.ready ? 'Unready' : 'Ready';
-        ready.addEventListener('click', () => socket.emit('ready', { ready: !seatData.ready }));
-        const leave = document.createElement('button');
-        leave.textContent = 'Leave';
-        leave.addEventListener('click', () => socket.emit('seat', { index: -1 }));
-        meta.btns.append(ready, leave);
+      } else if (seatAddr === me) {\r\n        meta.btns.append(leave);\r\n
       }
     });
-    updateDevBotButton(table);
-
-    if (humanCount !== 1) {
-      autoBotArmed = false;
-    }
-
-    if (mySeat === -1) {
-      autoReadySent = false;
-    }
-
-    if (table.simulated && !table.devBotEnabled && humanCount === 1 && !autoBotArmed) {
-      autoBotArmed = true;
-      setTimeout(() => {
-        try {
-          socket.emit('devbot:set', { table: tableId, enabled: true });
-        } catch (err) {
-          console.warn('devbot:set failed', err);
-        }
-      }, 150);
+    updateDevBotButton(table);\r\n  }\r\n, 150);
     }
   }
 
