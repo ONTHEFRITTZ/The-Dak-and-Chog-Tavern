@@ -140,7 +140,8 @@ function findBotIndex(t){ return t.seats.findIndex(s=> s && typeof s.addr==='str
 function seatFirstEmpty(t, addr, socketId='bot'){
   const i=t.seats.findIndex(s=>!s);
   if (i>=0){
-    t.seats[i]={ id:i, addr, ready:false, balance:0, lastActive:nowMs(), socketId };
+    const isBot = typeof addr === 'string' && addr.startsWith('bot:');
+    t.seats[i]={ id:i, addr, ready:isBot, balance:0, lastActive:nowMs(), socketId };
     if (t.category===CAT.OFFCHAIN_NL && !Number.isFinite(t.seats[i].chips)) t.seats[i].chips=100;
     return i;
   }
@@ -162,6 +163,9 @@ function reconcileDevBot(t){
 
   if (humans === 1) {
     if (t.devBotEnabled && botIdx === -1) seatFirstEmpty(t, 'bot:dev', 'bot');
+    if (t.devBotEnabled && botIdx >= 0) {
+      t.seats[botIdx].ready = true;
+    }
     if (!t.devBotEnabled && botIdx >= 0) {
       t.seats[botIdx] = null;
       try { if (t.poker?.botTimer){ clearTimeout(t.poker.botTimer); t.poker.botTimer=null; } } catch {}

@@ -125,6 +125,8 @@
 
   const actionBar = document.createElement('div');
   actionBar.className = 'action-bar hidden';
+  const infoText = document.createElement('div');
+  infoText.className = 'info';
   const foldBtn = document.createElement('button');
   foldBtn.textContent = 'Fold';
   const callBtn = document.createElement('button');
@@ -137,7 +139,7 @@
   betInput.className = 'bet-input';
   const betBtn = document.createElement('button');
   betBtn.textContent = 'Bet';
-  actionBar.append(foldBtn, callBtn, betInput, betBtn);
+  actionBar.append(infoText, foldBtn, callBtn, betInput, betBtn);
   canvas.appendChild(actionBar);
 
   function cardToImg(code) {
@@ -305,14 +307,12 @@
     currentTurnSeat = -1;
   }
 
-  function anchorActionBar(seatIdx) {
-    const meta = seatMeta[seatIdx];
-    if (!meta) return;
-    const seatRect = meta.seat.getBoundingClientRect();
+  function anchorActionBar() {
     const canvasRect = canvas.getBoundingClientRect();
-    const left = seatRect.left - canvasRect.left + seatRect.width / 2;
-    const top = seatRect.top - canvasRect.top + seatRect.height + 10;
-    actionBar.style.left = `${left}px`;
+    const boardRect = board.getBoundingClientRect();
+    const desiredTop = (boardRect.bottom - canvasRect.top) + 16;
+    const maxTop = canvasRect.height - actionBar.offsetHeight - 24;
+    const top = Math.min(Math.max(desiredTop, canvasRect.height * 0.45), maxTop);
     actionBar.style.top = `${top}px`;
   }
 
@@ -399,9 +399,11 @@
     betInput.style.display = 'inline-block';
     betInput.value = '';
     betInput.placeholder = raiseAction === 'raise' ? 'Raise to…' : 'Bet amount';
+    const needText = toCall > 0 ? `To call: ${formatChips(toCall)}` : 'Check or bet';
+    infoText.textContent = `Your turn - ${needText}`;
     actionBar.classList.remove('hidden');
     currentTurnSeat = turnSeat;
-    anchorActionBar(turnSeat);
+    anchorActionBar();
   }
 
   function updateSeatStates(state) {
@@ -604,15 +606,15 @@
 
   window.addEventListener('resize', () => {
     positionSeats();
-    if (!actionBar.classList.contains('hidden') && currentTurnSeat >= 0) {
-      anchorActionBar(currentTurnSeat);
+    if (!actionBar.classList.contains('hidden')) {
+      anchorActionBar();
     }
   });
 
   const ro = new ResizeObserver(() => {
     positionSeats();
-    if (!actionBar.classList.contains('hidden') && currentTurnSeat >= 0) {
-      anchorActionBar(currentTurnSeat);
+    if (!actionBar.classList.contains('hidden')) {
+      anchorActionBar();
     }
   });
   ro.observe(canvas);

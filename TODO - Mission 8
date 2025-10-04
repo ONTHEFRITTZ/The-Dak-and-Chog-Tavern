@@ -19,3 +19,4 @@
 - Explore rake/fee logic to replenish the sponsorship pool.
 - Prep Farcaster/consumer surfaces if chasing side prizes.
 - Design a mobile-first UI pass so Tavern, Faro, Poker flows scale cleanly on phones (prep for Farcaster launch).
+- Polish poker UX: stronger turn cues, streamlined action bar, hand recap ready for Farcaster clips.
