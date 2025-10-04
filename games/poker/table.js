@@ -232,7 +232,19 @@
   
 
   function ensureIdentify() {
-    const addr = currentAddr();
+    let addr = currentAddr();
+    // Fallback guest ID for F2P tables so seating always works
+    try {
+      const isF2P = String(tableId || '').toLowerCase().startsWith('poker-sim-');
+      if (!addr && isF2P) {
+        let gid = sessionStorage.getItem('guestId');
+        if (!gid) {
+          gid = 'guest:' + Math.random().toString(36).slice(2, 10);
+          sessionStorage.setItem('guestId', gid);
+        }
+        addr = gid;
+      }
+    } catch {}
     if (addr) socket.emit('identify', { addr });
   }
 
@@ -486,11 +498,13 @@
     } catch { devBotBtn.style.display = 'none'; }
   }
 
+  let devBotUserToggled = false;
   if (devBotBtn && !devBotBtn.dataset.bound) {
     devBotBtn.dataset.bound = '1';
     devBotBtn.addEventListener('click', () => {
       if (!lastTable) return;
       const next = !lastTable.devBotEnabled;
+      devBotUserToggled = true;
       socket.emit('devbot:set', { table: tableId, enabled: next });
     });
   }
@@ -542,9 +556,24 @@
   socket.on('connect', () => {
     ensureIdentify();
     socket.emit('join_table', { table: tableId });
+    // Default DevBot disabled on F2P until explicitly enabled by user
+    try {
+      if (String(tableId||'').toLowerCase().startsWith('poker-sim-')) {
+        socket.emit('devbot:set', { table: tableId, enabled: false });
+      }
+    } catch {}
   });
 
   socket.on('table:update', (table) => {
+    // Enforce no auto-seating of DevBot unless user toggled it this session
+    try {
+      const f2p = !!table?.simulated;
+      const seatsList = Array.isArray(table?.seats) ? table.seats : [];
+      const humans = seatsList.filter(s => s && typeof s.addr === 'string' && !/^bot:/i.test(String(s.addr))).length;
+      if (f2p && humans >= 1 && table.devBotEnabled && !devBotUserToggled) {
+        socket.emit('devbot:set', { table: tableId, enabled: false });
+      }
+    } catch {}
     renderAllSeats(table);
   });
 
