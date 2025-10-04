@@ -143,6 +143,22 @@
   actionBar.append(infoText, foldBtn, callBtn, betInput, betBtn);
   canvas.appendChild(actionBar);
 
+  // Allow Enter key and simple keyboard shortcuts when action bar is visible
+  betInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const act = betBtn.dataset.action || 'bet';
+      sendAction(act, betInput.value);
+    }
+  });
+  window.addEventListener('keydown', (e) => {
+    if (actionBar.classList.contains('hidden')) return;
+    const k = (e.key || '').toLowerCase();
+    if (k === 'f') { e.preventDefault(); sendAction('fold'); }
+    if (k === 'c') { e.preventDefault(); const act = callBtn.dataset.action || 'check'; sendAction(act); }
+    if (k === 'b') { e.preventDefault(); const act = betBtn.dataset.action || 'bet'; sendAction(act, betInput.value); }
+  });
+
   function cardToImg(code) {
     if (!code) return CARD_BACK;
     const m = /^([2-9TJQKA])([cdhs])$/i.exec(code.trim());
@@ -166,23 +182,23 @@
   function storedAddr() {
     try {
       const direct = sessionStorage.getItem('walletAddress') || localStorage.getItem('walletAddress');
-      if (direct && /^0x[0-9a-fA-F]{4,}$/.test(direct)) return direct;
+      if (direct && /^0x[0-9a-fA-F]{40}$/.test(direct)) return direct;
     } catch {}
     try {
       const msg = sessionStorage.getItem('walletMsg') || localStorage.getItem('walletMsg') || '';
-      const match = msg.match(/Address:\s*(0x[0-9a-fA-F]{4,})/i);
+      const match = msg.match(/Address:\s*(0x[0-9a-fA-F]{40})/i);
       if (match && match[1]) return match[1];
     } catch {}
     return null;
   }
 
   function currentAddr() {
-    const badge = ($('#wi-address')?.textContent || '').trim();
-    if (/^0x[0-9a-fA-F]{4,}$/.test(badge)) return badge;
     const saved = storedAddr();
     if (saved) return saved;
-    if (window.__ADDR && /^0x/i.test(window.__ADDR)) return window.__ADDR;
-    if (window.tavern && /^0x/i.test(window.tavern.addr || '')) return window.tavern.addr;
+    const badge = ($('#wi-address')?.textContent || '').trim();
+    if (/^0x[0-9a-fA-F]{40}$/.test(badge)) return badge;
+    if (window.__ADDR && /^0x[0-9a-fA-F]{40}$/i.test(String(window.__ADDR))) return window.__ADDR;
+    if (window.tavern && /^0x[0-9a-fA-F]{40}$/i.test(String(window.tavern.addr || ''))) return window.tavern.addr;
     return null;
   }
 
@@ -642,3 +658,4 @@
   socket.emit('join_table', { table: tableId });
   window.addEventListener('focus', ensureIdentify);
 })();
+
