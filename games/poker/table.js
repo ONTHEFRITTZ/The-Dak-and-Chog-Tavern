@@ -535,13 +535,7 @@
 
     if (state?.stage !== lastStage) {
       if (state?.stage === 'preflop' && lastTable) {
-        (lastTable.seats || []).forEach((seatData, idx) => {
-          if (seatData) {
-            setSeatCards(idx, [null, null], { faceDown: true });
-          } else {
-            clearSeatCards(idx);
-          }
-        });
+        (lastTable.seats || []).forEach((seatData, idx) => {\r\n        const saddr = seatData && String(seatData.addr||'').toLowerCase();\r\n        const me = (currentAddr()||'').toLowerCase();\r\n        if (seatData && saddr !== me) {\r\n          setSeatCards(idx, [null, null], { faceDown: true });\r\n        } else if (!seatData) {\r\n          clearSeatCards(idx);\r\n        }\r\n      });
         board.innerHTML = '';
         burnPile.innerHTML = '';
         lastCommunity = [];
