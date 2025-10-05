@@ -75,7 +75,7 @@ contract BankrollPool {
     function depositUnderlying(uint256 amount) external onlyOwner nonReentrant {
         require(amount > 0, "amount=0");
         underlying.safeTransferFrom(msg.sender, address(this), amount);
-        underlying.safeApprove(address(dcmon), amount);
+        underlying.approve(address(dcmon), amount);
         uint256 minted = dcmon.deposit(amount, address(this));
         emit Deposited(amount, minted);
     }
