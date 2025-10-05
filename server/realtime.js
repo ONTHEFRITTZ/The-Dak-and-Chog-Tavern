@@ -742,7 +742,7 @@ io.on('connection',(socket)=>{
     if (wanted && !tables.has(wanted)) getTable(wanted);
     const t=getTable(wanted);
 
-    : purge any bot seats if present
+    // Purge any legacy bot seats if present
     if (isPoker(t) && t.category===CAT.OFFCHAIN_NL) {
       for (let i=0;i<t.seats.length;i++){ const s=t.seats[i]; if (s && typeof s.addr==='string' && s.addr.startsWith('bot:')) t.seats[i]=null; }
     }
