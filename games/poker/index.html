@@ -247,68 +247,9 @@
     })();
   </script>
 
-  <!-- Sidebar + force pills into the sidebar footer -->
+  <!-- Sidebar only (no network/contract pills) -->
   <script>
-    (async () => {
-      try {
-        const t = window.__BUILD_TAG || Date.now();
-        const s = document.createElement('script');
-        s.type = 'module';
-        s.src = '/js/sidebar.js?v=' + encodeURIComponent(t);
-        document.body.appendChild(s);
-
-        function short(a){ return (a && a.length>10) ? (a.slice(0,6)+'...'+a.slice(-4)) : (a||''); }
-        function placePills(addr, explorer){
-          const sidebar = document.querySelector('.sidebar');
-          if (!sidebar) return;
-          let footer = sidebar.querySelector('.sidebar-footer');
-          if (!footer) { footer = document.createElement('div'); footer.className = 'sidebar-footer'; sidebar.appendChild(footer); }
-          // Remove previous lobby-injected pills
-          Array.from(footer.querySelectorAll('.pill[data-src="poker-lobby"]')).forEach(n => n.remove());
-
-          const p1 = document.createElement('div');
-          p1.className = 'pill';
-          p1.dataset.src = 'poker-lobby';
-          p1.textContent = 'Monad Testnet';
-
-          const p2 = document.createElement('div');
-          p2.className = 'pill';
-          p2.dataset.src = 'poker-lobby';
-          if (addr) {
-            const a = document.createElement('a');
-            a.textContent = 'PokerTable: ' + short(addr);
-            a.href = (explorer ? (explorer.replace(/\/+$/,'') + '/address/' + addr) : '#');
-            a.target = '_blank'; a.rel = 'noopener';
-            p2.appendChild(a);
-          } else {
-            p2.textContent = 'PokerTable: n/a';
-          }
-          footer.appendChild(p1);
-          footer.appendChild(p2);
-        }
-
-        async function resolveAddr(){
-          let addr = null, explorer = null;
-          try { explorer = (window.EXPLORERS && window.EXPLORERS[10143]) || 'https://testnet.monadexplorer.com'; } catch {}
-          try {
-            if (typeof window.getAddressFor === 'function') {
-              addr = await window.getAddressFor('pokerTable');
-            }
-          } catch {}
-          if (!addr) {
-            try { addr = window?.CONTRACTS?.pokerTable || null; } catch {}
-          }
-          placePills(addr, explorer);
-        }
-
-        // Wait for sidebar to mount, then inject pills once
-        const mo = new MutationObserver(() => {
-          if (document.querySelector('.sidebar')) { mo.disconnect(); resolveAddr(); }
-        });
-        mo.observe(document.body, { childList: true, subtree: true });
-        if (document.querySelector('.sidebar')) { mo.disconnect(); resolveAddr(); }
-      } catch {}
-    })();
+    (function(){ try { const t=window.__BUILD_TAG||Date.now(); const s=document.createElement('script'); s.type='module'; s.src='/js/sidebar.js?v='+encodeURIComponent(t); document.body.appendChild(s); } catch {} })();
   </script>
 </body>
 </html>

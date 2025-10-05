@@ -322,9 +322,7 @@ export async function connectWallet(key = 'metamask', injectedOverride) {
 async function bootConnect() {
   await ensureConfig().catch(()=>{});
   try {
-    const chainId = await detectChainId(undefined);
-    const address = getAddress('tavern', chainId);
-    renderTavernBanner && renderTavernBanner({ contractKey: 'tavern', address, chainId, labelOverride: 'Address' });
+    // Network/contract banner removed site-wide per requirements
   } catch {}
   ensureAdminLink(false);
 }
