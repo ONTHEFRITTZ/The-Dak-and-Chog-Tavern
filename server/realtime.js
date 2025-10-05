@@ -484,7 +484,7 @@ async function startPokerHand(tableId,t){
 
     // Onchain hook (fire and forget)
     if (t.category!==CAT.OFFCHAIN_NL){
-      try { await onBeginHand(tableId, t); } catch(e){ console.error('onBeginHand failed', e); }
+      try { Promise.resolve(onBeginHand(tableId, t)).catch(e => console.error('onBeginHand failed', e)); } catch(e){ console.error('onBeginHand failed', e); }
     }
 
     emitPokerState(tableId,t);
@@ -596,7 +596,7 @@ async function advancePokerStage(tableId,t){
 
       // Onchain settle
       if (t.category!==CAT.OFFCHAIN_NL){
-        try { await onSettleHand(tableId,t,winnerPayouts,board); } catch(e){ console.error('onSettleHand failed',e); }
+        try { Promise.resolve(onSettleHand(tableId,t,winnerPayouts,board)).catch(e => console.error('onSettleHand failed',e)); } catch(e){ console.error('onSettleHand failed',e); }
       }
 
       try{ st.actors.forEach(z=> clearPrivateHoleForSeat(t,z.seatId)); }catch{}
@@ -649,7 +649,7 @@ function applyAction(tableId,t,addrLower,action,isAuto=false,amountRaw=null){
           table:tablePublic(t)
         });
         if (t.category!==CAT.OFFCHAIN_NL){
-          try { await onSettleHand(tableId,t,[winner],community); } catch(e){ console.error('onSettleHand failed',e); }
+          try { Promise.resolve(onSettleHand(tableId,t,[winner],community)).catch(e => console.error('onSettleHand failed',e)); } catch(e){ console.error('onSettleHand failed',e); }
         }
         try{ st.actors.forEach(z=> clearPrivateHoleForSeat(t,z.seatId)); }catch{}
         t.poker=null;
