@@ -231,21 +231,29 @@
   let timerRaf = null;
   
 
-  function ensureIdentify() {
-    let addr = currentAddr();
-    // Fallback guest ID for F2P tables so seating always works
+  async function ensureIdentify() {
     try {
-      const isF2P = String(tableId || '').toLowerCase().startsWith('poker-sim-');
-      if (!addr && isF2P) {
-        let gid = sessionStorage.getItem('guestId');
-        if (!gid) {
-          gid = 'guest:' + Math.random().toString(36).slice(2, 10);
-          sessionStorage.setItem('guestId', gid);
+      // Prefer any stored full address first
+      let addr = currentAddr();
+      if (!addr) {
+        // Try injected provider
+        let provider = null;
+        try { if (typeof window.__getSelectedProvider === 'function') provider = window.__getSelectedProvider(); } catch {}
+        if (!provider && window.ethereum?.request) provider = window.ethereum;
+        if (provider?.request) {
+          const accs = await provider.request({ method: 'eth_accounts' }).catch(() => []);
+          if (Array.isArray(accs) && accs[0] && /^0x[0-9a-fA-F]{40}$/.test(String(accs[0]))) {
+            addr = String(accs[0]);
+            try { sessionStorage.setItem('walletAddress', addr); } catch {}
+          }
         }
-        addr = gid;
+      }
+      if (addr) {
+        socket.emit('identify', { addr });
+        return true;
       }
     } catch {}
-    if (addr) socket.emit('identify', { addr });
+    return false;
   }
 
   function seatIndexForAddr(addr) {
@@ -501,7 +509,7 @@
   let devBotUserToggled = false;
   if (devBotBtn && !devBotBtn.dataset.bound) {
     devBotBtn.dataset.bound = '1';
-    devBotBtn.addEventListener('click', () => {
+  devBotBtn.addEventListener('click', () => {
       if (!lastTable) return;
       const next = !lastTable.devBotEnabled;
       devBotUserToggled = true;
@@ -531,9 +539,14 @@
       if (!(seatData && seatData.addr)) {
         const sit = document.createElement('button');
         sit.textContent = 'Sit';
-        sit.addEventListener('click', () => {
-          ensureIdentify();
+        sit.addEventListener('click', async () => {
           try { sit.disabled = true; sit.textContent = 'Seating…'; } catch {}
+          const ok = await ensureIdentify();
+          if (!ok) {
+            try { sit.disabled = false; sit.textContent = 'Sit'; } catch {}
+            alert('Connect your wallet first in the Tavern, then return to sit.');
+            return;
+          }
           socket.emit('seat', { index: idx });
         });
         meta.btns.appendChild(sit);
@@ -554,6 +567,7 @@
   }
 
   socket.on('connect', () => {
+    // Attempt identify on connect; if no wallet connected, seat will be blocked server-side
     ensureIdentify();
     socket.emit('join_table', { table: tableId });
     // Default DevBot disabled on F2P until explicitly enabled by user

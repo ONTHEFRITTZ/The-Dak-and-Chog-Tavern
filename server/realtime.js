@@ -842,9 +842,8 @@ io.on('connection',(socket)=>{
       }
     } else if (idx>=0 && idx<t.seats.length){
       if (!t.seats[idx]){
-        let who = addrLower;
-        if (!who) { try { who = 'guest:' + (socket.id ? String(socket.id).slice(-6) : Math.random().toString(36).slice(2,8)); } catch { who = 'guest:' + Math.random().toString(36).slice(2,8); } }
-        t.seats[idx]={ id:idx, addr:String(who||'').toLowerCase(), balance:0, lastActive:nowMs(), socketId:socket.id };
+        if (!addrLower) { socket.emit('error', { message: 'identify first' }); return; }
+        t.seats[idx]={ id:idx, addr:addrLower, balance:0, lastActive:nowMs(), socketId:socket.id };
         if (isPoker(t) && t.category===CAT.OFFCHAIN_NL){
           if(!Number.isFinite(t.seats[idx].chips)||t.seats[idx].chips<=0) t.seats[idx].chips=100;
         }
