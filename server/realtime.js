@@ -889,5 +889,6 @@ function saveState(){ try{
 setInterval(saveState, SAVE_INTERVAL_MS);
 
 /* ------------------------------ Server listen ------------------------------ */
-const PORT=process.env.PORT||3000;
+// Default to 3100 for unified backend; allow override via PORT env
+const PORT = Number(process.env.PORT || 3100);
 server.listen(PORT, ()=>{ console.log('RT server on',PORT,'| enabled games:', Array.from(enabledGames).join(',')); });
