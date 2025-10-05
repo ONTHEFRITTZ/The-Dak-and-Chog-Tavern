@@ -207,7 +207,8 @@
     }
     // else create a lightweight listener socket (won’t interfere)
     const io = await ioReady();
-    const s = io({ path: '/socket.io/' });
+    const isLocal = (location.hostname||'').toLowerCase()==='localhost' || (location.hostname||'')==='127.0.0.1';
+    const s = io({ path: isLocal ? '/socket.io/' : '/poker.io/' });
     s.__overlayStandalone = true;
     return s;
   }

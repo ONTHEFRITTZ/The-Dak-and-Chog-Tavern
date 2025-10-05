@@ -227,7 +227,7 @@
     try {
       const host = (location.hostname || '').toLowerCase();
       const isLocal = host === 'localhost' || host === '127.0.0.1';
-      const path = isLocal ? '/socket.io/' : '/poker.io';
+      const path = isLocal ? '/socket.io/' : '/poker.io/';
       return window.io({ path });
     } catch {
       try { return window.io(); } catch { return null; }
