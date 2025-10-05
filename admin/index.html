@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -36,7 +36,7 @@
       min-height: 100%;
     }
     /* Main container */
-    .tavern { width:95%; max-width:1100px; margin:120px auto 90px; padding: 24px !important; box-sizing:border-box; }
+    .top-banner { position:fixed; top:0; left:0; right:0; width:100%; padding:12px 28px; box-sizing:border-box; display:flex; justify-content:space-between; align-items:center; gap:16px; z-index:15000; }\r\n    .tavern { width:95%; max-width:1100px; margin:170px auto 90px; padding: 24px !important; box-sizing:border-box; }
     .admin-card {
       background: var(--panel-bg-soft);
       border:1px solid rgba(255,255,255,0.12);
@@ -155,7 +155,7 @@
           <div id="pool-auth-list" class="muted" style="font-family: ui-monospace, Menlo, Consolas, monospace; font-size:12px; white-space:nowrap; overflow:auto; max-height:180px; background: rgba(0,0,0,0.25); border:1px solid rgba(255,255,255,0.12); border-radius:8px; padding:8px;"></div>
         </div>
 
-      </div>      <div class="admin-card" id="treasury-card">
+      </div>\r\n      <div class="admin-card" id="treasury-card">
         <h3 style="margin-top:0;">WMON / DCMon Treasury</h3>
         <div class="muted">WMON: <span id="wmon-address">-</span></div>
         <div class="muted">DCMon: <span id="dcmon-address">-</span></div>
@@ -181,14 +181,14 @@
         </div>
         <div class="row">
           <div style="flex:1;">
-            <label>Wrap native MON → WMON</label>
+            <label>Wrap native MON &rarr; WMON</label>
             <input id="wmon-wrap-amt" type="number" min="0" step="any" placeholder="Amount">
           </div>
           <button id="wmon-wrap" class="btn">Wrap</button>
         </div>
         <div class="row" style="margin-top:6px;">
           <div style="flex:1;">
-            <label>Unwrap WMON → MON</label>
+            <label>Unwrap WMON &rarr; MON</label>
             <input id="wmon-unwrap-amt" type="number" min="0" step="any" placeholder="Amount">
           </div>
           <button id="wmon-unwrap" class="btn">Unwrap</button>
@@ -324,10 +324,3 @@
   </script>
 </body>
 </html>
-
-
-
-
-
-
-

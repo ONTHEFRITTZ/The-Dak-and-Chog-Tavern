@@ -10,7 +10,7 @@ Completed
 - Guest fallback: F2P seats create a deterministic guest 0x address so "Sit" works without a wallet.
 - DCmon foundation: token contract, Hardhat tests, agent scaffolding, encrypted ops log, swap queue.
 - WMON wrapper: deployed Contracts/WMON.sol with Hardhat coverage to wrap native MON for DCMon/Bankroll.
-- Admin panel: WMON/DCMon treasury card with wrap/approve/deposit controls.
+- Admin panel: WMON/DCMon treasury card fully wired (wrap/unwrap, approvals, pool deposit/redeem, reward logging, live stats refresh).
 - Faro/Hazard/Shell games now use DCmon tokens via bankroll pool.
 - DakChog and HoldemPoker converted to DCmon (BankrollPool payouts, rake withdrawal).
 
@@ -18,11 +18,13 @@ Ready To Verify / Playtest
 - End-to-end: live hands on F2P and on-chain (AA identify, paymaster sponsorship, reward logging).
 - Paymaster flow: agent tops up automatically when balance < threshold.
 - Demo capture: wallet connect + DCmon buy-in + full hand with reward logging.
+- Admin treasury flows: dry-run wrap -> approve -> pool deposit -> pool redeem and confirm inputs clear / stats refresh.
 
 In Progress
 - DCmon swaps: implement actual MON/USDC -> DCmon trades in `processSwapQueue`.
 - Reward harvest: integrate staking venue and call `recordRewards` for 70/30 split.
 - Paymaster funding: finalize swap + transfer logic in `ensurePaymasterBalance`.
+- Agent automation: orchestrate wrap/approve/deposit/redeem steps so the pool stays funded without manual clicks.
 - On-chain tables: update poker backend + AA flow to track DCmon chips (contract side ready).
 - Frontend: buy-in modal with DCmon + swap UI (Phantom / MetaMask).
 - Reward distribution: choose cadence + ranking for top players; wire to `distributePlayerReward`.
@@ -32,4 +34,4 @@ Backlog / Ideas
 - Expose DCmon stats dashboard (APY, house vs player rewards).
 - Automated alerting when paymaster top-ups fail.
 - Snapshot + governance hooks once DCmon supply grows.
-
+- Publish an ops runbook for admin/agent recovery scenarios.

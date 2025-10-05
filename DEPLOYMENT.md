@@ -24,6 +24,23 @@ DOMAIN="thedakandchog.xyz" WEBROOT="/var/www/${DOMAIN}/html" UPLOAD="/var/www/${
 
 ```
 
+Admin Panel (WMON/DCMon) Post-Deploy Checklist
+- Load https://thedakandchog.xyz/admin/ (or your domain) and connect the owner wallet.
+- Confirm WMON/DCMon/Bankroll addresses match the expected deployment (see table below).
+- Use the treasury card buttons to fetch stats; inputs clear automatically after a confirmed tx.
+- Optional: run a 0.01 MON wrap -> approve -> pool deposit -> pool redeem smoke test to ensure signer permissions.
+Monad Testnet Addresses (Oct 2025)
+- WMON: 0x7b4E8B2a3E934701D8bF6cFB31C3f3BDaC5e30Ff
+- DCMon: 0xF81592Eb0B6811eF655676Ba77625bD3Db7c6C92
+- BankrollPool: 0x31574064907cbE75C61Fea28C545264817A9AA4a
+- Player reward wallet: 0xCe1C5bb15041361D6Ab22aAFb3887dD28D05a16E
+- Faro: 0x953f1Bba2eeEa57482037377BD5103cEbA85C987
+- Hazard: 0xb0103807b4B758945331BF6783873Cd776037f89
+- Shell: 0x7Ff5A1b0d71eE4C66D24121D2E68D7844704D377
+- DakChog: 0xa8F48cccE4968F5bf40f3411B2265cEBDB517ADf
+- HoldemPoker: 0x681BADA5D0d012ABEB9f8A8F0E38758396DE0db3
+
+
 
 Realtime backend (Socket.IO) - restart/health
 - Managed by PM2 as `realtime` (PORT 3100).

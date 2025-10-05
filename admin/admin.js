@@ -1,4 +1,4 @@
-import { detectChainId, getAddressFor, renderTavernBanner } from '../js/config.js';
+﻿import { detectChainId, getAddressFor, renderTavernBanner } from '../js/config.js';
 
 const statusEl = document.getElementById('status');
 
@@ -42,10 +42,17 @@ const poolSetAddrBtn = document.getElementById('pool-set-addr');
 const poolToInput = document.getElementById('pool-to');
 const poolAmtInput = document.getElementById('pool-amt');
 const poolWithdrawBtn = document.getElementById('pool-withdraw');
+const poolDepositAmtInput = document.getElementById('pool-deposit-amt');
+const poolDepositBtn = document.getElementById('pool-deposit');
+const poolRedeemAmtInput = document.getElementById('pool-redeem-amt');
+const poolRedeemBtn = document.getElementById('pool-redeem');
 const poolAuthInput = document.getElementById('pool-auth');
 const poolAuthorizeBtn = document.getElementById('pool-authorize');
 const poolDeauthorizeBtn = document.getElementById('pool-deauthorize');
 const poolAuthListEl = document.getElementById('pool-auth-list');
+const poolNativeEl = document.getElementById('pool-native');
+const poolUnderlyingEl = document.getElementById('pool-underlying');
+const poolDcmonEl = document.getElementById('pool-dcmon');
 
 const wmonAddrEl = document.getElementById('wmon-address');
 const dcmonAddrEl = document.getElementById('dcmon-address');
@@ -99,6 +106,25 @@ function fmtEth(v) {
   try { return window.ethers.utils.formatEther(v); } catch { return '0'; }
 }
 
+function formatAmount(value, symbol) {
+  try {
+    const formatted = fmtEth(value);
+    return symbol ? `${formatted} ${symbol}` : formatted;
+  } catch {
+    return '-';
+  }
+}
+function parseAmount(input) {
+  const rawValue = typeof input === 'string' ? input : String(input?.value ?? '').trim();
+  if (!rawValue) return null;
+  try { return window.ethers.utils.parseEther(rawValue); } catch { return null; }
+}
+
+function setStatus(message) {
+  if (statusEl) {
+    statusEl.textContent = message || '';
+  }
+}
 function isTavOwnerNow() {
   try { return !!(wallet && tavernOwner && wallet.toLowerCase() === tavernOwner.toLowerCase()); } catch { return false; }
 }
@@ -113,14 +139,13 @@ function updateWalletButtons() {
   if (disconnectEl) disconnectEl.style.display = connected ? '' : 'none';
 }
 
-
 async function refresh() {
   try {
     const chainId = await detectChainId(provider);
 
     const overrideAddr = (key, current) => {
       try {
-        const stored = localStorage.getItem(contract.);
+        const stored = localStorage.getItem(`contract.${key}`);
         return stored && /^0x[0-9a-fA-F]{40}$/.test(stored) ? stored : current;
       } catch {
         return current;
@@ -238,6 +263,7 @@ async function refresh() {
           if (poolUnderlyingEl) poolUnderlyingEl.textContent = formatAmount(underlying, 'WMON');
           if (wmonPoolEl) wmonPoolEl.textContent = formatAmount(underlying, 'WMON');
           if (poolAmtInput) poolAmtInput.placeholder = fmtEth(underlying);
+          if (poolDepositAmtInput) poolDepositAmtInput.placeholder = fmtEth(underlying);
         } catch {
           if (poolUnderlyingEl) poolUnderlyingEl.textContent = '-';
           if (wmonPoolEl) wmonPoolEl.textContent = '-';
@@ -246,6 +272,7 @@ async function refresh() {
           const dcBal = await pool.poolDcmonBalance();
           if (poolDcmonEl) poolDcmonEl.textContent = formatAmount(dcBal, 'DCMon');
           if (dcmonPoolEl) dcmonPoolEl.textContent = formatAmount(dcBal, 'DCMon');
+          if (poolRedeemAmtInput) poolRedeemAmtInput.placeholder = fmtEth(dcBal);
         } catch {
           if (poolDcmonEl) poolDcmonEl.textContent = '-';
           if (dcmonPoolEl) dcmonPoolEl.textContent = '-';
@@ -268,10 +295,10 @@ async function refresh() {
               if (!addr) continue;
               let allowed = null;
               try { allowed = await pool.authorizedGames(addr); } catch {}
-              const short = (v) => (v && v.length > 10 ? ${v.slice(0,6)}... : (v||'-'));
+              const short = (v) => (v && v.length > 10 ? `${v.slice(0,6)}...${v.slice(-4)}` : (v || '-'));
               const color = allowed ? '#006400' : '#8b0000';
               const status = allowed === null ? 'unknown' : (allowed ? 'AUTHORIZED' : 'not authorized');
-              entries.push(<div><strong></strong>: <span title=""></span> → <span style="color:"></span></div>);
+                            entries.push(`<div><strong>${label}</strong>: <span title="${addr}">${short(addr)}</span> \u2192 <span style="color:${color}">${status}</span></div>`);
             }
             poolAuthListEl.innerHTML = entries.length ? entries.join('') : '<div>(no known games on this chain)</div>';
           } catch {
@@ -336,7 +363,7 @@ async function refresh() {
     if (isPoolOwner) ownerSections.push('Pool');
     const noteEl = document.getElementById('owner-note');
     if (noteEl) {
-      noteEl.textContent = ownerSections.length ? Owner controls enabled for . : 'Connect the owner wallet. Controls are disabled for non-owners.';
+            noteEl.textContent = ownerSections.length ? ('Owner controls enabled for ' + ownerSections.join(', ') + '.') : 'Connect the owner wallet. Controls are disabled for non-owners.';
     }
 
     const rtPauseBtn = document.getElementById('rt-pause');
@@ -346,16 +373,18 @@ async function refresh() {
 
     ensureIo();
   } catch {}
-}\r\nasync function connect() {
-  if (!window.ethereum) { statusEl.textContent = 'MetaMask not detected'; return; }
+}
+
+async function connect() {
+  if (!window.ethereum) { setStatus('MetaMask not detected'); return; }
   try {
-    statusEl.textContent = 'Connecting...';
+    setStatus('Connecting...');
     const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
     await applyWalletFromAccounts(accounts);
-    statusEl.textContent = '';
+    setStatus('');
   } catch (e) {
     console.error(e);
-    statusEl.textContent = 'Connect failed';
+    setStatus('Connect failed');
     wallet = null;
     signer = null;
     provider = undefined;
@@ -368,7 +397,7 @@ async function disconnectWallet({ silent } = {}) {
     wallet = null;
     signer = null;
     provider = undefined;
-    if (!silent) statusEl.textContent = 'Disconnected';
+    if (!silent) setStatus('Disconnected');
     updateWalletButtons();
     await refresh();
   } catch (e) {
@@ -380,7 +409,7 @@ async function disconnectWallet({ silent } = {}) {
 async function applyWalletFromAccounts(accounts, { refreshAfter = true } = {}) {
   if (!Array.isArray(accounts) || accounts.length === 0) {
     await disconnectWallet({ silent: true });
-    statusEl.textContent = 'Disconnected';
+    setStatus('Disconnected');
     return;
   }
   try {
@@ -409,7 +438,7 @@ async function restoreWalletIfAvailable() {
       wallet = null;
       signer = null;
       provider = undefined;
-      statusEl.textContent = 'Disconnected';
+      setStatus('Disconnected');
       updateWalletButtons();
     }
   } catch (err) {
@@ -421,7 +450,7 @@ async function restoreWalletIfAvailable() {
 async function handleAccountsChanged(accounts) {
   if (!Array.isArray(accounts) || accounts.length === 0) {
     await disconnectWallet({ silent: true });
-    statusEl.textContent = 'Disconnected';
+    setStatus('Disconnected');
     return;
   }
   await applyWalletFromAccounts(accounts);
@@ -429,7 +458,7 @@ async function handleAccountsChanged(accounts) {
 
 async function handleEthereumDisconnect() {
   await disconnectWallet({ silent: true });
-  statusEl.textContent = 'Disconnected';
+  setStatus('Disconnected');
 }
 
 function bindTopButtons() {
@@ -507,17 +536,17 @@ window.addEventListener('DOMContentLoaded', () => { try { refreshHealth(); } cat
 // Set pool on Tavern (owner only)
 tavSetPoolBtn?.addEventListener('click', async () => {
   try {
-    if (!tavern) { statusEl.textContent = 'Tavern not connected'; return; }
-    if (!isTavOwnerNow()) { statusEl.textContent = 'Owner only: Tavern'; return; }
+    if (!tavern) { setStatus('Tavern not connected'); return; }
+    if (!isTavOwnerNow()) { setStatus('Owner only: Tavern'); return; }
     const target = (tavPoolInput && tavPoolInput.value && tavPoolInput.value.trim()) || (poolOverrideInput && poolOverrideInput.value && poolOverrideInput.value.trim()) || poolAddr;
-    if (!target || !target.startsWith('0x') || target.length !== 42) { statusEl.textContent = 'Enter a valid pool address'; return; }
+    if (!target || !target.startsWith('0x') || target.length !== 42) { setStatus('Enter a valid pool address'); return; }
     const tx = await tavern.setPool(target);
-    statusEl.textContent = `Setting pool... ${tx.hash.slice(0,10)}...`;
+    setStatus(`Setting pool... ${tx.hash.slice(0,10)}...`);
     await tx.wait();
-    statusEl.textContent = 'Pool set on Tavern.';
+    setStatus('Pool set on Tavern.');
     await refresh();
   } catch (e) {
-    console.error(e); statusEl.textContent = e?.data?.message || e?.message || 'Set pool failed.';
+    console.error(e); setStatus(e?.data?.message || e?.message || 'Set pool failed.');
   }
 });
 
@@ -594,7 +623,7 @@ function ensureIo() {
         if (Array.isArray(m.online) && guestOnlineEl) guestOnlineEl.textContent = String(m.online.length);
         if (presenceListEl && Array.isArray(m.online)) {
           const rows = m.online.map(u => {
-            const addr = u.addrMask || (u.addrHash ? u.addrHash.slice(0,10)+'Ã¢â‚¬Â¦' : '-');
+            const addr = u.addrMask || (u.addrHash ? u.addrHash.slice(0,10) + 'â€¦' : '-');
             const loc = u.tableId ? `${u.tableId}${(typeof u.seatId==='number')?(' #'+u.seatId):''}` : (u.path || '-');
             const ago = Math.max(0, Math.round((Date.now() - Number(u.last||0))/1000));
             return `${addr}  @ ${loc}  (${ago}s ago)`;
@@ -623,79 +652,79 @@ document.getElementById('rt-restart')?.addEventListener('click', ()=>{
 // Actions - Tavern
 tavSetMaxBetBtn?.addEventListener('click', async () => {
   try {
-    if (!tavern) { statusEl.textContent = 'Tavern not connected'; return; }
-    if (!isTavOwnerNow()) { statusEl.textContent = 'Owner only: Tavern'; return; }
+    if (!tavern) { setStatus('Tavern not connected'); return; }
+    if (!isTavOwnerNow()) { setStatus('Owner only: Tavern'); return; }
     const val = String(tavMaxBetInput.value||'').trim();
     if (!val) return;
-    if (!isTavOwnerNow()) { statusEl.textContent = 'Owner only: Tavern'; return; }
+    if (!isTavOwnerNow()) { setStatus('Owner only: Tavern'); return; }
     const tx = await tavern.setMaxBet(window.ethers.utils.parseEther(val));
-    statusEl.textContent = 'Tavern setMaxBet tx sent';
+    setStatus('Tavern setMaxBet tx sent');
     await tx.wait();
     await refresh();
-  } catch (e) { statusEl.textContent = e?.data?.message || e?.message || 'Failed'; }
+  } catch (e) { setStatus(e?.data?.message || e?.message || 'Failed'); }
 });
 
 // Actions - Faro
 faroSetMaxBetBtn?.addEventListener('click', async () => {
   try {
-    if (!faro) { statusEl.textContent = 'Faro not connected'; return; }
-    if (!isFaroOwnerNow()) { statusEl.textContent = 'Owner only: Faro'; return; }
+    if (!faro) { setStatus('Faro not connected'); return; }
+    if (!isFaroOwnerNow()) { setStatus('Owner only: Faro'); return; }
     const val = String(faroMaxBetInput.value||'').trim();
-    if (!val) { statusEl.textContent = 'Enter max bet'; return; }
+    if (!val) { setStatus('Enter max bet'); return; }
     const tx = await faro.setMaxBet(window.ethers.utils.parseEther(val));
-    statusEl.textContent = 'Faro setMaxBet tx sent';
+    setStatus('Faro setMaxBet tx sent');
     await tx.wait();
     await refresh();
-  } catch (e) { statusEl.textContent = e?.data?.message || e?.message || 'Failed'; }
+  } catch (e) { setStatus(e?.data?.message || e?.message || 'Failed'); }
 });
 
 faroSetFeeBtn?.addEventListener('click', async () => {
   try {
-    if (!faro) { statusEl.textContent = 'Faro not connected'; return; }
-    if (!isFaroOwnerNow()) { statusEl.textContent = 'Owner only: Faro'; return; }
+    if (!faro) { setStatus('Faro not connected'); return; }
+    if (!isFaroOwnerNow()) { setStatus('Owner only: Faro'); return; }
     const bps = parseInt(String(faroFeeInput.value||'').trim(), 10);
-    if (!(bps >= 0 && bps <= 1000)) { statusEl.textContent = 'feeBps 0..1000'; return; }
+    if (!(bps >= 0 && bps <= 1000)) { setStatus('feeBps 0..1000'); return; }
     const tx = await faro.setFeeBps(bps);
-    statusEl.textContent = 'Faro setFeeBps tx sent';
+    setStatus('Faro setFeeBps tx sent');
     await tx.wait();
     await refresh();
-  } catch (e) { statusEl.textContent = e?.data?.message || e?.message || 'Failed'; }
+  } catch (e) { setStatus(e?.data?.message || e?.message || 'Failed'); }
 });
 
 // Faro: setPool (owner only)
 faroSetPoolBtn?.addEventListener('click', async () => {
   try {
-    if (!faro) { statusEl.textContent = 'Faro not connected'; return; }
-    if (!isFaroOwnerNow()) { statusEl.textContent = 'Owner only: Faro'; return; }
+    if (!faro) { setStatus('Faro not connected'); return; }
+    if (!isFaroOwnerNow()) { setStatus('Owner only: Faro'); return; }
     const v = String(faroPoolInput?.value||'').trim();
-    if (!/^0x[0-9a-fA-F]{40}$/.test(v)) { statusEl.textContent = 'Enter a valid pool address'; return; }
+    if (!/^0x[0-9a-fA-F]{40}$/.test(v)) { setStatus('Enter a valid pool address'); return; }
     const tx = await faro.setPool(v);
-    statusEl.textContent = 'Faro setPool tx sent';
+    setStatus('Faro setPool tx sent');
     await tx.wait();
     await refresh();
-  } catch (e) { statusEl.textContent = e?.data?.message || e?.message || 'Failed'; }
+  } catch (e) { setStatus(e?.data?.message || e?.message || 'Failed'); }
 });
 
 // Faro: pause/resume (owner only)
 faroPauseBtn?.addEventListener('click', async () => {
   try {
-    if (!faro) { statusEl.textContent = 'Faro not connected'; return; }
-    if (!isFaroOwnerNow()) { statusEl.textContent = 'Owner only: Faro'; return; }
+    if (!faro) { setStatus('Faro not connected'); return; }
+    if (!isFaroOwnerNow()) { setStatus('Owner only: Faro'); return; }
     const tx = await faro.pause(true);
-    statusEl.textContent = 'Faro pause tx sent';
+    setStatus('Faro pause tx sent');
     await tx.wait();
     await refresh();
-  } catch (e) { statusEl.textContent = e?.data?.message || e?.message || 'Failed'; }
+  } catch (e) { setStatus(e?.data?.message || e?.message || 'Failed'); }
 });
 faroResumeBtn?.addEventListener('click', async () => {
   try {
-    if (!faro) { statusEl.textContent = 'Faro not connected'; return; }
-    if (!isFaroOwnerNow()) { statusEl.textContent = 'Owner only: Faro'; return; }
+    if (!faro) { setStatus('Faro not connected'); return; }
+    if (!isFaroOwnerNow()) { setStatus('Owner only: Faro'); return; }
     const tx = await faro.pause(false);
-    statusEl.textContent = 'Faro resume tx sent';
+    setStatus('Faro resume tx sent');
     await tx.wait();
     await refresh();
-  } catch (e) { statusEl.textContent = e?.data?.message || e?.message || 'Failed'; }
+  } catch (e) { setStatus(e?.data?.message || e?.message || 'Failed'); }
 });
 
 window.addEventListener('load', async () => { try { await refresh(); } catch (e) {} });
@@ -704,7 +733,7 @@ window.addEventListener('load', async () => { try { await refresh(); } catch (e)
 tavSetAddrBtn?.addEventListener('click', async () => {
   try {
     const v = String(tavOverrideInput.value||'').trim();
-    if (!v || !/^0x[0-9a-fA-F]{40}$/.test(v)) { statusEl.textContent = 'Enter a valid address'; return; }
+    if (!v || !/^0x[0-9a-fA-F]{40}$/.test(v)) { setStatus('Enter a valid address'); return; }
     try { localStorage.setItem('contract.tavern', v); } catch (e) {}
     await refresh();
   } catch (e) {}
@@ -712,7 +741,7 @@ tavSetAddrBtn?.addEventListener('click', async () => {
 faroSetAddrBtn?.addEventListener('click', async () => {
   try {
     const v = String(faroOverrideInput.value||'').trim();
-    if (!v || !/^0x[0-9a-fA-F]{40}$/.test(v)) { statusEl.textContent = 'Enter a valid address'; return; }
+    if (!v || !/^0x[0-9a-fA-F]{40}$/.test(v)) { setStatus('Enter a valid address'); return; }
     try { localStorage.setItem('contract.faro', v); } catch (e) {}
     await refresh();
   } catch (e) {}
@@ -722,58 +751,205 @@ faroSetAddrBtn?.addEventListener('click', async () => {
 poolSetAddrBtn?.addEventListener('click', async () => {
   try {
     const v = String(poolOverrideInput.value||'').trim();
-    if (!v || !/^0x[0-9a-fA-F]{40}$/.test(v)) { statusEl.textContent = 'Enter a valid address'; return; }
+    if (!v || !/^0x[0-9a-fA-F]{40}$/.test(v)) { setStatus('Enter a valid address'); return; }
     try { localStorage.setItem('contract.pool', v); } catch (e) {}
     await refresh();
   } catch (e) {}
 });
 
 // Pool actions
-    statusEl.textContent = 'Pool fund tx sent';
-    await tx.wait();
-    await refresh();
-  } catch (e) { statusEl.textContent = e?.data?.message || e?.message || 'Failed'; }
-});
-
 poolWithdrawBtn?.addEventListener('click', async () => {
   try {
-    if (!pool) { statusEl.textContent = 'Pool not connected'; return; }
-    const to = String(poolToInput.value||'').trim();
-    const amt = String(poolAmtInput.value||'').trim();
-    if (!to) { statusEl.textContent = 'Enter withdraw address'; return; }
-    if (!amt) { statusEl.textContent = 'Enter amount'; return; }
-    const tx = await pool.withdraw(to, window.ethers.utils.parseEther(amt));
-    statusEl.textContent = 'Pool withdraw tx sent';
+    if (!pool || !signer) { setStatus('Pool not connected'); return; }
+    const to = String(poolToInput.value || '').trim();
+    const amt = parseAmount(poolAmtInput);
+    if (!to) { setStatus('Enter withdraw address'); return; }
+    if (!amt || amt.isZero()) { setStatus('Enter withdraw amount'); return; }
+    const tx = await pool.connect(signer).withdrawUnderlying(to, amt);
+    setStatus('Pool withdraw tx sent');
     await tx.wait();
+    if (poolAmtInput) { poolAmtInput.value = ''; }
+    setStatus('Pool withdraw confirmed');
     await refresh();
-  } catch (e) { statusEl.textContent = e?.data?.message || e?.message || 'Failed'; }
+  } catch (e) { setStatus(e?.data?.message || e?.message || 'Failed'); }
 });
 
 poolAuthorizeBtn?.addEventListener('click', async () => {
   try {
-    if (!pool) { statusEl.textContent = 'Pool not connected'; return; }
-    const addr = String(poolAuthInput.value||'').trim();
-    if (!addr) { statusEl.textContent = 'Enter game address'; return; }
-    const tx = await pool.setAuthorized(addr, true);
-    statusEl.textContent = 'Pool authorize tx sent';
+    if (!pool || !signer) { setStatus('Pool not connected'); return; }
+    const addr = String(poolAuthInput.value || '').trim();
+    if (!/^0x[0-9a-fA-F]{40}$/.test(addr)) { setStatus('Enter a valid address'); return; }
+    const tx = await pool.connect(signer).setAuthorized(addr, true);
+    setStatus('Pool authorize tx sent');
     await tx.wait();
+    if (poolAuthInput) { poolAuthInput.value = ''; }
+    setStatus('Pool authorize confirmed');
     await refresh();
-  } catch (e) { statusEl.textContent = e?.data?.message || e?.message || 'Failed'; }
+  } catch (e) { setStatus(e?.data?.message || e?.message || 'Failed'); }
 });
 
 poolDeauthorizeBtn?.addEventListener('click', async () => {
   try {
-    if (!pool) { statusEl.textContent = 'Pool not connected'; return; }
-    const addr = String(poolAuthInput.value||'').trim();
-    if (!addr) { statusEl.textContent = 'Enter game address'; return; }
-    const tx = await pool.setAuthorized(addr, false);
-    statusEl.textContent = 'Pool deauthorize tx sent';
+    if (!pool || !signer) { setStatus('Pool not connected'); return; }
+    const addr = String(poolAuthInput.value || '').trim();
+    if (!/^0x[0-9a-fA-F]{40}$/.test(addr)) { setStatus('Enter a valid address'); return; }
+    const tx = await pool.connect(signer).setAuthorized(addr, false);
+    setStatus('Pool deauthorize tx sent');
     await tx.wait();
+    if (poolAuthInput) { poolAuthInput.value = ''; }
+    setStatus('Pool deauthorize confirmed');
     await refresh();
-  } catch (e) { statusEl.textContent = e?.data?.message || e?.message || 'Failed'; }
+  } catch (e) { setStatus(e?.data?.message || e?.message || 'Failed'); }
 });
 
-poolDepositBtn?.addEventListener('click', async () => {\r\n  try {\r\n    if (!pool || !signer) { statusEl.textContent = 'Pool not connected'; return; }\r\n    const value = parseAmount(poolDepositAmtInput);\r\n    if (!value || value.isZero()) { statusEl.textContent = 'Enter deposit amount'; return; }\r\n    const tx = await pool.connect(signer).depositUnderlying(value);\r\n    statusEl.textContent = 'Pool deposit tx sent';\r\n    await tx.wait();\r\n    if (poolDepositAmtInput) poolDepositAmtInput.value = '';\r\n    await refresh();\r\n  } catch (e) { statusEl.textContent = e?.data?.message || e?.message || 'Failed'; }\r\n});\r\n\r\npoolRedeemBtn?.addEventListener('click', async () => {\r\n  try {\r\n    if (!pool || !signer) { statusEl.textContent = 'Pool not connected'; return; }\r\n    const value = parseAmount(poolRedeemAmtInput);\r\n    if (!value || value.isZero()) { statusEl.textContent = 'Enter redeem amount'; return; }\r\n    const tx = await pool.connect(signer).redeemDcmon(value);\r\n    statusEl.textContent = 'Pool redeem tx sent';\r\n    await tx.wait();\r\n    if (poolRedeemAmtInput) poolRedeemAmtInput.value = '';\r\n    await refresh();\r\n  } catch (e) { statusEl.textContent = e?.data?.message || e?.message || 'Failed'; }\r\n});\r\n\rwmonWrapBtn?.addEventListener('click', async () => {\r\n  try {\r\n    if (!wmon || !signer) { statusEl.textContent = 'WMON contract not connected'; return; }\r\n    const value = parseAmount(wmonWrapAmtInput);\r\n    if (!value || value.isZero()) { statusEl.textContent = 'Enter wrap amount'; return; }\r\n    const tx = await wmon.connect(signer).deposit({ value });\r\n    statusEl.textContent = 'Wrap tx sent';\r\n    await tx.wait();\r\n    if (wmonWrapAmtInput) wmonWrapAmtInput.value = '';\r\n    await refresh();\r\n  } catch (e) { statusEl.textContent = e?.data?.message || e?.message || 'Failed'; }\r\n});\r\n\rwmonUnwrapBtn?.addEventListener('click', async () => {\r\n  try {\r\n    if (!wmon || !signer) { statusEl.textContent = 'WMON contract not connected'; return; }\r\n    const value = parseAmount(wmonUnwrapAmtInput);\r\n    if (!value || value.isZero()) { statusEl.textContent = 'Enter unwrap amount'; return; }\r\n    const tx = await wmon.connect(signer).withdraw(value);\r\n    statusEl.textContent = 'Unwrap tx sent';\r\n    await tx.wait();\r\n    if (wmonUnwrapAmtInput) wmonUnwrapAmtInput.value = '';\r\n    await refresh();\r\n  } catch (e) { statusEl.textContent = e?.data?.message || e?.message || 'Failed'; }\r\n});\r\n\rwmonApproveBtn?.addEventListener('click', async () => {\r\n  try {\r\n    if (!wmon || !signer || !poolAddr) { statusEl.textContent = 'Pool address unknown'; return; }\r\n    const value = parseAmount(wmonApproveAmtInput);\r\n    if (!value || value.isZero()) { statusEl.textContent = 'Enter approve amount'; return; }\r\n    const tx = await wmon.connect(signer).approve(poolAddr, value);\r\n    statusEl.textContent = 'WMON approve tx sent';\r\n    await tx.wait();\r\n    if (wmonApproveAmtInput) wmonApproveAmtInput.value = '';\r\n    await refresh();\r\n  } catch (e) { statusEl.textContent = e?.data?.message || e?.message || 'Failed'; }\r\n});\r\n\rwmonApproveMaxBtn?.addEventListener('click', async () => {\r\n  try {\r\n    if (!wmon || !signer || !poolAddr) { statusEl.textContent = 'Pool address unknown'; return; }\r\n    const tx = await wmon.connect(signer).approve(poolAddr, window.ethers.constants.MaxUint256);\r\n    statusEl.textContent = 'WMON max approval tx sent';\r\n    await tx.wait();\r\n    await refresh();\r\n  } catch (e) { statusEl.textContent = e?.data?.message || e?.message || 'Failed'; }\r\n});\r\n\rwmonApproveDcmonBtn?.addEventListener('click', async () => {\r\n  try {\r\n    if (!wmon || !signer || !dcmonAddr) { statusEl.textContent = 'DCMon address unknown'; return; }\r\n    const value = parseAmount(wmonApproveDcmonAmtInput);\r\n    if (!value || value.isZero()) { statusEl.textContent = 'Enter approve amount'; return; }\r\n    const tx = await wmon.connect(signer).approve(dcmonAddr, value);\r\n    statusEl.textContent = 'WMON → DCMon approve tx sent';\r\n    await tx.wait();\r\n    if (wmonApproveDcmonAmtInput) wmonApproveDcmonAmtInput.value = '';\r\n    await refresh();\r\n  } catch (e) { statusEl.textContent = e?.data?.message || e?.message || 'Failed'; }\r\n});\r\n\rwmonApproveDcmonMaxBtn?.addEventListener('click', async () => {\r\n  try {\r\n    if (!wmon || !signer || !dcmonAddr) { statusEl.textContent = 'DCMon address unknown'; return; }\r\n    const tx = await wmon.connect(signer).approve(dcmonAddr, window.ethers.constants.MaxUint256);\r\n    statusEl.textContent = 'WMON max approval for DCMon sent';\r\n    await tx.wait();\r\n    await refresh();\r\n  } catch (e) { statusEl.textContent = e?.data?.message || e?.message || 'Failed'; }\r\n});\r\n\ndcmonDepositBtn?.addEventListener('click', async () => {\r\n  try {\r\n    if (!dcmon || !signer || !wallet) { statusEl.textContent = 'DCMon contract not connected'; return; }\r\n    const value = parseAmount(dcmonDepositAmtInput);\r\n    if (!value || value.isZero()) { statusEl.textContent = 'Enter deposit amount'; return; }\r\n    const tx = await dcmon.connect(signer).deposit(value, wallet);\r\n    statusEl.textContent = 'DCMon deposit tx sent';\r\n    await tx.wait();\r\n    if (dcmonDepositAmtInput) dcmonDepositAmtInput.value = '';\r\n    await refresh();\r\n  } catch (e) { statusEl.textContent = e?.data?.message || e?.message || 'Failed'; }\r\n});\r\n\ndcmonRedeemBtn?.addEventListener('click', async () => {\r\n  try {\r\n    if (!dcmon || !signer || !wallet) { statusEl.textContent = 'DCMon contract not connected'; return; }\r\n    const value = parseAmount(dcmonRedeemAmtInput);\r\n    if (!value || value.isZero()) { statusEl.textContent = 'Enter redeem amount'; return; }\r\n    const tx = await dcmon.connect(signer).redeem(value, wallet);\r\n    statusEl.textContent = 'DCMon redeem tx sent';\r\n    await tx.wait();\r\n    if (dcmonRedeemAmtInput) dcmonRedeemAmtInput.value = '';\r\n    await refresh();\r\n  } catch (e) { statusEl.textContent = e?.data?.message || e?.message || 'Failed'; }\r\n});\r\n\ndcmonRecordBtn?.addEventListener('click', async () => {\r\n  try {\r\n    if (!dcmon || !signer) { statusEl.textContent = 'DCMon contract not connected'; return; }\r\n    const value = parseAmount(dcmonRewardAmtInput);\r\n    if (!value || value.isZero()) { statusEl.textContent = 'Enter reward amount'; return; }\r\n    const tx = await dcmon.connect(signer).recordRewards(value);\r\n    statusEl.textContent = 'Record rewards tx sent';\r\n    await tx.wait();\r\n    if (dcmonRewardAmtInput) dcmonRewardAmtInput.value = '';\r\n    await refresh();\r\n  } catch (e) { statusEl.textContent = e?.data?.message || e?.message || 'Failed'; }\r\n});\r\n\r\n// Poker (pooled) address override
+poolDepositBtn?.addEventListener('click', async () => {
+  try {
+    if (!pool || !signer) { setStatus('Pool not connected'); return; }
+    const value = parseAmount(poolDepositAmtInput);
+    if (!value || value.isZero()) { setStatus('Enter deposit amount'); return; }
+    const tx = await pool.connect(signer).depositUnderlying(value);
+    setStatus('Pool deposit tx sent');
+    await tx.wait();
+    if (poolDepositAmtInput) { poolDepositAmtInput.value = ''; }
+    setStatus('Pool deposit confirmed');
+    await refresh();
+  } catch (e) { setStatus(e?.data?.message || e?.message || 'Failed'); }
+});
+
+poolRedeemBtn?.addEventListener('click', async () => {
+  try {
+    if (!pool || !signer) { setStatus('Pool not connected'); return; }
+    const value = parseAmount(poolRedeemAmtInput);
+    if (!value || value.isZero()) { setStatus('Enter redeem amount'); return; }
+    const tx = await pool.connect(signer).redeemDcmon(value);
+    setStatus('Pool redeem tx sent');
+    await tx.wait();
+    if (poolRedeemAmtInput) { poolRedeemAmtInput.value = ''; }
+    setStatus('Pool redeem confirmed');
+    await refresh();
+  } catch (e) { setStatus(e?.data?.message || e?.message || 'Failed'); }
+});
+
+wmonWrapBtn?.addEventListener('click', async () => {
+  try {
+    if (!wmon || !signer) { setStatus('WMON contract not connected'); return; }
+    const value = parseAmount(wmonWrapAmtInput);
+    if (!value || value.isZero()) { setStatus('Enter wrap amount'); return; }
+    const tx = await wmon.connect(signer).deposit({ value });
+    setStatus('Wrap tx sent');
+    await tx.wait();
+    if (wmonWrapAmtInput) { wmonWrapAmtInput.value = ''; }
+    setStatus('Wrap complete');
+    await refresh();
+  } catch (e) { setStatus(e?.data?.message || e?.message || 'Failed'); }
+});
+
+wmonUnwrapBtn?.addEventListener('click', async () => {
+  try {
+    if (!wmon || !signer) { setStatus('WMON contract not connected'); return; }
+    const value = parseAmount(wmonUnwrapAmtInput);
+    if (!value || value.isZero()) { setStatus('Enter unwrap amount'); return; }
+    const tx = await wmon.connect(signer).withdraw(value);
+    setStatus('Unwrap tx sent');
+    await tx.wait();
+    if (wmonUnwrapAmtInput) { wmonUnwrapAmtInput.value = ''; }
+    setStatus('Unwrap complete');
+    await refresh();
+  } catch (e) { setStatus(e?.data?.message || e?.message || 'Failed'); }
+});
+
+wmonApproveBtn?.addEventListener('click', async () => {
+  try {
+    if (!wmon || !signer || !poolAddr) { setStatus('Pool address unknown'); return; }
+    const value = parseAmount(wmonApproveAmtInput);
+    if (!value || value.isZero()) { setStatus('Enter approve amount'); return; }
+    const tx = await wmon.connect(signer).approve(poolAddr, value);
+    setStatus('WMON pool approve tx sent');
+    await tx.wait();
+    if (wmonApproveAmtInput) { wmonApproveAmtInput.value = ''; }
+    setStatus('WMON pool approve confirmed');
+    await refresh();
+  } catch (e) { setStatus(e?.data?.message || e?.message || 'Failed'); }
+});
+
+wmonApproveMaxBtn?.addEventListener('click', async () => {
+  try {
+    if (!wmon || !signer || !poolAddr) { setStatus('Pool address unknown'); return; }
+    const tx = await wmon.connect(signer).approve(poolAddr, window.ethers.constants.MaxUint256);
+    setStatus('WMON pool max approval tx sent');
+    await tx.wait();
+    setStatus('WMON pool max approval confirmed');
+    await refresh();
+  } catch (e) { setStatus(e?.data?.message || e?.message || 'Failed'); }
+});
+
+wmonApproveDcmonBtn?.addEventListener('click', async () => {
+  try {
+    if (!wmon || !signer || !dcmonAddr) { setStatus('DCMon address unknown'); return; }
+    const value = parseAmount(wmonApproveDcmonAmtInput);
+    if (!value || value.isZero()) { setStatus('Enter approve amount'); return; }
+    const tx = await wmon.connect(signer).approve(dcmonAddr, value);
+    setStatus('WMON → DCMon approve tx sent');
+    await tx.wait();
+    if (wmonApproveDcmonAmtInput) { wmonApproveDcmonAmtInput.value = ''; }
+    setStatus('WMON → DCMon approve confirmed');
+    await refresh();
+  } catch (e) { setStatus(e?.data?.message || e?.message || 'Failed'); }
+});
+
+wmonApproveDcmonMaxBtn?.addEventListener('click', async () => {
+  try {
+    if (!wmon || !signer || !dcmonAddr) { setStatus('DCMon address unknown'); return; }
+    const tx = await wmon.connect(signer).approve(dcmonAddr, window.ethers.constants.MaxUint256);
+    setStatus('WMON → DCMon max approval tx sent');
+    await tx.wait();
+    setStatus('WMON → DCMon max approval confirmed');
+    await refresh();
+  } catch (e) { setStatus(e?.data?.message || e?.message || 'Failed'); }
+});
+
+dcmonDepositBtn?.addEventListener('click', async () => {
+  try {
+    if (!dcmon || !signer || !wallet) { setStatus('DCMon contract not connected'); return; }
+    const value = parseAmount(dcmonDepositAmtInput);
+    if (!value || value.isZero()) { setStatus('Enter deposit amount'); return; }
+    const tx = await dcmon.connect(signer).deposit(value, wallet);
+    setStatus('DCMon deposit tx sent');
+    await tx.wait();
+    if (dcmonDepositAmtInput) { dcmonDepositAmtInput.value = ''; }
+    setStatus('DCMon deposit confirmed');
+    await refresh();
+  } catch (e) { setStatus(e?.data?.message || e?.message || 'Failed'); }
+});
+
+dcmonRedeemBtn?.addEventListener('click', async () => {
+  try {
+    if (!dcmon || !signer || !wallet) { setStatus('DCMon contract not connected'); return; }
+    const value = parseAmount(dcmonRedeemAmtInput);
+    if (!value || value.isZero()) { setStatus('Enter redeem amount'); return; }
+    const tx = await dcmon.connect(signer).redeem(value, wallet);
+    setStatus('DCMon redeem tx sent');
+    await tx.wait();
+    if (dcmonRedeemAmtInput) { dcmonRedeemAmtInput.value = ''; }
+    setStatus('DCMon redeem confirmed');
+    await refresh();
+  } catch (e) { setStatus(e?.data?.message || e?.message || 'Failed'); }
+});
+
+dcmonRecordBtn?.addEventListener('click', async () => {
+  try {
+    if (!dcmon || !signer) { setStatus('DCMon contract not connected'); return; }
+    const value = parseAmount(dcmonRewardAmtInput);
+    if (!value || value.isZero()) { setStatus('Enter reward amount'); return; }
+    const tx = await dcmon.connect(signer).recordRewards(value);
+    setStatus('Record rewards tx sent');
+    await tx.wait();
+    if (dcmonRewardAmtInput) { dcmonRewardAmtInput.value = ''; }
+    setStatus('Rewards recorded');
+    await refresh();
+  } catch (e) { setStatus(e?.data?.message || e?.message || 'Failed'); }
+});
+// Poker (pooled) address override
 ppSetAddrBtn?.addEventListener('click', async () => {
   try {
     const v = String(ppOverrideInput?.value||'').trim();
@@ -784,16 +960,5 @@ ppSetAddrBtn?.addEventListener('click', async () => {
   } catch (e) { if (ppMsgEl) ppMsgEl.textContent = e?.data?.message||e?.message||'Failed'; }
 });
 
-
-
-
 // Per-game submitter UI removed: pool approval covers all games
-
-
-
-
-
-
-
-
 

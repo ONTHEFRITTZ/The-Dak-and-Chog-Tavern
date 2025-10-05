@@ -19,6 +19,23 @@
 - Users or the agent call `deposit()` with native MON to mint WMON 1:1; `withdraw(amount)` unwraps back to native MON.
 - Deploy WMON first, then pass its address to the DCMon and BankrollPool constructors.
 
+### Admin Panel Treasury Card
+- Available at `/admin` once the front-end is deployed; connect the owner signer.
+- Displays wallet/pool balances for WMON and DCMon plus active allowances to the pool and DCMon contract.
+- Owner controls: wrap/unwrap MON, approve pool/DCMon, deposit underlying, redeem DCMon, deposit/redeem to the owner wallet, and record rewards.
+- Every successful tx clears its input and triggers a refresh, making the panel safe for manual interventions between automation runs.
+
+### Current Monad Testnet Deployment
+- WMON: 0x7b4E8B2a3E934701D8bF6cFB31C3f3BDaC5e30Ff
+- DCMon: 0xF81592Eb0B6811eF655676Ba77625bD3Db7c6C92
+- BankrollPool: 0x31574064907cbE75C61Fea28C545264817A9AA4a
+- Player reward wallet: 0xCe1C5bb15041361D6Ab22aAFb3887dD28D05a16E
+- Faro: 0x953f1Bba2eeEa57482037377BD5103cEbA85C987
+- Hazard: 0xb0103807b4B758945331BF6783873Cd776037f89
+- Shell: 0x7Ff5A1b0d71eE4C66D24121D2E68D7844704D377
+- DakChog: 0xa8F48cccE4968F5bf40f3411B2265cEBDB517ADf
+- HoldemPoker: 0x681BADA5D0d012ABEB9f8A8F0E38758396DE0db3
+
 ### Server Agent
 - `cd server && npm install`
 - `.env` variables prefixed `DCMON_...` (see `.env.example`).
@@ -34,7 +51,7 @@
    - Contract lives at `Contracts/DCMon.sol` (new file added in this patch).
 
 2. **Agent / Backend Worker**
-   - Handles swaps: MON/USDC ↔ DCmon, using Mandelbrot/Monad DEX once available. Initially, we can rely on a liquidity provider or mock swap route.
+   - Handles swaps and treasury flows: MON/USDC <-> DCMon (once DEX routes exist) and interim wrap/unwrap/deposit cycles when liquidity is pre-provisioned.
    - Monitors paymaster balance. When low, converts a portion of DCmon to MON (or native) and funds the paymaster account.
    - Calls `recordRewards` when staking rewards are harvested.
    - Maintains an encrypted audit log of all swaps/payouts. The key is derived from the owner wallet; only the house can decrypt.
@@ -45,7 +62,7 @@
 
 4. **Frontend**
    - Buy-in modal offers DCmon by default; for on-chain seats, user can buy/convert during the flow.
-   - Add swap widget: DCmon ↔ USDC/MON using Phantom or MetaMask.
+   - Add swap widget: DCmon <-> USDC/MON using Phantom or MetaMask.
    - Display staked balance, estimated APY, and reward pool stats.
 
 5. **Wallet/AA Integration**
@@ -54,14 +71,14 @@
    - Paymaster operations remain the same; the agent simply sources gas tokens from DCmon liquidity.
 
 6. **Reward Pool Distribution**
-   - On-chain or off-chain logic to determine “top players” in each epoch.
+   - On-chain or off-chain logic to determine "top players" in each epoch.
    - Admin/keeper triggers `distributePlayerReward` for the winners.
    - Rewards can be paid in DCmon or converted to MON/USDC first.
 
 ## Immediate Implementation Notes
 
 - `DCMon.sol` currently mints/burns 1:1 with underlying WMON (minted 1:1 from native MON). Adjust exchange rate later when a staking contract is integrated (e.g., via shares and total underlying tracking).
-- The contract assumes the operator will transfer rewards in MON. Good enough for MVP – swap logic can be refined.
+- The contract assumes the operator will transfer rewards in MON. Good enough for MVP - swap logic can be refined.
 - Logging/encryption: backend needs to persist encrypted JSON entries. Recommend libsodium/TweetNaCl with a key stored offline.
 - Swap path: initially stub with a simple swap contract or direct treasury-controlled liquidity; later integrate Monad DEX (when available).
 - Ensure paymaster funding logic is unit-tested to avoid runbook surprises.
@@ -89,7 +106,7 @@ Next: hook the agent into swap / paymaster services and wire realtime server to 
 1. Copy `server/.env.example` to `.env` and fill in DCmon addresses, paymaster, and RPC URL.
 2. Install deps (`cd server && npm install`).
 3. Start the agent in dry mode (`npm run agent`). It will:
-   - Check paymaster balance and log top-up intent.
+   - Check paymaster balance, trigger wrap/approve/deposit when below threshold, and log top-up intent.
    - Check staking rewards (`recordRewards`) and log intent.
    - Process the swap queue file.
 4. Use `npm run swap:add` to enqueue a sample swap while testing.
