@@ -23,7 +23,6 @@ cd ~/The-Dak-and-Chog-Tavern && git fetch origin && git reset --hard origin/main
 DOMAIN="thedakandchog.xyz" WEBROOT="/var/www/${DOMAIN}/html" UPLOAD="/var/www/${DOMAIN}/html_upload" bash scripts/deploy-ec2.sh
 
 ```
-Poker used to run on 3101 but now I have a single unified backend on port 3100
 
 
 Realtime backend (Socket.IO) - restart/health
@@ -82,7 +81,7 @@ location /poker.io/ {
 3) Clients
 - Faro clients can continue using the default path (`/socket.io`) or switch to `/faro.io` if you add the path override.
 - Poker clients: change Socket.IO path to `/poker.io` when you cut over.
-  - Example in code: `io(origin, { path: '/poker.io' })`
+  - Example in code: `io(origin, { path: '/poker.io/' })`
 
 4) Backend flag
 - The server supports `GAME_TYPES` (default `FARO,POKER`). For a unified backend:
@@ -146,7 +145,7 @@ Troubleshooting
 sudo perl -0777 -pe "s/const t = getTable\(tableId\);\
 [ \t]*try/const t = getTable(tableId);
 try/" -i /home/ubuntu/The-Dak-and-Chog-Tavern/server/poker-rt.js
-pm2 restart poker-rt && pm2 logs poker-rt
+pm2 restart realtime && pm2 logs realtime
 ```
   - Best fix is to pull latest `main` which already contains the corrected block.
 
