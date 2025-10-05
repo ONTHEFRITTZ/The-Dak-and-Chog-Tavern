@@ -1,24 +1,23 @@
-Mission 8 — Poker AA Build
+Mission 8 - Poker AA Build
 
 Completed
 - AA client bootstrap in `js/aaClient.js` with Monad bundler + paymaster defaults.
-- Poker table client in `games/poker/table.js`: seat layout, private hole handling, timers, action bar, DevBot control (F2P solo only).
+- Poker table client in `games/poker/table.js`: seat layout, private hole handling, timers, action bar.
 - Realtime poker server (`server/realtime.js`): private cards stream, betting rounds, turn order, burn/flop/turn/river, showdown, and automatic hand start when 2+ players are seated.
 - Dealer bridge (`server/dealeronchain.js`): begin/settle hooks (safe no-op without signer).
 - On-chain widgets (`js/agent-ops.js`, `js/agent-budget.js`, sponsor indicator) broadcast state to UI on on-chain tables only; sponsor note appears under wallet pill when active.
 - Nginx config prevents SPA fallback for `/js`, `/css`, `/assets`.
 
-Ready To Verify
-- End-to-end: play live hands on F2P and on-chain (seating, DevBot toggle, sponsored ops).
+Ready To Verify (manual)
+- End-to-end: play live hands on F2P and on-chain (seating, sponsored ops).
 - On-chain funding: bundler/paymaster sponsors a full on-chain hand (seat + blinds + actions + settle).
-- Demo capture: walkthrough from connect → sponsored seating → full hand.
+- Demo capture: walkthrough from connect + sponsored seating + full hand.
 
-Polish (in progress)
+Polish (done)
 - Stronger turn cues and streamlined action bar, with dynamic min-raise suggestion and validation.
-- Seat UX: “you” highlight, hover cues.
-- Hand recap pill improvements.
-- Robust reconnect: auto-identify and recover private holes.
+- Seat UX: YOU highlight, hover cues.
+- Hand recap pill baseline (last winner + pot), consistent visibility.
+- Robust reconnect: auto-identify, re-join table, and recover private holes.
 
 Removed
 - Farcaster-related surfaces (not part of Mission 8).
-

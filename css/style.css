@@ -364,11 +364,48 @@ html[data-table-mode="onchain"] #wallet-inline,
   transition: transform .18s ease, filter .18s ease;
 }
 
+/* Stronger turn pulse */
+.seat.turn::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 12px;
+  box-shadow: 0 0 0 0 rgba(255,215,120,0.55);
+  animation: seatTurnPulse 1.4s ease-in-out infinite;
+}
+
+@keyframes seatTurnPulse {
+  0% { box-shadow: 0 0 0 0 rgba(255,215,120,0.55); }
+  70% { box-shadow: 0 0 0 10px rgba(255,215,120,0); }
+  100% { box-shadow: 0 0 0 0 rgba(255,215,120,0); }
+}
+
 /* Emphasize the player's own seat */
 .seat.me {
   outline: 2px solid rgba(255,255,255,0.18);
   border-radius: 10px;
   filter: drop-shadow(0 0 10px rgba(140,180,255,0.35));
+}
+.seat.me .you-badge {
+  position: absolute;
+  top: -6px; left: -6px;
+  background: rgba(120,180,255,0.9);
+  color: #0b1220;
+  border-radius: 999px;
+  padding: 2px 6px;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .3px;
+}
+.seat:hover { filter: drop-shadow(0 2px 10px rgba(0,0,0,0.35)); }
+
+/* Action bar input state */
+.table-canvas .action-bar .bet-input:disabled {
+  opacity: .6;
+}
+.table-canvas .action-bar .bet-input.invalid {
+  border-color: rgba(255,120,120,0.6);
+  box-shadow: 0 0 0 2px rgba(255,120,120,0.15);
 }
 .seat:hover { filter: drop-shadow(0 2px 10px rgba(0,0,0,0.35)); }
 
