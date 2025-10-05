@@ -20,6 +20,35 @@ const currentTableId = (window.currentTableId ?? getQueryParam('table')) || null
 // ---- globals ----
 let socket;
 let myAddr = (localStorage.getItem('walletAddress') || sessionStorage.getItem('walletAddress') || '').toLowerCase();
+
+function ensureGuestAddr() {
+  try {
+    const key = 'guestWalletAddress';
+    let guest = sessionStorage.getItem(key) || localStorage.getItem(key);
+    if (!guest || !/^0x[0-9a-fA-F]{40}$/.test(guest)) {
+      if (window.crypto?.getRandomValues) {
+        const buf = new Uint8Array(20);
+        window.crypto.getRandomValues(buf);
+        guest = '0x' + Array.from(buf, b => b.toString(16).padStart(2,'0')).join('');
+      } else {
+        guest = '0x' + Array.from({ length: 40 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
+      }
+      try { sessionStorage.setItem(key, guest); } catch {}
+      try { localStorage.setItem(key, guest); } catch {}
+    }
+    try { sessionStorage.setItem('walletAddress', guest); } catch {}
+    try { localStorage.setItem('walletAddress', guest); } catch {}
+    window.__GUEST_ADDR = guest;
+    return guest;
+  } catch {
+    return null;
+  }
+}
+
+if (!myAddr) {
+  const guest = ensureGuestAddr();
+  if (guest) myAddr = guest.toLowerCase();
+}
 let chainIdHex = null;
 
 // ---- utils ----
