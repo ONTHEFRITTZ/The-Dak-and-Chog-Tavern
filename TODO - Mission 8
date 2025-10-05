@@ -10,6 +10,7 @@ Completed
 - Guest fallback: F2P seats create a deterministic guest 0x address so "Sit" works without a wallet.
 - DCmon foundation: token contract, Hardhat tests, agent scaffolding, encrypted ops log, swap queue.
 - WMON wrapper: deployed Contracts/WMON.sol with Hardhat coverage to wrap native MON for DCMon/Bankroll.
+- Admin panel: WMON/DCMon treasury card with wrap/approve/deposit controls.
 - Faro/Hazard/Shell games now use DCmon tokens via bankroll pool.
 - DakChog and HoldemPoker converted to DCmon (BankrollPool payouts, rake withdrawal).
 
@@ -19,7 +20,7 @@ Ready To Verify / Playtest
 - Demo capture: wallet connect + DCmon buy-in + full hand with reward logging.
 
 In Progress
-- DCmon swaps: implement actual MON/USDC → DCmon trades in `processSwapQueue`.
+- DCmon swaps: implement actual MON/USDC -> DCmon trades in `processSwapQueue`.
 - Reward harvest: integrate staking venue and call `recordRewards` for 70/30 split.
 - Paymaster funding: finalize swap + transfer logic in `ensurePaymasterBalance`.
 - On-chain tables: update poker backend + AA flow to track DCmon chips (contract side ready).
@@ -31,3 +32,4 @@ Backlog / Ideas
 - Expose DCmon stats dashboard (APY, house vs player rewards).
 - Automated alerting when paymaster top-ups fail.
 - Snapshot + governance hooks once DCmon supply grows.
+

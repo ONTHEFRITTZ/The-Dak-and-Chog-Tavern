@@ -21,7 +21,7 @@
     (async()=>{
       try{
         const tag = window.__BUILD_TAG || Date.now();
-        for (const src of [`../js/TavernABI.js?v=${tag}`, `../js/FaroABI.js?v=${tag}`, `../js/PoolABI.js?v=${tag}`, `../js/PokerTablePoolABI.js?v=${tag}`]){
+        for (const src of [`../js/TavernABI.js?v=${tag}`, `../js/FaroABI.js?v=${tag}`, `../js/PoolABI.js?v=${tag}`, `../js/DCMonABI.js?v=${tag}`, `../js/WMONABI.js?v=${tag}`, `../js/PokerTablePoolABI.js?v=${tag}`]){
           const s=document.createElement('script'); s.src=src; document.head.appendChild(s);
         }
       }catch(e){ console.error('admin abi loader failed', e); }
@@ -71,6 +71,11 @@
     .ok { background:#006400; color:#fff; }
     .btn { padding:6px 10px; border-radius:6px; cursor:pointer; border:none; color:#f4e6d3; background: rgba(255,255,255,0.08); }
     .btn:hover { background: rgba(255,255,255,0.16); }
+    .stats-grid { display:flex; flex-wrap:wrap; gap:12px; margin:12px 0; }
+    .stats-grid .stat-card { flex:1 1 220px; min-width:200px; background: rgba(0,0,0,0.25); border:1px solid rgba(255,255,255,0.12); border-radius:8px; padding:8px 10px; box-sizing:border-box; }
+    .stat-label { font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color: rgba(244,230,211,0.7); display:block; margin-bottom:4px; }
+    .stat-value { font-size:15px; font-weight:600; color:#f4e6d3; word-break:break-word; }
+    .section-divider { margin:14px 0 10px; height:1px; background:rgba(255,255,255,0.08); border:none; }
     .readonly { opacity:.6; }
     /* Hide deprecated cards */
     #tavern-card, #faro-card { display:none !important; }
@@ -104,7 +109,20 @@
         <h3 style="margin-top:0;">Liquidity Pool</h3>
         <div class="muted">Address: <span id="pool-address">-</span></div>
         <div class="muted">Owner: <span id="pool-owner">-</span></div>
-        <div class="muted">Balance: <span id="pool-balance">-</span></div>
+        <div class="stats-grid">
+          <div class="stat-card">
+            <span class="stat-label">Underlying (WMON)</span>
+            <span class="stat-value" id="pool-underlying">-</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">DCMon Balance</span>
+            <span class="stat-value" id="pool-dcmon">-</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">Native Balance</span>
+            <span class="stat-value" id="pool-native">-</span>
+          </div>
+        </div>
         <div class="row" style="margin-top:8px;">
           <div style="flex:1;">
             <label>Override Address</label>
@@ -112,23 +130,17 @@
           </div>
           <button id="pool-set-addr" class="btn">Use</button>
         </div>
-        <div class="row" style="margin-top:6px;">
-          <div style="width:180px;">
-            <label>Fund Amount (MON)</label>
-            <input id="pool-fund-amt" type="number" min="0" step="0.001" placeholder="0.1">
-          </div>
-          <button id="pool-fund" class="btn ok">Fund</button>
-        </div>
-        <div class="row" style="margin-top:6px;">
+        <hr class="section-divider">
+        <div class="row">
           <div style="flex:1;">
-            <label>Withdraw To (address)</label>
+            <label>Withdraw WMON to address</label>
             <input id="pool-to" type="text" placeholder="0x...">
           </div>
           <div style="width:180px;">
-            <label>Amount (MON)</label>
-            <input id="pool-amt" type="number" min="0" step="0.001" placeholder="0.1">
+            <label>Amount (WMON)</label>
+            <input id="pool-amt" type="number" min="0" step="any" placeholder="Amount">
           </div>
-          <button id="pool-withdraw" class="btn danger">Withdraw</button>
+          <button id="pool-withdraw" class="btn">Withdraw</button>
         </div>
         <div class="row" style="margin-top:6px;">
           <div style="flex:1;">
@@ -143,18 +155,100 @@
           <div id="pool-auth-list" class="muted" style="font-family: ui-monospace, Menlo, Consolas, monospace; font-size:12px; white-space:nowrap; overflow:auto; max-height:180px; background: rgba(0,0,0,0.25); border:1px solid rgba(255,255,255,0.12); border-radius:8px; padding:8px;"></div>
         </div>
 
-      </div>
-
-      <div class="row" style="margin-top:8px;">
-          <div style="flex:1;">
-            <label>Override Address</label>
-            <input id="pokerpooled-override" type="text" placeholder="0x...">
+      </div>      <div class="admin-card" id="treasury-card">
+        <h3 style="margin-top:0;">WMON / DCMon Treasury</h3>
+        <div class="muted">WMON: <span id="wmon-address">-</span></div>
+        <div class="muted">DCMon: <span id="dcmon-address">-</span></div>
+        <div class="muted">House Treasury: <span id="dcmon-house">-</span></div>
+        <div class="muted">Player Rewards: <span id="dcmon-player">-</span></div>
+        <div class="stats-grid">
+          <div class="stat-card">
+            <span class="stat-label">Wallet WMON</span>
+            <span class="stat-value" id="wmon-wallet">-</span>
           </div>
-          <button id="pokerpooled-set-addr" class="btn">Use</button>
+          <div class="stat-card">
+            <span class="stat-label">Wallet DCMon</span>
+            <span class="stat-value" id="dcmon-wallet">-</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">Pool WMON</span>
+            <span class="stat-value" id="wmon-pool">-</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">Pool DCMon</span>
+            <span class="stat-value" id="dcmon-pool">-</span>
+          </div>
         </div>
-        <div class="muted" id="pokerpooled-msg" style="margin-top:6px;"></div>
-      </div>
-      <div class="admin-card" id="rt-card">
+        <div class="row">
+          <div style="flex:1;">
+            <label>Wrap native MON → WMON</label>
+            <input id="wmon-wrap-amt" type="number" min="0" step="any" placeholder="Amount">
+          </div>
+          <button id="wmon-wrap" class="btn">Wrap</button>
+        </div>
+        <div class="row" style="margin-top:6px;">
+          <div style="flex:1;">
+            <label>Unwrap WMON → MON</label>
+            <input id="wmon-unwrap-amt" type="number" min="0" step="any" placeholder="Amount">
+          </div>
+          <button id="wmon-unwrap" class="btn">Unwrap</button>
+        </div>
+        <div class="row" style="margin-top:6px;">
+          <div style="flex:1;">
+            <label>Approve WMON for Pool</label>
+            <input id="wmon-approve-amt" type="number" min="0" step="any" placeholder="Amount (blank = max)">
+          </div>
+          <button id="wmon-approve" class="btn">Approve</button>
+          <button id="wmon-approve-max" class="btn">Max</button>
+        </div>
+        <div class="muted" style="margin-top:4px;">Allowance to Pool: <span id="wmon-allowance">-</span></div>
+        <div class="row" style="margin-top:6px;">
+          <div style="flex:1;">
+            <label>Approve WMON for DCMon</label>
+            <input id="wmon-approve-dcmon-amt" type="number" min="0" step="any" placeholder="Amount (blank = max)">
+          </div>
+          <button id="wmon-approve-dcmon" class="btn">Approve</button>
+          <button id="wmon-approve-dcmon-max" class="btn">Max</button>
+        </div>
+        <div class="muted" style="margin-top:4px;">Allowance to DCMon: <span id="wmon-allowance-dcmon">-</span></div>
+        <hr class="section-divider">
+        <div class="row">
+          <div style="flex:1;">
+            <label>Deposit Underlying (WMON) to Pool</label>
+            <input id="pool-deposit-amt" type="number" min="0" step="any" placeholder="Amount">
+          </div>
+          <button id="pool-deposit" class="btn">Deposit</button>
+        </div>
+        <div class="row" style="margin-top:6px;">
+          <div style="flex:1;">
+            <label>Redeem DCMon from Pool</label>
+            <input id="pool-redeem-amt" type="number" min="0" step="any" placeholder="Amount DCMon">
+          </div>
+          <button id="pool-redeem" class="btn">Redeem</button>
+        </div>
+        <hr class="section-divider">
+        <div class="row">
+          <div style="flex:1;">
+            <label>DCMon Deposit to Wallet</label>
+            <input id="dcmon-deposit-amt" type="number" min="0" step="any" placeholder="Amount">
+          </div>
+          <button id="dcmon-deposit" class="btn">Deposit</button>
+        </div>
+        <div class="row" style="margin-top:6px;">
+          <div style="flex:1;">
+            <label>DCMon Redeem to Wallet</label>
+            <input id="dcmon-redeem-amt" type="number" min="0" step="any" placeholder="Amount">
+          </div>
+          <button id="dcmon-redeem" class="btn">Redeem</button>
+        </div>
+        <div class="row" style="margin-top:6px;">
+          <div style="flex:1;">
+            <label>Record Rewards (WMON)</label>
+            <input id="dcmon-reward-amt" type="number" min="0" step="any" placeholder="Amount">
+          </div>
+          <button id="dcmon-record" class="btn">Record</button>
+        </div>
+      </div>\n      <div class="admin-card" id="rt-card">
         <h3 style="margin-top:0;">Realtime (Multiplayer)</h3>
         <div class="row" style="margin-top:6px; align-items:center; gap:12px;">
           <div class="muted">Status: <span id="rt-status">unknown</span></div>
@@ -230,4 +324,10 @@
   </script>
 </body>
 </html>
+
+
+
+
+
+
 
