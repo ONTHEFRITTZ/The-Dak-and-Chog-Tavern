@@ -227,16 +227,8 @@
     try {
       const host = (location.hostname || '').toLowerCase();
       const isLocal = host === 'localhost' || host === '127.0.0.1';
-      const path = isLocal ? '/socket.io/' : '/poker.io/';
-      return window.io({
-        path,
-        transports: ['polling', 'websocket'],
-        upgrade: true,
-        timeout: 10000,
-        reconnection: true,
-        reconnectionAttempts: 10,
-        reconnectionDelay: 800,
-      });
+      const path = isLocal ? '/socket.io/' : '/poker.io';
+      return window.io({ path });
     } catch {
       try { return window.io(); } catch { return null; }
     }
