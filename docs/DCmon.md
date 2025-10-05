@@ -57,3 +57,11 @@
 
 This document serves as the initial blueprint. As we build out the modules, we should capture runbooks (deploy, swap, paymaster refill) in `/docs/ops/DCmon-runbook.md` (to be added).
 
+## Agent Implementation Status
+
+- Added `server/dcmon-agent.js` (dry-run mode by default)
+  - Loads env configuration, generates encrypted audit logs, stubs for swaps/paymaster funding.
+  - Run locally with `npm install` inside `server/` then `npm run agent`.
+- Agent currently records intent only; TODOs remain for actual swap execution and staking reward pulls.
+
+Next: hook the agent into swap / paymaster services and wire realtime server to DCmon balances.
