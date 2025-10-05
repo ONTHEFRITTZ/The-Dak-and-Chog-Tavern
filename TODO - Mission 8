@@ -7,8 +7,10 @@ Completed
 - Dealer bridge (`server/dealeronchain.js`): begin/settle hooks (safe no-op without signer).
 - On-chain widgets (`js/agent-ops.js`, `js/agent-budget.js`, sponsor indicator) broadcast state and highlight paymaster coverage.
 - NGINX config isolates `/socket.io` and `/poker.io` without SPA fallback.
-- Guest fallback: F2P seats create a deterministic guest 0x address so “Sit” works without a wallet.
+- Guest fallback: F2P seats create a deterministic guest 0x address so "Sit" works without a wallet.
 - DCmon foundation: token contract, Hardhat tests, agent scaffolding, encrypted ops log, swap queue.
+- Faro/Hazard/Shell games now use DCmon tokens via bankroll pool.
+- DakChog and HoldemPoker converted to DCmon (BankrollPool payouts, rake withdrawal).
 
 Ready To Verify / Playtest
 - End-to-end: live hands on F2P and on-chain (AA identify, paymaster sponsorship, reward logging).
@@ -16,10 +18,10 @@ Ready To Verify / Playtest
 - Demo capture: wallet connect + DCmon buy-in + full hand with reward logging.
 
 In Progress
-- DCmon swaps: implement actual MON/USDC ? DCmon trades in `processSwapQueue`.
+- DCmon swaps: implement actual MON/USDC â†’ DCmon trades in `processSwapQueue`.
 - Reward harvest: integrate staking venue and call `recordRewards` for 70/30 split.
 - Paymaster funding: finalize swap + transfer logic in `ensurePaymasterBalance`.
-- On-chain tables: update poker contracts/backend to accept DCmon chips, broadcast balances.
+- On-chain tables: update poker backend + AA flow to track DCmon chips (contract side ready).
 - Frontend: buy-in modal with DCmon + swap UI (Phantom / MetaMask).
 - Reward distribution: choose cadence + ranking for top players; wire to `distributePlayerReward`.
 - Envio indexer: design schema to index DCmon buy-ins, rewards, seat events for fast UI queries.
@@ -27,5 +29,4 @@ In Progress
 Backlog / Ideas
 - Expose DCmon stats dashboard (APY, house vs player rewards).
 - Automated alerting when paymaster top-ups fail.
-- Multi-game DCmon integration (Faro, Hazard, Shell).
 - Snapshot + governance hooks once DCmon supply grows.

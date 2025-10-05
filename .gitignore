@@ -9,3 +9,4 @@ cache/
 coverage/
 typechain/
 Contracts/archive/*.md
+hardhat/contracts/

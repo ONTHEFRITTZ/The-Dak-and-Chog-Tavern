@@ -19,7 +19,7 @@ contract MockERC20 {
     }
 
     function mint(address to, uint256 amount) external {
-        require(to != address(0), 'mint to zero');
+        require(to != address(0), "mint to zero");
         totalSupply += amount;
         balanceOf[to] += amount;
         emit Transfer(address(0), to, amount);
@@ -36,10 +36,10 @@ contract MockERC20 {
     }
 
     function transferFrom(address from, address to, uint256 amount) public returns (bool) {
-        require(balanceOf[from] >= amount, 'balance too low');
+        require(balanceOf[from] >= amount, "balance too low");
         if (from != msg.sender) {
             uint256 allowed = allowance[from][msg.sender];
-            require(allowed >= amount, 'allowance too low');
+            require(allowed >= amount, "allowance too low");
             allowance[from][msg.sender] = allowed - amount;
             emit Approval(from, msg.sender, allowance[from][msg.sender]);
         }

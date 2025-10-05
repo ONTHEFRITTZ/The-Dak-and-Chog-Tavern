@@ -9,14 +9,15 @@
     "hardhat": "^2.22.5"
   },
   "scripts": {
-    "compile": "hardhat compile",
-    "test": "hardhat test",
-    "node": "hardhat node",
-    "deploy:localhost": "hardhat run scripts/deploy.js --network localhost",
-    "deploy:sepolia": "hardhat run scripts/deploy.js --network sepolia",
-    "verify:sepolia": "hardhat run scripts/verify.js --network sepolia"
+    "compile": "node scripts/sync-contracts.cjs && hardhat compile",
+    "test": "node scripts/sync-contracts.cjs && hardhat test",
+    "node": "node scripts/sync-contracts.cjs && hardhat node",
+    "deploy:localhost": "node scripts/sync-contracts.cjs && hardhat run scripts/deploy.js --network localhost",
+    "deploy:sepolia": "node scripts/sync-contracts.cjs && hardhat run scripts/deploy.js --network sepolia",
+    "verify:sepolia": "node scripts/sync-contracts.cjs && hardhat run scripts/verify.js --network sepolia"
   },
   "dependencies": {
     "@openzeppelin/contracts": "^5.0.1"
   }
 }
+
