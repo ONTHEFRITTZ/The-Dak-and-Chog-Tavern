@@ -78,7 +78,6 @@
   const centerBanner = document.getElementById('poker-center');
   const lastHandBox = document.getElementById('last-hand');
   const lastHandEl = document.getElementById('lh-content');
-  const devBotBtn = document.getElementById('wi-devbot');
 
   positionSeats();
 
@@ -493,29 +492,7 @@
     });
   }
 
-  function updateDevBotButton(table) {
-    if (!devBotBtn) return;
-    try {
-      const seatsList = Array.isArray(table?.seats) ? table.seats : [];
-      const humans = seatsList.filter(s => s && typeof s.addr === 'string' && !/^bot:/i.test(String(s.addr))).length;
-      const soloHuman = humans === 1;
-      const f2p = !!table?.simulated;
-      const show = f2p && soloHuman;
-      devBotBtn.style.display = show ? 'inline-flex' : 'none';
-      if (show) devBotBtn.textContent = table.devBotEnabled ? 'Disable DevBot' : 'Enable DevBot';
-    } catch { devBotBtn.style.display = 'none'; }
-  }
-
-  let devBotUserToggled = false;
-  if (devBotBtn && !devBotBtn.dataset.bound) {
-    devBotBtn.dataset.bound = '1';
-  devBotBtn.addEventListener('click', () => {
-      if (!lastTable) return;
-      const next = !lastTable.devBotEnabled;
-      devBotUserToggled = true;
-      socket.emit('devbot:set', { table: tableId, enabled: next });
-    });
-  }
+  // DevBot fully removed: no toggle UI, no events
 
   function renderAllSeats(table) {
     lastTable = table;
@@ -563,31 +540,15 @@
       }
     });
     try { seatMeta.forEach((m, i) => m.seat.classList.toggle('me', i === mySeat)); } catch {}
-    updateDevBotButton(table);
   }
 
   socket.on('connect', () => {
     // Attempt identify on connect; if no wallet connected, seat will be blocked server-side
     ensureIdentify();
     socket.emit('join_table', { table: tableId });
-    // Default DevBot disabled on F2P until explicitly enabled by user
-    try {
-      if (String(tableId||'').toLowerCase().startsWith('poker-sim-')) {
-        socket.emit('devbot:set', { table: tableId, enabled: false });
-      }
-    } catch {}
   });
 
   socket.on('table:update', (table) => {
-    // Enforce no auto-seating of DevBot unless user toggled it this session
-    try {
-      const f2p = !!table?.simulated;
-      const seatsList = Array.isArray(table?.seats) ? table.seats : [];
-      const humans = seatsList.filter(s => s && typeof s.addr === 'string' && !/^bot:/i.test(String(s.addr))).length;
-      if (f2p && humans >= 1 && table.devBotEnabled && !devBotUserToggled) {
-        socket.emit('devbot:set', { table: tableId, enabled: false });
-      }
-    } catch {}
     renderAllSeats(table);
   });
 

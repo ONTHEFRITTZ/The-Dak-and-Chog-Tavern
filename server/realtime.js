@@ -77,7 +77,7 @@ function getTable(id){
     tables.set(id,t); return t;
   }
   if (low.startsWith('poker-sim-')) {
-    const t={ id, kind:'POKER', seats:Array.from({length:POKER_SEATS},()=>null), started:false, lastActive:nowMs(), category:'OFFCHAIN_NL', limit:'NL', simulated:true, devBotEnabled:false, devBotUserToggled:false, poker:null };
+    const t={ id, kind:'POKER', seats:Array.from({length:POKER_SEATS},()=>null), started:false, lastActive:nowMs(), category:'OFFCHAIN_NL', limit:'NL', simulated:true, poker:null };
     tables.set(id,t); return t;
   }
 
@@ -157,45 +157,7 @@ function maybeStartHand(tableId, t){
     }
   }catch(e){ console.error('maybeStartHand', e); }
 }
-function reconcileDevBot(tableId, t){
-  if (!isPoker(t) || t.category!==CAT.OFFCHAIN_NL) return;
-  const humans = humansIn(t);
-  const botIdx = findBotIndex(t);
-
-  // Never allow dev bot when 2+ humans
-  if (humans >= 2) {
-    if (botIdx >= 0) {
-      t.seats[botIdx] = null;
-      try { if (t.poker?.botTimer){ clearTimeout(t.poker.botTimer); t.poker.botTimer=null; } } catch {}
-    }
-    t.devBotEnabled = false;
-    t.devBotUserToggled = !!t.devBotUserToggled; // keep flag but force off
-    return;
-  }
-
-  if (humans === 1) {
-    // Only seat bot if user has explicitly toggled DevBot on
-    if (t.devBotEnabled && t.devBotUserToggled) {
-      if (botIdx === -1) seatFirstEmpty(t, 'bot:dev', 'bot');
-      if (findBotIndex(t) >= 0) {
-        try { const bi=findBotIndex(t); if (bi>=0) t.seats[bi].ready = true; } catch {}
-      }
-    } else {
-      if (botIdx >= 0) {
-        t.seats[botIdx] = null;
-        try { if (t.poker?.botTimer){ clearTimeout(t.poker.botTimer); t.poker.botTimer=null; } } catch {}
-      }
-      t.devBotEnabled = false;
-    }
-  }
-
-  if (humans === 0 && botIdx >= 0) {
-    t.seats[botIdx] = null;
-    try { if (t.poker?.botTimer){ clearTimeout(t.poker.botTimer); t.poker.botTimer=null; } } catch {}
-  }
-
-  maybeStartHand(tableId || t?.id, t);
-}
+function reconcileDevBot(){ /* DevBot removed */ }
 
 /* ------------------------ Poker spawn / prune policy ----------------------- */
 function ensureCategoryBaselines(){ if(!gameEnabled('POKER')) return; ensurePokerTable(CAT.ONCHAIN_NL); ensurePokerTable(CAT.ONCHAIN_FL); ensurePokerTable(CAT.OFFCHAIN_NL); }
@@ -786,10 +748,9 @@ io.on('connection',(socket)=>{
     if (wanted && !tables.has(wanted)) getTable(wanted);
     const t=getTable(wanted);
 
-    // For F2P poker, ensure DevBot is OFF unless explicitly toggled
-    if (isPoker(t) && t.category===CAT.OFFCHAIN_NL && !t.devBotUserToggled) {
-      t.devBotEnabled = false;
-      const bi=findBotIndex(t); if (bi>=0) t.seats[bi]=null;
+    // DevBot removed: purge any bot seats if present
+    if (isPoker(t) && t.category===CAT.OFFCHAIN_NL) {
+      for (let i=0;i<t.seats.length;i++){ const s=t.seats[i]; if (s && typeof s.addr==='string' && s.addr.startsWith('bot:')) t.seats[i]=null; }
     }
 
     if (currentTableId) socket.leave(currentTableId);
@@ -906,21 +867,8 @@ io.on('connection',(socket)=>{
   }catch{} });
 
   // NEW: DevBot toggle (F2P only)
-  socket.on('devbot:set',(m)=>{ try{
-    if(!allow(socket.id,'devbot:set')){ socket.emit('error',{message:'rate limit'}); return; }
-    if(!currentTableId) return; const t=getTable(currentTableId);
-    if(!isPoker(t) || t.category!==CAT.OFFCHAIN_NL) return;
-    // Gate: exactly one human, and the requester must be seated human
-    const humans = humansIn(t);
-    const requesterSeat = t.seats.findIndex(s=> s && s.socketId===socket.id && typeof s.addr==='string' && !s.addr.startsWith('bot:'));
-    if (humans !== 1 || requesterSeat < 0){ socket.emit('error',{message:'devbot toggle not allowed'}); return; }
-    t.devBotEnabled = !!(m && m.enabled);
-    t.devBotUserToggled = true;
-    if (!t.devBotEnabled) {
-      const bi=findBotIndex(t); if (bi>=0) t.seats[bi]=null;
-    }
-    reconcileDevBot(currentTableId, t); emitUpdate(t);
-  }catch{} });
+  // Remove DevBot control entirely
+  socket.on('devbot:set',()=>{});
 });
 
 /* ------------------------- Background maintenance -------------------------- */
