@@ -155,13 +155,12 @@ function initSocket(){
   try {
     socket = io(window.location.origin, {
       path: '/poker.io/',
-      transports: ['websocket','polling'],
+      // Polling first so Cloudflare/CDN handshakes succeed, then upgrade
+      transports: ['polling','websocket'],
       upgrade: true,
       reconnection: true,
       reconnectionAttempts: 10,
-      reconnectionDelay: 800,
-      forceNew: true,
-      withCredentials: true
+      reconnectionDelay: 800
     });
   } catch (e) {
     setStatus('Socket.IO not available');
