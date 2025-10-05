@@ -1,6 +1,6 @@
 // games/poker/table.js — rebuilt minimal client for The Dak & Chog poker table
 // Restores the image-based felt, seat layout, private hole handling, burn flashes,
-// simple dealing animations, action controls, and dev bot toggle for F2P tables.
+// simple dealing animations, action controls.
 
 (() => {
   const ASSET_BASE = '/assets/images/chog_cards/';
@@ -57,7 +57,7 @@
   const seats = Array.from(document.querySelectorAll('.seat'));
   if (!seats.length) return;
 
-  let autoBotArmed = false;
+ 
 
   let board = canvas.querySelector('#board');
   if (!board) {
@@ -492,7 +492,7 @@
     });
   }
 
-  // DevBot fully removed: no toggle UI, no events
+
 
   function renderAllSeats(table) {
     lastTable = table;
@@ -508,7 +508,8 @@
         mySeat = idx;
         
       }
-      if (seatData && !/^bot:/i.test(seatAddr)) humanCount += 1;
+      // DevBot purged: any occupied seat counts as a human
+      if (seatData && seatAddr) humanCount += 1;
       meta.addr.textContent = seatData ? `${short(seatData.addr)}${seatData.ready ? ' [ready]' : ''}` : '';
       meta.seat.classList.toggle('occupied', !!seatData);
       meta.seat.classList.toggle('ready', !!(seatData && seatData.ready));
