@@ -348,16 +348,19 @@ function sendAllPrivateHoles(t){
 /* -------------------------- Poker emit / timers ---------------------------- */
 function emitPokerState(tableId, t){
   try{
-    const st=t.poker;
-    if (!st) return;
+    const st=t.poker; if (!st) return;
+    const all = Array.isArray(st.actors)? st.actors : [];
+    const humans = all.filter(a => !(String(a?.addr||'').toLowerCase().startsWith('bot:')));
+    const turnSeatId = (all[st.turnIndex]?.seatId);
+    const humanTurnIdx = humans.findIndex(a => a.seatId === turnSeatId);
     const m = {
       stage: st.stage,
       community: Array.from(st.community||[]).map(code => String(code)),
       pot: Number(st.pot||0),
       toCall: Number(st.toCall||0),
-      turnIndex: Number.isFinite(st.turnIndex) ? Number(st.turnIndex) : -1,
+      turnIndex: humanTurnIdx,
       dealerSeatId: st.dealerSeatId,
-      actors: st.actors.map(a => ({
+      actors: humans.map(a => ({
         seatId: a.seatId,
         addr: a.addr,
         contrib: Number(a.contrib||0),
