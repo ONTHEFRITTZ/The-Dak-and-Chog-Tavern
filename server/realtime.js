@@ -742,9 +742,12 @@ io.on('connection',(socket)=>{
     if (wanted && !tables.has(wanted)) getTable(wanted);
     const t=getTable(wanted);
 
-    : purge any bot seats if present
+    // Humans-only: purge any invalid/non-0x seats if present
     if (isPoker(t) && t.category===CAT.OFFCHAIN_NL) {
-      for (let i=0;i<t.seats.length;i++){ const s=t.seats[i]; if (s && typeof s.addr==='string' && s.addr.startsWith('bot:')) t.seats[i]=null; }
+      for (let i=0;i<t.seats.length;i++){
+        const s=t.seats[i];
+        if (s && !isValidAddr(String(s.addr||''))) t.seats[i]=null;
+      }
     }
 
     if (currentTableId) socket.leave(currentTableId);
@@ -800,9 +803,11 @@ io.on('connection',(socket)=>{
         t.seats[idx]={ id:idx, addr:addrLower, balance:0, lastActive:nowMs(), socketId:socket.id };
         if (isPoker(t) && t.category===CAT.OFFCHAIN_NL){
           if(!Number.isFinite(t.seats[idx].chips)||t.seats[idx].chips<=0) t.seats[idx].chips=100;
-          t.Enabled = false;
-          t.UserToggled = false;
-          const bi=findBotIndex(t); if (bi>=0) t.seats[bi]=null;
+          // Humans-only: ensure no legacy bot seats remain
+          for (let i=0;i<t.seats.length;i++){
+            const s=t.seats[i];
+            if (s && !isValidAddr(String(s.addr||''))) t.seats[i] = null;
+          }
         }
         audit(currentTableId,'seat',{addr:addrLower,index:idx});
       }
@@ -882,7 +887,7 @@ setInterval(()=>{ try{
 function saveState(){ try{
   const out=[];
   for (const t of tables.values()){
-    out.push({ id:t.id, kind:t.kind, seats:t.seats.map(s=> s && { id:s.id, addr:s.addr, balance:s.balance||0, lastActive:s.lastActive||0, chips:Number(s.chips||0) }), started:!!t.started, lastActive:t.lastActive||0, category:t.category||null, limit:t.limit||null, stakes:t.stakes||null, simulated:!!t.simulated, Enabled:!!t.Enabled, emptySince:t.emptySince||null });
+    out.push({ id:t.id, kind:t.kind, seats:t.seats.map(s=> s && { id:s.id, addr:s.addr, balance:s.balance||0, lastActive:s.lastActive||0, chips:Number(s.chips||0) }), started:!!t.started, lastActive:t.lastActive||0, category:t.category||null, limit:t.limit||null, stakes:t.stakes||null, simulated:!!t.simulated, emptySince:t.emptySince||null });
   }
   fs.writeFile(STATE_FN, JSON.stringify({savedAt:Date.now(),tables:out},null,2), ()=>{});
 }catch{} }
