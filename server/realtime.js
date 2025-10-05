@@ -153,7 +153,7 @@ function maybeStartHand(tableId, t){
     }
   }catch(e){ console.error('maybeStartHand', e); }
 }
-// DevBot removed
+
 
 /* ------------------------ Poker spawn / prune policy ----------------------- */
 function ensureCategoryBaselines(){ if(!gameEnabled('POKER')) return; ensurePokerTable(CAT.ONCHAIN_NL); ensurePokerTable(CAT.ONCHAIN_FL); ensurePokerTable(CAT.OFFCHAIN_NL); }
@@ -751,7 +751,7 @@ io.on('connection',(socket)=>{
     if (wanted && !tables.has(wanted)) getTable(wanted);
     const t=getTable(wanted);
 
-    // DevBot removed: purge any bot seats if present
+    : purge any bot seats if present
     if (isPoker(t) && t.category===CAT.OFFCHAIN_NL) {
       for (let i=0;i<t.seats.length;i++){ const s=t.seats[i]; if (s && typeof s.addr==='string' && s.addr.startsWith('bot:')) t.seats[i]=null; }
     }
@@ -772,7 +772,6 @@ io.on('connection',(socket)=>{
       if (si>=0){ t.seats[si].socketId = socket.id; }
     }
 
-    reconcileDevBot(wanted, t);
     t.lastActive=nowMs();
     emitUpdate(t);
     io.to(wanted).emit('system', `${short(socket.id)} joined ${wanted}`);
@@ -810,15 +809,14 @@ io.on('connection',(socket)=>{
         t.seats[idx]={ id:idx, addr:addrLower, balance:0, lastActive:nowMs(), socketId:socket.id };
         if (isPoker(t) && t.category===CAT.OFFCHAIN_NL){
           if(!Number.isFinite(t.seats[idx].chips)||t.seats[idx].chips<=0) t.seats[idx].chips=100;
-          // Any time a human takes a seat on F2P poker, force DevBot OFF until they explicitly toggle
-          t.devBotEnabled = false;
-          t.devBotUserToggled = false;
+          // Any time a human takes a seat on F2P poker, force  OFF until they explicitly toggle
+          t.Enabled = false;
+          t.UserToggled = false;
           const bi=findBotIndex(t); if (bi>=0) t.seats[bi]=null;
         }
         audit(currentTableId,'seat',{addr:addrLower,index:idx});
       }
     }
-    if (isPoker(t)) reconcileDevBot(currentTableId, t);
     const after=seatCount(t);
     if(!t.started && before===0 && after>0 && !paused){
       t.started=true;
@@ -841,7 +839,6 @@ io.on('connection',(socket)=>{
           t.seats[i]=null; changed=true;
         }
       }
-      if (isPoker(t) && changed) reconcileDevBot(t.id, t);
       if (changed){ t.lastActive=nowMs(); emitUpdate(t); }
     }
     ensureLobbyPolicy(); emitLobby();
@@ -869,9 +866,7 @@ io.on('connection',(socket)=>{
     t.seats[sIdx].chips = 100; t.lastActive=nowMs(); emitUpdate(t);
   }catch{} });
 
-  // NEW: DevBot toggle (F2P only)
-  // Remove DevBot control entirely
-  socket.on('devbot:set',()=>{});
+
 });
 
 /* ------------------------- Background maintenance -------------------------- */
@@ -882,10 +877,6 @@ setInterval(()=>{ try{
     let changed=false;
     for (let i=0;i<t.seats.length;i++){
       const s=t.seats[i]; if(!s) continue;
-      // Humans-only: purge any bot seats proactively
-      try {
-        if (t.kind==='POKER' && typeof s.addr==='string' && s.addr.startsWith('bot:')) { t.seats[i]=null; changed=true; continue; }
-      } catch {}
       const last=Number(s.lastActive||0);
       if (last && (now-last)>IDLE_EJECT_MS){
         if (t.kind==='FARO'){ try{ t.bets.delete(String(s.addr||'').toLowerCase()); }catch{} }
@@ -893,7 +884,7 @@ setInterval(()=>{ try{
         t.seats[i]=null; changed=true;
       }
     }
-    if (isPoker(t) && changed) reconcileDevBot(t.id, t);
+    // humans-only: no additional reconciliation
     if (changed){ t.lastActive=nowMs(); emitUpdate(t); }
   }
 }catch{} }, 7_000);
@@ -901,7 +892,7 @@ setInterval(()=>{ try{
 function saveState(){ try{
   const out=[];
   for (const t of tables.values()){
-    out.push({ id:t.id, kind:t.kind, seats:t.seats.map(s=> s && { id:s.id, addr:s.addr, balance:s.balance||0, lastActive:s.lastActive||0, chips:Number(s.chips||0) }), started:!!t.started, lastActive:t.lastActive||0, category:t.category||null, limit:t.limit||null, stakes:t.stakes||null, simulated:!!t.simulated, devBotEnabled:!!t.devBotEnabled, emptySince:t.emptySince||null });
+    out.push({ id:t.id, kind:t.kind, seats:t.seats.map(s=> s && { id:s.id, addr:s.addr, balance:s.balance||0, lastActive:s.lastActive||0, chips:Number(s.chips||0) }), started:!!t.started, lastActive:t.lastActive||0, category:t.category||null, limit:t.limit||null, stakes:t.stakes||null, simulated:!!t.simulated, Enabled:!!t.Enabled, emptySince:t.emptySince||null });
   }
   fs.writeFile(STATE_FN, JSON.stringify({savedAt:Date.now(),tables:out},null,2), ()=>{});
 }catch{} }
