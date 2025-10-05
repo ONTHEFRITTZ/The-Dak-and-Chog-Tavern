@@ -112,11 +112,20 @@ function tablePublic(t){
   }
   return {
     id:t.id,
-    seats:t.seats.map(s=> s && ({
-      id:s.id, addr:s.addr, balance:Number(s.balance||0), lastActive:Number(s.lastActive||0),
-      x:(publicProfiles.get(s.addr||'')||{}).x||null, chips:Number(s.chips||0)
-    })),
-    started:!!t.started, devBotEnabled:!!t.devBotEnabled, simulated:!!t.simulated,
+    seats:t.seats.map(s=> {
+      if (!s) return null;
+      // Purge any bot seats from public view (humans only)
+      if (typeof s.addr === 'string' && s.addr.startsWith('bot:')) return null;
+      return {
+        id:s.id,
+        addr:s.addr,
+        balance:Number(s.balance||0),
+        lastActive:Number(s.lastActive||0),
+        x:(publicProfiles.get(s.addr||'')||{}).x||null,
+        chips:Number(s.chips||0)
+      };
+    }),
+    started:!!t.started, simulated:!!t.simulated,
     limit:t.limit, stakes:t.stakes||'', capacity:POKER_SEATS
   };
 }
@@ -413,7 +422,10 @@ function firstToActIndex(st){
 
 async function startPokerHand(tableId,t){
   try{
-    const seated=t.seats.map((s,i)=> s && ({seatId:i,addr:s.addr, socketId:s.socketId||null})).filter(Boolean);
+    // Humans only
+    const seated=t.seats
+      .map((s,i)=> s && ({seatId:i,addr:String(s.addr||'').toLowerCase(), socketId:s.socketId||null}))
+      .filter(x=> x && !x.addr.startsWith('bot:'));
     if (seated.length<2) return;
 
     // Determine dealer seat rotation
@@ -431,7 +443,9 @@ async function startPokerHand(tableId,t){
     for(let k=0;k<t.seats.length;k++){
       const si = (dealerSeatId + k) % t.seats.length;
       const s = t.seats[si];
-      if (s) order.push({ seatId: si, addr: s.addr, socketId: s.socketId||null });
+      if (s && !(String(s.addr||'').toLowerCase().startsWith('bot:'))) {
+        order.push({ seatId: si, addr: String(s.addr||'').toLowerCase(), socketId: s.socketId||null });
+      }
     }
 
     // Prepare deck + fairness
