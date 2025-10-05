@@ -8,8 +8,8 @@ Contributor Workflow (Codex)
 Stable Snapshot
 - Version tag: `assets/version.txt` contains the current stable label (e.g., `stable-2025-09-11`).
 - Build markers:
-  - `/assets/build.json` → `{ commit, builtAt }`
-  - `/assets/deploy_check.txt` → `<commit> @ <UTC>`
+  - `/assets/build.json` â†’ `{ commit, builtAt }`
+  - `/assets/deploy_check.txt` â†’ `<commit> @ <UTC>`
 
 Recommended: EC2 pull-based, atomic deploy
 
@@ -26,20 +26,27 @@ DOMAIN="thedakandchog.xyz" WEBROOT="/var/www/${DOMAIN}/html" UPLOAD="/var/www/${
 Poker used to run on 3101 but now I have a single unified backend on port 3100
 
 
-Realtime backend (Socket.IO) – restart after server changes
-- Uses pm2 with `ecosystem.config.js` (PORT 3100 to match NGINX).
+Realtime backend (Socket.IO) — restart/health
+- Managed by PM2 using `ecosystem.config.js` app `rt-all` (PORT 3100).
 ```
+# From EC2
 cd ~/The-Dak-and-Chog-Tavern
-pm2 restart ecosystem.config.js   # or: pm2 restart dakchog-rt
 
-# Quick health check
-curl -s http://127.0.0.1:3100/ | cat   # expect: Tavern realtime OK
+# If already running, reload or restart the single app
+pm2 reload rt-all || pm2 restart rt-all
 
+# If not started yet (first boot) create logs dir and start
+mkdir -p /var/log/tavern && sudo chown "$USER":"$USER" /var/log/tavern
+pm2 start ecosystem.config.js --only rt-all
+pm2 save   # persist across reboots
+
+# Quick health check (expects exact text)
+curl -s http://127.0.0.1:3100/ | grep -q "Tavern realtime OK" && echo OK || (echo FAIL && exit 1)
+
+# View recent logs if needed
+pm2 logs rt-all --lines 100
 ```
-cd ~/The-Dak-and-Chog-Tavern
-pm2 restart poker-rt
 
-```
 
 2) NGINX (inside your 443 server block)
 ```
@@ -111,11 +118,11 @@ curl -i "https://thedakandchog.xyz/poker.io/?EIO=4&transport=polling&t=$(date +%
 # Expect HTTP/2 200 and a short packet starting with 0{, not an HTML page
 ```
 
-3) Faro remains on `/socket.io` (→ 3100). Poker is on `/poker.io` (→ 3101).
+3) Faro remains on `/socket.io` (â†’ 3100). Poker is on `/poker.io` (â†’ 3101).
 
 
 Cloudflare
-- If HTML looks stale after a green deploy, purge once (Caching → Configuration → Purge Everything).
+- If HTML looks stale after a green deploy, purge once (Caching â†’ Configuration â†’ Purge Everything).
 - Optional: add a Cache Rule to bypass HTML while continuing to cache CSS/JS/images.
 
 Optional NGINX hard cut for legacy paths
@@ -143,5 +150,6 @@ try/" -i /home/ubuntu/The-Dak-and-Chog-Tavern/server/poker-rt.js
 pm2 restart poker-rt && pm2 logs poker-rt
 ```
   - Best fix is to pull latest `main` which already contains the corrected block.
+
 
 

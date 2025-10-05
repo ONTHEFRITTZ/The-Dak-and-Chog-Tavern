@@ -1,4 +1,4 @@
-// games/poker/table.js — rebuilt minimal client for The Dak & Chog poker table
+// games/poker/table.js ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â rebuilt minimal client for The Dak & Chog poker table
 // Restores the image-based felt, seat layout, private hole handling, burn flashes,
 // simple dealing animations, action controls.
 
@@ -104,6 +104,7 @@
     if (!addr) {
       addr = document.createElement('div');
       addr.className = 'addr';
+      addr.textContent = '';
       seat.appendChild(addr);
     }
 
@@ -142,6 +143,16 @@
   actionBar.append(infoText, foldBtn, callBtn, betInput, betBtn);
   canvas.appendChild(actionBar);
 
+  // Purge any non-address labels from seats immediately
+  try {
+    document.querySelectorAll('.seat .addr').forEach(el => {
+      const txt = (el.textContent || '').trim();
+      if (!/^0x[0-9a-fA-F]{6}\.\.\.[0-9a-fA-F]{4}$/.test(txt) && !/^0x[0-9a-fA-F]{40}$/.test(txt)) {
+        el.textContent = '';
+      }
+    });
+  } catch {}
+
   // Allow Enter key and simple keyboard shortcuts when action bar is visible
   betInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
@@ -176,7 +187,13 @@
     if (Math.abs(n) >= 1) return n.toString();
     return n.toFixed(2);
   };
-  const short = (addr) => addr ? addr.slice(0, 6) + '...' + addr.slice(-4) : '-';
+  const short = (addr) => {
+    try {
+      const s = String(addr || '');
+      if (/^0x[0-9a-fA-F]{40}$/.test(s)) return s.slice(0, 6) + '...' + s.slice(-4);
+    } catch {}
+    return '';
+  };
 
   function storedAddr() {
     try {
@@ -345,7 +362,7 @@
       centerBanner.style.display = 'none';
       return;
     }
-    centerBanner.textContent = parts.join(' • ');
+    centerBanner.textContent = parts.join(' - ');
     centerBanner.style.display = 'block';
   }
 
@@ -456,7 +473,7 @@
     betBtn.textContent = raiseAction === 'raise' ? 'Raise' : 'Bet';
     betInput.style.display = 'inline-block';
     betInput.value = '';
-    betInput.placeholder = raiseAction === 'raise' ? 'Raise to…' : 'Bet amount';
+    betInput.placeholder = 'Bet amount';
     const needText = toCall > 0 ? `To call: ${formatChips(toCall)}` : 'Check or bet';
     infoText.textContent = `Your turn - ${needText}`;
     actionBar.classList.remove('hidden');
@@ -465,7 +482,7 @@
       const min = raiseAction === 'raise' ? Math.max(target * 2, 2) : 1;
       betInput.min = String(min);
       betInput.step = '1';
-      betInput.placeholder = raiseAction === 'raise' ? `Raise to ${formatChips(min)}` : 'Bet amount';
+      betInput.placeholder = raiseAction === 'raise' ? ('Raise to ' + formatChips(min)) : 'Bet amount';
       const enableCheck = () => {
         const v = Number(betInput.value);
         const ok = Number.isFinite(v) && v >= min;
@@ -494,6 +511,10 @@
 
 
 
+  function isValidAddr(s) {
+    try { return /^0x[0-9a-fA-F]{40}$/.test(String(s||'')); } catch { return false; }
+  }
+
   function renderAllSeats(table) {
     lastTable = table;
     const me = (currentAddr() || '').toLowerCase();
@@ -504,21 +525,21 @@
       const meta = seatMeta[idx];
       if (!meta) return;
       const seatAddr = (seatData && seatData.addr ? seatData.addr : '').toLowerCase();
-      if (seatData && seatAddr === me) {
+      const valid = seatData && isValidAddr(seatAddr);
+      if (valid && seatAddr === me) {
         mySeat = idx;
         
       }
-      // DevBot purged: any occupied seat counts as a human
-      if (seatData && seatAddr) humanCount += 1;
-      meta.addr.textContent = seatData ? `${short(seatData.addr)}${seatData.ready ? ' [ready]' : ''}` : '';
-      meta.seat.classList.toggle('occupied', !!seatData);
-      meta.seat.classList.toggle('ready', !!(seatData && seatData.ready));
+      if (valid) humanCount += 1;
+      meta.addr.textContent = valid ? `${short(seatData.addr)}${seatData.ready ? ' [ready]' : ''}` : '';
+      meta.seat.classList.toggle('occupied', !!valid);
+      meta.seat.classList.toggle('ready', !!(valid && seatData.ready));
       meta.btns.innerHTML = '';
-      if (!(seatData && seatData.addr)) {
+      if (!valid) {
         const sit = document.createElement('button');
         sit.textContent = 'Sit';
         sit.addEventListener('click', async () => {
-          try { sit.disabled = true; sit.textContent = 'Seating…'; } catch {}
+          try { sit.disabled = true; sit.textContent = 'Seating...'; } catch {}
           const ok = await ensureIdentify();
           if (!ok) {
             try { sit.disabled = false; sit.textContent = 'Sit'; } catch {}
@@ -541,6 +562,15 @@
       }
     });
     try { seatMeta.forEach((m, i) => m.seat.classList.toggle('me', i === mySeat)); } catch {}
+    // LastÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¹ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“chance DOM scrub: never display any nonÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¹ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“0x labels (e.g., legacy bot strings)
+    try {
+      document.querySelectorAll('.seat .addr').forEach(el => {
+        const txt = (el.textContent || '').trim();
+        if (!/^0x[0-9a-fA-F]{6}\.\.\.[0-9a-fA-F]{4}$/.test(txt) && !/^0x[0-9a-fA-F]{40}$/.test(txt)) {
+          el.textContent = '';
+        }
+      });
+    } catch {}
   }
 
   socket.on('connect', () => {
@@ -561,14 +591,15 @@
     if (state?.stage !== lastStage) {
       if (state?.stage === 'preflop' && lastTable) {
         (lastTable.seats || []).forEach((seatData, idx) => {
-        const saddr = seatData && String(seatData.addr||'').toLowerCase();
-        const me = (currentAddr()||'').toLowerCase();
-        if (seatData && saddr !== me) {
-          setSeatCards(idx, [null, null], { faceDown: true });
-        } else if (!(seatData && seatData.addr)) {
-          clearSeatCards(idx);
-        }
-      });
+          const saddr = seatData && String(seatData.addr||'').toLowerCase();
+          const meAddr = (currentAddr()||'').toLowerCase();
+          const valid = seatData && isValidAddr(saddr);
+          if (valid && saddr !== meAddr) {
+            setSeatCards(idx, [null, null], { faceDown: true });
+          } else if (!valid) {
+            clearSeatCards(idx);
+          }
+        });
         board.innerHTML = '';
         burnPile.innerHTML = '';
         lastCommunity = [];

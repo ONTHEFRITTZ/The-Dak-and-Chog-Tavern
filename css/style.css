@@ -1,4 +1,4 @@
-/* ==========================================================================
+﻿/* ==========================================================================
    Dak & Chog — Global Styles (leaned, de-duped)
    ========================================================================== */
 
@@ -277,10 +277,6 @@ html[data-table-mode="onchain"] #wallet-inline,
    POKER TABLE — MINIMAL, IMAGE-ONLY SURFACE, NO ORANGE TOKENS
    ========================================================================== */
 
-/* DevBot must never appear on on-chain tables */
-html[data-table-mode="onchain"] #wi-devbot,
-:root[data-table-mode="onchain"] #wi-devbot { display:none !important; visibility:hidden !important; }
-
 /* Canvas holds the table art + absolutely positioned seats */
 .table-canvas {
   position: relative;
@@ -474,7 +470,7 @@ html[data-table-mode="onchain"] #wi-devbot,
   display:none !important; visibility:hidden !important;
 }
 
-/* Community cards: we don’t show empty “slots” — cards are injected only when needed */
+/* Community cards: we don't show empty slots — cards are injected only when needed */
 #board { position:absolute; left:50%; top:50%; transform: translate(-50%,-50%); z-index: 3; pointer-events: none; display: flex; align-items:center; }
 #board.empty { display: none; }
 #board .card { margin: 0 4px; }
@@ -531,5 +527,5 @@ html[data-table-mode="onchain"] #wi-devbot,
 .sidebar-footer { display:none !important; visibility:hidden !important; }
 .table-canvas .card { width: 60px; height: 84px; }
 .table-canvas #board .card { margin: 0 4px; }
-/* Override corrupted bullet content if present */
-.sidebar.collapsed .sidebar-links li a::after { content: '•' !important; }
+/* Fix: ensure collapsed sidebar bullet is a clean dot */
+.sidebar.collapsed .sidebar-links li a::after { content: '\2022' !important; }
