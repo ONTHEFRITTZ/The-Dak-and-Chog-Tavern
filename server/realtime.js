@@ -906,6 +906,10 @@ io.on('connection',(socket)=>{
     if(!allow(socket.id,'devbot:set')){ socket.emit('error',{message:'rate limit'}); return; }
     if(!currentTableId) return; const t=getTable(currentTableId);
     if(!isPoker(t) || t.category!==CAT.OFFCHAIN_NL) return;
+    // Gate: exactly one human, and the requester must be seated human
+    const humans = humansIn(t);
+    const requesterSeat = t.seats.findIndex(s=> s && s.socketId===socket.id && typeof s.addr==='string' && !s.addr.startsWith('bot:'));
+    if (humans !== 1 || requesterSeat < 0){ socket.emit('error',{message:'devbot toggle not allowed'}); return; }
     t.devBotEnabled = !!(m && m.enabled);
     t.devBotUserToggled = true;
     if (!t.devBotEnabled) {
