@@ -846,6 +846,10 @@ io.on('connection',(socket)=>{
         t.seats[idx]={ id:idx, addr:addrLower, balance:0, lastActive:nowMs(), socketId:socket.id };
         if (isPoker(t) && t.category===CAT.OFFCHAIN_NL){
           if(!Number.isFinite(t.seats[idx].chips)||t.seats[idx].chips<=0) t.seats[idx].chips=100;
+          // Any time a human takes a seat on F2P poker, force DevBot OFF until they explicitly toggle
+          t.devBotEnabled = false;
+          t.devBotUserToggled = false;
+          const bi=findBotIndex(t); if (bi>=0) t.seats[bi]=null;
         }
         audit(currentTableId,'seat',{addr:addrLower,index:idx});
       }
