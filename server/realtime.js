@@ -893,6 +893,10 @@ setInterval(()=>{ try{
     let changed=false;
     for (let i=0;i<t.seats.length;i++){
       const s=t.seats[i]; if(!s) continue;
+      // Humans-only: purge any bot seats proactively
+      try {
+        if (t.kind==='POKER' && typeof s.addr==='string' && s.addr.startsWith('bot:')) { t.seats[i]=null; changed=true; continue; }
+      } catch {}
       const last=Number(s.lastActive||0);
       if (last && (now-last)>IDLE_EJECT_MS){
         if (t.kind==='FARO'){ try{ t.bets.delete(String(s.addr||'').toLowerCase()); }catch{} }
