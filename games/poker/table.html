@@ -165,39 +165,18 @@
     })();
   </script>
 
-  <!-- HARD LOCK: DevBot must never show on onchain tables -->
-  <style>
-    html[data-table-mode="onchain"] #wi-devbot {
-      display: none !important;
-      visibility: hidden !important;
-    }
-  </style>
+  <!-- DevBot removed: no extra on-chain CSS needed -->
 </head>
 
 <body class="game">
-  <!-- Top-right wallet chip (only thing up top). DevBot button is F2P solo only -->
+  <!-- Top-right wallet chip (only thing up top) -->
   <div id="wallet-inline">
     <span id="wi-label">Wallet:</span>
     <span id="wi-address">-</span>
     <button id="wi-disconnect" style="display:none">Disconnect</button>
   </div>
 
-  <!-- Extra guard: if page is ONCHAIN, nuke any attempt to show or recreate DevBot -->
-  <script>
-    (function () {
-      try {
-        if (document.documentElement.getAttribute('data-table-mode') === 'onchain') {
-          const kill = () => {
-            const b = document.getElementById('wi-devbot');
-            if (b) b.remove();
-          };
-          kill();
-          const mo = new MutationObserver(kill);
-          mo.observe(document.body, { childList: true, subtree: true, attributes: true });
-        }
-      } catch {}
-    })();
-  </script>
+  <!-- DevBot removed: no mutation observers necessary -->
 <!-- Table canvas -->
 <div class="table-canvas">
   <div class="table-surface" role="presentation">
