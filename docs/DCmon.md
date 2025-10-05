@@ -14,6 +14,11 @@
 - Verify: `npx hardhat run scripts/verify-dcmon.js --network <net>` with `DCMON_TOKEN_ADDR` in `.env`.
 - Deployment info written to `hardhat/deployments/dcmon-<network>.json`.
 
+### Wrapped Monad (WMON)
+- Contract: `Contracts/WMON.sol` (WETH9-style wrapper).
+- Users or the agent call `deposit()` with native MON to mint WMON 1:1; `withdraw(amount)` unwraps back to native MON.
+- Deploy WMON first, then pass its address to the DCMon and BankrollPool constructors.
+
 ### Server Agent
 - `cd server && npm install`
 - `.env` variables prefixed `DCMON_...` (see `.env.example`).
@@ -23,7 +28,7 @@
 ## High-Level Architecture
 
 1. **DCmon Token Contract**
-   - ERC-20 (via OpenZeppelin) with deposit and withdraw for underlying MON.
+   - ERC-20 (via OpenZeppelin) with deposit and withdraw for underlying WMON (wrapped Monad native).
    - `recordRewards` function accepts staking rewards (MON) from the operator and splits automatically (70/30).
    - Optional `distributePlayerReward` helper moves funds from the player pool to reward recipients.
    - Contract lives at `Contracts/DCMon.sol` (new file added in this patch).
@@ -55,7 +60,7 @@
 
 ## Immediate Implementation Notes
 
-- `DCMon.sol` currently mints/burns 1:1 with underlying MON. Adjust exchange rate later when a staking contract is integrated (e.g., via shares and total underlying tracking).
+- `DCMon.sol` currently mints/burns 1:1 with underlying WMON (minted 1:1 from native MON). Adjust exchange rate later when a staking contract is integrated (e.g., via shares and total underlying tracking).
 - The contract assumes the operator will transfer rewards in MON. Good enough for MVP – swap logic can be refined.
 - Logging/encryption: backend needs to persist encrypted JSON entries. Recommend libsodium/TweetNaCl with a key stored offline.
 - Swap path: initially stub with a simple swap contract or direct treasury-controlled liquidity; later integrate Monad DEX (when available).

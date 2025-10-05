@@ -9,6 +9,7 @@ Completed
 - NGINX config isolates `/socket.io` and `/poker.io` without SPA fallback.
 - Guest fallback: F2P seats create a deterministic guest 0x address so "Sit" works without a wallet.
 - DCmon foundation: token contract, Hardhat tests, agent scaffolding, encrypted ops log, swap queue.
+- WMON wrapper: deployed Contracts/WMON.sol with Hardhat coverage to wrap native MON for DCMon/Bankroll.
 - Faro/Hazard/Shell games now use DCmon tokens via bankroll pool.
 - DakChog and HoldemPoker converted to DCmon (BankrollPool payouts, rake withdrawal).
 
