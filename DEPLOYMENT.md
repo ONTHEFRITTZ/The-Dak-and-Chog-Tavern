@@ -27,24 +27,24 @@ Poker used to run on 3101 but now I have a single unified backend on port 3100
 
 
 Realtime backend (Socket.IO) - restart/health
-- Managed by PM2 using `ecosystem.config.js` app `rt-all` (PORT 3100).
+- Managed by PM2 as `realtime` (PORT 3100).
 ```
 # From EC2
 cd ~/The-Dak-and-Chog-Tavern
 
 # If already running, reload or restart the single app
-pm2 reload rt-all || pm2 restart rt-all
+pm2 reload realtime || pm2 restart realtime
 
-# If not started yet (first boot) create logs dir and start
+# If not started yet (first boot) create logs dir and start the process as `realtime`
 mkdir -p /var/log/tavern && sudo chown "$USER":"$USER" /var/log/tavern
-pm2 start ecosystem.config.js --only rt-all
+pm2 start server/realtime.js --name realtime
 pm2 save   # persist across reboots
 
 # Quick health check (expects exact text)
 curl -s http://127.0.0.1:3100/ | grep -q "Tavern realtime OK" && echo OK || (echo FAIL && exit 1)
 
 # View recent logs if needed
-pm2 logs rt-all --lines 100
+pm2 logs realtime --lines 100
 ```
 
 
