@@ -1,4 +1,4 @@
-// Realtime server: Faro + Poker (offchain/onchain), fairness, auditing, dev bot (opt-in), private hole cards
+// Realtime server: Faro + Poker (offchain/onchain), fairness, auditing, private hole cards
 // ENV: PORT (default 3000) GAME_TYPES (comma-separated: FARO,POKER; default FARO,POKER) ADMIN_ADDR RT_RAKE_BPS MONAD_BUNDLER_RPC
 // Socket.IO path is /socket.io/ (nginx proxies /poker.io/ â†’ /socket.io/ upstream)
 
@@ -59,7 +59,7 @@ function logFileName(){ const d=new Date(), y=d.getUTCFullYear(), m=String(d.get
 function audit(tableId,type,payload){ fs.appendFile(logFileName(), JSON.stringify({ts:new Date().toISOString(),tableId,type,payload})+'\n', ()=>{} ); }
 
 /* ------------------------------ Rate limiting ------------------------------ */
-const RLIMIT={ chat:{limit:8,windowMs:5000}, seat:{limit:8,windowMs:5000}, 'poker:act':{limit:20,windowMs:10000}, 'devbot:set':{limit:6,windowMs:5000} };
+const RLIMIT={ chat:{limit:8,windowMs:5000}, seat:{limit:8,windowMs:5000}, 'poker:act':{limit:20,windowMs:10000} };
 const buckets=new Map();
 function allow(sid,ev){ const cfg=RLIMIT[ev]; if(!cfg) return true; const now=Date.now(); if(!buckets.has(sid)) buckets.set(sid,{}); const slot=buckets.get(sid); const keep=(slot[ev]||[]).filter(t=>now-t<cfg.windowMs); keep.push(now); slot[ev]=keep; return keep.length<=cfg.limit; }
 
@@ -69,11 +69,11 @@ function getTable(id){
   const low=String(id||'').toLowerCase();
 
   if (low.startsWith('poker-nl-')) {
-    const t={ id, kind:'POKER', seats:Array.from({length:POKER_SEATS},()=>null), started:false, lastActive:nowMs(), category:'ONCHAIN_NL', limit:'NL', simulated:false, devBotEnabled:false, devBotUserToggled:false, poker:null };
+    const t={ id, kind:'POKER', seats:Array.from({length:POKER_SEATS},()=>null), started:false, lastActive:nowMs(), category:'ONCHAIN_NL', limit:'NL', simulated:false, poker:null };
     tables.set(id,t); return t;
   }
   if (low.startsWith('poker-fl-')) {
-    const t={ id, kind:'POKER', seats:Array.from({length:POKER_SEATS},()=>null), started:false, lastActive:nowMs(), category:'ONCHAIN_FL', limit:'FL', stakes:'3/6 MON', simulated:false, devBotEnabled:false, devBotUserToggled:false, poker:null };
+    const t={ id, kind:'POKER', seats:Array.from({length:POKER_SEATS},()=>null), started:false, lastActive:nowMs(), category:'ONCHAIN_FL', limit:'FL', stakes:'3/6 MON', simulated:false, poker:null };
     tables.set(id,t); return t;
   }
   if (low.startsWith('poker-sim-')) {
@@ -114,8 +114,7 @@ function tablePublic(t){
     id:t.id,
     seats:t.seats.map(s=> {
       if (!s) return null;
-      // Purge any bot seats from public view (humans only)
-      if (typeof s.addr === 'string' && s.addr.startsWith('bot:')) return null;
+      if (!isValidAddr(s.addr)) return null;
       return {
         id:s.id,
         addr:s.addr,
@@ -143,19 +142,7 @@ function emitLobby(){
   }catch{}
 }
 
-/* ------------------------------ Dev bot policy ----------------------------- */
-function humansIn(t){ return t.seats.filter(s=> s && typeof s.addr==='string' && !s.addr.startsWith('bot:')).length; }
-function findBotIndex(t){ return t.seats.findIndex(s=> s && typeof s.addr==='string' && s.addr.startsWith('bot:')); }
-function seatFirstEmpty(t, addr, socketId='bot'){
-  const i=t.seats.findIndex(s=>!s);
-  if (i>=0){
-    const isBot = typeof addr === 'string' && addr.startsWith('bot:');
-    t.seats[i]={ id:i, addr, balance:0, lastActive:nowMs(), socketId };
-    if (t.category===CAT.OFFCHAIN_NL && !Number.isFinite(t.seats[i].chips)) t.seats[i].chips=100;
-    return i;
-  }
-  return -1;
-}
+/* ------------------------------ Start policy ------------------------------- */
 function maybeStartHand(tableId, t){
   try{
     if (paused) return;
@@ -166,7 +153,7 @@ function maybeStartHand(tableId, t){
     }
   }catch(e){ console.error('maybeStartHand', e); }
 }
-function reconcileDevBot(){ /* DevBot removed */ }
+// DevBot removed
 
 /* ------------------------ Poker spawn / prune policy ----------------------- */
 function ensureCategoryBaselines(){ if(!gameEnabled('POKER')) return; ensurePokerTable(CAT.ONCHAIN_NL); ensurePokerTable(CAT.ONCHAIN_FL); ensurePokerTable(CAT.OFFCHAIN_NL); }
@@ -381,9 +368,7 @@ function scheduleTurnTimer(tableId,t){
     const A=st.actors, i=st.turnIndex; if(i<0||i>=A.length) return;
     const actor=A[i]; if(!actor || actor.folded || actor.allIn) return;
 
-    // Simple bot brain for dev bot
-    const isBot = (actor.addr||'').startsWith('bot:');
-    const wait = isBot ? 1200 + Math.floor(Math.random()*800) : HAND_TURN_MS;
+    const wait = HAND_TURN_MS;
 
     st.turnTimer = setTimeout(()=>{
       try{
@@ -423,12 +408,13 @@ function firstToActIndex(st){
   return nextAliveIndexFrom(A, (st.dealerIndex+1)%A.length);
 }
 
+function isValidAddr(a){ return typeof a==='string' && /^0x[0-9a-fA-F]{40}$/.test(a); }
 async function startPokerHand(tableId,t){
   try{
-    // Humans only
+    // Humans only: valid EVM addresses
     const seated=t.seats
       .map((s,i)=> s && ({seatId:i,addr:String(s.addr||'').toLowerCase(), socketId:s.socketId||null}))
-      .filter(x=> x && !x.addr.startsWith('bot:'));
+      .filter(x=> x && isValidAddr(x.addr));
     if (seated.length<2) return;
 
     // Determine dealer seat rotation
@@ -446,7 +432,7 @@ async function startPokerHand(tableId,t){
     for(let k=0;k<t.seats.length;k++){
       const si = (dealerSeatId + k) % t.seats.length;
       const s = t.seats[si];
-      if (s && !(String(s.addr||'').toLowerCase().startsWith('bot:'))) {
+      if (s && isValidAddr(String(s.addr||''))) {
         order.push({ seatId: si, addr: String(s.addr||'').toLowerCase(), socketId: s.socketId||null });
       }
     }
