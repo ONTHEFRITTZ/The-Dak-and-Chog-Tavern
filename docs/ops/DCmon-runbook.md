@@ -25,6 +25,7 @@ Copy `server/.env.example` to `server/.env` and fill in:
 | `DCMON_DRY_RUN` | Set to `false` in production |
 
 See `.env.example` for sane defaults.
+Monad testnet RPC: https://testnet-rpc.monad.xyz
 
 ## Deployment (EC2)
 ```
