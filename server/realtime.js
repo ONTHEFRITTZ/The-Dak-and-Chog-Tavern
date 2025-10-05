@@ -337,7 +337,7 @@ function emitPokerState(tableId, t){
   try{
     const st=t.poker; if (!st) return;
     const all = Array.isArray(st.actors)? st.actors : [];
-    const humans = all.filter(a => !(String(a?.addr||'').toLowerCase().startsWith('bot:')));
+    const humans = all.filter(a => isValidAddr(String(a?.addr||'')));
     const turnSeatId = (all[st.turnIndex]?.seatId);
     const humanTurnIdx = humans.findIndex(a => a.seatId === turnSeatId);
     const m = {
@@ -369,21 +369,12 @@ function scheduleTurnTimer(tableId,t){
     const actor=A[i]; if(!actor || actor.folded || actor.allIn) return;
 
     const wait = HAND_TURN_MS;
-
     st.turnTimer = setTimeout(()=>{
       try{
         // Auto-action
         const need = Math.max(0, Number(st.toCall||0)-Number(actor.contrib||0));
         let act = 'check';
-        if (need>0){
-          if (isBot){
-            // Bot: call small, fold large
-            act = need<=2 ? 'call' : 'fold';
-          } else {
-            // Human timeout: fold
-            act = 'fold';
-          }
-        }
+        if (need>0){ act = 'fold'; }
         applyAction(tableId,t,actor.addr,act,true,null);
       }catch(e){ console.error('timer auto-act', e); }
     }, wait);
@@ -485,7 +476,7 @@ async function startPokerHand(tableId,t){
       pot, toCall, turnIndex: firstToActIndex({stage:'preflop', actors, bbIndex, dealerIndex}),
       startedAt: nowMs(),
       rng:{ commit, seed: seedBytes.toString('hex') },
-      botTimer:null, turnTimer:null
+      turnTimer:null
     };
     t.poker = st;
 
@@ -809,7 +800,6 @@ io.on('connection',(socket)=>{
         t.seats[idx]={ id:idx, addr:addrLower, balance:0, lastActive:nowMs(), socketId:socket.id };
         if (isPoker(t) && t.category===CAT.OFFCHAIN_NL){
           if(!Number.isFinite(t.seats[idx].chips)||t.seats[idx].chips<=0) t.seats[idx].chips=100;
-          // Any time a human takes a seat on F2P poker, force  OFF until they explicitly toggle
           t.Enabled = false;
           t.UserToggled = false;
           const bi=findBotIndex(t); if (bi>=0) t.seats[bi]=null;
