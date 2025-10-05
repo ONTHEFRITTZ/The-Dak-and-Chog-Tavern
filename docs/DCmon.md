@@ -38,26 +38,26 @@
 
 ### Server Agent
 - `cd server && npm install`
-- `.env` variables prefixed `DCMON_...` (see `.env.example`).
-- `npm run agent` ? runs the dry-run loop.
-- `npm run swap:add` ? append a swap entry for testing queue processing.
+- Copy `.env.example` to `.env` and fill in WMON/DCMon/Pool/Paymaster details (see new automation knobs).
+- `npm run agent` starts the automation loop locally. On EC2 use PM2: `pm2 start server/dcmon-agent.js --name dcmon-agent` (see runbook).
+- `npm run swap:add` opens an interactive prompt to enqueue buy-in, cash-out, pool, or paymaster jobs for the queue processor.
 
 ## High-Level Architecture
 
 1. **DCmon Token Contract**
    - ERC-20 (via OpenZeppelin) with deposit and withdraw for underlying WMON (wrapped Monad native).
-   - `recordRewards` function accepts staking rewards (MON) from the operator and splits automatically (70/30).
+   - `recordRewards` accepts staking rewards (WMON) from the operator and splits automatically (70/30) to the configured treasuries.
    - Optional `distributePlayerReward` helper moves funds from the player pool to reward recipients.
-   - Contract lives at `Contracts/DCMon.sol` (new file added in this patch).
 
 2. **Agent / Backend Worker**
-   - Handles swaps and treasury flows: MON/USDC <-> DCMon (once DEX routes exist) and interim wrap/unwrap/deposit cycles when liquidity is pre-provisioned.
-   - Monitors paymaster balance. When low, converts a portion of DCmon to MON (or native) and funds the paymaster account.
-   - Calls `recordRewards` when staking rewards are harvested.
-   - Maintains an encrypted audit log of all swaps/payouts. The key is derived from the owner wallet; only the house can decrypt.
+   - Automates pool funding: wraps native MON as needed, maintains approvals, and deposits WMON into the BankrollPool when DCMon liquidity drops below targets.
+   - Maintains a WMON buffer in the pool for cash-outs by redeeming DCmon back to WMON when thresholds are breached.
+   - Tops up the AA paymaster by withdrawing or unwrapping WMON and sending native MON whenever balance falls below the configured minimum (supports chunking to limit spend).
+   - Records staking rewards by calling `recordRewards` once the operator wallet accumulates the minimum payout threshold.
+   - Processes a swap queue (buy-in, cash-out, pool_deposit/pool_redeem, paymaster) with encrypted audit logging for every action.
 
 3. **On-Chain Games**
-   - Update `HoldemPoker.sol` (and other games) to accept DCmon for buy-ins.
+   - `BankrollPool` authorises games to request DCmon payouts; games interact with the pool rather than holding treasury balances directly.
    - Chips/tracking: maintain seat balances in DCmon or convert to numeric chips pegged to DCmon price. Future improvement: support dynamic pricing if DCmon deviates from MON.
 
 4. **Frontend**
@@ -76,44 +76,26 @@
    - Rewards can be paid in DCmon or converted to MON/USDC first.
 
 ## Immediate Implementation Notes
+- The agent requires the operator wallet to be the owner of `BankrollPool` and to hold the DCMon operator role.
+- Configure automation thresholds via `.env` (see `.env.example`). Defaults keep a small native reserve, avoid infinite approvals when `DCMON_APPROVE_MAX=false`, and chunk large wraps if `DCMON_WRAP_MAX_CHUNK` is set.
+- All actions are logged to `artifacts/dcmon-agent/operations.log`. Provide `DCMON_LOG_ENC_KEY` (32+ chars) to enable AES-GCM encrypted log payloads.
+- Queue jobs persist to `artifacts/dcmon-agent/queue.json`. This survives restarts; PM2 will resume pending jobs automatically.
 
-- `DCMon.sol` currently mints/burns 1:1 with underlying WMON (minted 1:1 from native MON). Adjust exchange rate later when a staking contract is integrated (e.g., via shares and total underlying tracking).
-- The contract assumes the operator will transfer rewards in MON. Good enough for MVP - swap logic can be refined.
-- Logging/encryption: backend needs to persist encrypted JSON entries. Recommend libsodium/TweetNaCl with a key stored offline.
-- Swap path: initially stub with a simple swap contract or direct treasury-controlled liquidity; later integrate Monad DEX (when available).
-- Ensure paymaster funding logic is unit-tested to avoid runbook surprises.
+## Agent Automation Details
+- **Pool liquidity**: checks DCMon and underlying WMON balances every `DCMON_POOL_INTERVAL_MS` (10 minutes by default) and wraps/approves/deposits to reach `DCMON_POOL_TARGET_DCMON`. Also redeems to maintain a WMON buffer (`DCMON_POOL_TARGET_UNDERLYING`).
+- **Paymaster**: runs every `DCMON_PAYMASTER_INTERVAL_MS` (5 minutes). If balance < `DCMON_PAYMASTER_MIN`, withdraws or wraps up to `DCMON_PAYMASTER_TARGET` (bounded by `DCMON_PAYMASTER_CHUNK`) and sends native MON.
+- **Reward harvesting**: when operator WMON balance minus `DCMON_REWARD_KEEP_WMON` exceeds `DCMON_REWARD_MIN`, the agent approves and calls `recordRewards` with up to `DCMON_REWARD_TARGET`.
+- **Swap queue**: processed every `DCMON_SWAP_INTERVAL_MS` (60 seconds). Supported types:
+  - `buyin`: wrap + mint DCMon to the supplied address (defaults to operator wallet).
+  - `cashout`: redeem liquidity and send native MON to the supplied address.
+  - `pool_deposit` / `pool_redeem`: manual overrides for liquidity maintenance.
+  - `paymaster`: forces a paymaster top-up with the queued amount.
+
+For operational steps (PM2, log rotation, manual overrides) see `docs/ops/DCmon-runbook.md`.
 
 ## Next Steps
+1. Integrate on-chain swap routes (MON/USDC -> DCmon) once Monad DEX liquidity is available; map new job types in the agent.
+2. Extend the front-end buy-in modal to surface agent-driven buy-in/cashout requests (feed swap queue via admin controls).
+3. Add monitoring/alerting (CloudWatch or Grafana) for paymaster and pool thresholds using the log stream.
+4. Define the reward distribution cadence and implement automated calls to `distributePlayerReward`.
 
-1. Update Hardhat config to compile `DCMon.sol`; add tests for deposit/withdraw/rewards.
-2. Wire the agent (Node script or server worker) to use the new contract (deposit rewards, handle swaps, paymaster funding).
-3. Modify game smart contracts and backend realtime server to track DCmon balances.
-4. Extend frontend buy-in flow and wallet swap UI.
-5. Define reward distribution cadence (weekly? monthly?) and the logic for identifying top users.
-
-This document serves as the initial blueprint. As we build out the modules, we should capture runbooks (deploy, swap, paymaster refill) in `/docs/ops/DCmon-runbook.md` (to be added).
-
-## Agent Implementation Status
-
-- Added `server/dcmon-agent.js` (dry-run mode by default)
-  - Loads env configuration, generates encrypted audit logs, stubs for swaps/paymaster funding.
-  - Run locally with `npm install` inside `server/` then `npm run agent`.
-- Agent currently records intent only; TODOs remain for actual swap execution and staking reward pulls.
-
-Next: hook the agent into swap / paymaster services and wire realtime server to DCmon balances.
-### Agent Usage
-
-1. Copy `server/.env.example` to `.env` and fill in DCmon addresses, paymaster, and RPC URL.
-2. Install deps (`cd server && npm install`).
-3. Start the agent in dry mode (`npm run agent`). It will:
-   - Check paymaster balance, trigger wrap/approve/deposit when below threshold, and log top-up intent.
-   - Check staking rewards (`recordRewards`) and log intent.
-   - Process the swap queue file.
-4. Use `npm run swap:add` to enqueue a sample swap while testing.
-
-When liquidity routes are ready:
-- Implement real swaps in `processSwapQueue`.
-- Implement `recordRewards` call in `harvestStakingRewards`.
-- Integrate paymaster funding transaction in `ensurePaymasterBalance`.
-
-Logs are stored under `artifacts/dcmon-agent/operations.log`; set `DCMON_LOG_ENC_KEY` to encrypt entries.

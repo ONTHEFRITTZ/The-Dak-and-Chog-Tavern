@@ -1,4 +1,4 @@
-﻿Deploying The Dak & Chog Tavern
+Deploying The Dak & Chog Tavern
 
 Contributor Workflow (Codex)
 - Always commit and push changes to `main` on GitHub once the work is ready.
@@ -41,6 +41,12 @@ Monad Testnet Addresses (Oct 2025)
 - HoldemPoker: 0x681BADA5D0d012ABEB9f8A8F0E38758396DE0db3
 
 
+
+DCMon Agent (bankroll/paymaster automation)
+- Install deps once: `cd server && npm install --production`
+- Start with PM2: `pm2 start server/dcmon-agent.js --name dcmon-agent && pm2 save`
+- Logs: `pm2 logs dcmon-agent --lines 100`
+- Config: edit `server/.env` (see `docs/ops/DCmon-runbook.md` for thresholds and recovery).
 
 Realtime backend (Socket.IO) - restart/health
 - Managed by PM2 as `realtime` (PORT 3100).

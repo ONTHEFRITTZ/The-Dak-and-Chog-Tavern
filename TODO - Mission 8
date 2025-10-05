@@ -13,18 +13,17 @@ Completed
 - Admin panel: WMON/DCMon treasury card fully wired (wrap/unwrap, approvals, pool deposit/redeem, reward logging, live stats refresh).
 - Faro/Hazard/Shell games now use DCmon tokens via bankroll pool.
 - DakChog and HoldemPoker converted to DCmon (BankrollPool payouts, rake withdrawal).
+- DCmon agent automation: pool liquidity checks, paymaster top-ups, reward harvesting, queue-driven buyin/cashout flows.
+- Ops runbook for agent + admin recovery (`docs/ops/DCmon-runbook.md`).
 
 Ready To Verify / Playtest
-- End-to-end: live hands on F2P and on-chain (AA identify, paymaster sponsorship, reward logging).
-- Paymaster flow: agent tops up automatically when balance < threshold.
-- Demo capture: wallet connect + DCmon buy-in + full hand with reward logging.
-- Admin treasury flows: dry-run wrap -> approve -> pool deposit -> pool redeem and confirm inputs clear / stats refresh.
+- Run live hands on F2P and on-chain (AA identify, paymaster sponsorship, reward logging) with the new automation active.
+- Observe paymaster auto top-ups (logs + balance diffs) after intentionally draining the account on Monad testnet.
+- Demo capture: wallet connect + DCmon buy-in + full hand with reward logging + automatic reward harvest.
+- Admin treasury flows: dry-run wrap -> approve -> pool deposit -> pool redeem, confirm inputs clear and stats update.
 
 In Progress
-- DCmon swaps: implement actual MON/USDC -> DCmon trades in `processSwapQueue`.
-- Reward harvest: integrate staking venue and call `recordRewards` for 70/30 split.
-- Paymaster funding: finalize swap + transfer logic in `ensurePaymasterBalance`.
-- Agent automation: orchestrate wrap/approve/deposit/redeem steps so the pool stays funded without manual clicks.
+- DCmon swaps: integrate actual MON/USDC routes in `processSwapQueue` once Monad DEX liquidity exists.
 - On-chain tables: update poker backend + AA flow to track DCmon chips (contract side ready).
 - Frontend: buy-in modal with DCmon + swap UI (Phantom / MetaMask).
 - Reward distribution: choose cadence + ranking for top players; wire to `distributePlayerReward`.
@@ -34,4 +33,4 @@ Backlog / Ideas
 - Expose DCmon stats dashboard (APY, house vs player rewards).
 - Automated alerting when paymaster top-ups fail.
 - Snapshot + governance hooks once DCmon supply grows.
-- Publish an ops runbook for admin/agent recovery scenarios.
+- DEX oracle or TWAP feed to price DCmon vs MON for dynamic betting limits.
