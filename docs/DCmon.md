@@ -6,6 +6,20 @@
 - Keep compatibility with Mission 8 account-abstraction (AA) features: bundler, paymaster, Smart Accounts.
 - Support seamless buy-in/cash-out, swapping through Phantom/MetaMask, and programmatic paymaster refills.
 
+## Developer Toolkit
+
+### Hardhat
+- Compile/tests: `cd hardhat && npm install` (once) then `npx hardhat test test/DCMon.test.cjs`.
+- Deploy: `npx hardhat run scripts/deploy-dcmon.js --network <net>` (requires `DCMON_UNDERLYING_ADDR`, `DCMON_HOUSE_TREASURY`, `DCMON_PLAYER_REWARD_POOL`, optional `DCMON_ADMIN_ADDR`).
+- Verify: `npx hardhat run scripts/verify-dcmon.js --network <net>` with `DCMON_TOKEN_ADDR` in `.env`.
+- Deployment info written to `hardhat/deployments/dcmon-<network>.json`.
+
+### Server Agent
+- `cd server && npm install`
+- `.env` variables prefixed `DCMON_...` (see `.env.example`).
+- `npm run agent` ? runs the dry-run loop.
+- `npm run swap:add` ? append a swap entry for testing queue processing.
+
 ## High-Level Architecture
 
 1. **DCmon Token Contract**
@@ -65,3 +79,19 @@ This document serves as the initial blueprint. As we build out the modules, we s
 - Agent currently records intent only; TODOs remain for actual swap execution and staking reward pulls.
 
 Next: hook the agent into swap / paymaster services and wire realtime server to DCmon balances.
+### Agent Usage
+
+1. Copy `server/.env.example` to `.env` and fill in DCmon addresses, paymaster, and RPC URL.
+2. Install deps (`cd server && npm install`).
+3. Start the agent in dry mode (`npm run agent`). It will:
+   - Check paymaster balance and log top-up intent.
+   - Check staking rewards (`recordRewards`) and log intent.
+   - Process the swap queue file.
+4. Use `npm run swap:add` to enqueue a sample swap while testing.
+
+When liquidity routes are ready:
+- Implement real swaps in `processSwapQueue`.
+- Implement `recordRewards` call in `harvestStakingRewards`.
+- Integrate paymaster funding transaction in `ensurePaymasterBalance`.
+
+Logs are stored under `artifacts/dcmon-agent/operations.log`; set `DCMON_LOG_ENC_KEY` to encrypt entries.

@@ -1,72 +1,19 @@
 /**
- * DCmon agent: handles swaps, reward accounting, and paymaster funding scaffolding.
- * This is a dry-run skeleton that logs intended actions. Swap and on-chain
- * interactions will be plugged in once liquidity routes are ready.
+ * DCmon agent: handles paymaster top-ups, reward split accounting,
+ * and buy-in swap queue processing.
+ *
+ * Currently operates in dry-run mode (no real swaps) but logs all intent
+ * and keeps an auditable queue.
  */
 
-const path = require('path');
-const fs = require('fs');
-const crypto = require('crypto');
-const pino = require('pino');
 const { ethers } = require('ethers');
+const { CONFIG } = require('./dcmon/config');
+const { logger, persistLog } = require('./dcmon/logger');
+const { listSwaps, enqueueSwap, takeNextPending, markSwap } = require('./dcmon/queue');
 
-require('dotenv').config({ path: path.resolve(__dirname, '..', '.env') });
-
-const logger = pino({ level: process.env.DCMON_LOG_LEVEL || 'info' });
-
-const CONFIG = {
-  rpcUrl: process.env.DCMON_RPC_URL || process.env.MONAD_RPC || '',
-  dcmonToken: process.env.DCMON_TOKEN_ADDR || '',
-  houseTreasury: process.env.DCMON_HOUSE_TREASURY || '',
-  playerRewardPool: process.env.DCMON_PLAYER_REWARD_POOL || '',
-  paymasterAddress: process.env.DCMON_PAYMASTER_ADDR || '',
-  paymasterMinBalance: ethers.parseEther(process.env.DCMON_PAYMASTER_MIN || '0.50'),
-  paymasterTopUpTarget: ethers.parseEther(process.env.DCMON_PAYMASTER_TARGET || '1.00'),
-  rewardHarvestIntervalMs: Number(process.env.DCMON_REWARD_INTERVAL_MS || 15 * 60 * 1000),
-  paymasterCheckIntervalMs: Number(process.env.DCMON_PAYMASTER_INTERVAL_MS || 5 * 60 * 1000),
-  logDir: path.resolve(process.env.DCMON_LOG_DIR || path.join(__dirname, '..', 'artifacts', 'dcmon-agent')),
-  dryRun: process.env.DCMON_DRY_RUN !== 'false',
-};
-
-if (!fs.existsSync(CONFIG.logDir)) {
-  fs.mkdirSync(CONFIG.logDir, { recursive: true });
-}
-
-const LOG_FILE = path.join(CONFIG.logDir, 'operations.log');
-const ENC_KEY_HEX = process.env.DCMON_LOG_ENC_KEY || '';
-let encryptionKey = null;
-if (ENC_KEY_HEX) {
-  const data = ENC_KEY_HEX.startsWith('0x') ? ENC_KEY_HEX.slice(2) : ENC_KEY_HEX;
-  encryptionKey = crypto.createHash('sha256').update(data, 'hex').digest();
-} else {
-  logger.warn('DCMON_LOG_ENC_KEY not set; operations log will be written in plaintext');
-}
-
-function encryptPayload(payloadBuffer) {
-  if (!encryptionKey) return { plaintext: payloadBuffer.toString('utf8') };
-  const iv = crypto.randomBytes(12);
-  const cipher = crypto.createCipheriv('aes-256-gcm', encryptionKey, iv);
-  const ciphertext = Buffer.concat([cipher.update(payloadBuffer), cipher.final()]);
-  const tag = cipher.getAuthTag();
-  return {
-    iv: iv.toString('hex'),
-    ciphertext: ciphertext.toString('hex'),
-    tag: tag.toString('hex'),
-  };
-}
-
-function persistLog(eventType, payload) {
-  const entry = {
-    timestamp: new Date().toISOString(),
-    eventType,
-    ...encryptPayload(Buffer.from(JSON.stringify(payload, null, 2))),
-  };
-  fs.appendFileSync(LOG_FILE, JSON.stringify(entry) + '\n');
-}
-
-function makeProvider() {
+function getProvider() {
   if (!CONFIG.rpcUrl) {
-    logger.warn('No RPC URL configured; agent running in dry mode');
+    logger.warn('No RPC URL configured (DCMON_RPC_URL)');
     return null;
   }
   return new ethers.JsonRpcProvider(CONFIG.rpcUrl);
@@ -74,7 +21,7 @@ function makeProvider() {
 
 async function ensurePaymasterBalance(provider) {
   if (!provider || !CONFIG.paymasterAddress) {
-    logger.debug('Skipping paymaster check (missing provider or address)');
+    logger.debug('Skipping paymaster check (missing provider or paymaster address)');
     return;
   }
   const balance = await provider.getBalance(CONFIG.paymasterAddress);
@@ -86,58 +33,72 @@ async function ensurePaymasterBalance(provider) {
     currentBalance: balance.toString(),
     targetBalance: CONFIG.paymasterTopUpTarget.toString(),
     topUpRequired: topUpAmount.toString(),
+    dryRun: CONFIG.dryRun,
   });
+
   if (CONFIG.dryRun) {
     logger.info('Dry run: would perform paymaster top-up swap');
     return;
   }
-  // TODO: implement swap DCmon -> native and send to paymaster
+  // TODO: perform swap and send funds to paymaster
 }
 
 async function harvestStakingRewards(provider) {
-  if (!CONFIG.dcmonToken || !CONFIG.playerRewardPool || !CONFIG.houseTreasury) {
-    logger.debug('Skipping reward harvest (missing config)');
-    return;
-  }
   persistLog('reward_harvest_check', {
     dcmonToken: CONFIG.dcmonToken,
     playerRewardPool: CONFIG.playerRewardPool,
     houseTreasury: CONFIG.houseTreasury,
+    dryRun: CONFIG.dryRun,
   });
   if (CONFIG.dryRun) {
-    logger.info('Dry run: would query staking rewards and call recordRewards');
+    logger.info('Dry run: would query staking venue and call recordRewards');
     return;
   }
-  // TODO: pull rewards from staking venue and call recordRewards via operator signer
+  // TODO: harvest rewards and call DCMon.recordRewards via operator
 }
 
-async function sweepSwapQueue(provider) {
-  persistLog('swap_queue_check', { dryRun: CONFIG.dryRun });
-  if (CONFIG.dryRun) {
-    logger.info('Dry run: would process queued swaps');
+async function processSwapQueue(provider) {
+  const pendingSwaps = listSwaps().filter(s => s.status === 'pending');
+  if (!pendingSwaps.length) {
+    logger.debug('Swap queue empty');
     return;
   }
-  // TODO: load swap queue, execute trades, update logs.
+  let swap = null;
+  while ((swap = takeNextPending())) {
+    persistLog('swap_attempt', swap);
+    if (CONFIG.dryRun) {
+      logger.info({ swap }, 'Dry run: would execute swap');
+      markSwap(swap.id, 'completed', { dryRun: true });
+      continue;
+    }
+    try {
+      // TODO: interact with DEX / aggregator and perform swap
+      markSwap(swap.id, 'completed', { txHash: '0xTODO' });
+    } catch (err) {
+      logger.error({ err, swap }, 'Swap failed');
+      markSwap(swap.id, 'failed', { message: err.message });
+    }
+  }
 }
 
 async function main() {
   logger.info({ config: { ...CONFIG, rpcUrl: CONFIG.rpcUrl ? '[redacted]' : '' } }, 'Starting DCmon agent');
-  const provider = makeProvider();
+  const provider = getProvider();
 
   if (!CONFIG.dryRun && !provider) {
-    logger.error('No provider configured while dryRun=false; exiting');
+    logger.error('Non-dry run requires RPC URL; exiting');
     process.exit(1);
   }
 
   await ensurePaymasterBalance(provider);
   await harvestStakingRewards(provider);
-  await sweepSwapQueue(provider);
+  await processSwapQueue(provider);
 
-  setInterval(() => ensurePaymasterBalance(provider).catch(err => logger.error({ err }, 'paymaster check failed')),
+  setInterval(() => ensurePaymasterBalance(provider).catch(err => logger.error({ err }, 'Paymaster check failed')),
     CONFIG.paymasterCheckIntervalMs);
-  setInterval(() => harvestStakingRewards(provider).catch(err => logger.error({ err }, 'reward harvest failed')),
+  setInterval(() => harvestStakingRewards(provider).catch(err => logger.error({ err }, 'Reward harvest failed')),
     CONFIG.rewardHarvestIntervalMs);
-  setInterval(() => sweepSwapQueue(provider).catch(err => logger.error({ err }, 'swap queue processing failed')),
+  setInterval(() => processSwapQueue(provider).catch(err => logger.error({ err }, 'Swap queue failed')),
     CONFIG.rewardHarvestIntervalMs);
 }
 
@@ -149,8 +110,8 @@ if (require.main === module) {
 }
 
 module.exports = {
-  CONFIG,
+  enqueueSwap,
   ensurePaymasterBalance,
   harvestStakingRewards,
-  sweepSwapQueue,
+  processSwapQueue,
 };

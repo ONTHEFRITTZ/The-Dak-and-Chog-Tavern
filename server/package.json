@@ -6,7 +6,8 @@
     "main":  "realtime.js",
     "scripts":  {
                     "start":  "node realtime.js",
-                    "agent":  "node dcmon-agent.js"
+                    "agent":  "node dcmon-agent.js",
+                    "swap:add":  "node scripts/add-swap.js"
                 },
     "dependencies":  {
                          "socket.io":  "^4.7.5",

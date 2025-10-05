@@ -2,6 +2,13 @@
 
 All notable changes are recorded here so you (and Codex) can quickly pick up where things left off.
 
+## 2025-10-05
+
+- DCmon: Added liquid staking token contract, Hardhat unit tests, and deployment scripts (`deploy-dcmon.js`, `verify-dcmon.js`).
+- Agent: Introduced `server/dcmon-agent.js` with encrypted audit logging, swap queue, paymaster/reward scaffolding, and CLI helper (`npm run swap:add`).
+- Frontend/Realtime: Guest address fallback for F2P seats (no more “Seating...” stalls without a wallet).
+- Docs: Expanded `docs/DCmon.md` with Hardhat/agent usage instructions and runbooks.
+- Tooling: Hardhat + server package updates to include OpenZeppelin, ethers, dotenv, and pino dependencies.
 ## 2025-09-07
 
 - CI/CD: Added rebuilt workflow `.github/workflows/deploy_rebuilt.yml` with stable staging tarball, atomic release, Cloudflare HTML purge, and live verification.
