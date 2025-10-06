@@ -1,6 +1,7 @@
 // shell.js
 // DCMon-enabled Shell game frontend
-import { getAddressFor, detectChainId, renderTavernBanner, showToast } from '../../js/config.js';
+import { getAddressFor, detectChainId, renderTavernBanner, showToast, CONTRACTS } from '../../js/config.js';
+import '../../js/DCMonABI.js';
 import { attachProvider } from '../../js/contract-utils.js';
 
 const MIN_BET = 0.001; // DCMon units
@@ -139,6 +140,9 @@ async function init() {
     }
     if (!tokenAddr || tokenAddr === ethers.constants.AddressZero) {
       tokenAddr = await getAddressFor('dcmon', provider).catch(() => null);
+    }
+    if (!tokenAddr || tokenAddr === ethers.constants.AddressZero) {
+      tokenAddr = CONTRACTS?.dcmon || window?.DCMON_ADDRESS || null;
     }
     if (tokenAddr && /^0x[0-9a-fA-F]{40}$/.test(tokenAddr) && window.DCMonABI) {
       dcmonAddress = tokenAddr;
