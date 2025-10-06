@@ -1,5 +1,5 @@
 // js/wallet-chips.js
-// Adds a Chips trigger and bankroll modal without disturbing existing layout.
+// Adds a Chips trigger to the wallet pill and shares bankroll UI across pages.
 (function () {
   if (window.__WalletChipsMounted) return;
   window.__WalletChipsMounted = true;
@@ -31,18 +31,45 @@
     return promise;
   }
 
-  function ensureDependencies() {
-    const needs = [];
-    if (!window.ethers) needs.push(loadScriptOnce(CDN_ETHERS));
-    needs.push(loadScriptOnce(SRC.dcmon));
-    needs.push(loadScriptOnce(SRC.wmon));
-    needs.push(loadScriptOnce(SRC.bankroll, 'body'));
-    return Promise.all(needs).catch((err) => {
-      console.error('wallet-chips: dependency load failed', err);
-      try { loadScriptOnce('/js/DCMonABI.js?v=' + Date.now()); } catch {}
-      try { loadScriptOnce('/js/WMONABI.js?v=' + Date.now()); } catch {}
-      try { loadScriptOnce('/games/poker/table-bankroll.js?v=' + Date.now(), 'body'); } catch {}
+  function loadDependencies() {
+    const deps = [];
+    if (!window.ethers) deps.push(loadScriptOnce(CDN_ETHERS));
+    deps.push(loadScriptOnce(SRC.dcmon));
+    deps.push(loadScriptOnce(SRC.wmon));
+    deps.push(loadScriptOnce(SRC.bankroll, 'body'));
+    return Promise.all(deps);
+  }
+
+  function waitFor(condition, timeout = 6000) {
+    return new Promise((resolve, reject) => {
+      const start = Date.now();
+      (function check() {
+        if (condition()) {
+          resolve();
+          return;
+        }
+        if (Date.now() - start > timeout) {
+          reject(new Error('wallet-chips: dependency wait timed out'));
+          return;
+        }
+        setTimeout(check, 50);
+      })();
     });
+  }
+
+  let readyPromise = null;
+  function ensureReady() {
+    if (readyPromise) return readyPromise;
+    readyPromise = loadDependencies()
+      .catch((err) => {
+        console.error('wallet-chips: dependency load failed', err);
+        try { loadScriptOnce('/js/DCMonABI.js?v=' + Date.now()); } catch {}
+        try { loadScriptOnce('/js/WMONABI.js?v=' + Date.now()); } catch {}
+        try { loadScriptOnce('/games/poker/table-bankroll.js?v=' + Date.now(), 'body'); } catch {}
+      })
+      .finally(() => waitFor(() => window.DCMonABI && window.WMONABI && window.__PokerBankroll))
+      .catch((err) => console.error(err));
+    return readyPromise;
   }
 
   function ensureBalanceBadges() {
@@ -181,7 +208,7 @@
 
   function openModal() {
     const overlay = createModal();
-    ensureDependencies().then(() => {
+    ensureReady().then(() => {
       document.dispatchEvent(new CustomEvent('bankroll:ui-ready'));
       if (!window.__PokerBankroll) {
         const handler = function once() {
@@ -208,31 +235,27 @@
     delete document.body.dataset.chipsModalOpen;
   }
 
-  function ensureWalletUI() {
+  function init() {
     ensureBalanceBadges();
     const pill = document.getElementById('wallet-inline');
-    if (!pill || document.getElementById('wi-chips-btn')) return;
+    if (pill && !document.getElementById('wi-chips-btn')) {
+      const btn = document.createElement('button');
+      btn.id = 'wi-chips-btn';
+      btn.textContent = 'Chips';
+      btn.style.padding = '6px 12px';
+      btn.style.borderRadius = '10px';
+      btn.style.fontWeight = '600';
+      pill.appendChild(btn);
+      btn.addEventListener('click', openModal);
+      document.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Escape' && document.body.dataset.chipsModalOpen) {
+          closeModal();
+        }
+      });
+    }
 
-    const btn = document.createElement('button');
-    btn.id = 'wi-chips-btn';
-    btn.textContent = 'Chips';
-    btn.style.padding = '6px 12px';
-    btn.style.borderRadius = '10px';
-    btn.style.fontWeight = '600';
-    pill.appendChild(btn);
-
-    btn.addEventListener('click', openModal);
-    document.addEventListener('keydown', (ev) => {
-      if (ev.key === 'Escape' && document.body.dataset.chipsModalOpen) {
-        closeModal();
-      }
-    });
-  }
-
-  function init() {
-    ensureWalletUI();
     createModal();
-    ensureDependencies().then(() => document.dispatchEvent(new CustomEvent('bankroll:ui-ready')));
+    ensureReady().then(() => document.dispatchEvent(new CustomEvent('bankroll:ui-ready')));
   }
 
   if (document.readyState === 'loading') {
@@ -241,3 +264,4 @@
     init();
   }
 })();
+
