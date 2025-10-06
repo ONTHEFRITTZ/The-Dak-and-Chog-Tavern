@@ -1,7 +1,9 @@
 // shell.js
-// Uses the unified Tavern contract ABI (window.TavernABI)
+// DCMon-enabled Shell game frontend
 import { getAddressFor, detectChainId, renderTavernBanner, showToast } from '../../js/config.js';
 import { attachProvider } from '../../js/contract-utils.js';
+
+const MIN_BET = 0.001; // DCMon units
 
 const shellElements = document.querySelectorAll('.shell');
 const statusEl = document.getElementById('shell-result') || document.getElementById('status');
@@ -43,6 +45,9 @@ let signer;
 let userAddress;
 let tavernAddress;
 let activeShellAbi = null;
+let dcmonAddress = null;
+let dcmonRead = null;
+let dcmonToken = null;
 
 async function init() {
   injectedProvider = resolveInjectedProvider();
@@ -60,12 +65,12 @@ async function init() {
   signer = provider.getSigner();
   try { attachProvider(provider); } catch {}
   userAddress = await signer.getAddress();
-  // Resolve Shell address: prefer authorized local override if present; otherwise config
+
+  // Resolve deployed shell address (preferring overrides if authorized)
   let shellAddr = await getAddressFor('shell', provider);
   try {
     const candidate = (localStorage.getItem('contract.shell')||'').trim();
     if (/^0x[0-9a-fA-F]{40}$/.test(candidate)) {
-      // Only trust override if authorized in Pool (when available)
       let poolAddr = await getAddressFor('pool', provider).catch(()=>null);
       if (!poolAddr) {
         try {
@@ -84,106 +89,174 @@ async function init() {
       if (ok) shellAddr = candidate;
     }
   } catch {}
+
   const tavernFallback = await getAddressFor('tavern', provider);
   tavernAddress = shellAddr || tavernFallback;
   activeShellAbi = (shellAddr && window.ShellABI) ? window.ShellABI : window.TavernABI;
+
   try {
     const chainId = await detectChainId(provider);
     const bannerKey = shellAddr ? 'shell' : 'tavern';
     renderTavernBanner({ contractKey: bannerKey, address: tavernAddress, chainId, wallet: userAddress });
   } catch {}
 
-  // Verify Pool wiring and readiness
+  let viewContract = null;
   try {
     const abi = activeShellAbi || window.ShellABI || window.TavernABI;
-    const c = new ethers.Contract(tavernAddress, abi, provider);
-    let currentPool = ethers.constants.AddressZero;
-    try { currentPool = await c.pool(); } catch {}
-    if (currentPool && currentPool !== ethers.constants.AddressZero && window.PoolABI) {
-      const pool = new ethers.Contract(currentPool, window.PoolABI, provider);
-      try {
-        const authorized = await pool.authorizedGames(tavernAddress);
-        if (!authorized) {
-          statusEl.innerText = 'Shell not authorized in Pool. Contact admin.';
-          return false;
-        }
-      } catch {}
-      try {
-        const paused = await pool.paused();
-        if (paused) { statusEl.innerText = 'Pool is paused. Try again later.'; return false; }
-      } catch {}
+    viewContract = new ethers.Contract(tavernAddress, abi, provider);
+  } catch {}
+
+  // Ensure pool authorization + paused state
+  if (viewContract) {
+    try {
+      let currentPool = ethers.constants.AddressZero;
+      try { currentPool = await viewContract.pool(); } catch {}
+      if (currentPool && currentPool !== ethers.constants.AddressZero && window.PoolABI) {
+        const pool = new ethers.Contract(currentPool, window.PoolABI, provider);
+        try {
+          const authorized = await pool.authorizedGames(tavernAddress);
+          if (!authorized) {
+            statusEl.innerText = 'Shell not authorized in Pool. Contact admin.';
+            return false;
+          }
+        } catch {}
+        try {
+          const paused = await pool.paused();
+          if (paused) { statusEl.innerText = 'Pool is paused. Try again later.'; return false; }
+        } catch {}
+      }
+    } catch {}
+  }
+
+  // Resolve DCMon token (from contract or config)
+  dcmonAddress = null;
+  dcmonRead = null;
+  dcmonToken = null;
+  try {
+    let tokenAddr = null;
+    if (viewContract && viewContract.dcmonToken) {
+      tokenAddr = await viewContract.dcmonToken().catch(() => null);
+    }
+    if (!tokenAddr || tokenAddr === ethers.constants.AddressZero) {
+      tokenAddr = await getAddressFor('dcmon', provider).catch(() => null);
+    }
+    if (tokenAddr && /^0x[0-9a-fA-F]{40}$/.test(tokenAddr) && window.DCMonABI) {
+      dcmonAddress = tokenAddr;
+      dcmonRead = new ethers.Contract(dcmonAddress, window.DCMonABI, provider);
+      dcmonToken = new ethers.Contract(dcmonAddress, window.DCMonABI, signer);
     }
   } catch {}
+
+  if (!dcmonAddress || !dcmonToken) {
+    statusEl.innerText = 'DCMon token not configured. Contact admin.';
+    return false;
+  }
+
+  return true;
 }
+
 shellElements.forEach((shell) => {
   shell.addEventListener('click', async () => {
-    // rules gate removed
     try {
       const ok = await init();
       if (ok === false) return;
 
-      const guessDisplay = parseInt(shell.dataset.guess); // 1,2,3 for UI
-      const guess = Math.max(0, (guessDisplay|0) - 1);    // 0,1,2 for contract
+      const guessDisplay = parseInt(shell.dataset.guess, 10);
+      const guess = Math.max(0, (guessDisplay|0) - 1);
       let betAmount = parseFloat(betInput.value);
-      if (isNaN(betAmount) || betAmount < 0.001) betAmount = 0.001;
+      if (isNaN(betAmount) || betAmount < MIN_BET) betAmount = MIN_BET;
 
       const abi = activeShellAbi || window.ShellABI || window.TavernABI;
       const contract = new ethers.Contract(tavernAddress, abi, signer);
 
-      statusEl.innerText = 'Playing...';
-      try { showToast('Playing...', 'info'); } catch {}
+      if (!dcmonRead || !dcmonToken) {
+        statusEl.innerText = 'DCMon token unavailable. Contact admin.';
+        return;
+      }
 
-      // Prepare wager once
+      statusEl.innerText = 'Preparing DCMon wager...';
+      try { showToast('Preparing DCMon wager...', 'info'); } catch {}
+
       const betWei = ethers.utils.parseEther(betAmount.toString());
 
-      // Bankroll coverage: prefer Pool.balance() from contract.pool(),
-      // fallback to configured pool in config.js, else the contract's own balance.
+      // Ensure player balance + allowance
       try {
-        let ok = false;
+        const balance = await dcmonRead.balanceOf(userAddress);
+        if (balance.lt(betWei)) {
+          statusEl.innerText = 'Insufficient DCMon balance for this bet.';
+          return;
+        }
+      } catch {}
+
+      try {
+        const allowance = await dcmonRead.allowance(userAddress, tavernAddress).catch(() => ethers.constants.Zero);
+        if (allowance.lt(betWei)) {
+          statusEl.innerText = 'Approving DCMon...';
+          try { showToast('Approving DCMon...', 'info'); } catch {}
+          const approval = await dcmonToken.approve(tavernAddress, ethers.constants.MaxUint256);
+          await approval.wait();
+        }
+      } catch (approveErr) {
+        const msg = approveErr?.error?.message || approveErr?.data?.message || approveErr?.reason || approveErr?.message || 'Approval failed';
+        statusEl.innerText = msg;
+        return;
+      }
+
+      // Verify pool coverage
+      try {
+        let okCover = false;
         let coverageVerified = false;
         let poolAddr;
         try { poolAddr = await contract.pool(); } catch {}
         if (!poolAddr || poolAddr === ethers.constants.AddressZero) {
-          try { poolAddr = await getAddressFor('pool', provider); } catch {}
+          poolAddr = await getAddressFor('pool', provider).catch(() => null);
         }
         if (poolAddr && poolAddr !== ethers.constants.AddressZero && window.PoolABI) {
+          const pool = new ethers.Contract(poolAddr, window.PoolABI, provider);
           try {
-            const code = await provider.getCode(poolAddr).catch(()=> '0x');
-            if (code && code !== '0x') {
-              const pool = new ethers.Contract(poolAddr, window.PoolABI, provider);
-              const bal = await pool.balance();
-              coverageVerified = true;
-              if (bal.gte(betWei.mul(2))) ok = true;
-            }
+            const dcBal = await pool.poolDcmonBalance();
+            coverageVerified = true;
+            if (dcBal.gte(betWei.mul(2))) okCover = true;
           } catch {}
+          if (!okCover) {
+            try {
+              const underlying = await pool.poolUnderlyingBalance();
+              coverageVerified = true;
+              if (underlying.gte(betWei.mul(2))) okCover = true;
+            } catch {}
+          }
         }
         if (!coverageVerified) {
           try {
-            const bank = await provider.getBalance(tavernAddress);
+            const contractBal = await dcmonRead.balanceOf(tavernAddress);
             coverageVerified = true;
-            if (bank && bank.gte(betWei.mul(2))) ok = true;
+            if (contractBal.gte(betWei.mul(2))) okCover = true;
           } catch {}
         }
-        if (coverageVerified && !ok) { statusEl.innerText = 'Bankroll too low for this bet (needs 2x cover). Try a smaller amount.'; return; }
+        if (coverageVerified && !okCover) {
+          statusEl.innerText = 'Bankroll too low for this DCMon bet (needs 2x cover). Try a smaller amount.';
+          return;
+        }
       } catch {}
 
-      // Preflight static call to surface revert reasons (authorization, paused, maxBet, etc.)
+      // Preflight revert reasons
       try {
-        await contract.callStatic.playShell(guess, { value: betWei });
+        await contract.callStatic.playShell(guess, betWei);
       } catch (pre) {
         const msg = pre?.error?.message || pre?.data?.message || pre?.reason || pre?.message || 'Reverted';
         statusEl.innerText = 'Rejected: ' + msg;
         return;
       }
 
-      const tx = await contract.playShell(guess, {
-        value: betWei,
-        gasLimit: 200000, // manual gas limit
+      statusEl.innerText = 'Submitting DCMon wager...';
+      try { showToast('Submitting wager...', 'info'); } catch {}
+
+      const tx = await contract.playShell(guess, betWei, {
+        gasLimit: 200000,
       });
 
       const receipt = await tx.wait();
 
-      // Parse the Played event from the receipt
       const iface = new ethers.utils.Interface(activeShellAbi || window.ShellABI || window.TavernABI);
       let playedEvent;
       for (const log of receipt.logs) {
@@ -193,19 +266,16 @@ shellElements.forEach((shell) => {
             playedEvent = parsed.args;
             break;
           }
-        } catch (e) {
-          // Ignore logs that don't match
-        }
+        } catch (e) {}
       }
 
       if (!playedEvent) {
-        statusEl.innerText = 'Transaction mined but Played event not found.';
+        statusEl.innerText = 'Transaction mined but ShellPlayed event not found.';
         try { showToast('Played event not found', 'error'); } catch {}
         return;
       }
 
       const { guess: guessEvent, won, winningCup } = playedEvent;
-
       const displayGuess = Number(guessEvent) + 1;
       const displayWin = Number(winningCup) + 1;
       const resultText = won
@@ -218,46 +288,20 @@ shellElements.forEach((shell) => {
       const li = document.createElement('li');
       li.innerText = resultText;
       playsEl.prepend(li);
-
     } catch (err) {
       console.error(err);
-      statusEl.innerText = `Error: ${err.message}`;
-      try { showToast(err.message, 'error'); } catch {}
+      const msg = err?.error?.message || err?.data?.message || err?.reason || err?.message || 'Transaction failed.';
+      statusEl.innerText = msg;
+      try { showToast(msg, 'error'); } catch {}
     }
   });
 });
 
-// Be defensive: the button may be absent on some embeds
-try { returnBtn?.addEventListener('click', () => { window.location.href = '/index.html'; }); } catch {}
+returnBtn?.addEventListener('click', () => { window.location.href = '/index.html'; });
 
-// Persist bet value
-try {
-  const savedBet = localStorage.getItem('shell.bet');
-  if (savedBet && !isNaN(parseFloat(savedBet))) betInput.value = savedBet;
-} catch {}
-betInput.addEventListener('input', () => {
-  try { localStorage.setItem('shell.bet', betInput.value || ''); } catch {}
-});
-
-// Keyboard navigation and accessibility for shells
-try {
-  const shells = Array.from(document.querySelectorAll('.shell'));
-  shells.forEach((el, idx) => {
-    el.setAttribute('tabindex', el.getAttribute('tabindex') || '0');
-    el.addEventListener('keydown', (e) => {
-      // rules gate removed
-      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); el.click(); }
-      if (e.key === 'ArrowLeft') { e.preventDefault(); const t = shells[(idx + shells.length - 1) % shells.length]; t && t.focus(); }
-      if (e.key === 'ArrowRight') { e.preventDefault(); const t = shells[(idx + 1) % shells.length]; t && t.focus(); }
-    });
-  });
-} catch {}
-
-// Show rules modal at load and block interactions until ack (per load)
 const onReady = (fn) => { if (document.readyState === 'loading') { window.addEventListener('DOMContentLoaded', fn, { once: true }); } else { fn(); } };
-onReady(() => {
-  shellAck = true;
+onReady(async () => {
   try { if (rulesOverlay) rulesOverlay.style.display = 'none'; } catch {}
-  // Disable Rules button if present
   try { if (openRulesBtn) openRulesBtn.style.display = 'none'; } catch {}
+  await init();
 });
