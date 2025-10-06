@@ -6,6 +6,47 @@
     return;
   }
   let bootstrapped = false;
+  let abisPromise = null;
+
+
+  function waitForAbis(timeout = 9000) {
+    if (window.DCMonABI && window.WMONABI) return Promise.resolve(true);
+    if (!abisPromise) {
+      abisPromise = new Promise((resolve) => {
+        const deadline = Date.now() + timeout;
+        let poller = null;
+
+        function cleanup() {
+          if (poller) {
+            clearInterval(poller);
+            poller = null;
+          }
+          document.removeEventListener('wallet:abis-ready', onReady);
+        }
+
+        function onReady() {
+          cleanup();
+          abisPromise = null;
+          resolve(true);
+        }
+
+        poller = setInterval(() => {
+          if (window.DCMonABI && window.WMONABI) {
+            onReady();
+            return;
+          }
+          if (Date.now() > deadline) {
+            cleanup();
+            abisPromise = null;
+            resolve(false);
+          }
+        }, 50);
+
+        document.addEventListener('wallet:abis-ready', onReady);
+      });
+    }
+    return abisPromise;
+  }
 
   function bootstrap() {
     if (bootstrapped) return;
@@ -186,10 +227,13 @@
         setStatus('Bankroll contracts not configured.', 'error');
         return false;
       }
-      if (!window.DCMonABI || !window.WMONABI) {
+    if (!window.DCMonABI || !window.WMONABI) {
+      const abisOk = await waitForAbis();
+      if (!abisOk || !window.DCMonABI || !window.WMONABI) {
         setStatus('Token ABIs unavailable.', 'error');
         return false;
       }
+    }
       if (!dcmonRead || !dcmonWrite) {
         dcmonRead = new ethers.Contract(dcmonAddress, window.DCMonABI, provider);
         dcmonWrite = dcmonRead.connect(signer);
@@ -473,7 +517,7 @@
   }
 
   const start = Date.now();
-  const maxDelay = 7000;
+  const maxDelay = 9000;
   let timer = null;
 
   function cleanup() {

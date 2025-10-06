@@ -149,28 +149,11 @@
 <body class="game">
   <!-- Inline wallet panel (top-right) -->
   <div id="wallet-inline" style="position:fixed; top:12px; right:12px; z-index:12000; display:flex; align-items:center; gap:8px; background: var(--panel-bg-soft); border:1px solid rgba(255,255,255,0.12); border-radius:12px; padding:6px 10px; color:#f4e6d3;">
-    <span id="wi-label" style="font-weight:700;">Wallet:</span>
-    <span id="wi-address">-</span>
+     <span id="wi-address">-</span>
     <button id="wi-disconnect" style="display:none;">Disconnect</button>
   </div>
 
-  <!-- Rules modal (kept, but launched by your JS as needed) -->
-  <div id="removed-overlay" style="position:fixed; inset:0; background:rgba(0,0,0,0.6); display:none; align-items:center; justify-content:center; z-index:20000;">
-    <div style="background: var(--panel-bg-soft); border:1px solid rgba(255,255,255,0.12); border-radius:14px; padding:22px; width:min(92vw, 820px); max-height:90vh; overflow:auto; text-align:left; color:#f4e6d3; box-shadow:0 24px 60px rgba(0,0,0,0.55);">
-      <h2 style="margin-top:0;">Hazard Rules</h2>
-      <ul>
-        <li>Choose a main (5-9) and place your bet.</li>
-        <li>First coup reveals two cards (dice): bank card then player card.</li>
-        <li>If first total equals your main: you win immediately.</li>
-        <li>If first total is 2 or 3: you lose immediately.</li>
-        <li>If first total is 11 or 12: special main-dependent result.</li>
-        <li>Otherwise, the total becomes the chance; roll until chance or main resolves.</li>
-        <li>Payout on win attempts to pay 2x wager (requires bankroll).</li>
-      </ul>
-      <button id="removed-ack" style="margin-top:8px;">I have read and understand</button>
-    </div>
-  </div>
-
+  
   <div class="tavern" style="max-width:1280px; width:95%; margin:6px auto 24px; position:relative;">
     <h1 class="visually-hidden">Hazard</h1>
 
@@ -189,7 +172,7 @@
           </div>
 
           <div>
-            <label>Bet (MON)</label><br>
+            <label>Bet (DCMon)</label><br>
             <input id="bet" type="number" min="0.001" step="0.001" value="0.01" style="width:110px; text-align:center;">
           </div>
         </div>

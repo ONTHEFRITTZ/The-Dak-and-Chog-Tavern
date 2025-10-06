@@ -42,8 +42,12 @@
     deps.push(loadScriptOnce(SRC.dcmon));
     deps.push(loadScriptOnce(SRC.wmon));
     deps.push(loadScriptOnce(SRC.bankroll, 'body'));
-    return Promise.all(deps);
+    return Promise.all(deps).then(() => { signalAbisReady(); });
   }
+  function signalAbisReady() {
+    try { document.dispatchEvent(new CustomEvent('wallet:abis-ready')); } catch (_) {}
+  }
+
 
   function waitFor(condition, timeout = 9000) {
     return new Promise((resolve, reject) => {
@@ -213,24 +217,19 @@
 
   function openModal() {
     const overlay = createModal();
-    ensureReady().then(() => {
-      document.dispatchEvent(new CustomEvent('bankroll:ui-ready'));
-      const bankroll = window.Bankroll || window.__PokerBankroll;
-      if (!bankroll) {
-        const handler = function once() {
-          document.removeEventListener('bankroll:ready', handler);
-          const globalBankroll = window.Bankroll || window.__PokerBankroll;
-          if (globalBankroll?.refreshBalance) globalBankroll.refreshBalance();
-        };
-        document.addEventListener('bankroll:ready', handler);
-      } else if (bankroll?.refreshBalance) {
-        bankroll.refreshBalance();
-      }
-      overlay.style.display = 'flex';
-      overlay.setAttribute('aria-hidden', 'false');
-      document.body.style.overflow = 'hidden';
-      document.body.dataset.chipsModalOpen = '1';
-    });
+    overlay.style.display = 'flex';
+    overlay.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+    document.body.dataset.chipsModalOpen = '1';
+
+    const statusEl = document.getElementById('wi-bank-status');
+    if (statusEl && !statusEl.textContent) statusEl.textContent = 'Loading bankroll...';
+
+    ensureReady()\n      .then(() => {\n        document.dispatchEvent(new CustomEvent('bankroll:ui-ready'));\n        const bankroll = window.Bankroll || window.__PokerBankroll;\n        if (!bankroll) {\n          const handler = function once() {\n            document.removeEventListener('bankroll:ready', handler);\n            const globalBankroll = window.Bankroll || window.__PokerBankroll;\n            if (globalBankroll?.refreshBalance) globalBankroll.refreshBalance();\n          };\n          document.addEventListener('bankroll:ready', handler);\n        } else if (bankroll?.refreshBalance) {\n          bankroll.refreshBalance();\n        }\n      })
+      .catch((err) => {
+        console.error(err);
+        if (statusEl) statusEl.textContent = 'Bankroll helper failed to load.';
+      });
   }
 
   function closeModal() {
@@ -271,3 +270,4 @@
     init();
   }
 })();
+
