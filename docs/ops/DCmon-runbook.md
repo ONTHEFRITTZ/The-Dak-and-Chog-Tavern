@@ -29,15 +29,15 @@ Monad testnet RPC: https://testnet-rpc.monad.xyz
 
 ## Deployment (EC2)
 ```
-cd ~/The-Dak-and-Chog-Tavern/server
-npm install --production
-pm2 start dcmon-agent.js --name dcmon-agent
+cd ~/The-Dak-and-Chog-Tavern
+npm install --production --prefix server
+pm2 start ecosystem.config.js --only dcmon-agent
 pm2 save
 ```
 
 To reload after configuration changes:
 ```
-pm2 restart dcmon-agent && pm2 logs dcmon-agent --lines 50
+pm2 restart dcmon-agent --update-env && pm2 logs dcmon-agent --lines 50
 ```
 
 ## Routine Operations

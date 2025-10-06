@@ -39,7 +39,7 @@
 ### Server Agent
 - `cd server && npm install`
 - Copy `.env.example` to `.env` and fill in WMON/DCMon/Pool/Paymaster details (see new automation knobs).
-- `npm run agent` starts the automation loop locally. On EC2 use PM2: `pm2 start server/dcmon-agent.js --name dcmon-agent` (see runbook).
+- `npm run agent` starts the automation loop locally. On EC2 use PM2: `pm2 start ecosystem.config.js --only dcmon-agent` (see runbook).
 - `npm run swap:add` opens an interactive prompt to enqueue buy-in, cash-out, pool, or paymaster jobs for the queue processor.
 
 ## High-Level Architecture

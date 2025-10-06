@@ -36,6 +36,30 @@ module.exports = {
       env_production: {
         NODE_ENV: 'production'
       }
+    },
+    {
+      name: 'dcmon-agent',
+      script: 'server/dcmon-agent.js',
+      cwd: '/home/ubuntu/The-Dak-and-Chog-Tavern',
+      instances: 1,
+      exec_mode: 'fork',
+      watch: false,
+      autorestart: true,
+      min_uptime: '5s',
+      max_restarts: 50,
+      node_args: '--enable-source-maps',
+      out_file: '/var/log/tavern/dcmon-agent.out.log',
+      error_file: '/var/log/tavern/dcmon-agent.err.log',
+      merge_logs: true,
+      time: true,
+      log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
+      env: {
+        NODE_ENV: 'production',
+        DCMON_LOG_LEVEL: 'info'
+      },
+      env_production: {
+        NODE_ENV: 'production'
+      }
     }
   ]
 };
