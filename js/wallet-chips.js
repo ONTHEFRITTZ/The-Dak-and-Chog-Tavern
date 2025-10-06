@@ -9,7 +9,7 @@
   const SRC = {
     dcmon: `/js/DCMonABI.js?v=${buildTag}`,
     wmon: `/js/WMONABI.js?v=${buildTag}`,
-    bankroll: `/games/poker/table-bankroll.js?v=${buildTag}`
+    bankroll: `/js/bankroll.js?v=${buildTag}`
   };
 
   const scriptCache = new Map();
@@ -65,9 +65,9 @@
         console.error('wallet-chips: dependency load failed', err);
         try { loadScriptOnce('/js/DCMonABI.js?v=' + Date.now()); } catch {}
         try { loadScriptOnce('/js/WMONABI.js?v=' + Date.now()); } catch {}
-        try { loadScriptOnce('/games/poker/table-bankroll.js?v=' + Date.now(), 'body'); } catch {}
+        try { loadScriptOnce('/js/bankroll.js?v=' + Date.now(), 'body'); } catch {}
       })
-      .finally(() => waitFor(() => window.DCMonABI && window.WMONABI && window.__PokerBankroll))
+      .finally(() => waitFor(() => window.DCMonABI && window.WMONABI && (window.Bankroll || window.__PokerBankroll)))
       .catch((err) => console.error(err));
     return readyPromise;
   }
@@ -210,14 +210,16 @@
     const overlay = createModal();
     ensureReady().then(() => {
       document.dispatchEvent(new CustomEvent('bankroll:ui-ready'));
-      if (!window.__PokerBankroll) {
+      const bankroll = window.Bankroll || window.__PokerBankroll;
+      if (!bankroll) {
         const handler = function once() {
           document.removeEventListener('bankroll:ready', handler);
-          if (window.__PokerBankroll?.refreshBalance) window.__PokerBankroll.refreshBalance();
+          const globalBankroll = window.Bankroll || window.__PokerBankroll;
+          if (globalBankroll?.refreshBalance) globalBankroll.refreshBalance();
         };
         document.addEventListener('bankroll:ready', handler);
-      } else if (window.__PokerBankroll?.refreshBalance) {
-        window.__PokerBankroll.refreshBalance();
+      } else if (bankroll?.refreshBalance) {
+        bankroll.refreshBalance();
       }
       overlay.style.display = 'flex';
       overlay.setAttribute('aria-hidden', 'false');
@@ -264,4 +266,3 @@
     init();
   }
 })();
-

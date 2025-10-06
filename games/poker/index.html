@@ -54,7 +54,7 @@
       border: 1px solid rgba(255,255,255,0.12);
       border-radius: 12px; padding: 6px 10px; color: #f4e6d3;
     }
-    #wallet-inline button { padding:6px 10px; border-radius:8px; font-size:12px; }
+    #wallet-inline button { padding:6px 6px; border-radius:8px; font-size:12px; }
 
     /* Lobby container */
     .tavern { padding: 0; background: none !important; border: none !important; box-shadow: none !important; }
@@ -201,8 +201,8 @@
       try{
         fetch('/assets/build.json',{cache:'no-store'})
           .then(r=>r.ok?r.json():null)
-          .then(b=>{ var tag=(b&&b.commit)?String(b.commit).slice(0,12):Date.now(); load('/js/wallet-chips.js?v='+encodeURIComponent(tag)); load('/games/poker/table-bankroll.js?v='+encodeURIComponent(tag)); load('poker.js?v='+encodeURIComponent(tag)); })
-          .catch(()=>{ var stamp=Date.now(); load('/js/wallet-chips.js?v='+stamp); load('/games/poker/table-bankroll.js?v='+stamp); load('poker.js?v='+stamp); });
+          .then(b=>{ var tag=(b&&b.commit)?String(b.commit).slice(0,12):Date.now(); load('/js/wallet-chips.js?v='+encodeURIComponent(tag)); load('/js/bankroll.js?v='+encodeURIComponent(tag)); load('poker.js?v='+encodeURIComponent(tag)); })
+          .catch(()=>{ var stamp=Date.now(); load('/js/wallet-chips.js?v='+stamp); load('/js/bankroll.js?v='+stamp); load('poker.js?v='+stamp); });
       }catch{ load('poker.js?v='+Date.now()); }
     })();
   </script>

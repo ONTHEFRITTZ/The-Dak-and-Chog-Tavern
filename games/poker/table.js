@@ -6,6 +6,49 @@
   const { ethers } = window;
   const tableMode = (document.documentElement.getAttribute('data-table-mode') || 'f2p').toLowerCase();
   const isOnchainTable = tableMode === 'onchain';
+
+  function getBankrollHelper() {
+    return window.Bankroll || window.__PokerBankroll || null;
+  }
+
+  async function waitForBankrollHelper(timeout = 6000) {
+    const existing = getBankrollHelper();
+    if (existing) return existing;
+    return new Promise((resolve, reject) => {
+      const deadline = Date.now() + timeout;
+      let settled = false;
+      let poller = null;
+
+      function cleanup() {
+        if (settled) return;
+        settled = true;
+        if (poller) clearInterval(poller);
+        document.removeEventListener('bankroll:ready', onReady);
+      }
+
+      function onResolve(helper) {
+        cleanup();
+        resolve(helper);
+      }
+
+      function onReady() {
+        const helper = getBankrollHelper();
+        if (helper) onResolve(helper);
+      }
+
+      poller = setInterval(() => {
+        const helper = getBankrollHelper();
+        if (helper) return onResolve(helper);
+        if (Date.now() > deadline) {
+          cleanup();
+          reject(new Error('Bankroll helper missing'));
+        }
+      }, 80);
+
+      document.addEventListener('bankroll:ready', onReady);
+      onReady();
+    });
+  }
   const trimDecimals = (str) => {
     if (str == null) return '';
     let out = String(str);
@@ -170,8 +213,7 @@
 
   async function createOnchainAdapter() {
     if (!isOnchainTable || !ethers || !window.HoldemPokerABI) return null;
-    const bankroll = window.__PokerBankroll;
-    if (!bankroll) throw new Error('Bankroll helper missing');
+    const bankroll = await waitForBankrollHelper();
 
     if (typeof bankroll.ensureContracts === 'function') {
       const ok = await bankroll.ensureContracts();
@@ -831,7 +873,7 @@
     tableSnapshot = table;
     if (isOnchainTable) updateChipValueFromTable(table);
 
-    const bankroll = window.__PokerBankroll || null;
+    const bankroll = getBankrollHelper() || null;
     const seatsList = Array.isArray(table?.seats) ? table.seats : [];
     const prevSeats = Array.isArray(prevTable?.seats) ? prevTable.seats : [];
     const meAddr = (currentAddr() || '').toLowerCase();
@@ -914,34 +956,34 @@
           if (!Number.isFinite(myBalance) || myBalance < 1) {
             const autoBtn = document.createElement('button');
             autoBtn.textContent = 'Auto Buy 1 DCMon';
-            autoBtn.addEventListener('click', async () => {
-              if (autoBtn.disabled) return;
-              if (!bankroll || typeof bankroll.buyIn !== 'function') {
-                alert('Open the wallet controls to buy in.');
-                return;
-              }
-              try {
-                autoBtn.disabled = true;
-                const buyInput = document.getElementById('wi-buy-input');
-                if (buyInput) buyInput.value = '1';
-                if (typeof bankroll.ready === 'function') await bankroll.ready();
-                await bankroll.buyIn();
-                setTimeout(() => {
-                  try {
-                    if (bankroll && typeof bankroll.refreshBalance === 'function') {
-                      bankroll.refreshBalance(seatData.addr);
-                    }
-                  } catch {}
-                }, 400);
-              } catch (err) {
-                console.error('Auto buy failed', err);
-                alert('Buy-in failed. Use the wallet controls.');
-              } finally {
-                setTimeout(() => {
-                  try { autoBtn.disabled = false; } catch {}
-                }, 600);
-              }
-            });
+              autoBtn.addEventListener('click', async () => {
+                if (autoBtn.disabled) return;
+                const bankrollNow = getBankrollHelper();
+                if (!bankrollNow || typeof bankrollNow.buyIn !== 'function') {
+                  alert('Open the wallet controls to buy in.');
+                  return;
+                }
+                try {
+                  autoBtn.disabled = true;
+                  const buyInput = document.getElementById('wi-buy-input');
+                  if (buyInput) buyInput.value = '1';
+                  if (typeof bankrollNow.ready === 'function') await bankrollNow.ready();
+                  await bankrollNow.buyIn();
+                  setTimeout(() => {
+                    try {
+                      const helper = getBankrollHelper();
+                      if (helper && typeof helper.refreshBalance === 'function') {
+                        helper.refreshBalance(seatData.addr);
+                      }
+                    } catch (refreshErr) { console.warn('Poker table: auto buy refresh failed', refreshErr); }
+                  }, 350);
+                } catch (err) {
+                  console.error('Poker table: auto buy failed', err);
+                  alert(err?.message || 'Buy-in failed');
+                } finally {
+                  setTimeout(() => { autoBtn.disabled = false; }, 350);
+                }
+              });
             meta.btns.appendChild(autoBtn);
           }
         }
