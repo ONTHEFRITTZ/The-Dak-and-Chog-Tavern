@@ -31,16 +31,21 @@
     return promise;
   }
 
+  function signalEthersReady() {
+    try { document.dispatchEvent(new CustomEvent('wallet:ethers-ready')); } catch (_) {}
+  }
+
   function loadDependencies() {
     const deps = [];
-    if (!window.ethers) deps.push(loadScriptOnce(CDN_ETHERS));
+    const ethersPromise = window.ethers ? Promise.resolve() : loadScriptOnce(CDN_ETHERS);
+    deps.push(ethersPromise.then(() => { signalEthersReady(); }));
     deps.push(loadScriptOnce(SRC.dcmon));
     deps.push(loadScriptOnce(SRC.wmon));
     deps.push(loadScriptOnce(SRC.bankroll, 'body'));
     return Promise.all(deps);
   }
 
-  function waitFor(condition, timeout = 6000) {
+  function waitFor(condition, timeout = 9000) {
     return new Promise((resolve, reject) => {
       const start = Date.now();
       (function check() {
