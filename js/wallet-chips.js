@@ -1,14 +1,15 @@
 // js/wallet-chips.js
-// Adds a "Chips" trigger to the wallet pill and shares the bankroll modal across pages.
+// Adds a Chips trigger + modal everywhere without touching existing layout.
 (function () {
   if (window.__WalletChipsMounted) return;
   window.__WalletChipsMounted = true;
 
   const buildTag = window.__BUILD_TAG || Date.now();
+  const CDN_ETHERS = 'https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js';
   const SRC = {
     dcmon: `/js/DCMonABI.js?v=${buildTag}`,
     wmon: `/js/WMONABI.js?v=${buildTag}`,
-    bankroll: `/games/poker/table-bankroll.js?v=${buildTag}`,
+    bankroll: `/games/poker/table-bankroll.js?v=${buildTag}`
   };
 
   const scriptCache = new Map();
@@ -31,11 +32,12 @@
   }
 
   function ensureDependencies() {
-    return Promise.all([
-      loadScriptOnce(SRC.dcmon),
-      loadScriptOnce(SRC.wmon),
-      loadScriptOnce(SRC.bankroll, 'body'),
-    ]).catch((err) => {
+    const deps = [];
+    if (!window.ethers) deps.push(loadScriptOnce(CDN_ETHERS));
+    deps.push(loadScriptOnce(SRC.dcmon));
+    deps.push(loadScriptOnce(SRC.wmon));
+    deps.push(loadScriptOnce(SRC.bankroll, 'body'));
+    return Promise.all(deps).catch((err) => {
       console.error('wallet-chips: dependency load failed', err);
       try { loadScriptOnce('/js/DCMonABI.js?v=' + Date.now()); } catch {}
       try { loadScriptOnce('/js/WMONABI.js?v=' + Date.now()); } catch {}
@@ -43,34 +45,50 @@
     });
   }
 
-  function ensureWalletButton() {
-    const wallet = document.getElementById('wallet-inline');
-    if (!wallet || document.getElementById('wi-chips-btn')) return;
+  function ensureBalanceBadges() {
+    const pill = document.getElementById('wallet-inline');
+    if (!pill) return;
 
-    const btn = document.createElement('button');
-    btn.id = 'wi-chips-btn';
-    btn.textContent = 'Chips';
-    btn.style.padding = '6px 12px';
-    btn.style.borderRadius = '10px';
-    btn.style.fontWeight = '600';
-    wallet.appendChild(btn);
+    let wrap = document.getElementById('wi-balance-wrap');
+    if (!wrap) {
+      wrap = document.createElement('span');
+      wrap.id = 'wi-balance-wrap';
+      wrap.style.display = 'flex';
+      wrap.style.alignItems = 'center';
+      wrap.style.gap = '8px';
+      const anchor = pill.querySelector('#wi-disconnect');
+      pill.insertBefore(wrap, anchor || null);
+    }
 
-    btn.addEventListener('click', openModal);
+    function ensureBadge(id, label) {
+      if (document.getElementById(id)) return;
+      const badge = document.createElement('span');
+      badge.id = id + '-group';
+      badge.style.display = 'flex';
+      badge.style.alignItems = 'center';
+      badge.style.fontSize = '12px';
+      const strong = document.createElement('strong');
+      strong.textContent = `${label}: `;
+      strong.style.marginRight = '2px';
+      const value = document.createElement('span');
+      value.id = id;
+      value.textContent = '-';
+      badge.appendChild(strong);
+      badge.appendChild(value);
+      wrap.appendChild(badge);
+    }
 
-    document.addEventListener('keydown', (ev) => {
-      if (ev.key === 'Escape' && document.body.dataset.chipsModalOpen) {
-        closeModal();
-      }
-    });
+    ensureBadge('wi-mon-balance-pill', 'MON');
+    ensureBadge('wi-dcmon-balance-pill', 'DCMon');
   }
 
   function buildBankrollMarkup(container) {
     container.innerHTML = '';
-    container.style.display = 'flex';
-    container.style.flexDirection = 'column';
-    container.style.gap = '12px';
-
     container.insertAdjacentHTML('beforeend', `
+      <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;">
+        <span>MON Balance</span>
+        <span id="wi-mon-balance-modal">-</span>
+      </div>
       <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;">
         <span>DCMon Balance</span>
         <span id="wi-dcmon-balance">-</span>
@@ -132,7 +150,6 @@
 
     header.appendChild(title);
     header.appendChild(closeBtn);
-    dialog.appendChild(header);
 
     let container = document.getElementById('wi-bankroll');
     if (container) {
@@ -143,17 +160,19 @@
       container.id = 'wi-bankroll';
     }
 
+    container.style.display = 'flex';
+    container.style.flexDirection = 'column';
+    container.style.gap = '12px';
     buildBankrollMarkup(container);
-    dialog.appendChild(container);
 
+    dialog.appendChild(header);
+    dialog.appendChild(container);
     overlay.appendChild(dialog);
     document.body.appendChild(overlay);
 
     closeBtn.addEventListener('click', closeModal);
     overlay.addEventListener('click', (ev) => { if (ev.target === overlay) closeModal(); });
     dialog.addEventListener('click', (ev) => ev.stopPropagation());
-
-    
 
     return overlay;
   }
@@ -162,7 +181,6 @@
     const overlay = createModal();
     ensureDependencies().then(() => {
       document.dispatchEvent(new CustomEvent('bankroll:ui-ready'));
-      
       if (!window.__PokerBankroll) {
         const handler = function once() {
           document.removeEventListener('bankroll:ready', handler);
@@ -188,9 +206,26 @@
     delete document.body.dataset.chipsModalOpen;
   }
 
-  function init() {
-    ensureWalletButton();
-    createModal();
+  function ensureWalletUI() {\n    ensureBalanceBadges();
+    const pill = document.getElementById('wallet-inline');
+    if (!pill || document.getElementById('wi-chips-btn')) return;
+    const btn = document.createElement('button');
+    btn.id = 'wi-chips-btn';
+    btn.textContent = 'Chips';
+    btn.style.padding = '6px 12px';
+    btn.style.borderRadius = '10px';
+    btn.style.fontWeight = '600';
+    pill.appendChild(btn);
+    btn.addEventListener('click', openModal);
+
+    document.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Escape' && document.body.dataset.chipsModalOpen) {
+        closeModal();
+      }
+    });
+  }
+
+  function init() {\n    ensureWalletUI();\n    createModal();\n    ensureDependencies().then(() => document.dispatchEvent(new CustomEvent('bankroll:ui-ready')));
   }
 
   if (document.readyState === 'loading') {

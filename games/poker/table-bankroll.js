@@ -1,22 +1,24 @@
 // games/poker/table-bankroll.js
-// Provides DCMon buy-in / cash-out helpers and exposes them via window.__PokerBankroll.
+// Provides DCMon/MON bankroll helpers and exposes them via window.__PokerBankroll.
 (function () {
   const ethers = window.ethers;
   const state = { lastStatus: null };
+
+  const TARGETS = {
+    dcmon: ['wi-dcmon-balance', 'wi-dcmon-balance-pill'],
+    mon: ['wi-mon-balance-modal', 'wi-mon-balance-pill']
+  };
 
   function getEl(id) {
     return document.getElementById(id);
   }
 
-  function ensureBankrollContainer() {
-    if (document.getElementById('wi-bankroll')) return;
-    const wrapper = document.createElement('div');
-    wrapper.id = 'wi-bankroll';
-    wrapper.style.display = 'none';
-    document.body.appendChild(wrapper);
+  function updateTargets(list, text) {
+    list.forEach((id) => {
+      const el = getEl(id);
+      if (el) el.textContent = text;
+    });
   }
-
-  ensureBankrollContainer();
 
   function setStatus(message, tone) {
     state.lastStatus = { message: message || '', tone: tone || '' };
@@ -154,7 +156,7 @@
     return true;
   }
 
-  function formatBalance(bn) {
+  function formatEther(bn) {
     try {
       const val = parseFloat(ethers.utils.formatEther(bn));
       if (!Number.isFinite(val)) return '-';
@@ -167,26 +169,36 @@
   }
 
   async function refreshBalance(addr) {
-    const balanceEl = getEl('wi-dcmon-balance');
     const address = addr || currentAddress();
-    if (!balanceEl) return null;
     if (!address) {
-      balanceEl.textContent = '-';
+      updateTargets(TARGETS.dcmon, '-');
+      updateTargets(TARGETS.mon, '-');
       return null;
     }
-    if (!await ensureContracts()) {
-      balanceEl.textContent = '-';
+    const ok = await ensureContracts();
+    if (!ok) {
+      updateTargets(TARGETS.dcmon, '-');
+      updateTargets(TARGETS.mon, '-');
       return null;
     }
     try {
       const bal = await dcmonRead.balanceOf(address);
-      balanceEl.textContent = formatBalance(bal);
-      return bal;
+      updateTargets(TARGETS.dcmon, formatEther(bal));
     } catch (err) {
-      console.error('Poker bankroll: balance refresh failed', err);
-      balanceEl.textContent = '-';
-      return null;
+      console.error('Poker bankroll: DCMon balance failed', err);
+      updateTargets(TARGETS.dcmon, '-');
     }
+    try {
+      const provider = await getProvider();
+      if (provider) {
+        const monWei = await provider.getBalance(address);
+        updateTargets(TARGETS.mon, formatEther(monWei));
+      }
+    } catch (err) {
+      console.error('Poker bankroll: MON balance failed', err);
+      updateTargets(TARGETS.mon, '-');
+    }
+    return true;
   }
 
   async function ensureWrap(amountWei, address) {
@@ -340,6 +352,7 @@
   }
 
   bindUi();
+
   document.addEventListener('bankroll:ui-ready', () => {
     bindUi();
     setTimeout(() => refreshBalance(), 200);
@@ -349,6 +362,7 @@
     const addr = ev?.detail?.address;
     setTimeout(() => refreshBalance(addr), 250);
   });
+
   window.addEventListener('storage', (ev) => {
     if (!ev) return;
     if (ev.key && ev.key.toLowerCase().includes('wallet')) {
@@ -373,9 +387,4 @@
   };
 
   document.dispatchEvent(new CustomEvent('bankroll:ready', { detail: { ok: !!ethers } }));
-
-  if (ethers) {
-    refreshBalance();
-    setInterval(refreshBalance, 30000);
-  }
 })();
