@@ -153,7 +153,7 @@
     overlay.addEventListener('click', (ev) => { if (ev.target === overlay) closeModal(); });
     dialog.addEventListener('click', (ev) => ev.stopPropagation());
 
-    document.dispatchEvent(new CustomEvent('bankroll:ui-ready'));
+    
 
     return overlay;
   }
@@ -162,6 +162,7 @@
     const overlay = createModal();
     ensureDependencies().then(() => {
       document.dispatchEvent(new CustomEvent('bankroll:ui-ready'));
+      
       if (!window.__PokerBankroll) {
         const handler = function once() {
           document.removeEventListener('bankroll:ready', handler);
@@ -198,3 +199,4 @@
     init();
   }
 })();
+
