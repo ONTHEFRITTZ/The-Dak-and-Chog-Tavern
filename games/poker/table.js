@@ -74,13 +74,179 @@
   let chipValueDcmon = isOnchainTable ? 0.001 : 1;
   let chipValueWei = null;
 
-  if (isOnchainTable && ethers?.utils?.parseUnits) {
-    try {
-      chipValueWei = ethers.utils.parseUnits(trimDecimals(chipValueDcmon.toFixed(6)) || '0', 18);
-    } catch {
+  function setChipValue(nextValue) {
+    const numeric = Number(nextValue);
+    if (!Number.isFinite(numeric) || numeric <= 0) return false;
+    chipValueDcmon = numeric;
+    if (ethers?.utils?.parseUnits) {
+      try {
+        chipValueWei = ethers.utils.parseUnits(trimDecimals(String(numeric)), 18);
+      } catch (err) {
+        console.warn('Poker table: failed to parse chip value', err);
+        chipValueWei = null;
+      }
+    } else {
       chipValueWei = null;
     }
+    return true;
   }
+
+  function chipsToWei(chips) {
+    if (!isOnchainTable || chipValueDcmon <= 0 || !ethers?.utils?.parseUnits) return null;
+    const amount = Number(chips);
+    if (!Number.isFinite(amount) || amount <= 0) return null;
+    try {
+      const dcmonValue = amount * chipValueDcmon;
+      const formatted = trimDecimals(dcmonValue.toFixed(9));
+      return ethers.utils.parseUnits(formatted || '0', 18);
+    } catch (err) {
+      console.warn('Poker table: chipsToWei failed', err);
+      return null;
+    }
+  }
+
+  function dcmonToChips(amountDcmon) {
+    if (!isOnchainTable || chipValueDcmon <= 0) return null;
+    const numeric = Number(amountDcmon);
+    if (!Number.isFinite(numeric) || numeric <= 0) return null;
+    const raw = numeric / chipValueDcmon;
+    const rounded = Math.round((raw + Number.EPSILON) * 1e6) / 1e6;
+    return rounded;
+  }
+
+  function updateChipValueFromTable(table) {
+    if (!isOnchainTable || !table) return;
+    try {
+      const meta = table.meta || {};
+      if (meta.chipValueDcmon != null) {
+        setChipValue(meta.chipValueDcmon);
+        return;
+      }
+      if (meta.blinds && meta.blinds.sb != null) {
+        const sb = Number(meta.blinds.sb);
+        if (Number.isFinite(sb) && sb > 0) setChipValue(sb);
+      }
+    } catch (err) {
+      console.warn('Poker table: updateChipValueFromTable failed', err);
+    }
+  }
+
+  async function loadConfigModule() {
+    if (!configModulePromise) {
+      configModulePromise = import('../../js/config.js').catch((err) => {
+        console.error('Poker table: config import failed', err);
+        return null;
+      });
+    }
+    return configModulePromise;
+  }
+
+  async function resolvePokerTableAddress(provider) {
+    const mod = await loadConfigModule();
+    let addr = null;
+    if (mod?.getAddressFor) {
+      try {
+        addr = await mod.getAddressFor('pokerTable', provider).catch(() => null);
+      } catch (err) {
+        console.warn('Poker table: getAddressFor failed', err);
+      }
+    }
+    if (!addr && mod?.CONTRACTS?.pokerTable) addr = mod.CONTRACTS.pokerTable;
+    if (!addr && window.CONTRACTS?.pokerTable) addr = window.CONTRACTS.pokerTable;
+    return addr;
+  }
+
+  async function getOnchainAdapter() {
+    if (!isOnchainTable) return null;
+    if (!onchainAdapterPromise) {
+      onchainAdapterPromise = createOnchainAdapter().catch((err) => {
+        console.error('Poker table: adapter init failed', err);
+        onchainAdapterPromise = null;
+        return null;
+      });
+    }
+    return onchainAdapterPromise;
+  }
+
+  async function createOnchainAdapter() {
+    if (!isOnchainTable || !ethers || !window.HoldemPokerABI) return null;
+    const bankroll = window.__PokerBankroll;
+    if (!bankroll) throw new Error('Bankroll helper missing');
+
+    if (typeof bankroll.ensureContracts === 'function') {
+      const ok = await bankroll.ensureContracts();
+      if (!ok) throw new Error('Bankroll contracts unavailable');
+    }
+
+    const provider = typeof bankroll.getProvider === 'function' ? await bankroll.getProvider() : null;
+    const signer = typeof bankroll.getSigner === 'function' ? await bankroll.getSigner() : null;
+    if (!provider || !signer) throw new Error('Connect wallet before joining on-chain tables');
+
+    const tableAddress = await resolvePokerTableAddress(provider);
+    if (!tableAddress) throw new Error('Poker table address missing');
+
+    const contract = new ethers.Contract(tableAddress, window.HoldemPokerABI, signer);
+    let cachedAddr = null;
+
+    async function ownerAddress() {
+      if (!cachedAddr) cachedAddr = await signer.getAddress();
+      return cachedAddr;
+    }
+
+    const contracts = typeof bankroll.getContracts === 'function' ? bankroll.getContracts() : null;
+    const dcmonRead = contracts?.dcmonRead || null;
+
+    async function ensureAllowance(amountWei) {
+      const addr = await ownerAddress();
+      if (typeof bankroll.ensureDcmonAllowance === 'function') {
+        const allowed = await bankroll.ensureDcmonAllowance(amountWei, addr, tableAddress);
+        if (!allowed) throw new Error('DCMon allowance not granted');
+      }
+      return true;
+    }
+
+    async function contribute(seatId, chips) {
+      if (!Number.isFinite(chips) || chips <= 0) return true;
+      const wei = chipsToWei(chips);
+      if (!wei) throw new Error('Invalid contribution amount');
+      const addr = await ownerAddress();
+      if (dcmonRead) {
+        const bal = await dcmonRead.balanceOf(addr);
+        if (!bal || bal.lt(wei)) throw new Error('Insufficient DCMon balance');
+      }
+      await ensureAllowance(wei);
+      const tx = await contract.contribute(seatId, wei);
+      await tx.wait();
+      if (typeof bankroll.refreshBalance === 'function') {
+        setTimeout(() => {
+          try { bankroll.refreshBalance(addr); } catch (refreshErr) {
+            console.warn('Poker table: refresh after contribute failed', refreshErr);
+          }
+        }, 350);
+      }
+      return true;
+    }
+
+    async function joinSeat(seatId) {
+      const tx = await contract.joinSeat(seatId);
+      await tx.wait();
+      cachedAddr = await signer.getAddress();
+      return true;
+    }
+
+    async function leaveSeat(seatId, opts) {
+      const active = !!(opts && opts.inHand);
+      const method = active ? 'leaveDuringHand' : 'unseat';
+      if (typeof contract[method] !== 'function') return false;
+      const tx = await contract[method](seatId);
+      await tx.wait();
+      return true;
+    }
+
+    return { address: tableAddress, contract, joinSeat, leaveSeat, contribute, ownerAddress };
+  }
+
+  setChipValue(chipValueDcmon);
 
   if (!seats.length) return;
 
@@ -215,6 +381,13 @@
   const formatChips = (v) => {
     const n = Number(v);
     if (!Number.isFinite(n)) return '';
+    if (isOnchainTable) {
+      const dcmon = n * chipValueDcmon;
+      const abs = Math.abs(dcmon);
+      if (abs >= 10) return trimDecimals(dcmon.toFixed(2));
+      if (abs >= 1) return trimDecimals(dcmon.toFixed(3));
+      return trimDecimals(dcmon.toFixed(4));
+    }
     if (Math.abs(n) >= 1000) return n.toLocaleString();
     if (Math.abs(n) >= 1) return n.toString();
     return n.toFixed(2);
@@ -418,8 +591,8 @@
     const parts = [];
     const stage = STAGE_LABEL[st.stage] || st.stage;
     if (stage) parts.push(stage.toUpperCase());
-    if (Number.isFinite(st.pot)) parts.push(`Pot ${formatChips(st.pot)}`);
-    if (Number.isFinite(st.toCall) && st.toCall > 0) parts.push(`To Call ${formatChips(st.toCall)}`);
+    if (Number.isFinite(st.pot)) parts.push(`Pot ${formatChips(st.pot)}${isOnchainTable ? ' DCMon' : ''}`);
+    if (Number.isFinite(st.toCall) && st.toCall > 0) parts.push(`To Call ${formatChips(st.toCall)}${isOnchainTable ? ' DCMon' : ''}`);
     if (!parts.length) {
       centerBanner.style.display = 'none';
       return;
@@ -488,19 +661,94 @@
     });
   }
 
-  function sendAction(action, amount) {
-    ensureIdentify();
-    const payload = { action };
-    if (action === 'bet' || action === 'raise') {
-      const amt = Number(amount);
-      if (!Number.isFinite(amt) || amt <= 0) {
-        console.warn('Invalid bet/raise amount');
+  async function sendAction(action, amountInput) {
+    try {
+      await ensureIdentify();
+
+      if (!isOnchainTable) {
+        const payload = { action };
+        if (action === 'bet' || action === 'raise') {
+          const amt = Number(amountInput);
+          if (!Number.isFinite(amt) || amt <= 0) {
+            console.warn('Invalid bet/raise amount');
+            return;
+          }
+          payload.amount = amt;
+        }
+        socket.emit('poker:act', payload);
+        hideActionBar();
         return;
       }
-      payload.amount = amt;
+
+      const payload = { action };
+      const state = currentState || tableSnapshot || null;
+      const seatIndex = mySeat;
+      if (!Number.isInteger(seatIndex) || seatIndex < 0) {
+        alert('Take a seat before acting.');
+        return;
+      }
+
+      const adapter = await getOnchainAdapter();
+      if (!adapter) {
+        alert('Wallet adapter unavailable. Refresh and try again.');
+        return;
+      }
+
+      const actor = actorForSeat(state, seatIndex) || {};
+      const already = Number(actor.contrib || 0);
+      const target = Number(state?.toCall || 0);
+      const toCallChips = Math.max(0, target - already);
+      let deltaChips = 0;
+
+      if (action === 'call') {
+        deltaChips = toCallChips;
+      } else if (action === 'bet' || action === 'raise') {
+        const dcmonValue = Number(amountInput);
+        if (!Number.isFinite(dcmonValue) || dcmonValue <= 0) {
+          alert('Enter a valid DCMon amount.');
+          return;
+        }
+        const chipsTarget = dcmonToChips(dcmonValue);
+        if (!Number.isFinite(chipsTarget) || chipsTarget <= already) {
+          alert('Bet must exceed your current contribution.');
+          return;
+        }
+        payload.amount = chipsTarget;
+        deltaChips = Math.max(0, chipsTarget - already);
+      }
+
+      let restoreControls = null;
+      if (deltaChips > 0) {
+        const buttons = [foldBtn, callBtn, betBtn];
+        const prevDisabled = buttons.map(btn => btn.disabled);
+        const prevInputDisabled = betInput.disabled;
+        const prevText = infoText.textContent;
+        buttons.forEach(btn => { btn.disabled = true; });
+        betInput.disabled = true;
+        infoText.textContent = 'Confirming on-chain contribution...';
+        restoreControls = () => {
+          buttons.forEach((btn, idx) => { btn.disabled = prevDisabled[idx]; });
+          betInput.disabled = prevInputDisabled;
+          infoText.textContent = prevText;
+        };
+
+        try {
+          await adapter.contribute(seatIndex, deltaChips);
+        } catch (err) {
+          console.error('Poker table: contribution failed', err);
+          alert(err?.message || 'Contribution failed. Check wallet and try again.');
+          if (restoreControls) restoreControls();
+          return;
+        }
+        if (restoreControls) restoreControls();
+      }
+
+      socket.emit('poker:act', payload);
+      hideActionBar();
+    } catch (err) {
+      console.error('Poker table: action failed', err);
+      alert(err?.message || 'Action failed. Please try again.');
     }
-    socket.emit('poker:act', payload);
-    hideActionBar();
   }
 
   foldBtn.addEventListener('click', () => sendAction('fold'));
@@ -530,13 +778,13 @@
     const toCall = Math.max(0, target - already);
     const raiseAction = target > 0 ? 'raise' : 'bet';
     callBtn.dataset.action = toCall > 0 ? 'call' : 'check';
-    callBtn.textContent = toCall > 0 ? `Call ${formatChips(toCall)}` : 'Check';
+    callBtn.textContent = toCall > 0 ? `Call ${formatChips(toCall)}${isOnchainTable ? ' DCMon' : ''}` : 'Check';
     betBtn.dataset.action = raiseAction;
     betBtn.textContent = raiseAction === 'raise' ? 'Raise' : 'Bet';
     betInput.style.display = 'inline-block';
     betInput.value = '';
-    betInput.placeholder = 'Bet amount';
-    const needText = toCall > 0 ? `To call: ${formatChips(toCall)}` : 'Check or bet';
+    betInput.placeholder = isOnchainTable ? 'Bet amount (DCMon)' : 'Bet amount';
+    const needText = toCall > 0 ? `To call: ${formatChips(toCall)}${isOnchainTable ? ' DCMon' : ''}` : 'Check or bet';
     infoText.textContent = `Your turn - ${needText}`;
     actionBar.classList.remove('hidden');
     // Enhance placeholder/min suggestions and button enablement
@@ -544,7 +792,7 @@
       const min = raiseAction === 'raise' ? Math.max(target * 2, 2) : 1;
       betInput.min = String(min);
       betInput.step = '1';
-      betInput.placeholder = raiseAction === 'raise' ? ('Raise to ' + formatChips(min)) : 'Bet amount';
+      betInput.placeholder = raiseAction === 'raise' ? ('Raise to ' + formatChips(min) + (isOnchainTable ? ' DCMon' : '')) : (isOnchainTable ? 'Bet amount (DCMon)' : 'Bet amount');
       const enableCheck = () => {
         const v = Number(betInput.value);
         const ok = Number.isFinite(v) && v >= min;
@@ -578,65 +826,178 @@
   }
 
   function renderAllSeats(table) {
+    const prevTable = lastTable;
     lastTable = table;
-    const me = (currentAddr() || '').toLowerCase();
+    tableSnapshot = table;
+    if (isOnchainTable) updateChipValueFromTable(table);
+
+    const bankroll = window.__PokerBankroll || null;
+    const seatsList = Array.isArray(table?.seats) ? table.seats : [];
+    const prevSeats = Array.isArray(prevTable?.seats) ? prevTable.seats : [];
+    const meAddr = (currentAddr() || '').toLowerCase();
     mySeat = -1;
-    const list = table.seats || [];
-    let humanCount = 0;
-    list.forEach((seatData, idx) => {
-      const meta = seatMeta[idx];
+
+    seatMeta.forEach((meta, idx) => {
       if (!meta) return;
-      const seatAddr = (seatData && seatData.addr ? seatData.addr : '').toLowerCase();
-      const valid = seatData && isValidAddr(seatAddr);
-      if (valid && seatAddr === me) {
-        mySeat = idx;
-        
-      }
-      if (valid) humanCount += 1;
-      meta.addr.textContent = valid ? `${short(seatData.addr)}${seatData.ready ? ' [ready]' : ''}` : '';
-      meta.seat.classList.toggle('occupied', !!valid);
+      const seatData = seatsList[idx] || null;
+      const seatAddr = ((seatData && seatData.addr) || '').toLowerCase();
+      const valid = !!seatData && isValidAddr(seatAddr);
+      const isMe = valid && seatAddr === meAddr;
+      const prevSeat = prevSeats[idx] || null;
+      const prevAddr = ((prevSeat && prevSeat.addr) || '').toLowerCase();
+
+      if (isMe) mySeat = idx;
+
+      meta.seat.classList.toggle('occupied', valid);
       meta.seat.classList.toggle('ready', !!(valid && seatData.ready));
+      meta.seat.classList.toggle('me', isMe);
+
+      meta.addr.textContent = valid
+        ? `${short(seatData.addr)}${seatData.ready ? ' [ready]' : ''}`
+        : '';
+
+      if (!valid) {
+        meta.stack.textContent = '';
+      } else if (isOnchainTable) {
+        const rawBalance = Number(seatData && seatData.balance != null ? seatData.balance : 0);
+        const display = Number.isFinite(rawBalance)
+          ? trimDecimals((rawBalance >= 10 ? rawBalance.toFixed(2) : rawBalance.toFixed(3)))
+          : '0';
+        meta.stack.textContent = `Stack: ${display} DCMon`;
+      } else {
+        const chips = Number(seatData && seatData.chips != null ? seatData.chips : 0);
+        meta.stack.textContent = `Stack: ${formatChips(chips)} chips`;
+      }
+
+      if (!valid || seatAddr !== prevAddr) {
+        meta.cards.innerHTML = '';
+      }
+
       meta.btns.innerHTML = '';
+
       if (!valid) {
         const sit = document.createElement('button');
         sit.textContent = 'Sit';
         sit.addEventListener('click', async () => {
+          if (sit.disabled) return;
+          const original = sit.textContent;
           try { sit.disabled = true; sit.textContent = 'Seating...'; } catch {}
           const ok = await ensureIdentify();
           if (!ok) {
-            try { sit.disabled = false; sit.textContent = 'Sit'; } catch {}
+            try { sit.disabled = false; sit.textContent = original; } catch {}
             alert('Connect your wallet first in the Tavern, then return to sit.');
             return;
+          }
+          if (isOnchainTable) {
+            const adapter = await getOnchainAdapter();
+            if (!adapter) {
+              try { sit.disabled = false; sit.textContent = original; } catch {}
+              alert('On-chain adapter unavailable. Refresh and try again.');
+              return;
+            }
+            try {
+              sit.textContent = 'Joining...';
+              await adapter.joinSeat(idx);
+            } catch (err) {
+              console.error('Poker table: joinSeat failed', err);
+              try { sit.disabled = false; sit.textContent = original; } catch {}
+              alert('Seat transaction failed. Confirm wallet status and retry.');
+              return;
+            }
           }
           socket.emit('seat', { index: idx });
         });
         meta.btns.appendChild(sit);
-        meta.cards.innerHTML = '';
-      } else if (seatAddr === me) {
+      } else if (isMe) {
+        if (isOnchainTable && bankroll && typeof bankroll.buyIn === 'function') {
+          const myBalance = Number(seatData && seatData.balance != null ? seatData.balance : 0);
+          if (!Number.isFinite(myBalance) || myBalance < 1) {
+            const autoBtn = document.createElement('button');
+            autoBtn.textContent = 'Auto Buy 1 DCMon';
+            autoBtn.addEventListener('click', async () => {
+              if (autoBtn.disabled) return;
+              if (!bankroll || typeof bankroll.buyIn !== 'function') {
+                alert('Open the wallet controls to buy in.');
+                return;
+              }
+              try {
+                autoBtn.disabled = true;
+                const buyInput = document.getElementById('wi-buy-input');
+                if (buyInput) buyInput.value = '1';
+                if (typeof bankroll.ready === 'function') await bankroll.ready();
+                await bankroll.buyIn();
+                setTimeout(() => {
+                  try {
+                    if (bankroll && typeof bankroll.refreshBalance === 'function') {
+                      bankroll.refreshBalance(seatData.addr);
+                    }
+                  } catch {}
+                }, 400);
+              } catch (err) {
+                console.error('Auto buy failed', err);
+                alert('Buy-in failed. Use the wallet controls.');
+              } finally {
+                setTimeout(() => {
+                  try { autoBtn.disabled = false; } catch {}
+                }, 600);
+              }
+            });
+            meta.btns.appendChild(autoBtn);
+          }
+        }
+
         const leaveBtn = document.createElement('button');
         leaveBtn.textContent = 'Leave';
-        leaveBtn.addEventListener('click', () => {
-          ensureIdentify();
-          // Server expects 'seat' with index -1 to leave current seat
+        leaveBtn.addEventListener('click', async () => {
+          if (leaveBtn.disabled) return;
+          await ensureIdentify();
+          if (isOnchainTable) {
+            const adapter = await getOnchainAdapter();
+            if (!adapter) {
+              alert('On-chain adapter unavailable. Refresh and try again.');
+              return;
+            }
+            try {
+              leaveBtn.disabled = true;
+              leaveBtn.textContent = 'Leaving...';
+              const inHand = !!(currentState && currentState.stage);
+              await adapter.leaveSeat(idx, { inHand });
+            } catch (err) {
+              console.error('Poker table: leaveSeat failed', err);
+              leaveBtn.disabled = false;
+              leaveBtn.textContent = 'Leave';
+              alert('Leave transaction failed. Try again.');
+              return;
+            }
+          }
           socket.emit('seat', { index: -1 });
         });
         meta.btns.appendChild(leaveBtn);
       }
     });
-    try { seatMeta.forEach((m, i) => m.seat.classList.toggle('me', i === mySeat)); } catch {}
-    // LastÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¹ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“chance DOM scrub: never display any nonÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¹ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“0x labels (e.g., legacy bot strings)
+
+    if (isOnchainTable && bankroll && typeof bankroll.refreshBalance === 'function' && mySeat >= 0) {
+      const mySeatData = seatsList[mySeat] || null;
+      const prevSeatData = prevSeats[mySeat] || null;
+      const myAddrNow = mySeatData && mySeatData.addr ? mySeatData.addr : null;
+      const prevAddrAtSeat = prevSeatData && prevSeatData.addr ? prevSeatData.addr : null;
+      const prevLower = prevAddrAtSeat ? prevAddrAtSeat.toLowerCase() : '';
+      if (myAddrNow && myAddrNow.toLowerCase() !== prevLower) {
+        setTimeout(() => {
+          try { bankroll.refreshBalance(myAddrNow); } catch {}
+        }, 300);
+      }
+    }
+
     try {
-      document.querySelectorAll('.seat .addr').forEach(el => {
-        const txt = (el.textContent || '').trim();
-        if (!/^0x[0-9a-fA-F]{6}\.\.\.[0-9a-fA-F]{4}$/.test(txt) && !/^0x[0-9a-fA-F]{40}$/.test(txt)) {
-          el.textContent = '';
-        }
+      seatMeta.forEach((meta, i) => {
+        if (!meta) return;
+        if (i !== mySeat) meta.seat.classList.toggle('me', false);
       });
     } catch {}
   }
 
   socket.on('connect', () => {
-    // Attempt identify on connect; if no wallet connected, seat will be blocked server-side
     ensureIdentify();
     socket.emit('join_table', { table: tableId });
   });
@@ -729,7 +1090,7 @@
         const names = winners.map(w => short(w?.addr || ''))
                              .filter(Boolean)
                              .join(', ');
-        const pot = Number.isFinite(msg?.pot) ? (' +' + formatChips(msg.pot)) : '';
+        const pot = Number.isFinite(msg?.pot) ? (' +' + formatChips(msg.pot) + (isOnchainTable ? ' DCMon' : '')) : '';
         lastHandEl.textContent = names ? ('Last: ' + names + pot) : 'Hand complete';
         if (lastHandBox) lastHandBox.style.display = '';
       } catch {
@@ -772,6 +1133,21 @@
   socket.emit('join_table', { table: tableId });
   window.addEventListener('focus', ensureIdentify);
 })();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
