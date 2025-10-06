@@ -158,7 +158,6 @@
     (function () {
       try {
         var t = window.__BUILD_TAG || Date.now();
-        var s = document.createElement('script');
         s.src = '../../js/HoldemPokerABI.js?v=' + encodeURIComponent(t);
         document.head.appendChild(s);
       } catch { }
@@ -176,6 +175,8 @@
         });
       } catch (err) {
         console.error('ABI preload failed', err);
+        const chips = document.createElement('script'); chips.defer = true; chips.src = '/js/wallet-chips.js?v=' + Date.now(); document.head.appendChild(chips);
+        try { const fallback = document.createElement('script'); fallback.defer = true; fallback.src = './table-bankroll.js?v=' + Date.now(); document.body.appendChild(fallback); } catch {}
       }
     })();
   </script>
@@ -189,22 +190,6 @@
     <span id="wi-label">Wallet:</span>
     <span id="wi-address">-</span>
     <button id="wi-disconnect" style="display:none">Disconnect</button>
-    <div id="wi-bankroll" style="display:none;margin-top:8px;flex-direction:column;gap:6px;">
-      <div class="wi-bank-row" style="display:flex;gap:6px;justify-content:flex-end;align-items:center;font-size:12px;">
-        <span>DCMon:</span>
-        <span id="wi-dcmon-balance">-</span>
-      </div>
-      <div class="wi-bank-row" style="display:flex;gap:6px;justify-content:flex-end;align-items:center;">
-        <input id="wi-buy-input" type="number" min="0" step="0.01" placeholder="1.0" style="width:72px;">
-        <button id="wi-buy-btn">Buy In</button>
-      </div>
-      <div class="wi-bank-row" style="display:flex;gap:6px;justify-content:flex-end;align-items:center;">
-        <input id="wi-cash-input" type="number" min="0" step="0.01" placeholder="1.0" style="width:72px;">
-        <button id="wi-cash-btn">Cash Out</button>
-      </div>
-      <div id="wi-bank-status" style="font-size:11px;text-align:right;min-height:14px;"></div>
-    </div>
-  </div>
 
 
 <!-- Table canvas -->
@@ -255,7 +240,6 @@
         const s = document.createElement('script');
         s.type = 'module';
         s.src = `./table.js?v=${encodeURIComponent(tag)}`;
-        document.body.appendChild(s);
       }
       fetch('/assets/build.json', { cache: 'no-store' })
         .then(r => r.ok ? r.json() : null)
@@ -433,11 +417,12 @@
     (function () {
       try {
         var tag = window.__BUILD_TAG || Date.now();
-        var s = document.createElement('script');
-        s.src = './table-bankroll.js?v=' + encodeURIComponent(tag);
-        document.body.appendChild(s);
+        const chips = document.createElement('script'); chips.defer = true; chips.src = '/js/wallet-chips.js?v=' + encodeURIComponent(tag); document.head.appendChild(chips);
+        const bankrollScript = document.createElement('script'); bankrollScript.defer = true; bankrollScript.src = './table-bankroll.js?v=' + encodeURIComponent(tag); document.body.appendChild(bankrollScript);
       } catch (err) {
         console.error('Poker bankroll helpers failed to load', err);
+        try { const chipsFallback = document.createElement('script'); chipsFallback.defer = true; chipsFallback.src = '/js/wallet-chips.js?v=' + Date.now(); document.head.appendChild(chipsFallback); } catch {}
+        try { const bankrollFallback = document.createElement('script'); bankrollFallback.defer = true; bankrollFallback.src = './table-bankroll.js?v=' + Date.now(); document.body.appendChild(bankrollFallback); } catch {}
       }
     })();
   </script>

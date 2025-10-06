@@ -327,8 +327,29 @@
       })();
     })();
   </script>
+  <script>
+    (function () {
+      try {
+        var tag = window.__BUILD_TAG || Date.now();
+        ['wallet-chips','table-bankroll'].forEach(function(name){
+          var el = document.createElement('script');
+          el.defer = true;
+          el.src = name === 'wallet-chips'
+            ? '/js/wallet-chips.js?v=' + encodeURIComponent(tag)
+            : '/games/poker/table-bankroll.js?v=' + encodeURIComponent(tag);
+          document.head.appendChild(el);
+        });
+      } catch (err) {
+        try {
+          var chips = document.createElement('script'); chips.defer = true; chips.src = '/js/wallet-chips.js?v=' + Date.now(); document.head.appendChild(chips);
+          var bankroll = document.createElement('script'); bankroll.defer = true; bankroll.src = '/games/poker/table-bankroll.js?v=' + Date.now(); document.head.appendChild(bankroll);
+        } catch {}
+      }
+    })();
+  </script>
 </body>
 </html>
+
 
 
 

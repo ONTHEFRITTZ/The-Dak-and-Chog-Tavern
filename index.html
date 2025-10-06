@@ -31,6 +31,8 @@
       const abi = document.createElement('script'); abi.src = `js/TavernABI.js?v=${tag}`; addHead(abi);
       const s1 = document.createElement('script'); s1.type='module'; s1.src = `js/tavern.js?v=${tag}`; addHead(s1);
       const s2 = document.createElement('script'); s2.type='module'; s2.src = `js/state.js?v=${tag}`; addHead(s2);
+      const chips = document.createElement('script'); chips.defer = true; chips.src = '/js/wallet-chips.js?v=' + encodeURIComponent(tag); addHead(chips);
+      const bankroll = document.createElement('script'); bankroll.defer = true; bankroll.src = '/games/poker/table-bankroll.js?v=' + encodeURIComponent(tag); addHead(bankroll);
     }catch(e){ console.error('versioned loader failed', e); }
   })();
   </script>
@@ -287,4 +289,7 @@
 })();
 </script></body>
 </html>
+
+
+
 

@@ -313,14 +313,14 @@ async function runPreflight(row, meta) {
     if (needs.needsDcmon) {
       const ctx = await ensureDcmonReadContract(provider);
       if (!ctx?.contract) {
-        return { ok: false, reason: 'DCMon contract not resolved yet. Refresh once build updates.' };
+        return { ok: true, warning: "DCMon contract not resolved yet. Try again after refresh." };
       }
       const minWei = bigNumberFrom(meta?.minBuy?.wei);
       if (minWei) {
         const balance = await ctx.contract.balanceOf(addr);
         if (balance.lt(minWei)) {
           const label = meta?.minBuy?.amount ? `${meta.minBuy.amount} ${meta.minBuy.unit || meta.currency || 'DCMon'}` : 'the required DCMon';
-          return { ok: false, reason: `Need at least ${label} to sit.` };
+          return { ok: true, warning: `Insufficient DCMon (need ${label}). You can mint once the table loads.` };
         }
       }
     }
@@ -444,6 +444,7 @@ function cardFor(row){
         btn.textContent = original;
         return;
       }
+      if (result?.warning) setStatus(result.warning);
       btn.textContent = 'Launching...';
       goToTable(row.id);
     } catch (err) {

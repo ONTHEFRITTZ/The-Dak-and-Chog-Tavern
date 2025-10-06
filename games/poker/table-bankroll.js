@@ -1,56 +1,30 @@
 // games/poker/table-bankroll.js
-// Adds DCMon buy-in and cash-out helpers inside the wallet pill without altering layout.
+// Provides DCMon buy-in / cash-out helpers and exposes them via window.__PokerBankroll.
 (function () {
-  const mode = (document.documentElement.getAttribute('data-table-mode') || 'f2p').toLowerCase();
-  const section = document.getElementById('wi-bankroll');
-  if (!section) { window.__PokerBankroll = null; return; }
-
-  if (mode !== 'onchain') {
-    window.__PokerBankroll = null;
-    section.style.display = 'none';
-    return;
-  }
-
   const ethers = window.ethers;
-  if (!ethers) {
-    window.__PokerBankroll = null;
-    section.style.display = 'none';
-    console.error('Ethers.js not available; poker bankroll helpers disabled');
-    return;
+  const state = { lastStatus: null };
+
+  function getEl(id) {
+    return document.getElementById(id);
   }
 
-  section.style.display = section.style.display || 'flex';
-  section.style.flexDirection = section.style.flexDirection || 'column';
-  section.style.gap = section.style.gap || '6px';
+  function ensureBankrollContainer() {
+    if (document.getElementById('wi-bankroll')) return;
+    const wrapper = document.createElement('div');
+    wrapper.id = 'wi-bankroll';
+    wrapper.style.display = 'none';
+    document.body.appendChild(wrapper);
+  }
 
-  const balanceEl = document.getElementById('wi-dcmon-balance');
-  const buyInput = document.getElementById('wi-buy-input');
-  const buyBtn = document.getElementById('wi-buy-btn');
-  const cashInput = document.getElementById('wi-cash-input');
-  const cashBtn = document.getElementById('wi-cash-btn');
-  const statusEl = document.getElementById('wi-bank-status');
-
-  const { utils, BigNumber } = ethers;
-
-  let providerCache = null;
-  let signerCache = null;
-  let configModulePromise = null;
-  let dcmonAddress = null;
-  let wmonAddress = null;
-  let dcmonRead = null;
-  let dcmonWrite = null;
-  let wmonRead = null;
-  let wmonWrite = null;
+  ensureBankrollContainer();
 
   function setStatus(message, tone) {
+    state.lastStatus = { message: message || '', tone: tone || '' };
+    const statusEl = getEl('wi-bank-status');
     if (!statusEl) return;
     statusEl.textContent = message || '';
     if (!message) return;
-    const palette = {
-      error: '#ff9a9a',
-      success: '#9ef89e',
-      info: '#d7d7d7'
-    };
+    const palette = { error: '#ff9a9a', success: '#9ef89e', info: '#d7d7d7' };
     statusEl.style.color = palette[tone] || palette.info;
   }
 
@@ -76,19 +50,17 @@
   function currentAddress() {
     const stored = storedAddress();
     if (stored) return stored;
-    try {
-      const pill = document.getElementById('wi-address');
-      const txt = (pill?.textContent || '').trim();
-      if (/^0x[0-9a-fA-F]{40}$/i.test(txt)) return txt;
-    } catch {}
-    try {
-      if (window.__ADDR && /^0x[0-9a-fA-F]{40}$/i.test(String(window.__ADDR))) return String(window.__ADDR);
-    } catch {}
+    const pill = getEl('wi-address');
+    const txt = (pill?.textContent || '').trim();
+    if (/^0x[0-9a-fA-F]{40}$/i.test(txt)) return txt;
+    if (window.__ADDR && /^0x[0-9a-fA-F]{40}$/i.test(String(window.__ADDR))) return String(window.__ADDR);
     return '';
   }
 
+  let providerCache = null;
   async function getProvider() {
     if (providerCache) return providerCache;
+    if (!ethers?.providers) return null;
     let injected = null;
     try { if (typeof window.__getSelectedProvider === 'function') injected = window.__getSelectedProvider(); } catch {}
     if (!injected && window.ethereum) injected = window.ethereum;
@@ -103,6 +75,7 @@
     }
   }
 
+  let signerCache = null;
   async function getSigner() {
     if (signerCache) return signerCache;
     const provider = await getProvider();
@@ -118,6 +91,7 @@
     }
   }
 
+  let configModulePromise = null;
   async function loadConfigModule() {
     if (!configModulePromise) {
       configModulePromise = import('../../js/config.js').catch((err) => {
@@ -141,43 +115,48 @@
     return null;
   }
 
+  let dcmonAddress = null;
+  let wmonAddress = null;
+  let dcmonRead = null;
+  let dcmonWrite = null;
+  let wmonRead = null;
+  let wmonWrite = null;
+
   async function ensureContracts() {
+    if (!ethers) {
+      setStatus('Wallet runtime unavailable.', 'error');
+      return false;
+    }
     const provider = await getProvider();
     const signer = await getSigner();
     if (!provider || !signer) {
       setStatus('Connect wallet first.', 'error');
       return false;
     }
-
     if (!dcmonAddress) dcmonAddress = await resolveAddress('dcmon', provider);
     if (!wmonAddress) wmonAddress = await resolveAddress('wmon', provider);
-
     if (!dcmonAddress || !wmonAddress) {
-      setStatus('DCMon contracts not configured.', 'error');
+      setStatus('Bankroll contracts not configured.', 'error');
       return false;
     }
-
     if (!window.DCMonABI || !window.WMONABI) {
       setStatus('Token ABIs unavailable.', 'error');
       return false;
     }
-
     if (!dcmonRead || !dcmonWrite) {
       dcmonRead = new ethers.Contract(dcmonAddress, window.DCMonABI, provider);
       dcmonWrite = dcmonRead.connect(signer);
     }
-
     if (!wmonRead || !wmonWrite) {
       wmonRead = new ethers.Contract(wmonAddress, window.WMONABI, provider);
       wmonWrite = wmonRead.connect(signer);
     }
-
     return true;
   }
 
   function formatBalance(bn) {
     try {
-      const val = parseFloat(utils.formatEther(bn));
+      const val = parseFloat(ethers.utils.formatEther(bn));
       if (!Number.isFinite(val)) return '-';
       if (val >= 1000) return val.toLocaleString(undefined, { maximumFractionDigits: 2 });
       if (val >= 1) return val.toFixed(3).replace(/\.0+$/, '').replace(/(\..*?)0+$/, '');
@@ -188,20 +167,25 @@
   }
 
   async function refreshBalance(addr) {
-    if (!balanceEl) return;
+    const balanceEl = getEl('wi-dcmon-balance');
     const address = addr || currentAddress();
+    if (!balanceEl) return null;
     if (!address) {
       balanceEl.textContent = '-';
-      return;
+      return null;
+    }
+    if (!await ensureContracts()) {
+      balanceEl.textContent = '-';
+      return null;
     }
     try {
-      const ok = await ensureContracts();
-      if (!ok) { balanceEl.textContent = '-'; return; }
       const bal = await dcmonRead.balanceOf(address);
       balanceEl.textContent = formatBalance(bal);
+      return bal;
     } catch (err) {
       console.error('Poker bankroll: balance refresh failed', err);
       balanceEl.textContent = '-';
+      return null;
     }
   }
 
@@ -210,7 +194,7 @@
     const current = await wmonRead.balanceOf(address);
     if (current.gte(amountWei)) return true;
     const deficit = amountWei.sub(current);
-    if (deficit.lte(BigNumber.from(0))) return true;
+    if (deficit.lte(ethers.BigNumber.from(0))) return true;
     setStatus('Wrapping MON...', 'info');
     const tx = await wmonWrite.deposit({ value: deficit });
     await tx.wait();
@@ -227,7 +211,7 @@
   }
 
   async function ensureDcmonAllowance(amountWei, address, spender) {
-    const target = spender || await resolveAddress('pokerTable', await getProvider());
+    const target = spender || dcmonAddress;
     if (!target) return false;
     const allowance = await dcmonRead.allowance(address, target);
     if (allowance.gte(amountWei)) return true;
@@ -241,6 +225,7 @@
     setStatus('');
     if (!await ensureContracts()) return;
 
+    const buyInput = getEl('wi-buy-input');
     const amountValue = sanitizeAmount(buyInput?.value, 1);
     if (!Number.isFinite(amountValue) || amountValue <= 0) {
       setStatus('Enter a valid buy-in amount.', 'error');
@@ -249,7 +234,7 @@
 
     let amountWei;
     try {
-      amountWei = utils.parseEther(String(amountValue));
+      amountWei = ethers.utils.parseEther(String(amountValue));
     } catch {
       setStatus('Enter a valid buy-in amount.', 'error');
       return;
@@ -281,6 +266,7 @@
     setStatus('');
     if (!await ensureContracts()) return;
 
+    const cashInput = getEl('wi-cash-input');
     const amountValue = sanitizeAmount(cashInput?.value, null);
     if (!Number.isFinite(amountValue) || amountValue <= 0) {
       setStatus('Enter a valid cash-out amount.', 'error');
@@ -289,7 +275,7 @@
 
     let amountWei;
     try {
-      amountWei = utils.parseEther(String(amountValue));
+      amountWei = ethers.utils.parseEther(String(amountValue));
     } catch {
       setStatus('Enter a valid cash-out amount.', 'error');
       return;
@@ -320,35 +306,44 @@
     }
   }
 
-  if (buyBtn) {
-    buyBtn.addEventListener('click', (ev) => {
-      ev.preventDefault();
-      handleBuyIn();
-    });
-  }
-  if (buyInput) {
-    buyInput.addEventListener('keydown', (ev) => {
-      if (ev.key === 'Enter') {
-        ev.preventDefault();
-        handleBuyIn();
-      }
-    });
+  function bindUi() {
+    const buyBtn = getEl('wi-buy-btn');
+    if (buyBtn && !buyBtn.dataset.bankrollBound) {
+      buyBtn.dataset.bankrollBound = '1';
+      buyBtn.addEventListener('click', (ev) => { ev.preventDefault(); handleBuyIn(); });
+    }
+    const buyInput = getEl('wi-buy-input');
+    if (buyInput && !buyInput.dataset.bankrollBound) {
+      buyInput.dataset.bankrollBound = '1';
+      buyInput.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter') {
+          ev.preventDefault();
+          handleBuyIn();
+        }
+      });
+    }
+    const cashBtn = getEl('wi-cash-btn');
+    if (cashBtn && !cashBtn.dataset.bankrollBound) {
+      cashBtn.dataset.bankrollBound = '1';
+      cashBtn.addEventListener('click', (ev) => { ev.preventDefault(); handleCashOut(); });
+    }
+    const cashInput = getEl('wi-cash-input');
+    if (cashInput && !cashInput.dataset.bankrollBound) {
+      cashInput.dataset.bankrollBound = '1';
+      cashInput.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter') {
+          ev.preventDefault();
+          handleCashOut();
+        }
+      });
+    }
   }
 
-  if (cashBtn) {
-    cashBtn.addEventListener('click', (ev) => {
-      ev.preventDefault();
-      handleCashOut();
-    });
-  }
-  if (cashInput) {
-    cashInput.addEventListener('keydown', (ev) => {
-      if (ev.key === 'Enter') {
-        ev.preventDefault();
-        handleCashOut();
-      }
-    });
-  }
+  bindUi();
+  document.addEventListener('bankroll:ui-ready', () => {
+    bindUi();
+    setTimeout(() => refreshBalance(), 200);
+  });
 
   window.addEventListener('wallet:connected', (ev) => {
     const addr = ev?.detail?.address;
@@ -373,9 +368,14 @@
     ensureWmonAllowance,
     ensureDcmonAllowance,
     buyIn: handleBuyIn,
-    cashOut: handleCashOut
+    cashOut: handleCashOut,
+    getLastStatus: () => state.lastStatus
   };
 
-  refreshBalance();
-  setInterval(refreshBalance, 30000);
+  document.dispatchEvent(new CustomEvent('bankroll:ready', { detail: { ok: !!ethers } }));
+
+  if (ethers) {
+    refreshBalance();
+    setInterval(refreshBalance, 30000);
+  }
 })();

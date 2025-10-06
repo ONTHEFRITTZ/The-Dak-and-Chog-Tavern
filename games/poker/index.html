@@ -181,7 +181,7 @@
           <span class="muted" id="off-note">loading…</span>
         </div>
         <div id="list-offchain" class="lobby-list"></div>
-        <p class="muted" style="margin-top:8px;">DevBot toggles appear in-table for solo F2P only.</p>
+        <p class="muted" style="margin-top:8px;">Free to play does not require a buy in</p>
       </div>
     </div>
   </div>
@@ -201,8 +201,8 @@
       try{
         fetch('/assets/build.json',{cache:'no-store'})
           .then(r=>r.ok?r.json():null)
-          .then(b=>{ var tag=(b&&b.commit)?String(b.commit).slice(0,12):Date.now(); load('poker.js?v='+encodeURIComponent(tag)); })
-          .catch(()=>load('poker.js?v='+Date.now()));
+          .then(b=>{ var tag=(b&&b.commit)?String(b.commit).slice(0,12):Date.now(); load('/js/wallet-chips.js?v='+encodeURIComponent(tag)); load('/games/poker/table-bankroll.js?v='+encodeURIComponent(tag)); load('poker.js?v='+encodeURIComponent(tag)); })
+          .catch(()=>{ var stamp=Date.now(); load('/js/wallet-chips.js?v='+stamp); load('/games/poker/table-bankroll.js?v='+stamp); load('poker.js?v='+stamp); });
       }catch{ load('poker.js?v='+Date.now()); }
     })();
   </script>
@@ -253,4 +253,6 @@
   </script>
 </body>
 </html>
+
+
 
