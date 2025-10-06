@@ -1,5 +1,5 @@
 // js/wallet-chips.js
-// Adds a Chips trigger + modal everywhere without touching existing layout.
+// Adds a Chips trigger and bankroll modal without disturbing existing layout.
 (function () {
   if (window.__WalletChipsMounted) return;
   window.__WalletChipsMounted = true;
@@ -32,12 +32,12 @@
   }
 
   function ensureDependencies() {
-    const deps = [];
-    if (!window.ethers) deps.push(loadScriptOnce(CDN_ETHERS));
-    deps.push(loadScriptOnce(SRC.dcmon));
-    deps.push(loadScriptOnce(SRC.wmon));
-    deps.push(loadScriptOnce(SRC.bankroll, 'body'));
-    return Promise.all(deps).catch((err) => {
+    const needs = [];
+    if (!window.ethers) needs.push(loadScriptOnce(CDN_ETHERS));
+    needs.push(loadScriptOnce(SRC.dcmon));
+    needs.push(loadScriptOnce(SRC.wmon));
+    needs.push(loadScriptOnce(SRC.bankroll, 'body'));
+    return Promise.all(needs).catch((err) => {
       console.error('wallet-chips: dependency load failed', err);
       try { loadScriptOnce('/js/DCMonABI.js?v=' + Date.now()); } catch {}
       try { loadScriptOnce('/js/WMONABI.js?v=' + Date.now()); } catch {}
@@ -63,13 +63,16 @@
     function ensureBadge(id, label) {
       if (document.getElementById(id)) return;
       const badge = document.createElement('span');
-      badge.id = id + '-group';
+      badge.className = 'wi-balance-badge';
       badge.style.display = 'flex';
       badge.style.alignItems = 'center';
       badge.style.fontSize = '12px';
+      badge.style.background = 'rgba(0,0,0,0.35)';
+      badge.style.borderRadius = '12px';
+      badge.style.padding = '2px 6px';
+      badge.style.gap = '4px';
       const strong = document.createElement('strong');
-      strong.textContent = `${label}: `;
-      strong.style.marginRight = '2px';
+      strong.textContent = label;
       const value = document.createElement('span');
       value.id = id;
       value.textContent = '-';
@@ -159,7 +162,6 @@
       container = document.createElement('div');
       container.id = 'wi-bankroll';
     }
-
     container.style.display = 'flex';
     container.style.flexDirection = 'column';
     container.style.gap = '12px';
@@ -206,9 +208,11 @@
     delete document.body.dataset.chipsModalOpen;
   }
 
-  function ensureWalletUI() {\n    ensureBalanceBadges();
+  function ensureWalletUI() {
+    ensureBalanceBadges();
     const pill = document.getElementById('wallet-inline');
     if (!pill || document.getElementById('wi-chips-btn')) return;
+
     const btn = document.createElement('button');
     btn.id = 'wi-chips-btn';
     btn.textContent = 'Chips';
@@ -216,8 +220,8 @@
     btn.style.borderRadius = '10px';
     btn.style.fontWeight = '600';
     pill.appendChild(btn);
-    btn.addEventListener('click', openModal);
 
+    btn.addEventListener('click', openModal);
     document.addEventListener('keydown', (ev) => {
       if (ev.key === 'Escape' && document.body.dataset.chipsModalOpen) {
         closeModal();
@@ -225,7 +229,10 @@
     });
   }
 
-  function init() {\n    ensureWalletUI();\n    createModal();\n    ensureDependencies().then(() => document.dispatchEvent(new CustomEvent('bankroll:ui-ready')));
+  function init() {
+    ensureWalletUI();
+    createModal();
+    ensureDependencies().then(() => document.dispatchEvent(new CustomEvent('bankroll:ui-ready')));
   }
 
   if (document.readyState === 'loading') {
@@ -234,4 +241,3 @@
     init();
   }
 })();
-
