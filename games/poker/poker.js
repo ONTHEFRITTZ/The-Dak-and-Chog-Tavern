@@ -79,6 +79,7 @@ function getSelectedProvider(){
   } catch {}
   return null; // no auto-fallback — user must choose on landing
 }
+try { window.__getSelectedProvider = getSelectedProvider; } catch {}
 
 // ---------------- Contract address display (optional) ----------------
 async function updateContractLabels(){
@@ -111,27 +112,348 @@ function setNotes(limitCnt, nlCnt, offCnt){
   if (noteNLEl)    noteNLEl.textContent    = nlCnt    ? `${nlCnt} table${nlCnt>1?'s':''}`     : 'no tables';
   if (noteOffEl)   noteOffEl.textContent   = offCnt   ? `${offCnt} table${offCnt>1?'s':''}`   : 'no tables';
 }
+const lobbyScriptPromises = new Map();
+const dcmonContractCache = new WeakMap();
+
+function loadScriptOnce(src) {
+  if (!src) return Promise.resolve(false);
+  if (lobbyScriptPromises.has(src)) return lobbyScriptPromises.get(src);
+  const existing = Array.from(document.getElementsByTagName('script')).find(s => s.src && s.src.includes(src));
+  if (existing && (existing.dataset.loaded === '1' || existing.readyState === 'complete')) {
+    return Promise.resolve(true);
+  }
+  const promise = new Promise((resolve, reject) => {
+    try {
+      const script = existing || document.createElement('script');
+      if (!existing) {
+        script.src = src;
+        script.async = false;
+        document.head.appendChild(script);
+      }
+      script.addEventListener('load', () => {
+        script.dataset.loaded = '1';
+        resolve(true);
+      }, { once: true });
+      script.addEventListener('error', reject, { once: true });
+    } catch (err) {
+      reject(err);
+    }
+  }).catch(err => {
+    lobbyScriptPromises.delete(src);
+    console.error('loadScriptOnce failed', src, err);
+    return false;
+  });
+  lobbyScriptPromises.set(src, promise);
+  return promise;
+}
+
+function readSponsorActive() {
+  try { return localStorage.getItem('aa:sponsored') === 'true'; } catch { return false; }
+}
+
+function isGuestWallet(addr) {
+  try {
+    const guest = String(window.__GUEST_ADDR || '').toLowerCase();
+    const target = String(addr || '').toLowerCase();
+    return guest && guest === target;
+  } catch {
+    return false;
+  }
+}
+
+function bigNumberFrom(value) {
+  try {
+    if (!window.ethers || !window.ethers.BigNumber) return null;
+    if (value === undefined || value === null) return null;
+    const str = String(value);
+    if (!str || str === '0') return null;
+    return window.ethers.BigNumber.from(str);
+  } catch {
+    return null;
+  }
+}
+
+async function ensureDcmonReadContract(provider) {
+  if (!provider || !window.ethers) return null;
+  if (dcmonContractCache.has(provider)) return dcmonContractCache.get(provider);
+  const promise = (async () => {
+    try {
+      await loadScriptOnce('../../js/DCMonABI.js');
+      let configMod = null;
+      try { configMod = await import('../../js/config.js'); } catch (err) { console.warn('config import failed', err); }
+      const web3 = new window.ethers.providers.Web3Provider(provider, 'any');
+      let address = null;
+      if (configMod?.getAddressFor) {
+        try { address = await configMod.getAddressFor('dcmon', web3).catch(() => null); } catch {}
+      }
+      if (!address) {
+        address = configMod?.CONTRACTS?.dcmon || window?.CONTRACTS?.dcmon || null;
+      }
+      if (!address || !window.DCMonABI) return null;
+      const contract = new window.ethers.Contract(address, window.DCMonABI, web3);
+      return { contract, provider: web3 };
+    } catch (err) {
+      console.error('ensureDcmonReadContract error', err);
+      return null;
+    }
+  })().then(result => {
+    if (!result) dcmonContractCache.delete(provider);
+    return result;
+  });
+  dcmonContractCache.set(provider, promise);
+  return promise;
+}
+
+function normaliseRowMeta(row) {
+  const meta = row && typeof row.meta === 'object' ? { ...row.meta } : {};
+  meta.tableMode = meta.tableMode || (row?.simulated ? 'f2p' : 'onchain');
+  meta.currency = meta.currency || (meta.tableMode === 'onchain' ? 'DCMon' : 'Chips');
+  meta.typeLabel = meta.typeLabel || (meta.tableMode === 'onchain'
+    ? (row?.limit === 'FL' ? 'On-Chain Limit' : 'On-Chain NL')
+    : 'Free to Play');
+  meta.tooltip = meta.tooltip || (meta.tableMode === 'onchain'
+    ? 'DCMon bankroll with on-chain dealer settlement.'
+    : 'Simulated chips only.');
+  const blinds = meta.blinds && typeof meta.blinds === 'object' ? { ...meta.blinds } : {};
+  if (!blinds.sb || !blinds.bb) {
+    if (typeof row?.stakes === 'string' && row.stakes.includes('/')) {
+      const parts = row.stakes.split('/').map(s => s.trim());
+      if (!blinds.sb && parts[0]) blinds.sb = parts[0].replace(/mon/ig, meta.currency);
+      if (!blinds.bb && parts[1]) blinds.bb = parts[1].replace(/mon/ig, meta.currency);
+    }
+  }
+  meta.blinds = blinds;
+  if (blinds.sb && blinds.bb) {
+    meta.blindsText = `Blinds ${blinds.sb} / ${blinds.bb} ${meta.currency}`.replace(/\s+/g, ' ').trim();
+  } else if (row?.stakes) {
+    meta.blindsText = String(row.stakes).replace(/mon/ig, meta.currency);
+  } else {
+    meta.blindsText = '';
+  }
+  const minBuy = meta.minBuy && typeof meta.minBuy === 'object' ? { ...meta.minBuy } : {};
+  if (!('amount' in minBuy)) {
+    minBuy.amount = meta.tableMode === 'onchain' ? '1' : '0';
+  }
+  if (!('unit' in minBuy)) {
+    minBuy.unit = meta.currency;
+  }
+  if (!('wei' in minBuy) && meta.tableMode === 'onchain') {
+    try {
+      const decimals = Number(meta.decimals || 18);
+      const amountNum = Number(minBuy.amount || 0);
+      if (Number.isFinite(decimals) && Number.isFinite(amountNum) && window.ethers?.utils?.parseUnits) {
+        minBuy.wei = window.ethers.utils.parseUnits(String(amountNum), decimals).toString();
+      }
+    } catch {}
+  }
+  meta.minBuy = minBuy;
+  if (Number(minBuy.amount || 0) > 0) {
+    meta.minBuyText = `Min ${minBuy.amount} ${minBuy.unit}`.trim();
+  } else {
+    meta.minBuyText = meta.tableMode === 'onchain' ? 'Min buy-in required' : 'Practice chips';
+  }
+  meta.stackRequirement = meta.stackRequirement || (meta.tableMode === 'onchain'
+    ? 'Bring DCMon before you sit (50+ BB recommended).'
+    : 'Stacks use simulated chips.');
+  meta.preflight = meta.preflight && typeof meta.preflight === 'object'
+    ? { ...meta.preflight }
+    : { needsWallet: meta.tableMode === 'onchain', needsDcmon: meta.tableMode === 'onchain', needsSponsor: false };
+  meta.decimals = Number.isFinite(Number(meta.decimals)) ? Number(meta.decimals) : (meta.tableMode === 'onchain' ? 18 : 0);
+  return meta;
+}
+
+function createBadge(label, opts = {}) {
+  const span = document.createElement('span');
+  span.className = 'pill';
+  span.textContent = label;
+  if (opts.bg) span.style.background = opts.bg;
+  if (opts.color) span.style.color = opts.color;
+  if (opts.title) span.title = opts.title;
+  if (opts.opacity) span.style.opacity = String(opts.opacity);
+  if (opts.border) span.style.border = opts.border;
+  return span;
+}
+
+function goToTable(tableId) {
+  try {
+    const u = new URL(window.location.href);
+    u.pathname = '/games/poker/table.html';
+    u.searchParams.set('table', tableId);
+    window.location.href = u.toString();
+  } catch {
+    window.location.href = `/games/poker/table.html?table=${encodeURIComponent(tableId)}`;
+  }
+}
+
+async function runPreflight(row, meta) {
+  try {
+    const needs = meta?.preflight || {};
+    const needsWallet = needs.needsWallet !== undefined ? !!needs.needsWallet : meta.tableMode === 'onchain';
+    if (!needsWallet) return { ok: true };
+    const provider = getSelectedProvider();
+    if (!provider) {
+      return { ok: false, reason: 'Select a wallet on landing before opening on-chain tables.' };
+    }
+    if (!window.ethers) {
+      return { ok: false, reason: 'Wallet runtime unavailable (ethers).' };
+    }
+    let accounts = [];
+    try { accounts = await provider.request({ method: 'eth_accounts' }); } catch {}
+    if (!accounts || !accounts.length) {
+      try {
+        accounts = await provider.request({ method: 'eth_requestAccounts' });
+      } catch (err) {
+        console.warn('Wallet approval rejected', err);
+        return { ok: false, reason: 'Wallet approval required to continue.' };
+      }
+    }
+    const addr = (accounts && accounts[0]) ? accounts[0] : null;
+    if (!addr) return { ok: false, reason: 'No wallet account available.' };
+    if (typeof setKnownAddress === 'function') setKnownAddress(addr);
+    if (needs.needsDcmon) {
+      const ctx = await ensureDcmonReadContract(provider);
+      if (!ctx?.contract) {
+        return { ok: false, reason: 'DCMon contract not resolved yet. Refresh once build updates.' };
+      }
+      const minWei = bigNumberFrom(meta?.minBuy?.wei);
+      if (minWei) {
+        const balance = await ctx.contract.balanceOf(addr);
+        if (balance.lt(minWei)) {
+          const label = meta?.minBuy?.amount ? `${meta.minBuy.amount} ${meta.minBuy.unit || meta.currency || 'DCMon'}` : 'the required DCMon';
+          return { ok: false, reason: `Need at least ${label} to sit.` };
+        }
+      }
+    }
+    return { ok: true, address: addr };
+  } catch (err) {
+    console.error('runPreflight failed', err);
+    return { ok: false, reason: 'Preflight check failed.' };
+  }
+}
+
 function cardFor(row){
+  const meta = normaliseRowMeta(row || {});
   const card = document.createElement('div'); card.className='lobby-item';
   const left = document.createElement('div');
-  const meta = [
-    `Players ${row.seated}/${row.capacity}`,
-    row.limit ? row.limit : '',
-    row.stakes ? row.stakes : '',
-    row.simulated ? 'sim' : ''
-  ].filter(Boolean).join(' • ');
-  left.innerHTML = `<strong>${row.id}</strong><span class="muted">${meta}</span>`;
-  const btn = document.createElement('button'); btn.textContent = 'Open Table';
-  btn.onclick = () => {
+  left.style.display = 'flex';
+  left.style.flexDirection = 'column';
+  left.style.gap = '6px';
+  left.style.flex = '1 1 auto';
+
+  const header = document.createElement('div');
+  header.style.display = 'flex';
+  header.style.alignItems = 'center';
+  header.style.justifyContent = 'space-between';
+  header.style.flexWrap = 'wrap';
+  header.style.gap = '8px';
+
+  const title = document.createElement('strong');
+  title.textContent = row.id;
+  header.appendChild(title);
+
+  const badgeWrap = document.createElement('div');
+  badgeWrap.style.display = 'flex';
+  badgeWrap.style.alignItems = 'center';
+  badgeWrap.style.flexWrap = 'wrap';
+  badgeWrap.style.gap = '6px';
+
+  badgeWrap.appendChild(createBadge(meta.typeLabel || (meta.tableMode === 'onchain' ? 'On-Chain' : 'Free to Play'), {
+    bg: meta.tableMode === 'onchain' ? 'rgba(38,132,92,0.55)' : 'rgba(0,0,0,0.45)',
+    color: '#f4e6d3',
+    title: meta.tooltip || ''
+  }));
+
+  if (meta.tableMode === 'onchain') {
+    badgeWrap.appendChild(createBadge(meta.currency || 'DCMon', {
+      bg: 'rgba(105,80,180,0.55)',
+      color: '#f4e6d3',
+      title: `Settles in ${meta.currency || 'DCMon'}`
+    }));
+  }
+
+  header.appendChild(badgeWrap);
+  left.appendChild(header);
+
+  const infoLine = document.createElement('div');
+  infoLine.className = 'muted';
+  infoLine.textContent = [
+    `Seats ${row.seated}/${row.capacity}`,
+    meta.blindsText,
+    meta.minBuyText
+  ].filter(Boolean).join(' | ');
+  left.appendChild(infoLine);
+
+  if (meta.stackRequirement) {
+    const stackLine = document.createElement('div');
+    stackLine.className = 'muted';
+    stackLine.textContent = meta.stackRequirement;
+    left.appendChild(stackLine);
+  }
+
+  const statusWrap = document.createElement('div');
+  statusWrap.style.display = 'flex';
+  statusWrap.style.flexWrap = 'wrap';
+  statusWrap.style.gap = '6px';
+
+  if (meta.tableMode === 'onchain') {
+    const dealerReady = row.dealerSigner !== false;
+    statusWrap.appendChild(createBadge(dealerReady ? 'Ready' : 'Dealer Offline', {
+      bg: dealerReady ? 'rgba(38,132,92,0.65)' : 'rgba(180,60,60,0.68)',
+      color: '#f4e6d3',
+      title: dealerReady ? 'On-chain dealer signer configured.' : 'Dealer signer missing; actions will fallback off-chain.'
+    }));
+
+    const walletOk = !!myAddr && !isGuestWallet(myAddr);
+    statusWrap.appendChild(createBadge(walletOk ? 'Wallet OK' : 'Wallet Required', {
+      bg: walletOk ? 'rgba(72,104,180,0.55)' : 'rgba(200,120,40,0.65)',
+      color: '#f4e6d3',
+      title: walletOk ? `Connected as ${short(myAddr)}` : 'Connect your wallet on landing before joining on-chain tables.'
+    }));
+
+    const sponsorActive = readSponsorActive();
+    statusWrap.appendChild(createBadge(sponsorActive ? 'Sponsor On' : 'Sponsor Off', {
+      bg: sponsorActive ? 'rgba(88,140,220,0.55)' : 'rgba(96,96,96,0.55)',
+      color: '#f4e6d3',
+      title: sponsorActive ? 'Gas sponsorship active from Smart Account panel.' : 'Enable gas sponsor in Smart Account panel if desired.'
+    }));
+  } else {
+    statusWrap.appendChild(createBadge('Practice', {
+      bg: 'rgba(0,0,0,0.45)',
+      color: '#f4e6d3',
+      title: 'Simulated chips only.'
+    }));
+  }
+
+  if (statusWrap.childNodes.length) {
+    left.appendChild(statusWrap);
+  }
+
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.textContent = meta.tableMode === 'onchain' ? 'Launch On-Chain Table' : 'Play Table';
+
+  btn.addEventListener('click', async () => {
+    const original = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Checking...';
     try {
-      const u = new URL(window.location.href);
-      u.pathname = '/games/poker/table.html';
-      u.searchParams.set('table', row.id);
-      window.location.href = u.toString();
-    } catch {
-      window.location.href = `/games/poker/table.html?table=${encodeURIComponent(row.id)}`;
+      const result = await runPreflight(row, meta);
+      if (!result?.ok) {
+        setStatus(result?.reason || 'Unable to launch table.');
+        btn.disabled = false;
+        btn.textContent = original;
+        return;
+      }
+      btn.textContent = 'Launching...';
+      goToTable(row.id);
+    } catch (err) {
+      console.error('Lobby preflight failed', err);
+      setStatus('Preflight check failed.');
+      btn.disabled = false;
+      btn.textContent = original;
     }
-  };
+  });
+
   card.appendChild(left);
   card.appendChild(btn);
   return card;
@@ -286,3 +608,5 @@ connectBtn?.addEventListener('click', async () => {
 initSocket();
 ensureWalletFromSelected();
 updateContractLabels();
+
+

@@ -9,7 +9,7 @@ const fs = require('fs');
 const path = require('path');
 
 // Onchain dealer integration (safe no-ops if file exports stubs)
-const { onBeginHand, onSettleHand } = require('./dealeronchain');
+const { onBeginHand, onSettleHand, dealerSignerConfigured } = require('./dealeronchain');
 
 /* ----------------------------- HTTP + Socket.IO ---------------------------- */
 const server = http.createServer((req, res) => {
@@ -73,7 +73,7 @@ function getTable(id){
     tables.set(id,t); return t;
   }
   if (low.startsWith('poker-fl-')) {
-    const t={ id, kind:'POKER', seats:Array.from({length:POKER_SEATS},()=>null), started:false, lastActive:nowMs(), category:'ONCHAIN_FL', limit:'FL', stakes:'3/6 MON', simulated:false, poker:null };
+    const t={ id, kind:'POKER', seats:Array.from({length:POKER_SEATS},()=>null), started:false, lastActive:nowMs(), category:'ONCHAIN_FL', limit:'FL', stakes:'3/6 DCMon', simulated:false, poker:null };
     tables.set(id,t); return t;
   }
   if (low.startsWith('poker-sim-')) {
@@ -87,6 +87,68 @@ function getTable(id){
 function nextIdFor(prefix){
   const nums=Array.from(tables.keys()).map(id=>new RegExp('^'+prefix.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'(\\d+)$').exec(id)).filter(Boolean).map(m=>Number(m[1]));
   return `${prefix}${nums.length?Math.max(...nums)+1:1}`;
+}
+
+
+function dealerSignerOnline() {
+  try {
+    return typeof dealerSignerConfigured === 'function' ? !!dealerSignerConfigured() : false;
+  } catch (err) {
+    return false;
+  }
+}
+
+const POKER_LOBBY_META = Object.freeze({
+  ONCHAIN_NL: {
+    tableMode: 'onchain',
+    typeLabel: 'On-Chain NL',
+    typeKey: 'onchain-nl',
+    tooltip: 'DCMon No-Limit table settled by HoldemPoker.',
+    currency: 'DCMon',
+    decimals: 18,
+    blinds: { sb: '0.001', bb: '0.002' },
+    minBuy: { amount: '1', unit: 'DCMon', wei: '1000000000000000000' },
+    maxBuy: { amount: '200', unit: 'DCMon', wei: '200000000000000000000' },
+    stackRequirement: 'Bring >= 1 DCMon; 50-100 BB recommended.',
+    preflight: { needsWallet: true, needsDcmon: true, needsSponsor: false }
+  },
+  ONCHAIN_FL: {
+    tableMode: 'onchain',
+    typeLabel: 'On-Chain Limit',
+    typeKey: 'onchain-fl',
+    tooltip: 'DCMon Fixed-Limit table with on-chain dealer settlement.',
+    currency: 'DCMon',
+    decimals: 18,
+    blinds: { sb: '3', bb: '6' },
+    minBuy: { amount: '6', unit: 'DCMon', wei: '6000000000000000000' },
+    maxBuy: { amount: '200', unit: 'DCMon', wei: '200000000000000000000' },
+    stackRequirement: 'Buy at least 6 DCMon (1 big bet).',
+    preflight: { needsWallet: true, needsDcmon: true, needsSponsor: false }
+  },
+  OFFCHAIN_NL: {
+    tableMode: 'f2p',
+    typeLabel: 'Free to Play',
+    typeKey: 'simulated',
+    tooltip: 'Simulated chips only; no DCMon required.',
+    currency: 'Chips',
+    decimals: 0,
+    blinds: { sb: '1', bb: '2' },
+    minBuy: { amount: '0', unit: 'Chips', wei: '0' },
+    maxBuy: { amount: '0', unit: 'Chips', wei: '0' },
+    stackRequirement: 'Practice mode; guest seats allowed.',
+    preflight: { needsWallet: false, needsDcmon: false, needsSponsor: false }
+  }
+});
+
+function cloneLobbyMeta(meta) {
+  if (!meta) return null;
+  return JSON.parse(JSON.stringify(meta));
+}
+
+function lobbyMetaForTable(t) {
+  if (!isPoker(t)) return null;
+  const preset = POKER_LOBBY_META[t.category] || null;
+  return preset ? cloneLobbyMeta(preset) : null;
 }
 
 /* ----------------------------- Poker categories ---------------------------- */
@@ -132,16 +194,34 @@ function emitUpdate(t){ try{ io.to(t.id).emit('table:update', tablePublic(t)); }
 function emitLobby(){
   try{
     const list = Array.from(tables.values())
-      .filter(t => (t.kind==='FARO'? gameEnabled('FARO') : gameEnabled('POKER')))
+      .filter(t => (t.kind==='FARO' ? gameEnabled('FARO') : gameEnabled('POKER')))
       .map(t => {
-        const base={ id:t.id, seated:seatCount(t), capacity:(t.kind==='POKER'?POKER_SEATS:FARO_SEATS), started:!!t.started };
-        if (t.kind==='POKER'){ base.simulated=!!t.simulated; base.limit=t.limit; if(t.limit==='FL') base.stakes=t.stakes||'3/6 MON'; }
+        const base = {
+          id: t.id,
+          seated: seatCount(t),
+          capacity: (t.kind==='POKER' ? POKER_SEATS : FARO_SEATS),
+          started: !!t.started
+        };
+        if (t.kind === 'POKER') {
+          base.simulated = !!t.simulated;
+          base.limit = t.limit;
+          base.category = t.category || null;
+          if (t.limit === 'FL') {
+            const stakes = t.stakes || '3/6 DCMon';
+            base.stakes = stakes.replace(/mon/i, 'DCMon');
+          }
+          const meta = lobbyMetaForTable(t);
+          if (meta) base.meta = meta;
+          base.tableMode = base.meta?.tableMode || (t.simulated ? 'f2p' : 'onchain');
+          base.dealerSigner = base.tableMode === 'onchain' ? dealerSignerOnline() : false;
+        } else {
+          base.tableMode = 'f2p';
+        }
         return base;
       });
     io.emit('lobby:list', list.sort((a,b)=> String(a.id).localeCompare(String(b.id))));
   }catch{}
 }
-
 /* ------------------------------ Start policy ------------------------------- */
 function maybeStartHand(tableId, t){
   try{
@@ -892,3 +972,4 @@ setInterval(saveState, SAVE_INTERVAL_MS);
 // Default to 3100 for unified backend; allow override via PORT env
 const PORT = Number(process.env.PORT || 3100);
 server.listen(PORT, ()=>{ console.log('RT server on',PORT,'| enabled games:', Array.from(enabledGames).join(',')); });
+

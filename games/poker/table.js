@@ -1,8 +1,21 @@
-// games/poker/table.js ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â rebuilt minimal client for The Dak & Chog poker table
+// games/poker/table.js
 // Restores the image-based felt, seat layout, private hole handling, burn flashes,
 // simple dealing animations, action controls.
 
 (() => {
+  const { ethers } = window;
+  const tableMode = (document.documentElement.getAttribute('data-table-mode') || 'f2p').toLowerCase();
+  const isOnchainTable = tableMode === 'onchain';
+  const trimDecimals = (str) => {
+    if (str == null) return '';
+    let out = String(str);
+    if (out.includes('.')) {
+      out = out.replace(/(\.\d*?[1-9])0+$/, '').replace(/\.0+$/, '').replace(/\.$/, '');
+    }
+    if (out === '-0') out = '0';
+    return out;
+  };
+
   const ASSET_BASE = '/assets/images/chog_cards/';
   const CARD_BACK = `${ASSET_BASE}dak-and-chog-cardback.png`;
   const TURN_MS = 25_000;
@@ -55,9 +68,21 @@
   if (!canvas) return;
 
   const seats = Array.from(document.querySelectorAll('.seat'));
-  if (!seats.length) return;
+  let onchainAdapterPromise = null;
+  let configModulePromise = null;
+  let tableSnapshot = null;
+  let chipValueDcmon = isOnchainTable ? 0.001 : 1;
+  let chipValueWei = null;
 
- 
+  if (isOnchainTable && ethers?.utils?.parseUnits) {
+    try {
+      chipValueWei = ethers.utils.parseUnits(trimDecimals(chipValueDcmon.toFixed(6)) || '0', 18);
+    } catch {
+      chipValueWei = null;
+    }
+  }
+
+  if (!seats.length) return;
 
   let board = canvas.querySelector('#board');
   if (!board) {
@@ -82,7 +107,6 @@
   positionSeats();
 
   const seatMeta = seats.map((seat) => {
-
     let timer = seat.querySelector('.timer');
     if (!timer) {
       timer = document.createElement('div');
@@ -108,6 +132,14 @@
       seat.appendChild(addr);
     }
 
+    let stack = seat.querySelector('.stack');
+    if (!stack) {
+      stack = document.createElement('div');
+      stack.className = 'stack';
+      stack.textContent = '';
+      seat.appendChild(stack);
+    }
+
     let btns = seat.querySelector('.btns');
     if (!btns) {
       btns = document.createElement('div');
@@ -119,11 +151,11 @@
       seat,
       cards,
       addr,
+      stack,
       btns,
       timerFill: seat.querySelector('.timer .fill')
     };
   });
-
   const actionBar = document.createElement('div');
   actionBar.className = 'action-bar hidden';
   const infoText = document.createElement('div');
@@ -740,4 +772,7 @@
   socket.emit('join_table', { table: tableId });
   window.addEventListener('focus', ensureIdentify);
 })();
+
+
+
 

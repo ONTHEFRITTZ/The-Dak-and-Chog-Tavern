@@ -1,24 +1,26 @@
 // games/poker/table-bankroll.js
 // Adds DCMon buy-in and cash-out helpers inside the wallet pill without altering layout.
 (function () {
-  const mode = document.documentElement.getAttribute('data-table-mode') || 'f2p';
+  const mode = (document.documentElement.getAttribute('data-table-mode') || 'f2p').toLowerCase();
   const section = document.getElementById('wi-bankroll');
-  if (!section) return;
+  if (!section) { window.__PokerBankroll = null; return; }
 
   if (mode !== 'onchain') {
+    window.__PokerBankroll = null;
     section.style.display = 'none';
     return;
   }
 
   const ethers = window.ethers;
   if (!ethers) {
+    window.__PokerBankroll = null;
     section.style.display = 'none';
     console.error('Ethers.js not available; poker bankroll helpers disabled');
     return;
   }
 
   section.style.display = section.style.display || 'flex';
-  section.style.flexDirection = 'column';
+  section.style.flexDirection = section.style.flexDirection || 'column';
   section.style.gap = section.style.gap || '6px';
 
   const balanceEl = document.getElementById('wi-dcmon-balance');
@@ -32,7 +34,7 @@
 
   let providerCache = null;
   let signerCache = null;
-  let configPromise = null;
+  let configModulePromise = null;
   let dcmonAddress = null;
   let wmonAddress = null;
   let dcmonRead = null;
@@ -44,12 +46,12 @@
     if (!statusEl) return;
     statusEl.textContent = message || '';
     if (!message) return;
-    const colours = {
+    const palette = {
       error: '#ff9a9a',
       success: '#9ef89e',
       info: '#d7d7d7'
     };
-    statusEl.style.color = colours[tone] || colours.info;
+    statusEl.style.color = palette[tone] || palette.info;
   }
 
   function sanitizeAmount(value, fallback) {
@@ -96,7 +98,7 @@
       providerCache = new ethers.providers.Web3Provider(injected, 'any');
       return providerCache;
     } catch (err) {
-      console.error('Failed to build provider', err);
+      console.error('Poker bankroll: provider init failed', err);
       return null;
     }
   }
@@ -107,53 +109,48 @@
     if (!provider) return null;
     try {
       signerCache = provider.getSigner();
-      // Probe to ensure signer is connected
       await signerCache.getAddress();
       return signerCache;
     } catch (err) {
-      console.warn('Wallet signer unavailable', err);
+      console.warn('Poker bankroll: signer unavailable', err);
       signerCache = null;
       return null;
     }
   }
 
-  async function loadConfig() {
-    if (!configPromise) {
-      configPromise = import('../../js/config.js').catch((err) => {
-        console.error('Config import failed', err);
+  async function loadConfigModule() {
+    if (!configModulePromise) {
+      configModulePromise = import('../../js/config.js').catch((err) => {
+        console.error('Poker bankroll: config import failed', err);
         return null;
       });
     }
-    return configPromise;
+    return configModulePromise;
   }
 
   async function resolveAddress(key, provider) {
-    const mod = await loadConfig();
+    const mod = await loadConfigModule();
     if (mod?.getAddressFor) {
       try {
         const addr = await mod.getAddressFor(key, provider).catch(() => null);
         if (addr) return addr;
       } catch {}
     }
-    if (mod?.CONTRACTS && mod.CONTRACTS[key]) return mod.CONTRACTS[key];
-    if (window.CONTRACTS && window.CONTRACTS[key]) return window.CONTRACTS[key];
+    if (mod?.CONTRACTS?.[key]) return mod.CONTRACTS[key];
+    if (window.CONTRACTS?.[key]) return window.CONTRACTS[key];
     return null;
   }
 
   async function ensureContracts() {
-    const signer = await getSigner();
     const provider = await getProvider();
-    if (!signer || !provider) {
-      setStatus('Connect your wallet first.', 'error');
+    const signer = await getSigner();
+    if (!provider || !signer) {
+      setStatus('Connect wallet first.', 'error');
       return false;
     }
 
-    if (!dcmonAddress) {
-      dcmonAddress = await resolveAddress('dcmon', provider);
-    }
-    if (!wmonAddress) {
-      wmonAddress = await resolveAddress('wmon', provider);
-    }
+    if (!dcmonAddress) dcmonAddress = await resolveAddress('dcmon', provider);
+    if (!wmonAddress) wmonAddress = await resolveAddress('wmon', provider);
 
     if (!dcmonAddress || !wmonAddress) {
       setStatus('DCMon contracts not configured.', 'error');
@@ -167,15 +164,15 @@
 
     if (!dcmonRead || !dcmonWrite) {
       dcmonRead = new ethers.Contract(dcmonAddress, window.DCMonABI, provider);
-      dcmonWrite = new ethers.Contract(dcmonAddress, window.DCMonABI, signer);
+      dcmonWrite = dcmonRead.connect(signer);
     }
 
     if (!wmonRead || !wmonWrite) {
       wmonRead = new ethers.Contract(wmonAddress, window.WMONABI, provider);
-      wmonWrite = new ethers.Contract(wmonAddress, window.WMONABI, signer);
+      wmonWrite = wmonRead.connect(signer);
     }
 
-    return !!(dcmonRead && dcmonWrite && wmonRead && wmonWrite);
+    return true;
   }
 
   function formatBalance(bn) {
@@ -183,7 +180,7 @@
       const val = parseFloat(utils.formatEther(bn));
       if (!Number.isFinite(val)) return '-';
       if (val >= 1000) return val.toLocaleString(undefined, { maximumFractionDigits: 2 });
-      if (val >= 1) return val.toFixed(3).replace(/\.0+$/, '').replace(/(\..*?)0+$/, '$1');
+      if (val >= 1) return val.toFixed(3).replace(/\.0+$/, '').replace(/(\..*?)0+$/, '');
       return val.toFixed(5).replace(/0+$/, '').replace(/\.$/, '');
     } catch {
       return '-';
@@ -199,14 +196,11 @@
     }
     try {
       const ok = await ensureContracts();
-      if (!ok) {
-        balanceEl.textContent = '-';
-        return;
-      }
+      if (!ok) { balanceEl.textContent = '-'; return; }
       const bal = await dcmonRead.balanceOf(address);
       balanceEl.textContent = formatBalance(bal);
     } catch (err) {
-      console.error('Balance refresh failed', err);
+      console.error('Poker bankroll: balance refresh failed', err);
       balanceEl.textContent = '-';
     }
   }
@@ -232,14 +226,19 @@
     return true;
   }
 
+  async function ensureDcmonAllowance(amountWei, address, spender) {
+    const target = spender || await resolveAddress('pokerTable', await getProvider());
+    if (!target) return false;
+    const allowance = await dcmonRead.allowance(address, target);
+    if (allowance.gte(amountWei)) return true;
+    setStatus('Approving DCMon...', 'info');
+    const tx = await dcmonWrite.approve(target, ethers.constants.MaxUint256);
+    await tx.wait();
+    return true;
+  }
+
   async function handleBuyIn() {
     setStatus('');
-    const signer = await getSigner();
-    const provider = await getProvider();
-    if (!signer || !provider) {
-      setStatus('Connect wallet first.', 'error');
-      return;
-    }
     if (!await ensureContracts()) return;
 
     const amountValue = sanitizeAmount(buyInput?.value, 1);
@@ -272,7 +271,7 @@
       setStatus('Buy-in complete.', 'success');
       await refreshBalance(addr);
     } catch (err) {
-      console.error('Buy-in failed', err);
+      console.error('Poker bankroll: buy-in failed', err);
       const msg = err?.error?.message || err?.data?.message || err?.reason || err?.message || 'Buy-in failed.';
       setStatus(msg, 'error');
     }
@@ -280,11 +279,6 @@
 
   async function handleCashOut() {
     setStatus('');
-    const signer = await getSigner();
-    if (!signer) {
-      setStatus('Connect wallet first.', 'error');
-      return;
-    }
     if (!await ensureContracts()) return;
 
     const amountValue = sanitizeAmount(cashInput?.value, null);
@@ -320,7 +314,7 @@
       setStatus('Cash-out complete.', 'success');
       await refreshBalance(addr);
     } catch (err) {
-      console.error('Cash-out failed', err);
+      console.error('Poker bankroll: cash-out failed', err);
       const msg = err?.error?.message || err?.data?.message || err?.reason || err?.message || 'Cash-out failed.';
       setStatus(msg, 'error');
     }
@@ -366,6 +360,21 @@
       setTimeout(() => refreshBalance(), 250);
     }
   });
+
+  window.__PokerBankroll = {
+    ready: async () => ensureContracts(),
+    refreshBalance,
+    ensureContracts,
+    getProvider,
+    getSigner,
+    getAddresses: () => ({ dcmon: dcmonAddress, wmon: wmonAddress }),
+    getContracts: () => ({ dcmonRead, dcmonWrite, wmonRead, wmonWrite }),
+    ensureWrap,
+    ensureWmonAllowance,
+    ensureDcmonAllowance,
+    buyIn: handleBuyIn,
+    cashOut: handleCashOut
+  };
 
   refreshBalance();
   setInterval(refreshBalance, 30000);

@@ -86,4 +86,8 @@ async function onSettleHand(tableId, tableState, winners, board) {
   }
 }
 
-module.exports = { onBeginHand, onSettleHand };
+function dealerSignerConfigured() {
+  return !!DEALER_PK;
+}
+
+module.exports = { onBeginHand, onSettleHand, dealerSignerConfigured };
