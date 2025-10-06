@@ -1,20 +1,98 @@
 // js/wallet-chips.js
-// Injects a Chips button into the wallet pill and opens a bankroll modal on demand.
+// Adds a "Chips" trigger to the wallet pill and shares the bankroll modal across pages.
 (function () {
   if (window.__WalletChipsMounted) return;
   window.__WalletChipsMounted = true;
 
-  const MODAL_ID = 'wi-chips-modal';
-  const BUTTON_ID = 'wi-chips-btn';
+  const buildTag = window.__BUILD_TAG || Date.now();
+  const SRC = {
+    dcmon: `/js/DCMonABI.js?v=${buildTag}`,
+    wmon: `/js/WMONABI.js?v=${buildTag}`,
+    bankroll: `/games/poker/table-bankroll.js?v=${buildTag}`,
+  };
+
+  const scriptCache = new Map();
+  function loadScriptOnce(src, target = 'head') {
+    if (scriptCache.has(src)) return scriptCache.get(src);
+    const promise = new Promise((resolve, reject) => {
+      try {
+        const el = document.createElement('script');
+        el.defer = true;
+        el.src = src;
+        el.onload = () => resolve();
+        el.onerror = (err) => reject(err);
+        (target === 'body' ? document.body : document.head).appendChild(el);
+      } catch (err) {
+        reject(err);
+      }
+    });
+    scriptCache.set(src, promise);
+    return promise;
+  }
+
+  function ensureDependencies() {
+    return Promise.all([
+      loadScriptOnce(SRC.dcmon),
+      loadScriptOnce(SRC.wmon),
+      loadScriptOnce(SRC.bankroll, 'body'),
+    ]).catch((err) => {
+      console.error('wallet-chips: dependency load failed', err);
+      try { loadScriptOnce('/js/DCMonABI.js?v=' + Date.now()); } catch {}
+      try { loadScriptOnce('/js/WMONABI.js?v=' + Date.now()); } catch {}
+      try { loadScriptOnce('/games/poker/table-bankroll.js?v=' + Date.now(), 'body'); } catch {}
+    });
+  }
+
+  function ensureWalletButton() {
+    const wallet = document.getElementById('wallet-inline');
+    if (!wallet || document.getElementById('wi-chips-btn')) return;
+
+    const btn = document.createElement('button');
+    btn.id = 'wi-chips-btn';
+    btn.textContent = 'Chips';
+    btn.style.padding = '6px 12px';
+    btn.style.borderRadius = '10px';
+    btn.style.fontWeight = '600';
+    wallet.appendChild(btn);
+
+    btn.addEventListener('click', openModal);
+
+    document.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Escape' && document.body.dataset.chipsModalOpen) {
+        closeModal();
+      }
+    });
+  }
+
+  function buildBankrollMarkup(container) {
+    container.innerHTML = '';
+    container.style.display = 'flex';
+    container.style.flexDirection = 'column';
+    container.style.gap = '12px';
+
+    container.insertAdjacentHTML('beforeend', `
+      <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;">
+        <span>DCMon Balance</span>
+        <span id="wi-dcmon-balance">-</span>
+      </div>
+      <div style="display:flex;gap:10px;">
+        <input id="wi-buy-input" type="number" min="0" step="0.01" placeholder="Amount" style="flex:1;padding:8px;border-radius:10px;" />
+        <button id="wi-buy-btn" style="flex:0 0 110px;padding:8px 0;border-radius:10px;font-weight:600;background:rgba(80,160,120,0.85);">Buy In</button>
+      </div>
+      <div style="display:flex;gap:10px;">
+        <input id="wi-cash-input" type="number" min="0" step="0.01" placeholder="Amount" style="flex:1;padding:8px;border-radius:10px;" />
+        <button id="wi-cash-btn" style="flex:0 0 110px;padding:8px 0;border-radius:10px;font-weight:600;background:rgba(160,120,80,0.85);">Cash Out</button>
+      </div>
+      <div id="wi-bank-status" style="min-height:18px;font-size:12px;"></div>
+    `);
+  }
 
   function createModal() {
-    if (document.getElementById(MODAL_ID)) {
-      document.dispatchEvent(new CustomEvent('bankroll:ui-ready'));
-      return;
-    }
+    let overlay = document.getElementById('wi-chips-modal');
+    if (overlay) return overlay;
 
-    const overlay = document.createElement('div');
-    overlay.id = MODAL_ID;
+    overlay = document.createElement('div');
+    overlay.id = 'wi-chips-modal';
     overlay.style.position = 'fixed';
     overlay.style.inset = '0';
     overlay.style.display = 'none';
@@ -24,16 +102,16 @@
     overlay.style.zIndex = '13000';
 
     const dialog = document.createElement('div');
-    dialog.style.background = 'var(--panel-bg-soft, rgba(24,20,16,0.96))';
+    dialog.style.background = 'var(--panel-bg-soft, rgba(24,20,16,0.95))';
     dialog.style.border = '1px solid rgba(255,255,255,0.12)';
-    dialog.style.borderRadius = '16px';
+    dialog.style.borderRadius = '18px';
     dialog.style.padding = '20px';
     dialog.style.width = 'min(92vw, 360px)';
     dialog.style.boxShadow = '0 24px 60px rgba(0,0,0,0.6)';
     dialog.style.color = '#f4e6d3';
     dialog.style.display = 'flex';
     dialog.style.flexDirection = 'column';
-    dialog.style.gap = '14px';
+    dialog.style.gap = '16px';
 
     const header = document.createElement('div');
     header.style.display = 'flex';
@@ -47,120 +125,61 @@
     title.style.fontSize = '18px';
 
     const closeBtn = document.createElement('button');
-    closeBtn.textContent = 'Close';
     closeBtn.id = 'wi-chips-close';
-    closeBtn.style.padding = '6px 10px';
-    closeBtn.style.borderRadius = '8px';
+    closeBtn.textContent = 'Close';
+    closeBtn.style.padding = '6px 14px';
+    closeBtn.style.borderRadius = '10px';
 
     header.appendChild(title);
     header.appendChild(closeBtn);
-
-    const body = document.createElement('div');
-    body.style.display = 'flex';
-    body.style.flexDirection = 'column';
-    body.style.gap = '10px';
-
-    const bankroll = document.createElement('div');
-    bankroll.id = 'wi-bankroll';
-    bankroll.style.display = 'flex';
-    bankroll.style.flexDirection = 'column';
-    bankroll.style.gap = '8px';
-
-    const balanceRow = document.createElement('div');
-    balanceRow.style.display = 'flex';
-    balanceRow.style.justifyContent = 'space-between';
-    balanceRow.style.alignItems = 'center';
-    balanceRow.style.fontSize = '13px';
-
-    const balanceLabel = document.createElement('span');
-    balanceLabel.textContent = 'DCMon Balance';
-    const balanceValue = document.createElement('span');
-    balanceValue.id = 'wi-dcmon-balance';
-    balanceValue.textContent = '-';
-
-    balanceRow.appendChild(balanceLabel);
-    balanceRow.appendChild(balanceValue);
-
-    const buyRow = document.createElement('div');
-    buyRow.style.display = 'flex';
-    buyRow.style.gap = '8px';
-
-    const buyInput = document.createElement('input');
-    buyInput.id = 'wi-buy-input';
-    buyInput.type = 'number';
-    buyInput.min = '0';
-    buyInput.step = '0.01';
-    buyInput.placeholder = 'Amount';
-    buyInput.style.flex = '1';
-    buyInput.style.padding = '6px';
-    buyInput.style.borderRadius = '8px';
-
-    const buyBtn = document.createElement('button');
-    buyBtn.id = 'wi-buy-btn';
-    buyBtn.textContent = 'Buy In';
-    buyBtn.style.padding = '6px 10px';
-    buyBtn.style.borderRadius = '8px';
-
-    buyRow.appendChild(buyInput);
-    buyRow.appendChild(buyBtn);
-
-    const cashRow = document.createElement('div');
-    cashRow.style.display = 'flex';
-    cashRow.style.gap = '8px';
-
-    const cashInput = document.createElement('input');
-    cashInput.id = 'wi-cash-input';
-    cashInput.type = 'number';
-    cashInput.min = '0';
-    cashInput.step = '0.01';
-    cashInput.placeholder = 'Amount';
-    cashInput.style.flex = '1';
-    cashInput.style.padding = '6px';
-    cashInput.style.borderRadius = '8px';
-
-    const cashBtn = document.createElement('button');
-    cashBtn.id = 'wi-cash-btn';
-    cashBtn.textContent = 'Cash Out';
-    cashBtn.style.padding = '6px 10px';
-    cashBtn.style.borderRadius = '8px';
-
-    cashRow.appendChild(cashInput);
-    cashRow.appendChild(cashBtn);
-
-    const status = document.createElement('div');
-    status.id = 'wi-bank-status';
-    status.style.minHeight = '18px';
-    status.style.fontSize = '12px';
-
-    bankroll.appendChild(balanceRow);
-    bankroll.appendChild(buyRow);
-    bankroll.appendChild(cashRow);
-    bankroll.appendChild(status);
-
-    body.appendChild(bankroll);
-
     dialog.appendChild(header);
-    dialog.appendChild(body);
+
+    let container = document.getElementById('wi-bankroll');
+    if (container) {
+      container.innerHTML = '';
+      if (container.parentElement) container.parentElement.removeChild(container);
+    } else {
+      container = document.createElement('div');
+      container.id = 'wi-bankroll';
+    }
+
+    buildBankrollMarkup(container);
+    dialog.appendChild(container);
+
     overlay.appendChild(dialog);
     document.body.appendChild(overlay);
 
+    closeBtn.addEventListener('click', closeModal);
+    overlay.addEventListener('click', (ev) => { if (ev.target === overlay) closeModal(); });
+    dialog.addEventListener('click', (ev) => ev.stopPropagation());
+
     document.dispatchEvent(new CustomEvent('bankroll:ui-ready'));
 
-    return { overlay, closeBtn, dialog };
+    return overlay;
   }
 
-  function openModal(overlay) {
-    if (!overlay) return;
-    overlay.style.display = 'flex';
-    overlay.setAttribute('aria-hidden', 'false');
-    document.body.dataset.chipsModalOpen = '1';
-    document.body.style.overflow = 'hidden';
-    if (window.__PokerBankroll?.refreshBalance) {
-      window.__PokerBankroll.refreshBalance();
-    }
+  function openModal() {
+    const overlay = createModal();
+    ensureDependencies().then(() => {
+      document.dispatchEvent(new CustomEvent('bankroll:ui-ready'));
+      if (!window.__PokerBankroll) {
+        const handler = function once() {
+          document.removeEventListener('bankroll:ready', handler);
+          if (window.__PokerBankroll?.refreshBalance) window.__PokerBankroll.refreshBalance();
+        };
+        document.addEventListener('bankroll:ready', handler);
+      } else if (window.__PokerBankroll?.refreshBalance) {
+        window.__PokerBankroll.refreshBalance();
+      }
+      overlay.style.display = 'flex';
+      overlay.setAttribute('aria-hidden', 'false');
+      document.body.style.overflow = 'hidden';
+      document.body.dataset.chipsModalOpen = '1';
+    });
   }
 
-  function closeModal(overlay) {
+  function closeModal() {
+    const overlay = document.getElementById('wi-chips-modal');
     if (!overlay) return;
     overlay.style.display = 'none';
     overlay.setAttribute('aria-hidden', 'true');
@@ -168,58 +187,9 @@
     delete document.body.dataset.chipsModalOpen;
   }
 
-  function mount() {
-    const wallet = document.getElementById('wallet-inline');
-    if (!wallet || document.getElementById(BUTTON_ID)) return;
-
-    const { overlay, closeBtn, dialog } = createModal() || {};
-
-    const btn = document.createElement('button');
-    btn.id = BUTTON_ID;
-    btn.textContent = 'Chips';
-    btn.style.padding = '6px 10px';
-    btn.style.borderRadius = '8px';
-    wallet.appendChild(btn);
-
-    function show() {
-      const modal = document.getElementById(MODAL_ID) || overlay;
-      if (!modal) return;
-      openModal(modal);
-    }
-
-    function hide() {
-      const modal = document.getElementById(MODAL_ID) || overlay;
-      if (!modal) return;
-      closeModal(modal);
-    }
-
-    btn.addEventListener('click', show);
-    if (closeBtn) closeBtn.addEventListener('click', hide);
-    if (overlay) {
-      overlay.addEventListener('click', (ev) => {
-        if (ev.target === overlay) hide();
-      });
-    }
-    if (dialog) {
-      dialog.addEventListener('click', (ev) => ev.stopPropagation());
-    }
-
-    document.addEventListener('keydown', (ev) => {
-      if (ev.key === 'Escape' && document.body.dataset.chipsModalOpen) {
-        hide();
-      }
-    });
-
-    document.addEventListener('bankroll:ready', (ev) => {
-      if (document.body.dataset.chipsModalOpen && ev?.detail?.ok) {
-        setTimeout(() => window.__PokerBankroll?.refreshBalance(), 150);
-      }
-    });
-  }
-
   function init() {
-    mount();
-    document.dispatchEvent(new CustomEvent('bankroll:ui-ready'));
+    ensureWalletButton();
+    createModal();
   }
 
   if (document.readyState === 'loading') {
