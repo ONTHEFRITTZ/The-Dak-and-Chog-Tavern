@@ -7,10 +7,14 @@
   }
   let bootstrapped = false;
   let abisPromise = null;
+  function hasAbis() {
+    return Array.isArray(window.DCMonABI) && (Array.isArray(window.WMONABI) || Array.isArray(window.WMON_ABI));
+  }
+
 
 
   function waitForAbis(timeout = 9000) {
-    if (window.DCMonABI && window.WMONABI) return Promise.resolve(true);
+    if (hasAbis()) return Promise.resolve(true);
     if (!abisPromise) {
       abisPromise = new Promise((resolve) => {
         const deadline = Date.now() + timeout;
@@ -31,7 +35,7 @@
         }
 
         poller = setInterval(() => {
-          if (window.DCMonABI && window.WMONABI) {
+          if (hasAbis()) { 
             onReady();
             return;
           }
@@ -227,19 +231,26 @@
         setStatus('Bankroll contracts not configured.', 'error');
         return false;
       }
-    if (!window.DCMonABI || !window.WMONABI) {
+    let dcmonAbi = Array.isArray(window.DCMonABI) ? window.DCMonABI : null;
+    let wmonAbi = Array.isArray(window.WMONABI) ? window.WMONABI : (Array.isArray(window.WMON_ABI) ? window.WMON_ABI : null);
+    if (!dcmonAbi || !wmonAbi) {
       const abisOk = await waitForAbis();
-      if (!abisOk || !window.DCMonABI || !window.WMONABI) {
+      dcmonAbi = Array.isArray(window.DCMonABI) ? window.DCMonABI : null;
+      wmonAbi = Array.isArray(window.WMONABI) ? window.WMONABI : (Array.isArray(window.WMON_ABI) ? window.WMON_ABI : null);
+      if (!abisOk || !dcmonAbi || !wmonAbi) {
         setStatus('Token ABIs unavailable.', 'error');
         return false;
       }
     }
+    if (!Array.isArray(window.WMONABI) && Array.isArray(window.WMON_ABI)) {
+      window.WMONABI = window.WMON_ABI;
+    }
       if (!dcmonRead || !dcmonWrite) {
-        dcmonRead = new ethers.Contract(dcmonAddress, window.DCMonABI, provider);
+        dcmonRead = new ethers.Contract(dcmonAddress, dcmonAbi, provider);
         dcmonWrite = dcmonRead.connect(signer);
       }
       if (!wmonRead || !wmonWrite) {
-        wmonRead = new ethers.Contract(wmonAddress, window.WMONABI, provider);
+        wmonRead = new ethers.Contract(wmonAddress, wmonAbi, provider);
         wmonWrite = wmonRead.connect(signer);
       }
       return true;
@@ -546,3 +557,4 @@
 
   document.addEventListener('wallet:ethers-ready', handleReady);
 })();
+
