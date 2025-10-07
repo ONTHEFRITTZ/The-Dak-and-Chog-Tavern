@@ -76,7 +76,7 @@
         try { loadScriptOnce('/js/WMONABI.js?v=' + Date.now()); } catch {}
         try { loadScriptOnce('/js/bankroll.js?v=' + Date.now(), 'body'); } catch {}
       })
-      .finally(() => waitFor(() => Array.isArray(window.DCMonABI) && Array.isArray(window.WMONABI) && (window.Bankroll || window.__PokerBankroll)))
+      .finally(() => waitFor(() => Array.isArray(window.DCMonABI) && Array.isArray(window.WMONABI)))
       .catch((err) => console.error(err));
     return readyPromise;
   }
