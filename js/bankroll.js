@@ -5,6 +5,40 @@
     window.__PokerBankroll = window.Bankroll;
     return;
   }
+  const FALLBACK_DCMON_ABI = [
+    'function deposit(uint256 amount, address receiver) returns (uint256)',
+    'function redeem(uint256 amount, address receiver) returns (uint256)',
+    'function recordRewards(uint256 amount)',
+    'function balanceOf(address owner) view returns (uint256)',
+    'function allowance(address owner, address spender) view returns (uint256)',
+    'function approve(address spender, uint256 amount) returns (bool)',
+    'function houseTreasury() view returns (address)',
+    'function playerRewardPool() view returns (address)'
+  ];
+  const FALLBACK_WMON_ABI = [
+    'function deposit() payable',
+    'function withdraw(uint256 wad)',
+    'function balanceOf(address owner) view returns (uint256)',
+    'function allowance(address owner, address spender) view returns (uint256)',
+    'function approve(address spender, uint256 amount) returns (bool)'
+  ];
+  try {
+    if (!Array.isArray(window.DCMonABI)) window.DCMonABI = FALLBACK_DCMON_ABI;
+  } catch {}
+  try {
+    if (!Array.isArray(window.WMONABI) && !Array.isArray(window.WMON_ABI)) {
+      window.WMONABI = FALLBACK_WMON_ABI;
+      window.WMON_ABI = FALLBACK_WMON_ABI;
+    } else if (!Array.isArray(window.WMONABI) && Array.isArray(window.WMON_ABI)) {
+      window.WMONABI = window.WMON_ABI;
+    }
+  } catch {}
+  try {
+    window.__BANKROLL_FALLBACK_ABIS__ = {
+      dcmon: FALLBACK_DCMON_ABI,
+      wmon: FALLBACK_WMON_ABI
+    };
+  } catch {}
   let bootstrapped = false;
   let abisPromise = null;
   function hasAbis() {
@@ -231,20 +265,20 @@
         setStatus('Bankroll contracts not configured.', 'error');
         return false;
       }
-    let dcmonAbi = Array.isArray(window.DCMonABI) ? window.DCMonABI : null;
-    let wmonAbi = Array.isArray(window.WMONABI) ? window.WMONABI : (Array.isArray(window.WMON_ABI) ? window.WMON_ABI : null);
-    if (!dcmonAbi || !wmonAbi) {
-      const abisOk = await waitForAbis();
-      dcmonAbi = Array.isArray(window.DCMonABI) ? window.DCMonABI : null;
-      wmonAbi = Array.isArray(window.WMONABI) ? window.WMONABI : (Array.isArray(window.WMON_ABI) ? window.WMON_ABI : null);
-      if (!abisOk || !dcmonAbi || !wmonAbi) {
-        setStatus('Token ABIs unavailable.', 'error');
-        return false;
+      let dcmonAbi = Array.isArray(window.DCMonABI) ? window.DCMonABI : null;
+      let wmonAbi = Array.isArray(window.WMONABI) ? window.WMONABI : (Array.isArray(window.WMON_ABI) ? window.WMON_ABI : null);
+      if (!dcmonAbi || !wmonAbi) {
+        const abisOk = await waitForAbis();
+        dcmonAbi = Array.isArray(window.DCMonABI) ? window.DCMonABI : null;
+        wmonAbi = Array.isArray(window.WMONABI) ? window.WMONABI : (Array.isArray(window.WMON_ABI) ? window.WMON_ABI : null);
+        if (!abisOk || !dcmonAbi || !wmonAbi) {
+          setStatus('Token ABIs unavailable.', 'error');
+          return false;
+        }
       }
-    }
-    if (!Array.isArray(window.WMONABI) && Array.isArray(window.WMON_ABI)) {
-      window.WMONABI = window.WMON_ABI;
-    }
+      if (!Array.isArray(window.WMONABI) && Array.isArray(window.WMON_ABI)) {
+        window.WMONABI = window.WMON_ABI;
+      }
       if (!dcmonRead || !dcmonWrite) {
         dcmonRead = new ethers.Contract(dcmonAddress, dcmonAbi, provider);
         dcmonWrite = dcmonRead.connect(signer);
@@ -557,4 +591,3 @@
 
   document.addEventListener('wallet:ethers-ready', handleReady);
 })();
-

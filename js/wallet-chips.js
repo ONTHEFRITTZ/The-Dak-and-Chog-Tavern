@@ -11,6 +11,23 @@
     wmon: `/js/WMONABI.js?v=${buildTag}`,
     bankroll: `/js/bankroll.js?v=${buildTag}`
   };
+  const FALLBACK_DCMON_ABI = [
+    'function deposit(uint256 amount, address receiver) returns (uint256)',
+    'function redeem(uint256 amount, address receiver) returns (uint256)',
+    'function recordRewards(uint256 amount)',
+    'function balanceOf(address owner) view returns (uint256)',
+    'function allowance(address owner, address spender) view returns (uint256)',
+    'function approve(address spender, uint256 amount) returns (bool)',
+    'function houseTreasury() view returns (address)',
+    'function playerRewardPool() view returns (address)'
+  ];
+  const FALLBACK_WMON_ABI = [
+    'function deposit() payable',
+    'function withdraw(uint256 wad)',
+    'function balanceOf(address owner) view returns (uint256)',
+    'function allowance(address owner, address spender) view returns (uint256)',
+    'function approve(address spender, uint256 amount) returns (bool)'
+  ];
 
   const scriptCache = new Map();
   function loadScriptOnce(src, target = 'head') {
@@ -72,15 +89,32 @@
     readyPromise = loadDependencies()
       .catch((err) => {
         console.error('wallet-chips: dependency load failed', err);
-        try { loadScriptOnce('/js/DCMonABI.js?v=' + Date.now()); } catch {}
-        try { loadScriptOnce('/js/WMONABI.js?v=' + Date.now()); } catch {}
-        try { loadScriptOnce('/js/bankroll.js?v=' + Date.now(), 'body'); } catch {}
+        try { if (!Array.isArray(window.DCMonABI)) window.DCMonABI = FALLBACK_DCMON_ABI; } catch {}
+        try {
+          if (!Array.isArray(window.WMONABI) && !Array.isArray(window.WMON_ABI)) {
+            window.WMONABI = FALLBACK_WMON_ABI;
+            window.WMON_ABI = FALLBACK_WMON_ABI;
+          } else if (!Array.isArray(window.WMONABI) && Array.isArray(window.WMON_ABI)) {
+            window.WMONABI = window.WMON_ABI;
+          }
+        } catch {}
+        try { if (!window.__BANKROLL_FALLBACK_ABIS__) window.__BANKROLL_FALLBACK_ABIS__ = { dcmon: FALLBACK_DCMON_ABI, wmon: FALLBACK_WMON_ABI }; } catch {}
+        return null;
       })
-      .finally(() => waitFor(() => Array.isArray(window.DCMonABI) && (Array.isArray(window.WMONABI) || Array.isArray(window.WMON_ABI))))
-      .catch((err) => console.error(err));
+      .then(() => {
+        const fallback = window.__BANKROLL_FALLBACK_ABIS__ || null;
+        if (!Array.isArray(window.DCMonABI) && fallback?.dcmon) window.DCMonABI = fallback.dcmon;
+        if (!Array.isArray(window.WMONABI) && fallback?.wmon) window.WMONABI = fallback.wmon;
+        if (!Array.isArray(window.WMONABI) && Array.isArray(window.WMON_ABI)) window.WMONABI = window.WMON_ABI;
+      })
+      .then(() => waitFor(() => Array.isArray(window.DCMonABI) && Array.isArray(window.WMONABI)))
+      .then(() => {
+        if (!Array.isArray(window.WMON_ABI) && Array.isArray(window.WMONABI)) window.WMON_ABI = window.WMONABI;
+        return true;
+      })
+      .catch((err) => { console.error('wallet-chips: dependency load failed', err); throw err; });
     return readyPromise;
   }
-
   function ensureBalanceBadges() {
     const pill = document.getElementById('wallet-inline');
     if (!pill) return;
@@ -249,6 +283,17 @@
   function closeModal() {
     const overlay = document.getElementById('wi-chips-modal');
     if (!overlay) return;
+
+    const trigger = document.getElementById('wi-chips-btn');
+    const active = document.activeElement;
+    if (active && overlay.contains(active)) {
+      if (trigger) {
+        try { trigger.focus(); } catch {}
+      } else {
+        try { active.blur(); } catch {}
+      }
+    }
+
     overlay.style.display = 'none';
     overlay.setAttribute('aria-hidden', 'true');
     document.body.style.overflow = '';

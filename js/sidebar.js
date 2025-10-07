@@ -52,7 +52,6 @@
     btn.type = 'button';
     btn.setAttribute('aria-label', 'Toggle navigation');
     btn.title = 'Toggle navigation';
-    btn.textContent = 'Menu';
     header.appendChild(btn);
 
     const list = document.createElement('ul');
@@ -67,30 +66,47 @@
     nav.appendChild(list);
     document.body.appendChild(nav);
 
-    // Collapse state
-    try { if (localStorage.getItem(LS_KEY) === null && (window.innerWidth || 0) <= 800) setCollapsed(true); } catch {}
-    if (isCollapsed()) nav.classList.add('collapsed');
-
-    function updateSidebarOffset(){
+    function updateSidebarOffset() {
       try {
         const w = window.innerWidth || 0;
         const collapsed = nav.classList.contains('collapsed');
         let px = '240px';
-        if (w <= 800) px = collapsed ? '0px' : '240px'; else px = collapsed ? '64px' : '240px';
+        if (w <= 800) {
+          px = collapsed ? '0px' : '240px';
+        } else {
+          px = collapsed ? '64px' : '240px';
+        }
         document.documentElement.style.setProperty('--sidebar-left', px);
       } catch {}
     }
-    updateSidebarOffset();
+
+    function applyCollapse(collapsed, persist = true) {
+      nav.classList.toggle('collapsed', collapsed);
+      if (persist) setCollapsed(collapsed);
+      btn.textContent = collapsed ? 'Menu' : 'Close';
+      btn.setAttribute('aria-expanded', String(!collapsed));
+      updateSidebarOffset();
+    }
+
+    let initialCollapsed = false;
+    try {
+      if (localStorage.getItem(LS_KEY) === null && (window.innerWidth || 0) <= 800) {
+        setCollapsed(true);
+      }
+      initialCollapsed = isCollapsed();
+    } catch {
+      initialCollapsed = false;
+    }
+
+    applyCollapse(initialCollapsed, false);
 
     btn.addEventListener('click', function(){
       const next = !nav.classList.contains('collapsed');
-      if (next) nav.classList.add('collapsed'); else nav.classList.remove('collapsed');
-      setCollapsed(next);
-      updateSidebarOffset();
+      applyCollapse(next);
     });
+
     window.addEventListener('resize', updateSidebarOffset);
   } catch (e) {
     console.error('sidebar inject failed', e);
   }
 })();
-
