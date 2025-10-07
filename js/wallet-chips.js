@@ -225,7 +225,21 @@
     const statusEl = document.getElementById('wi-bank-status');
     if (statusEl && !statusEl.textContent) statusEl.textContent = 'Loading bankroll...';
 
-    ensureReady()\n      .then(() => {\n        document.dispatchEvent(new CustomEvent('bankroll:ui-ready'));\n        const bankroll = window.Bankroll || window.__PokerBankroll;\n        if (!bankroll) {\n          const handler = function once() {\n            document.removeEventListener('bankroll:ready', handler);\n            const globalBankroll = window.Bankroll || window.__PokerBankroll;\n            if (globalBankroll?.refreshBalance) globalBankroll.refreshBalance();\n          };\n          document.addEventListener('bankroll:ready', handler);\n        } else if (bankroll?.refreshBalance) {\n          bankroll.refreshBalance();\n        }\n      })
+    ensureReady()
+      .then(() => {
+        document.dispatchEvent(new CustomEvent('bankroll:ui-ready'));
+        const bankroll = window.Bankroll || window.__PokerBankroll;
+        if (!bankroll) {
+          const handler = function once() {
+            document.removeEventListener('bankroll:ready', handler);
+            const globalBankroll = window.Bankroll || window.__PokerBankroll;
+            if (globalBankroll?.refreshBalance) globalBankroll.refreshBalance();
+          };
+          document.addEventListener('bankroll:ready', handler);
+        } else if (bankroll?.refreshBalance) {
+          bankroll.refreshBalance();
+        }
+      })
       .catch((err) => {
         console.error(err);
         if (statusEl) statusEl.textContent = 'Bankroll helper failed to load.';
