@@ -561,12 +561,16 @@ function initializePokerTable() {
     emitSocket('join_table', { table: tableId });
     joinPending = false;
   }
-  function onSocketConnect() {
+  async function onSocketConnect() {
     clearConnectionWarning();
     updateConnectionBanner('', '');
-    flushPendingEmits();
-    ensureIdentify();
+    try {
+      await ensureIdentify();
+    } catch (err) {
+      console.warn('[poker] identify on connect failed', err);
+    }
     maybeJoinTable();
+    flushPendingEmits();
   }
   function onSocketDisconnect(reason) {
     console.warn('[poker] socket disconnected', reason);
