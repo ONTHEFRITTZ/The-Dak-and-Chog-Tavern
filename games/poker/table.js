@@ -530,14 +530,26 @@
         const first = Array.isArray(accs) && accs[0] ? String(accs[0]) : '';
         if (isValidAddr(first)) {
           addr = first;
-          persistAddr(addr);
         } else {
-          persistAddr(null);
+          try {
+            const reqAccs = await provider.request({ method: 'eth_requestAccounts' }).catch((err) => {
+              if (err && err.code === 4001) return [];
+              throw err;
+            });
+            const reqFirst = Array.isArray(reqAccs) && reqAccs[0] ? String(reqAccs[0]) : '';
+            if (isValidAddr(reqFirst)) {
+              addr = reqFirst;
+            }
+          } catch (connectErr) {
+            console.warn('Poker table: wallet connection prompt failed', connectErr);
+          }
         }
-      }
-
-      if (!addr) {
-        addr = storedAddr();
+        persistAddr(addr);
+      } else {
+        const fallback = storedAddr();
+        if (isValidAddr(fallback)) {
+          addr = fallback;
+        }
       }
 
       if (isValidAddr(addr)) {
