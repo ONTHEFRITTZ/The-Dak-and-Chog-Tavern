@@ -2,7 +2,7 @@
 // Restores the image-based felt, seat layout, private hole handling, burn flashes,
 // simple dealing animations, action controls.
 
-(() => {
+function initializePokerTable() {
   const { ethers } = window;
   const tableMode = (document.documentElement.getAttribute('data-table-mode') || 'f2p').toLowerCase();
   const isOnchainTable = tableMode === 'onchain';
@@ -1409,7 +1409,13 @@
   connectSocket(0);
   ensureIdentify();
   window.addEventListener('focus', ensureIdentify);
-})();
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initializePokerTable, { once: true });
+} else {
+  initializePokerTable();
+}
 
 
 

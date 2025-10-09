@@ -239,7 +239,9 @@ flipBtn.addEventListener('click', async () => {
       try { setCoin(resultChog ? 'chog' : 'dak'); } catch {}
       // Optional: one final flip for flair
       try { void coinEl.offsetWidth; coinEl.classList.add('flip'); setTimeout(()=>coinEl.classList.remove('flip'), 900); } catch {}
-      statusEl.textContent = won ? `On-chain: ${resultChog ? 'CHOG' : 'DAK'} â€” you won!` : `On-chain: ${resultChog ? 'CHOG' : 'DAK'} â€” you lost.`;
+      statusEl.textContent = won
+        ? `On-chain: ${resultChog ? 'CHOG' : 'DAK'} - you won!`
+        : `On-chain: ${resultChog ? 'CHOG' : 'DAK'} - you lost.`;
     } else {
       try { coinEl.classList.remove('spin'); } catch {}
       // Fallback: query past logs or just show confirmed
