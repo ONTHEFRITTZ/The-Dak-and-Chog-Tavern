@@ -47,22 +47,44 @@ async function renderButtons({ addr }) {
   const dd = document.createElement('select');
   dd.className = 'aa-btn';
   dd.style.cssText = 'padding:6px 8px;border-radius:8px;';
-  const p = await buildPresets();
-  const items = [
-    { key:'playOnly', label: p.playOnly.label },
-    { key:'playPlusTableOps', label: p.playPlusTableOps.label },
-  ];
-  items.forEach(it => { const o = document.createElement('option'); o.value = it.key; o.textContent = it.label; dd.appendChild(o); });
+  let presetMap = null;
+  try {
+    presetMap = await buildPresets();
+  } catch (err) {
+    console.warn('Delegation presets unavailable', err);
+    const opt = document.createElement('option');
+    opt.value = '';
+    opt.textContent = 'Delegation unavailable';
+    dd.appendChild(opt);
+    dd.disabled = true;
+  }
+  if (presetMap) {
+    const items = [
+      { key:'playOnly', label: presetMap.playOnly?.label || 'Play only' },
+      { key:'playPlusTableOps', label: presetMap.playPlusTableOps?.label || 'Play + table ops' },
+    ];
+    items.forEach(it => {
+      const o = document.createElement('option');
+      o.value = it.key;
+      o.textContent = it.label;
+      dd.appendChild(o);
+    });
+  }
   c.appendChild(dd);
 
   const bStart = document.createElement('button');
   bStart.className = 'aa-btn';
   bStart.textContent = 'Start Delegated Session';
   bStart.onclick = async () => {
-    const all = await buildPresets();
-    const selected = dd.value === 'playPlusTableOps' ? all.playPlusTableOps : all.playOnly;
-    const sess = await createDelegation({ address: addr, preset: selected });
-    if (sess) hydrate();
+    try {
+      const all = await buildPresets();
+      const selected = dd.value === 'playPlusTableOps' ? all.playPlusTableOps : all.playOnly;
+      const sess = await createDelegation({ address: addr, preset: selected });
+      if (sess) hydrate();
+    } catch (err) {
+      console.error('Delegation creation failed', err);
+      alert(err?.message || 'Delegation failed. Check console for details.');
+    }
   };
   c.appendChild(bStart);
 

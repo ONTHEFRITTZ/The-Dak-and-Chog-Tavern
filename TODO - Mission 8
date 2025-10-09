@@ -31,6 +31,6 @@ In Progress
 
 Backlog / Ideas
 - Expose DCmon stats dashboard (APY, house vs player rewards).
-- Automated alerting when paymaster top-ups fail.
+- Automated alerting when paymaster top-ups fail. (Alert email from agent to thedakandchog@gmail.com)
 - Snapshot + governance hooks once DCmon supply grows.
 - DEX oracle or TWAP feed to price DCmon vs MON for dynamic betting limits.

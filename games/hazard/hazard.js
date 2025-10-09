@@ -1,6 +1,7 @@
 // games/hazard/hazard.js
-// UI wired to MonHazard contract (HazardPlayed event) using ethers v5 UMD
+// DCMon-enabled Hazard frontend (HazardPlayed event) using ethers v5 UMD
 import { getAddressFor, detectChainId, renderTavernBanner, showToast } from '../../js/config.js';
+import '../../js/DCMonABI.js';
 import { attachProvider } from '../../js/contract-utils.js';
 
 let tavernAddress; // unified contract address
@@ -15,6 +16,9 @@ const diceImages = [
 ];
 
 let provider, signer, contract;
+let dcmonAddress = null;
+let dcmonRead = null;
+let dcmonToken = null;
 let inFlight = false;          // prevent overlapping plays
 let cooldownUntil = 0;         // brief cooldown after resolution
 let diceLock = false;          // lock dice to the last game result (until next roll)
@@ -246,6 +250,32 @@ onReady(async () => {
     const hazardAbi = (hazardAddr && window.HazardABI) ? window.HazardABI : window.TavernABI;
     activeHazardAbi = hazardAbi;
     contract = new ethers.Contract(tavernAddress, hazardAbi, signer);
+    // Resolve DCMon token
+    dcmonAddress = null;
+    dcmonRead = null;
+    dcmonToken = null;
+    try {
+      let tokenAddr = null;
+      if (contract && typeof contract.dcmonToken === 'function') {
+        tokenAddr = await contract.dcmonToken().catch(() => null);
+      }
+      if (!tokenAddr || tokenAddr === ethers.constants.AddressZero) {
+        tokenAddr = await getAddressFor('dcmon', provider).catch(() => null);
+      }
+      if (!tokenAddr || tokenAddr === ethers.constants.AddressZero) {
+        tokenAddr = window?.DCMON_ADDRESS || null;
+      }
+      if (tokenAddr && /^0x[0-9a-fA-F]{40}$/.test(tokenAddr) && window.DCMonABI) {
+        dcmonAddress = tokenAddr;
+        dcmonRead = new ethers.Contract(dcmonAddress, window.DCMonABI, provider);
+        dcmonToken = new ethers.Contract(dcmonAddress, window.DCMonABI, signer);
+      }
+    } catch {}
+    if (!dcmonAddress || !dcmonToken) {
+      statusEl.textContent = 'DCMon token not configured. Contact admin.';
+      rollBtn.disabled = true;
+      return;
+    }
 try {
 const chainId = await detectChainId(provider);
 const bannerKey = hazardAddr ? 'hazard' : 'tavern';
@@ -295,18 +325,18 @@ renderTavernBanner({ contractKey: bannerKey, address: tavernAddress, chainId, wa
     try { stopDiceSpin(); } catch {}
     diceLock = true;
 
-    const wagerEth = ethers.utils.formatEther(wager);
-    const payoutEth = win ? ethers.utils.formatEther(wager.mul(2)) : '0';
+    const wagerDc = ethers.utils.formatEther(wager);
+    const payoutDc = win ? ethers.utils.formatEther(wager.mul(2)) : '0';
     const explanation = explainOutcome(Number(main), Number(finalSum), Number(chance), win);
     const rolledMsg = 'Rolled ' + Number(finalSum) + '. ';
     statusEl.textContent = (win
-      ? ('You won ' + payoutEth + ' MON! ')
+      ? ('You won ' + payoutDc + ' DCMon! ')
       : ('You lost. ')) + rolledMsg + explanation;
-    try { showToast(win ? 'You won ' + payoutEth + ' MON' : 'You lost', win ? 'success' : 'info'); } catch {}
+    try { showToast(win ? 'You won ' + payoutDc + ' DCMon' : 'You lost', win ? 'success' : 'info'); } catch {}
 
     if (rollsList) {
       const li = document.createElement('li');
-      li.textContent = new Date().toLocaleTimeString() + ' - Bet: ' + wagerEth + ' MON - ' + (win ? 'Won' : 'Lost') + ' (Main:' + main + ', Final:' + finalSum + ', Iter:' + iterations + ')';
+      li.textContent = new Date().toLocaleTimeString() + ' - Bet: ' + wagerDc + ' DCMon - ' + (win ? 'Won' : 'Lost') + ' (Main:' + main + ', Final:' + finalSum + ', Iter:' + iterations + ')';
       rollsList.prepend(li);
       while (rollsList.children.length > 10) { rollsList.removeChild(rollsList.lastElementChild); }
     }
@@ -416,25 +446,63 @@ renderTavernBanner({ contractKey: bannerKey, address: tavernAddress, chainId, wa
     return;
   }
 
-  let hasPool = false;
+  // Ensure player balance + allowance
   try {
-    const poolAddr = await contract.pool();
-    hasPool = !!(poolAddr && poolAddr !== ethers.constants.AddressZero);
+    const balance = await dcmonRead.balanceOf(currentWallet);
+    if (balance.lt(wager)) {
+      statusEl.textContent = 'Insufficient DCMon balance for this bet.';
+      rollBtn.disabled = false;
+      inFlight = false;
+      return;
+    }
+  } catch (balErr) {
+    console.error('DCMon balance check failed', balErr);
+  }
+
+  try {
+    const allowance = await dcmonRead.allowance(currentWallet, tavernAddress).catch(() => ethers.constants.Zero);
+    if (allowance.lt(wager)) {
+      statusEl.textContent = 'Approving DCMon for Hazard...';
+      try { showToast('Approving DCMon...', 'info'); } catch {}
+      const approveTx = await dcmonToken.approve(tavernAddress, ethers.constants.MaxUint256);
+      await approveTx.wait();
+    }
+  } catch (approveErr) {
+    const msg = approveErr?.error?.message || approveErr?.data?.message || approveErr?.reason || approveErr?.message || 'Approval failed';
+    statusEl.textContent = msg;
+    rollBtn.disabled = false;
+    inFlight = false;
+    return;
+  }
+
+  // Bankroll coverage (need 2x)
+  try {
+    const poolAddr = await contract.pool().catch(() => ethers.constants.AddressZero);
     let ok = false;
-    if (hasPool) {
+    if (poolAddr && poolAddr !== ethers.constants.AddressZero && window.PoolABI) {
       try {
         const pool = new ethers.Contract(poolAddr, window.PoolABI, provider);
-        const bal = await pool.balance();
-        if (bal.gte(wager.mul(2))) ok = true;
+        const dcBal = await pool.poolDcmonBalance().catch(() => ethers.constants.Zero);
+        if (dcBal.gte(wager.mul(2))) ok = true;
+        else {
+          const underlying = await pool.poolUnderlyingBalance().catch(() => ethers.constants.Zero);
+          if (underlying.gte(wager.mul(2))) ok = true;
+        }
       } catch (poolErr) {
         console.error('Pool balance check failed', poolErr);
       }
-    } else {
-      const bank = await provider.getBalance(tavernAddress);
-      if (bank.gte(wager.mul(2))) ok = true;
     }
     if (!ok) {
-      statusEl.textContent = 'Bankroll too low for this bet (needs 2x cover). Try a smaller amount.';
+      try {
+        const contractBal = await dcmonRead.balanceOf(tavernAddress);
+        if (contractBal.gte(wager.mul(2))) ok = true;
+      } catch (balErr) {
+        console.error('Contract DCMon balance check failed', balErr);
+      }
+    }
+    if (!ok) {
+      statusEl.textContent = 'Bankroll too low for this DCMon bet (needs 2x cover). Try a smaller amount.';
+      rollBtn.disabled = false;
       inFlight = false;
       return;
     }
@@ -453,7 +521,7 @@ renderTavernBanner({ contractKey: bannerKey, address: tavernAddress, chainId, wa
     try { if (typeof window !== 'undefined') window.__hazardTxPending = true; } catch {}
     // Always do a static preflight to surface revert reasons before sending
     try {
-      await contract.callStatic.playHazard(selectedMain, { value: wager });
+      await contract.callStatic.playHazard(selectedMain, wager);
     } catch (pre) {
       const msg = pre?.error?.message || pre?.data?.message || pre?.reason || pre?.message || 'Reverted';
       statusEl.textContent = 'Rejected: ' + msg;
@@ -465,7 +533,7 @@ renderTavernBanner({ contractKey: bannerKey, address: tavernAddress, chainId, wa
 
     let gasLimit;
     try {
-      const est = await contract.estimateGas.playHazard(selectedMain, { value: wager });
+      const est = await contract.estimateGas.playHazard(selectedMain, wager);
       const min = ethers.BigNumber.from(600000);     // floor for complex paths
       const max = ethers.BigNumber.from(1200000);    // conservative cap
       let padded = est.mul(160).div(100);            // +60% safety
@@ -476,7 +544,7 @@ renderTavernBanner({ contractKey: bannerKey, address: tavernAddress, chainId, wa
       gasLimit = ethers.BigNumber.from(800000);      // robust fallback
     }
 
-    const tx = await contract.playHazard(selectedMain, { value: wager, gasLimit });
+    const tx = await contract.playHazard(selectedMain, wager, { gasLimit });
     statusEl.textContent = 'Dice rolling on-chain...';
     const receipt = await tx.wait();
     statusEl.textContent = 'Waiting for result...';

@@ -2,6 +2,7 @@
 import { renderTavernBanner, detectChainId, getAddressFor } from '../../js/config.js';
 import '../../js/TavernABI.js';
 import '../../js/DakChogABI.js';
+import '../../js/DCMonABI.js';
 
 const RULES_VERSION = 'v2';
 const statusEl = document.getElementById('dc-status');
@@ -33,6 +34,9 @@ try {
 let provider, signer, wallet, coinContract;
 let coinTargetAddress = null;
 let coinAbi = null;
+let dcmonAddress = null;
+let dcmonRead = null;
+let dcmonToken = null;
 let choice = 'dak';
 let rulesOK = true; // rules gate removed
 
@@ -73,6 +77,31 @@ async function ensureWallet() {
       coinContract = new ethers.Contract(coinTargetAddress, coinAbi, signer);
     } else {
       coinContract = undefined;
+    }
+
+    dcmonAddress = null;
+    dcmonRead = null;
+    dcmonToken = null;
+    try {
+      let tokenAddr = null;
+      if (coinContract && typeof coinContract.dcmonToken === 'function') {
+        tokenAddr = await coinContract.dcmonToken().catch(() => null);
+      }
+      if (!tokenAddr || tokenAddr === ethers.constants.AddressZero) {
+        tokenAddr = await getAddressFor('dcmon', provider).catch(() => null);
+      }
+      if (!tokenAddr || tokenAddr === ethers.constants.AddressZero) {
+        tokenAddr = window?.DCMON_ADDRESS || null;
+      }
+      if (tokenAddr && /^0x[0-9a-fA-F]{40}$/.test(tokenAddr) && window.DCMonABI) {
+        dcmonAddress = tokenAddr;
+        dcmonRead = new ethers.Contract(dcmonAddress, window.DCMonABI, provider);
+        dcmonToken = new ethers.Contract(dcmonAddress, window.DCMonABI, signer);
+      }
+    } catch {}
+    if (!dcmonAddress || !dcmonToken) {
+      statusEl.textContent = 'DCMon token not configured. Contact admin.';
+      return;
     }
   } catch {}
 
@@ -116,6 +145,33 @@ flipBtn.addEventListener('click', async () => {
     const betOnChog = (choice === 'chog');
     const betWei = ethers.utils.parseEther(String(bet));
 
+    // Ensure player balance + allowance
+    try {
+      const balance = await dcmonRead.balanceOf(wallet);
+      if (balance.lt(betWei)) {
+        statusEl.textContent = 'Insufficient DCMon balance for this bet.';
+        try { coinEl.classList.remove('spin'); } catch {}
+        return;
+      }
+    } catch (balErr) {
+      console.error('DCMon balance check failed', balErr);
+    }
+
+    try {
+      const allowance = await dcmonRead.allowance(wallet, coinTargetAddress).catch(() => ethers.constants.Zero);
+      if (allowance.lt(betWei)) {
+        statusEl.textContent = 'Approving DCMon for Dak & Chog...';
+        try { showToast('Approving DCMon...', 'info'); } catch {}
+        const approveTx = await dcmonToken.approve(coinTargetAddress, ethers.constants.MaxUint256);
+        await approveTx.wait();
+      }
+    } catch (approveErr) {
+      const msg = approveErr?.error?.message || approveErr?.data?.message || approveErr?.reason || approveErr?.message || 'Approval failed.';
+      statusEl.textContent = msg;
+      try { coinEl.classList.remove('spin'); } catch {}
+      return;
+    }
+
     // Max bet guard (if contract exposes it)
     try {
       const maxBet = await coinContract.maxBet().catch(()=>null);
@@ -123,7 +179,7 @@ flipBtn.addEventListener('click', async () => {
         if (betWei.gt(maxBet)) { statusEl.textContent = 'Bet exceeds maxBet for this game.'; return; }
       }
     } catch {}
-    // Bankroll must cover net outflow. If a pool is configured, require 2x wager there; else require at least the wager at the Tavern.
+    // Bankroll must cover net outflow. Require 2x wager in DCMon coverage.
     try {
       let ok = false;
       const targetAddr = coinTargetAddress || await getAddressFor('tavern', provider);
@@ -138,19 +194,23 @@ flipBtn.addEventListener('click', async () => {
       if (poolAddr && poolAddr !== ethers.constants.AddressZero && window.PoolABI) {
         try {
           const pool = new ethers.Contract(poolAddr, window.PoolABI, provider);
-          const bal = await pool.balance();
-          if (bal.gte(betWei.mul(2))) ok = true;
+          const dcBal = await pool.poolDcmonBalance().catch(() => ethers.constants.Zero);
+          if (dcBal.gte(betWei.mul(2))) ok = true;
+          else {
+            const underlying = await pool.poolUnderlyingBalance().catch(() => ethers.constants.Zero);
+            if (underlying.gte(betWei.mul(2))) ok = true;
+          }
         } catch {}
       } else if (targetAddr) {
         try {
-          const bank = await provider.getBalance(targetAddr);
-          if (bank && bank.gte(betWei)) ok = true;
+          const bankDc = await dcmonRead.balanceOf(targetAddr);
+          if (bankDc && bankDc.gte(betWei.mul(2))) ok = true;
         } catch {}
       }
-      if (!ok) { statusEl.textContent = 'Bankroll too low for this bet. Try a smaller amount.'; return; }
+      if (!ok) { statusEl.textContent = 'Bankroll too low for this DCMon bet (needs 2x cover). Try a smaller amount.'; try { coinEl.classList.remove('spin'); } catch {}; return; }
     } catch {}
     // Static call to surface revert reasons
-    try { await coinContract.callStatic.playCoin(betOnChog, { value: betWei }); }
+    try { await coinContract.callStatic.playCoin(betOnChog, betWei); }
     catch (pre) {
       const msg = pre?.error?.message || pre?.data?.message || pre?.reason || pre?.message || 'Reverted';
       statusEl.textContent = 'Rejected: ' + msg;
@@ -158,7 +218,7 @@ flipBtn.addEventListener('click', async () => {
     }
 
     statusEl.textContent = 'Submitting transaction...';
-    const tx = await coinContract.playCoin(betOnChog, { value: betWei, gasLimit: 120000 });
+    const tx = await coinContract.playCoin(betOnChog, betWei, { gasLimit: 250000 });
     statusEl.textContent = `Tx sent: ${tx.hash.slice(0,10)}... waiting confirmation...`;
     const rc = await tx.wait();
     // Parse CoinPlayed event if present
