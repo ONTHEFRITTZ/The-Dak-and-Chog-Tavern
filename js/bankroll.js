@@ -294,9 +294,8 @@
       try {
         const val = parseFloat(ethers.utils.formatEther(bn));
         if (!Number.isFinite(val)) return '-';
-        if (val >= 1000) return val.toLocaleString(undefined, { maximumFractionDigits: 2 });
-        if (val >= 1) return val.toFixed(3).replace(/\.0+$/, '').replace(/(\..*?)0+$/, '');
-        return val.toFixed(5).replace(/0+$/, '').replace(/\.$/, '');
+        const fixed = val.toFixed(3);
+        return fixed === '-0.000' ? '0.000' : fixed;
       } catch {
         return '-';
       }

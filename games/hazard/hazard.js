@@ -19,6 +19,7 @@ let provider, signer, contract;
 let dcmonAddress = null;
 let dcmonRead = null;
 let dcmonToken = null;
+const MIN_BET = 0.001;
 let inFlight = false;          // prevent overlapping plays
 let cooldownUntil = 0;         // brief cooldown after resolution
 let diceLock = false;          // lock dice to the last game result (until next roll)
@@ -78,12 +79,26 @@ let hazardAck = true; // rules gate removed
 const RULES_VERSION = 'v2';
 // rules ack key no longer used
 
+const formatDcmon = (value) => {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return '0.000';
+  const fixed = num.toFixed(3);
+  return fixed === '-0.000' ? '0.000' : fixed;
+};
+
+const clampBet = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < MIN_BET) return MIN_BET;
+  return Math.floor(parsed * 1000 + 1e-9) / 1000;
+};
+
 // Persist and restore basic UI state (bet + main)
 try {
   const savedBet = localStorage.getItem('hazard.bet');
-  if (savedBet && !isNaN(Number(savedBet))) betInput.value = savedBet;
+  if (savedBet && !isNaN(Number(savedBet))) betInput.value = formatDcmon(clampBet(savedBet));
   const savedMain = localStorage.getItem('hazard.main');
   if (savedMain) selectedMain = Number(savedMain);
+  betInput.value = formatDcmon(clampBet(betInput.value || MIN_BET));
 } catch {}
 if (dice1El && !dice1El.textContent) dice1El.textContent = '?';
 if (dice2El && !dice2El.textContent) dice2El.textContent = '?';
@@ -325,8 +340,8 @@ renderTavernBanner({ contractKey: bannerKey, address: tavernAddress, chainId, wa
     try { stopDiceSpin(); } catch {}
     diceLock = true;
 
-    const wagerDc = ethers.utils.formatEther(wager);
-    const payoutDc = win ? ethers.utils.formatEther(wager.mul(2)) : '0';
+    const wagerDc = formatDcmon(ethers.utils.formatEther(wager));
+    const payoutDc = win ? formatDcmon(ethers.utils.formatEther(wager.mul(2))) : formatDcmon(0);
     const explanation = explainOutcome(Number(main), Number(finalSum), Number(chance), win);
     const rolledMsg = 'Rolled ' + Number(finalSum) + '. ';
     statusEl.textContent = (win
@@ -425,9 +440,11 @@ renderTavernBanner({ contractKey: bannerKey, address: tavernAddress, chainId, wa
     }
   }
 
-  const bet = betInput.value;
-  if (!bet || Number(bet) <= 0) {
-    statusEl.textContent = 'Enter a valid bet amount.';
+  const betValue = clampBet(betInput.value);
+  betInput.value = formatDcmon(betValue);
+  if (!Number.isFinite(betValue) || betValue < MIN_BET) {
+    statusEl.textContent = `Minimum bet is ${formatDcmon(MIN_BET)} DCMon.`;
+    try { rollBtn.disabled = false; } catch {}
     inFlight = false;
     return;
   }
@@ -439,7 +456,7 @@ renderTavernBanner({ contractKey: bannerKey, address: tavernAddress, chainId, wa
 
   let wager;
   try {
-    wager = ethers.utils.parseEther(bet);
+    wager = ethers.utils.parseEther(formatDcmon(betValue));
   } catch {
     statusEl.textContent = 'Enter a valid bet amount.';
     inFlight = false;

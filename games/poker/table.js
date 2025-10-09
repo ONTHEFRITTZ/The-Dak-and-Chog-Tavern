@@ -421,15 +421,19 @@
   }
 
   const $ = (s, el = document) => el.querySelector(s);
+  const formatDcmonBalance = (value) => {
+    const num = Number(value);
+    if (!Number.isFinite(num)) return '0.000';
+    const fixed = num.toFixed(3);
+    return fixed === '-0.000' ? '0.000' : fixed;
+  };
+
   const formatChips = (v) => {
     const n = Number(v);
     if (!Number.isFinite(n)) return '';
     if (isOnchainTable) {
       const dcmon = n * chipValueDcmon;
-      const abs = Math.abs(dcmon);
-      if (abs >= 10) return trimDecimals(dcmon.toFixed(2));
-      if (abs >= 1) return trimDecimals(dcmon.toFixed(3));
-      return trimDecimals(dcmon.toFixed(4));
+      return formatDcmonBalance(dcmon);
     }
     if (Math.abs(n) >= 1000) return n.toLocaleString();
     if (Math.abs(n) >= 1) return n.toString();
@@ -906,9 +910,7 @@
         meta.stack.textContent = '';
       } else if (isOnchainTable) {
         const rawBalance = Number(seatData && seatData.balance != null ? seatData.balance : 0);
-        const display = Number.isFinite(rawBalance)
-          ? trimDecimals((rawBalance >= 10 ? rawBalance.toFixed(2) : rawBalance.toFixed(3)))
-          : '0';
+        const display = Number.isFinite(rawBalance) ? formatDcmonBalance(rawBalance) : '0.000';
         meta.stack.textContent = `Stack: ${display} DCMon`;
       } else {
         const chips = Number(seatData && seatData.chips != null ? seatData.chips : 0);

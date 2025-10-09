@@ -8,6 +8,7 @@ const RULES_VERSION = 'v2';
 const statusEl = document.getElementById('dc-status');
 const coinEl = document.getElementById('coin');
 const betInput = document.getElementById('bet');
+if (betInput) betInput.value = formatDcmon(clampBet(betInput.value || MIN_BET));
 const flipBtn = document.getElementById('flip');
 const chooseDak = document.getElementById('choose-dak');
 const chooseChog = document.getElementById('choose-chog');
@@ -42,6 +43,22 @@ let rulesOK = true; // rules gate removed
 
 const IMG_DAK = '../../assets/images/coin-dak.png';
 const IMG_CHOG = '../../assets/images/coin-chog.png';
+const MIN_BET = 0.001;
+
+const formatDcmon = (value) => {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return '0.000';
+  const fixed = num.toFixed(3);
+  return fixed === '-0.000' ? '0.000' : fixed;
+};
+
+const clampBet = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < MIN_BET) return MIN_BET;
+  return Math.floor(parsed * 1000 + 1e-9) / 1000;
+};
+
+if (betInput) betInput.value = formatDcmon(clampBet(betInput.value || MIN_BET));
 
 function rulesFresh(key) { try { const t = Number(localStorage.getItem(key) || 0); return Date.now() - t < 86400000; } catch { return false; } }
 
@@ -133,17 +150,21 @@ async function ensureWallet() {
 flipBtn.addEventListener('click', async () => {
   if (!rulesOK) { try { rulesOverlay.style.display = 'flex'; } catch {}; return; }
   const ethers = window.ethers;
-  const bet = Number(betInput.value || 0);
+  let bet = clampBet(betInput.value);
+  betInput.value = formatDcmon(bet);
   if (!provider || !signer || !wallet) { statusEl.textContent = 'Connect wallet first.'; return; }
   if (!coinContract || !coinTargetAddress) { statusEl.textContent = 'Coin contract not configured.'; return; }
-  if (!(bet > 0)) { statusEl.textContent = 'Enter a valid bet amount.'; return; }
+  if (!Number.isFinite(bet) || bet < MIN_BET) {
+    statusEl.textContent = `Minimum bet is ${formatDcmon(MIN_BET)} DCMon.`;
+    return;
+  }
 
   // Start continuous spin while tx is pending until chain confirms result
   try { coinEl.classList.remove('flip'); coinEl.classList.add('spin'); } catch {}
   statusEl.textContent = 'Checking conditions...';
   try {
     const betOnChog = (choice === 'chog');
-    const betWei = ethers.utils.parseEther(String(bet));
+    const betWei = ethers.utils.parseEther(formatDcmon(bet));
 
     // Ensure player balance + allowance
     try {

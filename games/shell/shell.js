@@ -6,11 +6,25 @@ import { attachProvider } from '../../js/contract-utils.js';
 
 const MIN_BET = 0.001; // DCMon units
 
+const formatDcmon = (value) => {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return '0.000';
+  const fixed = num.toFixed(3);
+  return fixed === '-0.000' ? '0.000' : fixed;
+};
+
+const clampBet = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < MIN_BET) return MIN_BET;
+  return Math.floor(parsed * 1000 + 1e-9) / 1000;
+};
+
 const shellElements = document.querySelectorAll('.shell');
 const statusEl = document.getElementById('shell-result') || document.getElementById('status');
 const playsEl = document.getElementById('plays');
 const returnBtn = document.getElementById('return');
 const betInput = document.getElementById('bet');
+if (betInput) betInput.value = formatDcmon(clampBet(betInput.value || MIN_BET));
 const rulesOverlay = document.getElementById('rules-overlay');
 const rulesAck = document.getElementById('rules-ack');
 const openRulesBtn = document.getElementById('open-rules');
@@ -167,8 +181,8 @@ shellElements.forEach((shell) => {
 
       const guessDisplay = parseInt(shell.dataset.guess, 10);
       const guess = Math.max(0, (guessDisplay|0) - 1);
-      let betAmount = parseFloat(betInput.value);
-      if (isNaN(betAmount) || betAmount < MIN_BET) betAmount = MIN_BET;
+      let betAmount = clampBet(betInput.value);
+      betInput.value = formatDcmon(betAmount);
 
       const abi = activeShellAbi || window.ShellABI || window.TavernABI;
       const contract = new ethers.Contract(tavernAddress, abi, signer);
@@ -181,7 +195,7 @@ shellElements.forEach((shell) => {
       statusEl.innerText = 'Preparing DCMon wager...';
       try { showToast('Preparing DCMon wager...', 'info'); } catch {}
 
-      const betWei = ethers.utils.parseEther(betAmount.toString());
+      const betWei = ethers.utils.parseEther(formatDcmon(betAmount));
 
       // Ensure player balance + allowance
       try {
