@@ -1,16 +1,13 @@
 // games/poker/table.js
 // Restores the image-based felt, seat layout, private hole handling, burn flashes,
 // simple dealing animations, action controls.
-
 function initializePokerTable() {
   const { ethers } = window;
   const tableMode = (document.documentElement.getAttribute('data-table-mode') || 'f2p').toLowerCase();
   const isOnchainTable = tableMode === 'onchain';
-
   function getBankrollHelper() {
     return window.Bankroll || window.__PokerBankroll || null;
   }
-
   async function waitForBankrollHelper(timeout = 6000) {
     const existing = getBankrollHelper();
     if (existing) return existing;
@@ -18,24 +15,20 @@ function initializePokerTable() {
       const deadline = Date.now() + timeout;
       let settled = false;
       let poller = null;
-
       function cleanup() {
         if (settled) return;
         settled = true;
         if (poller) clearInterval(poller);
         document.removeEventListener('bankroll:ready', onReady);
       }
-
       function onResolve(helper) {
         cleanup();
         resolve(helper);
       }
-
       function onReady() {
         const helper = getBankrollHelper();
         if (helper) onResolve(helper);
       }
-
       poller = setInterval(() => {
         const helper = getBankrollHelper();
         if (helper) return onResolve(helper);
@@ -44,7 +37,6 @@ function initializePokerTable() {
           reject(new Error('Bankroll helper missing'));
         }
       }, 80);
-
       document.addEventListener('bankroll:ready', onReady);
       onReady();
     });
@@ -58,25 +50,21 @@ function initializePokerTable() {
     if (out === '-0') out = '0';
     return out;
   };
-
   const ZERO_ADDR = '0x' + '0'.repeat(40);
   const ASSET_BASE = '/assets/images/chog_cards/';
   const CARD_BACK = `${ASSET_BASE}dak-and-chog-cardback.png`;
   const TURN_MS = 25_000;
-
   const rankMap = {
     '2': 'two', '3': 'three', '4': 'four', '5': 'five', '6': 'six', '7': 'seven',
     '8': 'eight', '9': 'nine', T: 'ten', J: 'jack', Q: 'queen', K: 'king', A: 'ace'
   };
   const suitMap = { c: 'clubs', d: 'diamonds', h: 'hearts', s: 'spades' };
-
   const STAGE_LABEL = {
     preflop: 'Pre-Flop',
     flop: 'Flop',
     turn: 'Turn',
     river: 'River'
   };
-
   function readRingValue(name, fallback) {
     try {
       const cs = getComputedStyle(canvas);
@@ -87,7 +75,6 @@ function initializePokerTable() {
       return fallback;
     }
   }
-
   function seatPosition(index, total) {
     const rx = readRingValue('--ring-rx', 54);
     const ry = readRingValue('--ring-ry', 46);
@@ -98,7 +85,6 @@ function initializePokerTable() {
     const top = 50 + ry * Math.sin(rad);
     return { left, top };
   }
-
   function positionSeats() {
     const total = seats.length || 8;
     seats.forEach((seat, idx) => {
@@ -107,17 +93,14 @@ function initializePokerTable() {
       seat.style.top = `${top}%`;
     });
   }
-
   const canvas = document.querySelector('.table-canvas');
   if (!canvas) return;
-
   const seats = Array.from(document.querySelectorAll('.seat'));
   let onchainAdapterPromise = null;
   let configModulePromise = null;
   let tableSnapshot = null;
   let chipValueDcmon = isOnchainTable ? 0.001 : 1;
   let chipValueWei = null;
-
   function setChipValue(nextValue) {
     const numeric = Number(nextValue);
     if (!Number.isFinite(numeric) || numeric <= 0) return false;
@@ -134,7 +117,6 @@ function initializePokerTable() {
     }
     return true;
   }
-
   function chipsToWei(chips) {
     if (!isOnchainTable || chipValueDcmon <= 0 || !ethers?.utils?.parseUnits) return null;
     const amount = Number(chips);
@@ -148,7 +130,6 @@ function initializePokerTable() {
       return null;
     }
   }
-
   function dcmonToChips(amountDcmon) {
     if (!isOnchainTable || chipValueDcmon <= 0) return null;
     const numeric = Number(amountDcmon);
@@ -157,7 +138,6 @@ function initializePokerTable() {
     const rounded = Math.round((raw + Number.EPSILON) * 1e6) / 1e6;
     return rounded;
   }
-
   function updateChipValueFromTable(table) {
     if (!isOnchainTable || !table) return;
     try {
@@ -174,7 +154,6 @@ function initializePokerTable() {
       console.warn('Poker table: updateChipValueFromTable failed', err);
     }
   }
-
   async function loadConfigModule() {
     if (!configModulePromise) {
       configModulePromise = import('../../js/config.js').catch((err) => {
@@ -184,7 +163,6 @@ function initializePokerTable() {
     }
     return configModulePromise;
   }
-
   async function resolvePokerTableAddress(provider) {
     const mod = await loadConfigModule();
     let addr = null;
@@ -199,7 +177,6 @@ function initializePokerTable() {
     if (!addr && window.CONTRACTS?.pokerTable) addr = window.CONTRACTS.pokerTable;
     return addr;
   }
-
   async function getOnchainAdapter() {
     if (!isOnchainTable) return null;
     if (!onchainAdapterPromise) {
@@ -211,27 +188,21 @@ function initializePokerTable() {
     }
     return onchainAdapterPromise;
   }
-
   async function createOnchainAdapter() {
     if (!isOnchainTable || !ethers || !window.HoldemPokerABI) return null;
     const bankroll = await waitForBankrollHelper();
-
     if (typeof bankroll.ensureContracts === 'function') {
       const ok = await bankroll.ensureContracts();
       if (!ok) throw new Error('Bankroll contracts unavailable');
     }
-
     const provider = typeof bankroll.getProvider === 'function' ? await bankroll.getProvider() : null;
     const signer = typeof bankroll.getSigner === 'function' ? await bankroll.getSigner() : null;
     if (!provider || !signer) throw new Error('Connect wallet before joining on-chain tables');
-
     const tableAddress = await resolvePokerTableAddress(provider);
     if (!tableAddress) throw new Error('Poker table address missing');
-
     const contract = new ethers.Contract(tableAddress, window.HoldemPokerABI, signer);
     let cachedAddr = null;
     let aaOpsModule = null;
-
     async function ownerAddress() {
       try {
         if (window.AA && typeof window.AA.smartAccountAddress === 'string' && window.AA.smartAccountAddress) {
@@ -241,7 +212,6 @@ function initializePokerTable() {
       if (!cachedAddr) cachedAddr = await signer.getAddress();
       return cachedAddr;
     }
-
     async function ensureAAOps() {
       if (aaOpsModule) return aaOpsModule;
       try {
@@ -252,7 +222,6 @@ function initializePokerTable() {
       }
       return aaOpsModule;
     }
-
     async function callViaAA(signature, args, valueMON) {
       const ops = await ensureAAOps();
       if (!ops || typeof ops.callWithDelegation !== 'function') return false;
@@ -269,10 +238,8 @@ function initializePokerTable() {
         return false;
       }
     }
-
     const contracts = typeof bankroll.getContracts === 'function' ? bankroll.getContracts() : null;
     const dcmonRead = contracts?.dcmonRead || null;
-
     async function ensureAllowance(amountWei) {
       const addr = await ownerAddress();
       if (typeof bankroll.ensureDcmonAllowance === 'function') {
@@ -281,7 +248,6 @@ function initializePokerTable() {
       }
       return true;
     }
-
     async function contribute(seatId, chips) {
       if (!Number.isFinite(chips) || chips <= 0) return true;
       const wei = chipsToWei(chips);
@@ -306,7 +272,6 @@ function initializePokerTable() {
       }
       return true;
     }
-
     async function joinSeat(seatId) {
       const aaOk = await callViaAA('joinSeat(uint8)', [seatId]);
       if (!aaOk) {
@@ -316,7 +281,6 @@ function initializePokerTable() {
       cachedAddr = await ownerAddress();
       return true;
     }
-
     async function leaveSeat(seatId, opts) {
       const active = !!(opts && opts.inHand);
       const method = active ? 'leaveDuringHand' : 'unseat';
@@ -329,14 +293,10 @@ function initializePokerTable() {
       }
       return true;
     }
-
     return { address: tableAddress, contract, joinSeat, leaveSeat, contribute, ownerAddress };
   }
-
   setChipValue(chipValueDcmon);
-
   if (!seats.length) return;
-
   let board = canvas.querySelector('#board');
   if (!board) {
     board = document.createElement('div');
@@ -345,14 +305,12 @@ function initializePokerTable() {
     canvas.insertBefore(board, seats[0] || null);
   }
   board.classList.add('empty');
-
   let burnPile = canvas.querySelector('.burn-pile');
   if (!burnPile) {
     burnPile = document.createElement('div');
     burnPile.className = 'burn-pile';
     canvas.insertBefore(burnPile, seats[0] || null);
   }
-
   let updateConnectionBanner = () => {};
   const centerBanner = document.getElementById('poker-center');
   updateConnectionBanner = (message, tone) => {
@@ -374,9 +332,7 @@ function initializePokerTable() {
   };
   const lastHandBox = document.getElementById('last-hand');
   const lastHandEl = document.getElementById('lh-content');
-
   positionSeats();
-
   const seatMeta = seats.map((seat) => {
     let timer = seat.querySelector('.timer');
     if (!timer) {
@@ -387,14 +343,12 @@ function initializePokerTable() {
       timer.appendChild(fill);
       seat.appendChild(timer);
     }
-
     let cards = seat.querySelector('.cards');
     if (!cards) {
       cards = document.createElement('div');
       cards.className = 'cards';
       seat.appendChild(cards);
     }
-
     let addr = seat.querySelector('.addr');
     if (!addr) {
       addr = document.createElement('div');
@@ -402,7 +356,6 @@ function initializePokerTable() {
       addr.textContent = '';
       seat.appendChild(addr);
     }
-
     let stack = seat.querySelector('.stack');
     if (!stack) {
       stack = document.createElement('div');
@@ -410,14 +363,12 @@ function initializePokerTable() {
       stack.textContent = '';
       seat.appendChild(stack);
     }
-
     let btns = seat.querySelector('.btns');
     if (!btns) {
       btns = document.createElement('div');
       btns.className = 'btns';
       seat.appendChild(btns);
     }
-
     return {
       seat,
       cards,
@@ -445,7 +396,6 @@ function initializePokerTable() {
   betBtn.textContent = 'Bet';
   actionBar.append(infoText, foldBtn, callBtn, betInput, betBtn);
   canvas.appendChild(actionBar);
-
   // Purge any non-address labels from seats immediately
   try {
     document.querySelectorAll('.seat .addr').forEach(el => {
@@ -455,7 +405,6 @@ function initializePokerTable() {
       }
     });
   } catch {}
-
   // Allow Enter key and simple keyboard shortcuts when action bar is visible
   betInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
@@ -471,7 +420,6 @@ function initializePokerTable() {
     if (k === 'c') { e.preventDefault(); const act = callBtn.dataset.action || 'check'; sendAction(act); }
     if (k === 'b') { e.preventDefault(); const act = betBtn.dataset.action || 'bet'; sendAction(act, betInput.value); }
   });
-
   function cardToImg(code) {
     if (!code) return CARD_BACK;
     const m = /^([2-9TJQKA])([cdhs])$/i.exec(code.trim());
@@ -481,7 +429,6 @@ function initializePokerTable() {
     if (!rank || !suit) return CARD_BACK;
     return `${ASSET_BASE}chog-${rank}-of-${suit}.png`;
   }
-
   const $ = (s, el = document) => el.querySelector(s);
   const formatDcmonBalance = (value) => {
     const num = Number(value);
@@ -489,7 +436,6 @@ function initializePokerTable() {
     const fixed = num.toFixed(3);
     return fixed === '-0.000' ? '0.000' : fixed;
   };
-
   const formatChips = (v) => {
     const n = Number(v);
     if (!Number.isFinite(n)) return '';
@@ -508,7 +454,6 @@ function initializePokerTable() {
     } catch {}
     return '';
   };
-
   function storedAddr() {
     try {
       const connected = sessionStorage.getItem('walletConnected') === 'true'
@@ -524,7 +469,6 @@ function initializePokerTable() {
     } catch {}
     return null;
   }
-
   function persistAddr(addr) {
     try {
       const normalized = isValidAddr(addr) ? String(addr).toLowerCase() : '';
@@ -541,7 +485,6 @@ function initializePokerTable() {
       localStorage.setItem('walletAddress', normalized);
     } catch {}
   }
-
   function currentAddr() {
     const saved = storedAddr();
     if (saved) return saved;
@@ -550,16 +493,13 @@ function initializePokerTable() {
     if (window.tavern && isValidAddr(window.tavern.addr || '')) return String(window.tavern.addr).toLowerCase();
     return null;
   }
-
   const qp = new URL(location.href).searchParams;
   const tableId = qp.get('table') || 'poker-sim-1';
-
   // Socket handling with path fallbacks
   if (!window.io) {
     console.error('Socket.IO missing');
     return;
   }
-
   let socket = null;
   const host = (location.hostname || '').toLowerCase();
   const socketPaths = (() => {
@@ -569,21 +509,27 @@ function initializePokerTable() {
   })();
   let activeSocketPath = null;
   let triedPaths = new Set();
-
-  function emitSocket(event, payload) {
-    if (!socket) {
-      console.warn('[poker] socket unavailable for', event);
-      return false;
-    }
-    try {
-      socket.emit(event, payload);
-      return true;
-    } catch (err) {
-      console.warn('[poker] emit failed', event, err);
-      return false;
+  const pendingEmits = [];
+  function flushPendingEmits() {
+    if (!socket || !socket.connected) return;
+    while (pendingEmits.length) {
+      const { event, payload } = pendingEmits.shift();
+      try { socket.emit(event, payload); } catch (err) { console.warn('[poker] pending emit failed', event, err); }
     }
   }
-
+  function emitSocket(event, payload) {
+    if (socket && socket.connected) {
+      try {
+        socket.emit(event, payload);
+        return true;
+      } catch (err) {
+        console.warn('[poker] emit failed', event, err);
+        return false;
+      }
+    }
+    pendingEmits.push({ event, payload });
+    return false;
+  }
   let lastTable = null;
   let mySeat = -1;
   let lastStage = null;
@@ -601,14 +547,12 @@ function initializePokerTable() {
     }
     updateConnectionBanner('', '');
   }
-
   function scheduleConnectionWarning(message = 'Connecting to poker server...') {
     clearConnectionWarning();
     connectionWarnTimer = setTimeout(() => {
       updateConnectionBanner(message, 'info');
     }, 600);
   }
-
   function maybeJoinTable() {
     if (!socket || !socket.connected) {
       joinPending = true;
@@ -617,24 +561,21 @@ function initializePokerTable() {
     emitSocket('join_table', { table: tableId });
     joinPending = false;
   }
-
   function onSocketConnect() {
     clearConnectionWarning();
     updateConnectionBanner('', '');
+    flushPendingEmits();
     ensureIdentify();
     maybeJoinTable();
   }
-
   function onSocketDisconnect(reason) {
     console.warn('[poker] socket disconnected', reason);
     joinPending = true;
     scheduleConnectionWarning(reason === 'io client disconnect' ? 'Reconnecting...' : 'Reconnecting to poker server...');
   }
-
   function onSocketError(err) {
     console.warn('[poker] socket error', err);
   }
-
   function attachSocketHandlers(newSocket, pathIndex) {
     if (!newSocket) return;
     if (socket && socket !== newSocket) {
@@ -675,7 +616,6 @@ function initializePokerTable() {
       onSocketConnect();
     }
   }
-
   function connectSocket(startIndex = 0) {
     if (startIndex >= socketPaths.length) {
       clearConnectionWarning();
@@ -693,14 +633,12 @@ function initializePokerTable() {
         reconnectionAttempts: 5
       });
       let connected = false;
-
       const handleConnect = () => {
         connected = true;
         candidate.off('connect_error', handleError);
         candidate.off('connect_timeout', handleError);
         attachSocketHandlers(candidate, startIndex);
       };
-
       const handleError = (err) => {
         if (connected) return;
         console.warn('[poker] socket path failed', path, err?.message || err);
@@ -710,7 +648,6 @@ function initializePokerTable() {
         try { candidate.close(); } catch {}
         connectSocket(startIndex + 1);
       };
-
       candidate.once('connect', handleConnect);
       candidate.once('connect_error', handleError);
       candidate.once('connect_timeout', handleError);
@@ -720,14 +657,11 @@ function initializePokerTable() {
       connectSocket(startIndex + 1);
     }
   }
-
-
   async function ensureIdentify() {
     try {
       let provider = null;
       try { if (typeof window.__getSelectedProvider === 'function') provider = window.__getSelectedProvider(); } catch {}
       if (!provider && window.ethereum?.request) provider = window.ethereum;
-
       let addr = null;
       if (provider?.request) {
         const accs = await provider.request({ method: 'eth_accounts' }).catch(() => []);
@@ -755,7 +689,6 @@ function initializePokerTable() {
           addr = fallback;
         }
       }
-
       if (isValidAddr(addr)) {
         emitSocket('identify', { addr });
         return true;
@@ -765,26 +698,22 @@ function initializePokerTable() {
     }
     return false;
   }
-
   function seatIndexForAddr(addr) {
     if (!addr || !lastTable) return -1;
     const target = String(addr).toLowerCase();
     const seatsList = lastTable.seats || [];
     return seatsList.findIndex(s => s && String(s.addr || '').toLowerCase() === target);
   }
-
   function seatIndexForActor(actor) {
     if (!actor) return -1;
     if (Number.isFinite(actor.seatId)) return actor.seatId;
     return seatIndexForAddr(actor.addr);
   }
-
   function clearSeatCards(idx) {
     const meta = seatMeta[idx];
     if (!meta) return;
     meta.cards.innerHTML = '';
   }
-
   function setSeatCards(idx, cards, { faceDown = false } = {}) {
     const meta = seatMeta[idx];
     if (!meta) return;
@@ -798,7 +727,6 @@ function initializePokerTable() {
       requestAnimationFrame(() => el.classList.add('show'));
     });
   }
-
   function renderBoard(cards) {
     const arr = Array.isArray(cards) ? cards : [];
     if (!arr.length) {
@@ -826,7 +754,6 @@ function initializePokerTable() {
       board.removeChild(board.lastElementChild);
     }
   }
-
   function flashBurn() {
     burnPile.innerHTML = '';
     const el = document.createElement('img');
@@ -840,7 +767,6 @@ function initializePokerTable() {
       setTimeout(() => el.remove(), 180);
     }, 220);
   }
-
   function updateCenter(st) {
     if (!centerBanner) return;
     if (!st) {
@@ -867,12 +793,10 @@ function initializePokerTable() {
     centerBanner.textContent = parts.join(' - ');
     centerBanner.style.display = 'block';
   }
-
   function hideActionBar() {
     actionBar.classList.add('hidden');
     currentTurnSeat = -1;
   }
-
   function anchorActionBar() {
     const canvasRect = canvas.getBoundingClientRect();
     const boardRect = board.getBoundingClientRect();
@@ -892,7 +816,6 @@ function initializePokerTable() {
     const top = Math.min(Math.max(minTop, desiredTop), maxTop);
     actionBar.style.top = `${top}px`;
   }
-
   function startTurnTimer(seatIdx) {
     if (timerRaf) cancelAnimationFrame(timerRaf);
     seatMeta.forEach(meta => {
@@ -918,7 +841,6 @@ function initializePokerTable() {
     meta.timerFill.style.width = '0%';
     timerRaf = requestAnimationFrame(tick);
   }
-
   function clearTimers() {
     if (timerRaf) cancelAnimationFrame(timerRaf);
     timerRaf = null;
@@ -927,11 +849,9 @@ function initializePokerTable() {
       meta.seat.classList.remove('turn');
     });
   }
-
   async function sendAction(action, amountInput) {
     try {
       await ensureIdentify();
-
       if (!isOnchainTable) {
         const payload = { action };
         if (action === 'bet' || action === 'raise') {
@@ -946,7 +866,6 @@ function initializePokerTable() {
         hideActionBar();
         return;
       }
-
       const payload = { action };
       const state = currentState || tableSnapshot || null;
       const seatIndex = mySeat;
@@ -954,19 +873,16 @@ function initializePokerTable() {
         alert('Take a seat before acting.');
         return;
       }
-
       const adapter = await getOnchainAdapter();
       if (!adapter) {
         alert('Wallet adapter unavailable. Refresh and try again.');
         return;
       }
-
       const actor = actorForSeat(state, seatIndex) || {};
       const already = Number(actor.contrib || 0);
       const target = Number(state?.toCall || 0);
       const toCallChips = Math.max(0, target - already);
       let deltaChips = 0;
-
       if (action === 'call') {
         deltaChips = toCallChips;
       } else if (action === 'bet' || action === 'raise') {
@@ -983,7 +899,6 @@ function initializePokerTable() {
         payload.amount = chipsTarget;
         deltaChips = Math.max(0, chipsTarget - already);
       }
-
       let restoreControls = null;
       if (deltaChips > 0) {
         const buttons = [foldBtn, callBtn, betBtn];
@@ -998,7 +913,6 @@ function initializePokerTable() {
           betInput.disabled = prevInputDisabled;
           infoText.textContent = prevText;
         };
-
         try {
           await adapter.contribute(seatIndex, deltaChips);
         } catch (err) {
@@ -1009,7 +923,6 @@ function initializePokerTable() {
         }
         if (restoreControls) restoreControls();
       }
-
       emitSocket('poker:act', payload);
       hideActionBar();
     } catch (err) {
@@ -1017,7 +930,6 @@ function initializePokerTable() {
       alert(err?.message || 'Action failed. Please try again.');
     }
   }
-
   foldBtn.addEventListener('click', () => sendAction('fold'));
   callBtn.addEventListener('click', () => {
     const action = callBtn.dataset.action || 'check';
@@ -1027,13 +939,11 @@ function initializePokerTable() {
     const action = betBtn.dataset.action || 'bet';
     sendAction(action, betInput.value);
   });
-
   function actorForSeat(state, seatIdx) {
     if (!Number.isInteger(seatIdx)) return null;
     if (!Array.isArray(state?.actors)) return null;
     return state.actors.find(actor => seatIndexForActor(actor) === seatIdx) || null;
   }
-
   function updateActionBar(turnSeat, state) {
     if (turnSeat < 0 || turnSeat !== mySeat) {
       hideActionBar();
@@ -1071,7 +981,6 @@ function initializePokerTable() {
     currentTurnSeat = turnSeat;
     anchorActionBar();
   }
-
   function updateSeatStates(state) {
     seatMeta.forEach(meta => {
       meta.seat.classList.remove('folded', 'acted', 'winner');
@@ -1085,9 +994,6 @@ function initializePokerTable() {
       if (actor.acted) meta.seat.classList.add('acted');
     });
   }
-
-
-
   function isValidAddr(s) {
     try {
       const value = String(s || '').toLowerCase();
@@ -1098,19 +1004,16 @@ function initializePokerTable() {
       return false;
     }
   }
-
   function renderAllSeats(table) {
     const prevTable = lastTable;
     lastTable = table;
     tableSnapshot = table;
     if (isOnchainTable) updateChipValueFromTable(table);
-
     const bankroll = getBankrollHelper() || null;
     const seatsList = Array.isArray(table?.seats) ? table.seats : [];
     const prevSeats = Array.isArray(prevTable?.seats) ? prevTable.seats : [];
     const meAddr = (currentAddr() || '').toLowerCase();
     mySeat = -1;
-
     seatMeta.forEach((meta, idx) => {
       if (!meta) return;
       const seatData = seatsList[idx] || null;
@@ -1119,17 +1022,13 @@ function initializePokerTable() {
       const isMe = valid && seatAddr === meAddr;
       const prevSeat = prevSeats[idx] || null;
       const prevAddr = ((prevSeat && prevSeat.addr) || '').toLowerCase();
-
       if (isMe) mySeat = idx;
-
       meta.seat.classList.toggle('occupied', valid);
       meta.seat.classList.toggle('ready', !!(valid && seatData.ready));
       meta.seat.classList.toggle('me', isMe);
-
       meta.addr.textContent = valid
         ? `${short(seatData.addr)}${seatData.ready ? ' [ready]' : ''}`
         : '';
-
       if (!valid) {
         meta.stack.textContent = '';
       } else if (isOnchainTable) {
@@ -1140,13 +1039,10 @@ function initializePokerTable() {
         const chips = Number(seatData && seatData.chips != null ? seatData.chips : 0);
         meta.stack.textContent = `Stack: ${formatChips(chips)} chips`;
       }
-
       if (!valid || seatAddr !== prevAddr) {
         meta.cards.innerHTML = '';
       }
-
       meta.btns.innerHTML = '';
-
       if (!valid) {
         const sit = document.createElement('button');
         sit.textContent = 'Sit';
@@ -1217,7 +1113,6 @@ function initializePokerTable() {
             meta.btns.appendChild(autoBtn);
           }
         }
-
         const leaveBtn = document.createElement('button');
         leaveBtn.textContent = 'Leave';
         leaveBtn.addEventListener('click', async () => {
@@ -1247,7 +1142,6 @@ function initializePokerTable() {
         meta.btns.appendChild(leaveBtn);
       }
     });
-
     if (isOnchainTable && bankroll && typeof bankroll.refreshBalance === 'function' && mySeat >= 0) {
       const mySeatData = seatsList[mySeat] || null;
       const prevSeatData = prevSeats[mySeat] || null;
@@ -1260,7 +1154,6 @@ function initializePokerTable() {
         }, 300);
       }
     }
-
     try {
       seatMeta.forEach((meta, i) => {
         if (!meta) return;
@@ -1268,18 +1161,15 @@ function initializePokerTable() {
       });
     } catch {}
   }
-
   function handleTableUpdate(table) {
     clearConnectionWarning();
     updateConnectionBanner('', '');
     renderAllSeats(table);
   }
-
   function handlePokerState(state) {
     currentState = state;
     updateCenter(state);
     updateSeatStates(state);
-
     if (state?.stage !== lastStage) {
       if (state?.stage === 'preflop' && lastTable) {
         (lastTable.seats || []).forEach((seatData, idx) => {
@@ -1298,7 +1188,6 @@ function initializePokerTable() {
       }
       lastStage = state?.stage || null;
     }
-
     if (Array.isArray(state?.community)) {
       if (state.community.length > lastCommunity.length && state.stage !== 'preflop') {
         flashBurn();
@@ -1306,7 +1195,6 @@ function initializePokerTable() {
       renderBoard(state.community);
       lastCommunity = state.community.slice();
     }
-
     const turnActor = Array.isArray(state?.actors) && Number.isFinite(state.turnIndex)
       ? state.actors[state.turnIndex] : null;
     const turnSeat = seatIndexForActor(turnActor);
@@ -1314,7 +1202,6 @@ function initializePokerTable() {
     startTurnTimer(turnSeat);
     updateActionBar(turnSeat, state);
   }
-
   function handlePokerPrivate(msg) {
     const seatId = Number.isFinite(msg?.seatId) ? msg.seatId : seatIndexForAddr(msg?.addr);
     if (!Number.isInteger(seatId) || seatId < 0) return;
@@ -1323,7 +1210,6 @@ function initializePokerTable() {
     const cards = (msg.cards || []).slice(0, 2);
     setSeatCards(seatId, cards, { faceDown: false });
   }
-
   function handlePokerHand(msg) {
     clearTimers();
     hideActionBar();
@@ -1331,16 +1217,13 @@ function initializePokerTable() {
       renderBoard(msg.community);
       lastCommunity = msg.community.slice();
     }
-
     seatMeta.forEach(meta => meta.seat.classList.remove('winner'));
-
     if (Array.isArray(msg?.exposures)) {
       msg.exposures.forEach(ex => {
         const idx = Number.isFinite(ex?.seatId) ? ex.seatId : seatIndexForAddr(ex?.addr);
         if (idx >= 0) setSeatCards(idx, ex.cards || [], { faceDown: false });
       });
     }
-
     if (Array.isArray(msg?.winners) && msg.winners.length) {
       const names = msg.winners.map(w => short(w.addr)).join(', ');
       if (centerBanner) {
@@ -1352,7 +1235,6 @@ function initializePokerTable() {
         if (idx >= 0) seatMeta[idx].seat.classList.add('winner');
       });
     }
-
     if (lastHandEl) {
       try {
         const winners = Array.isArray(msg?.winners) ? msg.winners : [];
@@ -1366,7 +1248,6 @@ function initializePokerTable() {
         try { if (lastHandBox) lastHandBox.style.display = 'none'; } catch {}
       }
     }
-
     setTimeout(() => {
       board.innerHTML = '';
       burnPile.innerHTML = '';
@@ -1382,14 +1263,12 @@ function initializePokerTable() {
       updateCenter(null);
     }, 1800);
   }
-
   window.addEventListener('resize', () => {
     positionSeats();
     if (!actionBar.classList.contains('hidden')) {
       anchorActionBar();
     }
   });
-
   const ro = new ResizeObserver(() => {
     positionSeats();
     if (!actionBar.classList.contains('hidden')) {
@@ -1397,7 +1276,7 @@ function initializePokerTable() {
     }
   });
   ro.observe(canvas);
-
+  connectSocket(0);
   renderAllSeats({
     id: tableId,
     seats: Array.from({ length: seatMeta.length }, () => null),
@@ -1405,39 +1284,10 @@ function initializePokerTable() {
     simulated: !isOnchainTable,
     limit: isOnchainTable ? 'NL' : 'F2P'
   });
-  connectSocket(0);
   ensureIdentify();
   window.addEventListener('focus', ensureIdentify);
 }
-
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initializePokerTable, { once: true });
 } else {
   initializePokerTable();
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initializePokerTable, { once: true });
-} else {
-  initializePokerTable();
-}
-
