@@ -5,7 +5,7 @@
   window.__WalletChipsMounted = true;
 
   const buildTag = window.__BUILD_TAG || Date.now();
-  const CDN_ETHERS = 'https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js';
+const CDN_ETHERS_ESM = 'https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.esm.min.js';
   const SRC = {
     dcmon: `/js/DCMonABI.js?v=${buildTag}`,
     wmon: `/js/WMONABI.js?v=${buildTag}`,
@@ -52,10 +52,29 @@
     try { document.dispatchEvent(new CustomEvent('wallet:ethers-ready')); } catch (_) {}
   }
 
+  async function ensureEthers() {
+    if (window.ethers) {
+      signalEthersReady();
+      return;
+    }
+    try {
+      const mod = await import(/* @vite-ignore */ CDN_ETHERS_ESM);
+      const maybe = mod?.ethers || mod?.default || mod;
+      if (maybe) {
+        window.ethers = maybe;
+        signalEthersReady();
+        return;
+      }
+      throw new Error('ethers module missing exports');
+    } catch (err) {
+      console.error('wallet-chips: ethers import failed', err);
+      throw err;
+    }
+  }
+
   function loadDependencies() {
     const deps = [];
-    const ethersPromise = window.ethers ? Promise.resolve() : loadScriptOnce(CDN_ETHERS);
-    deps.push(ethersPromise.then(() => { signalEthersReady(); }));
+    deps.push(ensureEthers());
     deps.push(loadScriptOnce(SRC.dcmon));
     deps.push(loadScriptOnce(SRC.wmon));
     deps.push(loadScriptOnce(SRC.bankroll, 'body'));

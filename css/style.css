@@ -134,8 +134,25 @@ button:hover { background: #7800cd; }
 .sidebar.collapsed .sidebar-logo { display: none; }
 
 .sidebar-toggle {
-  border: none; color: #fff; font-weight: 700;
-  height: 2.4em; padding: 0 14px; cursor: pointer; align-self: flex-start;
+  border: none;
+  color: #fff;
+  font-weight: 700;
+  height: 32px;
+  min-width: 32px;
+  padding: 0 12px;
+  cursor: pointer;
+  align-self: stretch;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: rgba(0,0,0,0.35);
+}
+.sidebar.collapsed .sidebar-toggle {
+  margin: 0 auto;
+  width: 100%;
+  max-width: 44px;
+  padding: 0;
 }
 
 .sidebar-links { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }

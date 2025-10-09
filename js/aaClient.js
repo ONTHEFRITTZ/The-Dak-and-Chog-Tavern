@@ -11,6 +11,7 @@ const LS = {
   BUDGET: 'aa:budget',
 };
 const SMART_ACCOUNT_KEY_PREFIX = 'aa:toolkit:account:';
+const TOOLKIT_SUPPRESS_KEY = 'aa:toolkit:suppress';
 
 function now() { return Math.floor(Date.now() / 1000); }
 function toHex(v) { try { return '0x' + BigInt(v).toString(16); } catch { return '0x0'; } }
@@ -66,6 +67,21 @@ function loadStoredSmartAccount(chainId) {
 function storeSmartAccount(chainId, address) {
   if (!address) return;
   try { localStorage.setItem(smartAccountStorageKey(chainId), address); } catch {}
+}
+
+function isToolkitSuppressed() {
+  try { return sessionStorage.getItem(TOOLKIT_SUPPRESS_KEY) === 'true'; } catch { return false; }
+}
+
+function suppressToolkit(reason) {
+  try { sessionStorage.setItem(TOOLKIT_SUPPRESS_KEY, 'true'); } catch {}
+  if (reason) console.warn('[aaClient] MetaMask smart account suppressed for this session:', reason);
+  else console.warn('[aaClient] MetaMask smart account suppressed for this session.');
+}
+
+export function enableToolkitSmartAccount() {
+  try { sessionStorage.removeItem(TOOLKIT_SUPPRESS_KEY); } catch {}
+  console.info('[aaClient] MetaMask smart account toolkit re-enabled for this session.');
 }
 
 export const AA = {
@@ -251,6 +267,10 @@ async function createFallbackAccount(injected) {
 }
 
 async function buildToolkitSmartAccount(injected, { bundlerUrl, paymasterUrl }) {
+  if (isToolkitSuppressed()) {
+    console.warn('[aaClient] Delegation toolkit suppressed for this session; using fallback account.');
+    return null;
+  }
   try {
     const toolkitCtx = await ensureDelegationToolkitContext();
     const { toolkit, publicClient, walletClient } = toolkitCtx || {};
@@ -268,12 +288,21 @@ async function buildToolkitSmartAccount(injected, { bundlerUrl, paymasterUrl }) 
     const stored = loadStoredSmartAccount(chainId);
 
     const deployParams = [ownerAddress, [], [], []];
-    const mmAccount = await toMetaMaskSmartAccount({
-      client: publicClient,
-      implementation: Implementation.Hybrid,
-      signer: { walletClient },
-      ...(stored ? { address: stored } : { deployParams, deploySalt: '0x0' })
-    });
+    let mmAccount;
+    try {
+      mmAccount = await toMetaMaskSmartAccount({
+        client: publicClient,
+        implementation: Implementation.Hybrid,
+        signer: { walletClient },
+        ...(stored ? { address: stored } : { deployParams, deploySalt: '0x0' })
+      });
+    } catch (err) {
+      if (err?.code === 4001 || /User rejected/i.test(err?.message || '')) {
+        suppressToolkit('user rejected MetaMask smart account upgrade');
+        return null;
+      }
+      throw err;
+    }
 
     const mmAddress = lc(await mmAccount.getAddress());
     if (mmAddress && mmAddress !== stored) {
@@ -363,7 +392,11 @@ async function buildToolkitSmartAccount(injected, { bundlerUrl, paymasterUrl }) 
 
     return { smartAccount: wrappedAccount, signer };
   } catch (err) {
-    console.warn('[aaClient] Delegation Toolkit init failed, falling back to EOA', err);
+    if (err?.code === 4001 || /User rejected/i.test(err?.message || '')) {
+      suppressToolkit('user rejected MetaMask smart account request');
+    } else {
+      console.warn('[aaClient] Delegation Toolkit init failed, falling back to EOA', err);
+    }
     return null;
   }
 }

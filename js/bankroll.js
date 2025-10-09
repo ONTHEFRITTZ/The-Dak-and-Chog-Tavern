@@ -228,12 +228,66 @@
       return configModulePromise;
     }
   
-    async function resolveAddress(key, provider) {
+  let cachedConfig = null;
+  async function loadMonConfig() {
+    if (!cachedConfig) {
       const mod = await loadConfigModule();
-      if (mod?.getAddressFor) {
-        try {
-          const addr = await mod.getAddressFor(key, provider).catch(() => null);
-          if (addr) return addr;
+      cachedConfig = mod?.MONAD || window.MONAD || null;
+    }
+    return cachedConfig;
+  }
+
+  async function ensureTargetNetwork(provider) {
+    if (!provider) return false;
+    try {
+      const mon = await loadMonConfig();
+      if (!mon?.id) return true;
+      const currentHex = await provider.request({ method: 'eth_chainId' }).catch(() => null);
+      const currentId = currentHex != null ? parseInt(String(currentHex), 16) : null;
+      if (currentId === mon.id) return true;
+      const chainHex = '0x' + Number(mon.id).toString(16);
+      try {
+        await provider.request({
+          method: 'wallet_switchEthereumChain',
+          params: [{ chainId: chainHex }]
+        });
+        return true;
+      } catch (switchErr) {
+        if (switchErr?.code === 4902) {
+          try {
+            await provider.request({
+              method: 'wallet_addEthereumChain',
+              params: [{
+                chainId: chainHex,
+                chainName: mon.name || 'Monad Testnet',
+                rpcUrls: mon.rpcHttp ? [mon.rpcHttp] : [],
+                nativeCurrency: { name: 'MON', symbol: 'MON', decimals: 18 },
+                blockExplorerUrls: mon.explorer ? [mon.explorer] : undefined
+              }]
+            });
+            return true;
+          } catch (addErr) {
+            console.warn('bankroll: wallet_addEthereumChain failed', addErr);
+            setStatus('Add Monad Testnet to your wallet to continue.', 'info');
+            return false;
+          }
+        }
+        console.warn('bankroll: wallet_switchEthereumChain failed', switchErr);
+        setStatus('Switch to Monad Testnet in your wallet.', 'info');
+        return false;
+      }
+    } catch (err) {
+      console.warn('bankroll: ensure network failed', err);
+      return false;
+    }
+  }
+
+  async function resolveAddress(key, provider) {
+    const mod = await loadConfigModule();
+    if (mod?.getAddressFor) {
+      try {
+        const addr = await mod.getAddressFor(key, provider).catch(() => null);
+        if (addr) return addr;
         } catch {}
       }
       if (mod?.CONTRACTS?.[key]) return mod.CONTRACTS[key];
@@ -259,6 +313,8 @@
         setStatus('Connect wallet first.', 'error');
         return false;
       }
+      const onMonad = await ensureTargetNetwork(provider);
+      if (!onMonad) return false;
       if (!dcmonAddress) dcmonAddress = await resolveAddress('dcmon', provider);
       if (!wmonAddress) wmonAddress = await resolveAddress('wmon', provider);
       if (!dcmonAddress || !wmonAddress) {
