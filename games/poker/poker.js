@@ -19,43 +19,59 @@ const currentTableId = (window.currentTableId ?? getQueryParam('table')) || null
 
 // ---- globals ----
 let socket;
-let myAddr = (localStorage.getItem('walletAddress') || sessionStorage.getItem('walletAddress') || '').toLowerCase();
 
-function ensureGuestAddr() {
+function normalizedAddr(value) {
   try {
-    const key = 'guestWalletAddress';
-    let guest = sessionStorage.getItem(key) || localStorage.getItem(key);
-    if (!guest || !/^0x[0-9a-fA-F]{40}$/.test(guest)) {
-      if (window.crypto?.getRandomValues) {
-        const buf = new Uint8Array(20);
-        window.crypto.getRandomValues(buf);
-        guest = '0x' + Array.from(buf, b => b.toString(16).padStart(2,'0')).join('');
-      } else {
-        guest = '0x' + Array.from({ length: 40 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
-      }
-      try { sessionStorage.setItem(key, guest); } catch {}
-      try { localStorage.setItem(key, guest); } catch {}
-    }
-    try { sessionStorage.setItem('walletAddress', guest); } catch {}
-    try { localStorage.setItem('walletAddress', guest); } catch {}
-    window.__GUEST_ADDR = guest;
-    return guest;
+    const str = String(value || '').trim();
+    if (!str) return '';
+    const lower = str.toLowerCase();
+    if (!/^0x[0-9a-f]{40}$/.test(lower)) return '';
+    if (lower === '0x' + '0'.repeat(40)) return '';
+    return lower;
   } catch {
-    return null;
+    return '';
   }
 }
 
-if (!myAddr) {
-  const guest = ensureGuestAddr();
-  if (guest) myAddr = guest.toLowerCase();
+function persistWallet(addr) {
+  const normalized = normalizedAddr(addr);
+  if (!normalized) {
+    try { sessionStorage.removeItem('walletConnected'); } catch {}
+    try { localStorage.removeItem('walletConnected'); } catch {}
+    try { sessionStorage.removeItem('walletAddress'); } catch {}
+    try { localStorage.removeItem('walletAddress'); } catch {}
+    return '';
+  }
+  try { sessionStorage.setItem('walletConnected', 'true'); } catch {}
+  try { localStorage.setItem('walletConnected', 'true'); } catch {}
+  try { sessionStorage.setItem('walletAddress', normalized); } catch {}
+  try { localStorage.setItem('walletAddress', normalized); } catch {}
+  return normalized;
 }
+
+function readPersistedAddr() {
+  try {
+    const connected = sessionStorage.getItem('walletConnected') === 'true'
+      || localStorage.getItem('walletConnected') === 'true';
+    if (!connected) return '';
+    const direct = sessionStorage.getItem('walletAddress') || localStorage.getItem('walletAddress');
+    const directNorm = normalizedAddr(direct);
+    if (directNorm) return directNorm;
+    const msg = sessionStorage.getItem('walletMsg') || localStorage.getItem('walletMsg') || '';
+    const match = msg.match(/Address:\s*(0x[0-9a-fA-F]{40})/i);
+    return normalizedAddr(match ? match[1] : '');
+  } catch {
+    return '';
+  }
+}
+
+let myAddr = readPersistedAddr();
 let chainIdHex = null;
+let providerWatcherAttached = false;
 
 // ---- utils ----
 function short(a){ try { return a && a.length>10 ? (a.slice(0,6)+'...'+a.slice(-4)) : (a||''); } catch { return a||''; } }
 function setStatus(t){ try { if (statusEl) statusEl.textContent = t; } catch {} }
-function lc(a){ return (a||'').toString().toLowerCase(); }
-
 // ---------------- Wallet provider selection (from landing choice) ----------------
 function pickMetaMask(){
   const eth = window.ethereum;
@@ -149,16 +165,6 @@ function loadScriptOnce(src) {
 
 function readSponsorActive() {
   try { return localStorage.getItem('aa:sponsored') === 'true'; } catch { return false; }
-}
-
-function isGuestWallet(addr) {
-  try {
-    const guest = String(window.__GUEST_ADDR || '').toLowerCase();
-    const target = String(addr || '').toLowerCase();
-    return guest && guest === target;
-  } catch {
-    return false;
-  }
 }
 
 function bigNumberFrom(value) {
@@ -307,9 +313,12 @@ async function runPreflight(row, meta) {
         return { ok: false, reason: 'Wallet approval required to continue.' };
       }
     }
-    const addr = (accounts && accounts[0]) ? accounts[0] : null;
-    if (!addr) return { ok: false, reason: 'No wallet account available.' };
-    if (typeof setKnownAddress === 'function') setKnownAddress(addr);
+    const addr = normalizedAddr((accounts && accounts[0]) ? accounts[0] : null);
+    if (!addr) {
+      if (typeof setKnownAddress === 'function') setKnownAddress('', { persist: true });
+      return { ok: false, reason: 'No wallet account available.' };
+    }
+    if (typeof setKnownAddress === 'function') setKnownAddress(addr, { persist: true });
     if (needs.needsDcmon) {
       const ctx = await ensureDcmonReadContract(provider);
       if (!ctx?.contract) {
@@ -403,7 +412,7 @@ function cardFor(row){
       title: dealerReady ? 'On-chain dealer signer configured.' : 'Dealer signer missing; actions will fallback off-chain.'
     }));
 
-    const walletOk = !!myAddr && !isGuestWallet(myAddr);
+    const walletOk = !!myAddr;
     statusWrap.appendChild(createBadge(walletOk ? 'Wallet OK' : 'Wallet Required', {
       bg: walletOk ? 'rgba(72,104,180,0.55)' : 'rgba(200,120,40,0.65)',
       color: '#f4e6d3',
@@ -521,8 +530,7 @@ function initSocket(){
   }
 
   socket.on('connect', () => {
-    setStatus('Connected');
-    if (myAddr) { try { socket.emit('identify', { addr: myAddr }); } catch {} }
+    setKnownAddress(myAddr);
     try { socket.emit('lobby:get'); } catch {}
     if (currentTableId) { try { socket.emit('join_table', { table: currentTableId }); } catch {} }
   });
@@ -544,45 +552,54 @@ async function detectExistingAccountFromSelected(){
     const provider = getSelectedProvider();
     if (!provider) return null;
     const accts = await provider.request?.({ method: 'eth_accounts' }).catch(()=>[]);
-    const addr = (accts && accts[0]) || null;
+    const addr = normalizedAddr(Array.isArray(accts) ? accts[0] : null);
     chainIdHex = await provider.request?.({ method: 'eth_chainId' }).catch(()=>null);
-    return addr;
+    return addr || null;
   } catch { return null; }
 }
 
-function setKnownAddress(addr){
+function setKnownAddress(addr, opts = {}){
+  const { persist = false } = opts;
   try {
-    myAddr = lc(addr || '');
-    if (wiAddrEl) wiAddrEl.textContent = myAddr ? short(myAddr) : '—';
-    window.__WALLET_ADDR = myAddr || '';
-    if (myAddr) {
-      try { localStorage.setItem('walletConnected','true'); } catch {}
-      try { sessionStorage.setItem('walletConnected','true'); } catch {}
-      try { localStorage.setItem('walletAddress', myAddr); } catch {}
-      try { sessionStorage.setItem('walletAddress', myAddr); } catch {}
+    const normalized = normalizedAddr(addr);
+    myAddr = normalized;
+    if (wiAddrEl) wiAddrEl.textContent = normalized ? short(normalized) : '-';
+    window.__WALLET_ADDR = normalized || '';
+    if (persist) {
+      persistWallet(normalized);
+    }
+    if (normalized) {
       if (socket?.connected) {
-        try { socket.emit('identify', { addr: myAddr }); } catch {}
+        try { socket.emit('identify', { addr: normalized }); } catch {}
       }
-      setStatus(`Wallet: ${short(myAddr)}`);
+      const chainNote = chainIdHex ? ` | Chain ${chainIdHex}` : '';
+      setStatus(`Wallet: ${short(normalized)}${chainNote}`);
     } else {
-      if (wiAddrEl) wiAddrEl.textContent = '—';
-      setStatus('Wallet: not connected');
+      setStatus('Wallet required: connect in the Tavern');
     }
   } catch (e) { console.warn('setKnownAddress failed', e); }
 }
 
 async function ensureWalletFromSelected(){
-  const saved = (localStorage.getItem('walletAddress') || sessionStorage.getItem('walletAddress') || '').trim();
-  if (saved) setKnownAddress(saved);
+  if (myAddr) {
+    setKnownAddress(myAddr);
+  } else {
+    setKnownAddress('');
+  }
 
   const addr = await detectExistingAccountFromSelected();
-  if (addr) setKnownAddress(addr);
+  if (addr) {
+    setKnownAddress(addr, { persist: true });
+  } else {
+    setKnownAddress('', { persist: true });
+  }
 
   const provider = getSelectedProvider();
-  if (provider && provider.on) {
+  if (provider && provider.on && !providerWatcherAttached) {
+    providerWatcherAttached = true;
     provider.on('accountsChanged', (arr) => {
-      const a = (arr && arr[0]) || null;
-      setKnownAddress(a || '');
+      const next = normalizedAddr(arr && arr[0]);
+      setKnownAddress(next || '', { persist: true });
     });
     provider.on('chainChanged', (id) => {
       chainIdHex = id;
@@ -596,9 +613,11 @@ connectBtn?.addEventListener('click', async () => {
     const provider = getSelectedProvider();
     if (!provider || !window.ethers) { setStatus('No wallet provider selected'); return; }
     await provider.request?.({ method: 'eth_requestAccounts' }); // prompt
-    const [addr] = await provider.request?.({ method: 'eth_accounts' }) || [];
+    const accounts = await provider.request?.({ method: 'eth_accounts' }) || [];
+    const next = normalizedAddr(Array.isArray(accounts) ? accounts[0] : null);
     chainIdHex = await provider.request?.({ method: 'eth_chainId' }).catch(()=>null);
-    setKnownAddress(addr || '');
+    setKnownAddress(next || '', { persist: true });
+    if (!next) setStatus('Wallet approval required to continue.');
   } catch (e) {
     console.error('Wallet connect failed', e);
     setStatus('Wallet connect failed');

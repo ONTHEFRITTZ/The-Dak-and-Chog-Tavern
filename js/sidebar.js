@@ -83,7 +83,7 @@
     function applyCollapse(collapsed, persist = true) {
       nav.classList.toggle('collapsed', collapsed);
       if (persist) setCollapsed(collapsed);
-      btn.textContent = collapsed ? 'Menu' : 'Close';
+      btn.textContent = collapsed ? '...' : 'Close';
       btn.setAttribute('aria-expanded', String(!collapsed));
       updateSidebarOffset();
     }

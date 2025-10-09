@@ -7,11 +7,6 @@ const statusEl = document.getElementById('status');
 // Inline wallet elements (match Poker UI)
 const disconnectBtn = document.getElementById('wi-disconnect') || document.getElementById('disconnect-wallet');
 const walletAddrSpan = document.getElementById('wi-address');
-const rulesOverlay = document.getElementById('rules-overlay');
-const rulesAck = document.getElementById('rules-ack');
-const openRulesBtn = document.getElementById('open-rules');
-let faroAck = true; // rules gate removed
-const RULES_VERSION = 'v2';
 const logEl = document.getElementById('log');
 const tableInput = document.getElementById('table-id');
 const joinBtn = document.getElementById('join-table');
@@ -163,7 +158,7 @@ function renderBetRows(){
       const amt = document.createElement('input');
       amt.type='number'; amt.min='0.001'; amt.step='0.001'; amt.value=String(b.amountEth);
       amt.style.cssText = 'width:110px; text-align:center;';
-      try { amt.name = 'amount'; amt.setAttribute('aria-label','Amount (MON)'); } catch {}
+      try { amt.name = 'amount'; amt.setAttribute('aria-label','Amount (DCMon)'); } catch {}
       amt.oninput = () => { const v = Number(amt.value||0); b.amountEth = v>0 ? v : b.amountEth; };
 
       const lab = document.createElement('label');
@@ -176,7 +171,7 @@ function renderBetRows(){
       del.onclick = () => { stagedBets.splice(idx,1); renderBetRows(); };
 
       row.appendChild(sel);
-      row.appendChild(document.createTextNode('Amount (MON):'));
+      row.appendChild(document.createTextNode('Amount (DCMon):'));
       row.appendChild(amt);
       row.appendChild(lab);
       if (stagedBets.length>1) row.appendChild(del);
@@ -611,7 +606,7 @@ async function placeOnchainBet(rankNum, ethAmount, copper) {
   const ethersRef = window.ethers;
   let abi = window.FaroV3ABI || window.FaroABI; // prefer V3 with copper
   const c = new ethersRef.Contract(faroAddr, abi, onchainSigner);
-  log(`Submitting on-chain bet ${ethAmount} MON on ${rankNum}${copper ? ' (copper)' : ''}…`);
+  log(`Submitting on-chain bet ${ethAmount} DCMon on ${rankNum}${copper ? ' (copper)' : ''}…`);
   const tx = window.FaroV3ABI
     ? await c.playFaro(rankNum, copper, { value: ethersRef.utils.parseEther(String(ethAmount)) })
     : await c.playFaro(rankNum, { value: ethersRef.utils.parseEther(String(ethAmount)) });

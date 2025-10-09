@@ -59,6 +59,7 @@
     return out;
   };
 
+  const ZERO_ADDR = '0x' + '0'.repeat(40);
   const ASSET_BASE = '/assets/images/chog_cards/';
   const CARD_BACK = `${ASSET_BASE}dak-and-chog-cardback.png`;
   const TURN_MS = 25_000;
@@ -444,48 +445,43 @@
 
   function storedAddr() {
     try {
+      const connected = sessionStorage.getItem('walletConnected') === 'true'
+        || localStorage.getItem('walletConnected') === 'true';
+      if (!connected) return null;
       const direct = sessionStorage.getItem('walletAddress') || localStorage.getItem('walletAddress');
-      if (direct && /^0x[0-9a-fA-F]{40}$/.test(direct)) return direct;
+      if (direct && isValidAddr(direct)) return String(direct).toLowerCase();
     } catch {}
     try {
       const msg = sessionStorage.getItem('walletMsg') || localStorage.getItem('walletMsg') || '';
       const match = msg.match(/Address:\s*(0x[0-9a-fA-F]{40})/i);
-      if (match && match[1]) return match[1];
+      if (match && match[1] && isValidAddr(match[1])) return String(match[1]).toLowerCase();
     } catch {}
     return null;
   }
 
-  function ensureGuestAddr() {
+  function persistAddr(addr) {
     try {
-      const key = 'guestWalletAddress';
-      let guest = sessionStorage.getItem(key) || localStorage.getItem(key);
-      if (!guest || !/^0x[0-9a-fA-F]{40}$/.test(guest)) {
-        if (window.crypto?.getRandomValues) {
-          const buf = new Uint8Array(20);
-          window.crypto.getRandomValues(buf);
-          guest = '0x' + Array.from(buf, b => b.toString(16).padStart(2,'0')).join('');
-        } else {
-          guest = '0x' + Array.from({ length: 40 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
-        }
-        try { sessionStorage.setItem(key, guest); } catch {}
-        try { localStorage.setItem(key, guest); } catch {}
+      const normalized = isValidAddr(addr) ? String(addr).toLowerCase() : '';
+      if (!normalized) {
+        sessionStorage.removeItem('walletConnected');
+        localStorage.removeItem('walletConnected');
+        sessionStorage.removeItem('walletAddress');
+        localStorage.removeItem('walletAddress');
+        return;
       }
-      try { sessionStorage.setItem('walletAddress', guest); } catch {}
-      try { localStorage.setItem('walletAddress', guest); } catch {}
-      window.__GUEST_ADDR = guest;
-      return guest;
-    } catch {
-      return null;
-    }
+      sessionStorage.setItem('walletConnected', 'true');
+      localStorage.setItem('walletConnected', 'true');
+      sessionStorage.setItem('walletAddress', normalized);
+      localStorage.setItem('walletAddress', normalized);
+    } catch {}
   }
 
   function currentAddr() {
     const saved = storedAddr();
     if (saved) return saved;
     const badge = ($('#wi-address')?.textContent || '').trim();
-    if (/^0x[0-9a-fA-F]{40}$/.test(badge)) return badge;
-    if (window.__ADDR && /^0x[0-9a-fA-F]{40}$/i.test(String(window.__ADDR))) return window.__ADDR;
-    if (window.tavern && /^0x[0-9a-fA-F]{40}$/i.test(String(window.tavern.addr || ''))) return window.tavern.addr;
+    if (isValidAddr(badge)) return String(badge).toLowerCase();
+    if (window.tavern && isValidAddr(window.tavern.addr || '')) return String(window.tavern.addr).toLowerCase();
     return null;
   }
 
@@ -520,32 +516,33 @@
 
   async function ensureIdentify() {
     try {
-      // Prefer any stored full address first
-      let addr = currentAddr();
-      if (!addr) {
-        // Try injected provider
-        let provider = null;
-        try { if (typeof window.__getSelectedProvider === 'function') provider = window.__getSelectedProvider(); } catch {}
-        if (!provider && window.ethereum?.request) provider = window.ethereum;
-        if (provider?.request) {
-          const accs = await provider.request({ method: 'eth_accounts' }).catch(() => []);
-          if (Array.isArray(accs) && accs[0] && /^0x[0-9a-fA-F]{40}$/.test(String(accs[0]))) {
-            addr = String(accs[0]);
-            try { sessionStorage.setItem('walletAddress', addr); } catch {}
-          }
+      let provider = null;
+      try { if (typeof window.__getSelectedProvider === 'function') provider = window.__getSelectedProvider(); } catch {}
+      if (!provider && window.ethereum?.request) provider = window.ethereum;
+
+      let addr = null;
+      if (provider?.request) {
+        const accs = await provider.request({ method: 'eth_accounts' }).catch(() => []);
+        const first = Array.isArray(accs) && accs[0] ? String(accs[0]) : '';
+        if (isValidAddr(first)) {
+          addr = first;
+          persistAddr(addr);
+        } else {
+          persistAddr(null);
         }
       }
-      if (addr) {
+
+      if (!addr) {
+        addr = storedAddr();
+      }
+
+      if (isValidAddr(addr)) {
         socket.emit('identify', { addr });
         return true;
       }
-      const guest = ensureGuestAddr();
-      if (guest) {
-        socket.emit('identify', { addr: guest, guest: true });
-        window.__ADDR = guest;
-        return true;
-      }
-    } catch {}
+    } catch (err) {
+      console.warn('Poker table: ensureIdentify failed', err);
+    }
     return false;
   }
 
@@ -864,7 +861,14 @@
 
 
   function isValidAddr(s) {
-    try { return /^0x[0-9a-fA-F]{40}$/.test(String(s||'')); } catch { return false; }
+    try {
+      const value = String(s || '').toLowerCase();
+      if (!/^0x[0-9a-f]{40}$/.test(value)) return false;
+      if (value === ZERO_ADDR) return false;
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   function renderAllSeats(table) {
