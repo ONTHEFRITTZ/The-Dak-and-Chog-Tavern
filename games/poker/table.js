@@ -1291,3 +1291,4 @@ if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initializePokerTable, { once: true });
 } else {
   initializePokerTable();
+}
