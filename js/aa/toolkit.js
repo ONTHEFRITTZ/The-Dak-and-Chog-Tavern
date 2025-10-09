@@ -2,6 +2,7 @@
 // Thin loader around the MetaMask Delegation Toolkit + viem helpers.
 
 import { MONAD } from './config.js';
+import { MONAD_DELEGATION_ENV, MONAD_DELEGATION_VERSION } from './delegation-config.js';
 
 const MONAD_CHAIN = {
   id: MONAD.id,
@@ -78,6 +79,19 @@ export async function ensureDelegationToolkitContext() {
 
     const { createPublicClient, createWalletClient, http, custom } = viem;
 
+    try {
+      const overrideDeployedEnvironment = toolkit?.overrideDeployedEnvironment;
+      if (typeof overrideDeployedEnvironment === 'function') {
+        overrideDeployedEnvironment(
+          MONAD.id,
+          toolkit?.PREFERRED_VERSION || MONAD_DELEGATION_VERSION,
+          MONAD_DELEGATION_ENV
+        );
+      }
+    } catch (err) {
+      console.warn('Delegation toolkit override failed', err);
+    }
+
     const publicClient = createPublicClient({
       chain: MONAD_CHAIN,
       transport: http(MONAD.rpcHttp)
@@ -89,7 +103,7 @@ export async function ensureDelegationToolkitContext() {
       transport: custom(provider)
     });
 
-    const environment = toolkit.getDeleGatorEnvironment(MONAD.id);
+    const environment = MONAD_DELEGATION_ENV;
 
     return {
       provider,
