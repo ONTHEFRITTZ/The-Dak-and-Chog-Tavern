@@ -3,6 +3,7 @@
 import { MONAD, AA_FEATURES, getPokerTableAddress, MONAD_BUNDLER_RPC, ZD_PAYMASTER_RPC } from './config.js';
 import { ethers } from './tavern.js';
 import { ensureDelegationToolkitContext } from './aa/toolkit.js';
+import { detectBundler, walletSendCalls, extractTxHash } from './bundler.js';
 
 const LS = {
   SESSION: 'aa:session',
@@ -15,6 +16,11 @@ function now() { return Math.floor(Date.now() / 1000); }
 function toHex(v) { try { return '0x' + BigInt(v).toString(16); } catch { return '0x0'; } }
 function short(a){ return (a && a.length>10) ? (a.slice(0,6)+'...'+a.slice(-4)) : (a||''); }
 function lc(s){ return (s||'').toLowerCase(); }
+function ensureHexData(data) {
+  if (!data) return '0x';
+  if (typeof data === 'string') return data;
+  try { return ethers.utils.hexlify(data); } catch { return '0x'; }
+}
 
 async function getInjected() {
   // Respect your “provider pin”
@@ -274,6 +280,76 @@ async function buildToolkitSmartAccount(injected, { bundlerUrl, paymasterUrl }) 
       storeSmartAccount(chainId, mmAddress);
     }
 
+    async function sendViaSmartAccount(tx) {
+      if (!tx || !tx.to) throw new Error('Missing "to" for smart account send');
+      const target = tx.to;
+      const data = ensureHexData(tx.data);
+      const valueHex = toHex(tx.value || 0n);
+      let valueBigInt = 0n;
+      try { valueBigInt = BigInt(tx.value || 0); } catch { valueBigInt = 0n; }
+      const chainHex = '0x' + chainId.toString(16);
+
+      try {
+        const { provider: bundlerProvider, available } = await detectBundler(injected);
+        if (available && bundlerProvider) {
+          const result = await walletSendCalls({
+            provider: bundlerProvider,
+            from: mmAddress,
+            chainId: chainHex,
+            calls: [{ to: target, data, value: valueHex }]
+          });
+          const hash = extractTxHash(result);
+          if (hash) return hash;
+        }
+      } catch (err) {
+        console.warn('[aaClient] wallet_sendCalls failed, falling back', err);
+      }
+
+      if (mmAccount && typeof mmAccount.sendTransactions === 'function') {
+        try {
+          const result = await mmAccount.sendTransactions(
+            [{ to: target, data, value: valueHex }],
+            { chainId, bundlerRpc: bundlerUrl, paymasterRpc: paymasterUrl }
+          );
+          const hash = extractTxHash(result);
+          if (hash) return hash;
+          if (result?.hash) return result.hash;
+          if (result?.transactionHash) return result.transactionHash;
+        } catch (err) {
+          console.warn('[aaClient] mmAccount.sendTransactions failed', err);
+        }
+      }
+
+      if (walletClient && typeof walletClient.sendTransaction === 'function') {
+        try {
+          const txHash = await walletClient.sendTransaction({
+            account: mmAccount,
+            to: target,
+            data,
+            value: valueBigInt
+          });
+          if (txHash) return txHash;
+        } catch (err) {
+          console.warn('[aaClient] walletClient.sendTransaction failed', err);
+        }
+      }
+
+      const fallbackTx = {
+        to: target,
+        data,
+        value: (() => {
+          try { return ethers.BigNumber.from(valueBigInt); } catch { return ethers.BigNumber.from(0); }
+        })()
+      };
+      const res = await signer.sendTransaction(fallbackTx);
+      const hash = typeof res === 'string' ? res : (res?.hash || res?.transactionHash);
+      if (!hash) {
+        console.warn('sendTransaction result:', res);
+        throw new Error('Failed to obtain tx hash from fallback send');
+      }
+      return hash;
+    }
+
     const wrappedAccount = {
       address: mmAddress,
       type: 'delegation-toolkit',
@@ -282,7 +358,7 @@ async function buildToolkitSmartAccount(injected, { bundlerUrl, paymasterUrl }) 
       context: toolkitCtx,
       bundlerUrl,
       paymasterUrl,
-      sendTransaction: (tx) => signer.sendTransaction(tx)
+      sendTransaction: (tx) => sendViaSmartAccount(tx)
     };
 
     return { smartAccount: wrappedAccount, signer };

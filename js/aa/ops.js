@@ -1,9 +1,12 @@
 // /js/aa/ops.js
-// Thin helpers to send transactions through your ZeroDev Smart Account
-// Uses the smart account that tavern.js initializes (window.smartAccount)
+// Helpers to run delegated executions through the MetaMask Delegation Toolkit smart account,
+// and fall back to direct EOA transactions when delegation/toolkit is unavailable.
 
 import { ethers } from '../tavern.js';
 import { getSmartAccount } from '../tavern.js';
+import { AA, initAA } from './aaClient.js';
+import { loadDelegation } from './delegation.js';
+import { ensureDelegationToolkitContext } from './toolkit.js';
 
 // ---------- Utilities ----------
 function toWeiMON(valueMON) {
@@ -85,5 +88,67 @@ export async function callWithDelegation({ to, signature, args = [], valueMON })
   if (!to) throw new Error('Missing "to" address for callWithDelegation');
 
   const data = encodeFromSignature(signature, args);
-  return sendTxViaAA({ to, data, valueMON });
+
+  try {
+    const delegationRecord = loadDelegation();
+    if (!delegationRecord) {
+      return sendTxViaAA({ to, data, valueMON });
+    }
+
+    if (!AA.smartAccountType || AA.smartAccountType !== 'delegation-toolkit') {
+      await initAA({});
+    }
+
+    if (AA.smartAccountType !== 'delegation-toolkit') {
+      return sendTxViaAA({ to, data, valueMON });
+    }
+
+    const ctx = AA.toolkitContext || await ensureDelegationToolkitContext();
+    if (!ctx) {
+      return sendTxViaAA({ to, data, valueMON });
+    }
+
+    const { toolkit, walletClient, publicClient, environment } = ctx;
+    if (!toolkit || !walletClient || !publicClient || !environment?.DelegationManager) {
+      return sendTxViaAA({ to, data, valueMON });
+    }
+
+    const executionBuilder = toolkit.createExecution;
+    const redeemDelegations = toolkit.redeemDelegations;
+    const ExecutionMode = toolkit.ExecutionMode;
+
+    if (typeof executionBuilder !== 'function' || typeof redeemDelegations !== 'function') {
+      return sendTxViaAA({ to, data, valueMON });
+    }
+
+    const executions = [
+      executionBuilder({
+        target: to,
+        value: valueMON != null ? toWeiMON(valueMON) : 0n,
+        callData: data
+      })
+    ];
+
+    const redemption = {
+      permissionContext: delegationRecord.permissionContext || [[delegationRecord.delegation]],
+      executions,
+      mode: ExecutionMode?.SingleDefault || '0x0000000000000000000000000000000000000000000000000000000000000000'
+    };
+
+    const txHash = await redeemDelegations(
+      walletClient,
+      publicClient,
+      environment.DelegationManager,
+      [redemption]
+    );
+
+    if (!txHash) {
+      throw new Error('Delegation redemption returned no transaction hash');
+    }
+
+    return txHash;
+  } catch (err) {
+    console.warn('[aa/ops] Delegated call failed, falling back to AA send', err);
+    return sendTxViaAA({ to, data, valueMON });
+  }
 }

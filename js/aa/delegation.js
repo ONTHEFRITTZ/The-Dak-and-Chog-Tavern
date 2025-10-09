@@ -155,6 +155,7 @@ export async function createDelegation({ address, preset }) {
   const record = {
     preset: choice.key,
     delegation: signedDelegation,
+    permissionContext: [[signedDelegation]],
     from: delegator,
     to: delegate,
     createdAt: nowSec(),
@@ -174,10 +175,13 @@ export function loadDelegation() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    if (!parsed || !parsed.delegation) return null;
+    if (!parsed || !parsed.delegation || (parsed.chainId && Number(parsed.chainId) !== MONAD.id)) return null;
     if (parsed.end && Number(parsed.end) < nowSec()) {
       localStorage.removeItem(STORAGE_KEY);
       return null;
+    }
+    if (!parsed.permissionContext) {
+      parsed.permissionContext = [[parsed.delegation]];
     }
     return parsed;
   } catch {
