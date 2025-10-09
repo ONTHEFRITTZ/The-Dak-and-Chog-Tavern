@@ -2,12 +2,14 @@
 // Works with your importmap (viem/permissionless) if present; otherwise falls back to injected.
 import { MONAD, AA_FEATURES, getPokerTableAddress, MONAD_BUNDLER_RPC, ZD_PAYMASTER_RPC } from './config.js';
 import { ethers } from './tavern.js';
+import { ensureDelegationToolkitContext } from './aa/toolkit.js';
 
 const LS = {
   SESSION: 'aa:session',
   SPONSORED: 'aa:sponsored',
   BUDGET: 'aa:budget',
 };
+const SMART_ACCOUNT_KEY_PREFIX = 'aa:toolkit:account:';
 
 function now() { return Math.floor(Date.now() / 1000); }
 function toHex(v) { try { return '0x' + BigInt(v).toString(16); } catch { return '0x0'; } }
@@ -49,6 +51,17 @@ function readBudget() { try { return Number(localStorage.getItem(LS.BUDGET) || '
 function writeSponsored(on){ try{ localStorage.setItem(LS.SPONSORED, on?'true':'false'); }catch{} }
 function readSponsored(){ try{ return localStorage.getItem(LS.SPONSORED) === 'true'; }catch{ return false; } }
 
+function smartAccountStorageKey(chainId) {
+  return `${SMART_ACCOUNT_KEY_PREFIX}${chainId || MONAD.id}`;
+}
+function loadStoredSmartAccount(chainId) {
+  try { return localStorage.getItem(smartAccountStorageKey(chainId)) || null; } catch { return null; }
+}
+function storeSmartAccount(chainId, address) {
+  if (!address) return;
+  try { localStorage.setItem(smartAccountStorageKey(chainId), address); } catch {}
+}
+
 export const AA = {
   provider: null,
   address: null,
@@ -56,6 +69,9 @@ export const AA = {
   sponsored: false,
   session: null,  // { allowlist:[{to, selectors:[sig,...]}], spendLimitWei:string, spentWei:string, exp:number }
   budgetWei: 0n,
+  smartAccountAddress: null,
+  smartAccountType: 'fallback',
+  toolkitContext: null,
 
   async init() {
     this.provider = await getInjected();
@@ -198,7 +214,7 @@ export async function defaultAllowlist() {
 }
 
 // ---------------------------------------------------------------------------
-// ZeroDev / Smart Account bootstrap
+// Delegation Toolkit / Smart Account bootstrap
 // ---------------------------------------------------------------------------
 
 let aaSmartAccount = null;
@@ -213,49 +229,65 @@ async function resolveInjectedProvider(override) {
   return AA.provider;
 }
 
-async function createFallbackSmartAccount(injected) {
+async function createFallbackAccount(injected) {
   const web3 = new ethers.providers.Web3Provider(injected, 'any');
   const signer = web3.getSigner();
   const address = await signer.getAddress();
-  return {
+  const fallbackAccount = {
     address,
     provider: web3,
     signer,
+    type: 'fallback',
     getAddress: async () => address,
     sendTransaction: (tx) => signer.sendTransaction(tx)
   };
+  return { smartAccount: fallbackAccount, signer };
 }
 
-async function tryInitZeroDev(injected, { bundlerUrl, paymasterUrl }) {
+async function buildToolkitSmartAccount(injected, { bundlerUrl, paymasterUrl }) {
   try {
-    const sdk = await import('@zerodev/sdk');
-    if (!sdk) return null;
+    const toolkitCtx = await ensureDelegationToolkitContext();
+    const { toolkit, publicClient, walletClient } = toolkitCtx || {};
+    const toMetaMaskSmartAccount = toolkit?.toMetaMaskSmartAccount;
+    const Implementation = toolkit?.Implementation;
 
-    const { createSmartAccountClient } = sdk;
-    const CandidateSigner = sdk?.MetaMaskSigner || sdk?.ZerodevSigner || null;
-    if (typeof createSmartAccountClient !== 'function' || !CandidateSigner) return null;
+    if (typeof toMetaMaskSmartAccount !== 'function' || !Implementation?.Hybrid) {
+      return null;
+    }
 
-    const mmSigner = new CandidateSigner({
-      projectId: bundlerUrl,
-      chainId: MONAD.id,
-      transport: injected
+    const web3 = new ethers.providers.Web3Provider(injected, 'any');
+    const signer = web3.getSigner();
+    const ownerAddress = toolkitCtx?.account || await signer.getAddress();
+    const chainId = MONAD.id;
+    const stored = loadStoredSmartAccount(chainId);
+
+    const deployParams = [ownerAddress, [], [], []];
+    const mmAccount = await toMetaMaskSmartAccount({
+      client: publicClient,
+      implementation: Implementation.Hybrid,
+      signer: { walletClient },
+      ...(stored ? { address: stored } : { deployParams, deploySalt: '0x0' })
     });
 
-    const client = await createSmartAccountClient({
-      signer: mmSigner,
-      chain: { id: MONAD.id, rpcUrl: bundlerUrl },
+    const mmAddress = lc(await mmAccount.getAddress());
+    if (mmAddress && mmAddress !== stored) {
+      storeSmartAccount(chainId, mmAddress);
+    }
+
+    const wrappedAccount = {
+      address: mmAddress,
+      type: 'delegation-toolkit',
+      getAddress: async () => mmAddress,
+      mmAccount,
+      context: toolkitCtx,
       bundlerUrl,
-      paymasterUrl
-    });
-
-    if (!client) return null;
-
-    return {
-      smartAccount: client,
-      signer: typeof client.getSigner === 'function' ? await client.getSigner() : mmSigner
+      paymasterUrl,
+      sendTransaction: (tx) => signer.sendTransaction(tx)
     };
+
+    return { smartAccount: wrappedAccount, signer };
   } catch (err) {
-    console.warn('[aaClient] ZeroDev init failed, using fallback signer', err);
+    console.warn('[aaClient] Delegation Toolkit init failed, falling back to EOA', err);
     return null;
   }
 }
@@ -268,16 +300,27 @@ export async function initAA({ bundlerUrl = MONAD_BUNDLER_RPC, paymasterUrl = ZD
     return aaSmartAccount;
   }
 
-  let created = await tryInitZeroDev(injected, { bundlerUrl, paymasterUrl });
+  let created = await buildToolkitSmartAccount(injected, { bundlerUrl, paymasterUrl });
   if (!created) {
-    const fallback = await createFallbackSmartAccount(injected);
-    created = { smartAccount: fallback, signer: fallback.signer };
+    created = await createFallbackAccount(injected);
   }
 
   aaSmartAccount = created.smartAccount;
   aaSigner = created.signer;
   aaReady = true;
   lastBundlerUrl = bundlerUrl;
+  AA.smartAccountAddress = aaSmartAccount?.address || null;
+  AA.smartAccountType = aaSmartAccount?.type || 'fallback';
+  AA.toolkitContext = aaSmartAccount?.context || null;
+
+  try {
+    window.dispatchEvent(new CustomEvent('aa:smartaccount', {
+      detail: {
+        address: AA.smartAccountAddress,
+        type: AA.smartAccountType
+      }
+    }));
+  } catch {}
 
   try { window.smartAccount = aaSmartAccount; } catch {}
   return aaSmartAccount;
@@ -298,9 +341,18 @@ export function isAAReady() {
   return aaReady;
 }
 
+export async function getSmartAccountAddress() {
+  if (!aaReady || !aaSmartAccount) {
+    await initAA({});
+  }
+  return aaSmartAccount?.address || null;
+}
+
 export const client = {
   getSigner: () => getAASigner(),
   get smartAccount() { return aaSmartAccount; },
+  get smartAccountAddress() { return aaSmartAccount?.address || null; },
+  get toolkitContext() { return AA.toolkitContext || null; },
   async sendTransaction(tx) {
     const smart = await initAA({});
     if (smart && typeof smart.sendTransaction === 'function') {
