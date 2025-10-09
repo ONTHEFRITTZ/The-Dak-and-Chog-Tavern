@@ -260,14 +260,39 @@ body.age-landing {
 
 /* ------------------------------- Wallet chip ------------------------------- */
 #wallet-inline {
-  position: fixed; top: var(--edge-pad); right: var(--edge-pad);
-  z-index: 12000; display: flex; align-items: center; gap: 8px;
+  position: fixed;
+  top: var(--edge-pad);
+  right: var(--edge-pad);
+  z-index: 12000;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   background: var(--panel-bg-soft);
   color: #f4e6d3;
   border: 1px solid rgba(255,255,255,0.12);
-  border-radius: 12px;
-  padding: 6px 10px;
+  border-radius: 10px;
+  padding: 4px 8px;
 }
+#wallet-inline > * {
+  flex-shrink: 0;
+}
+#wallet-inline #wi-disconnect {
+  padding: 6px 12px;
+  font-size: 12px;
+  border-radius: 10px;
+  line-height: 1.1;
+  height: 32px;
+}
+#wallet-inline #wi-disconnect {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+#wallet-inline .wi-balance-badge {
+  padding: 0 6px;
+  min-height: 26px;
+}
+
 html[data-table-mode="onchain"] #wallet-inline,
 :root[data-table-mode="onchain"] #wallet-inline {
   background: rgba(12, 24, 38, 0.85);
@@ -335,6 +360,29 @@ html[data-table-mode="onchain"] #wallet-inline,
 }
 .seat .btns { display: flex; gap: 6px; justify-content: center; margin-top: 6px; pointer-events:auto; }
 .seat .btns button { padding: 4px 8px; font-size: 12px; border-radius: 6px; }
+
+.seat.empty-seat {
+  justify-content: center;
+  gap: 0;
+}
+.seat.empty-seat .timer,
+.seat.empty-seat .cards,
+.seat.empty-seat .addr,
+.seat.empty-seat .stack {
+  display: none;
+}
+.seat.empty-seat .btns {
+  margin-top: 0;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+.seat.empty-seat .btns button {
+  padding: 6px 12px;
+  border-radius: 12px;
+  font-size: 13px;
+}
 
 .seat .cards { display: flex; gap:6px; align-items:center; justify-content:center; min-height: 88px; }
 

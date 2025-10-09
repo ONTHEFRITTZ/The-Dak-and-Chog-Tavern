@@ -1026,6 +1026,7 @@ function initializePokerTable() {
       meta.seat.classList.toggle('occupied', valid);
       meta.seat.classList.toggle('ready', !!(valid && seatData.ready));
       meta.seat.classList.toggle('me', isMe);
+      meta.seat.classList.toggle('empty-seat', !valid);
       meta.addr.textContent = valid
         ? `${short(seatData.addr)}${seatData.ready ? ' [ready]' : ''}`
         : '';
