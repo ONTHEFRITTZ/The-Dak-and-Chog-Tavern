@@ -230,10 +230,44 @@
 
     const contract = new ethers.Contract(tableAddress, window.HoldemPokerABI, signer);
     let cachedAddr = null;
+    let aaOpsModule = null;
 
     async function ownerAddress() {
+      try {
+        if (window.AA && typeof window.AA.smartAccountAddress === 'string' && window.AA.smartAccountAddress) {
+          return window.AA.smartAccountAddress;
+        }
+      } catch {}
       if (!cachedAddr) cachedAddr = await signer.getAddress();
       return cachedAddr;
+    }
+
+    async function ensureAAOps() {
+      if (aaOpsModule) return aaOpsModule;
+      try {
+        aaOpsModule = await import('../../js/aa/ops.js');
+      } catch (err) {
+        console.warn('Poker table: AA ops unavailable', err);
+        aaOpsModule = null;
+      }
+      return aaOpsModule;
+    }
+
+    async function callViaAA(signature, args, valueMON) {
+      const ops = await ensureAAOps();
+      if (!ops || typeof ops.callWithDelegation !== 'function') return false;
+      try {
+        const txHash = await ops.callWithDelegation({ to: tableAddress, signature, args, valueMON });
+        if (txHash && provider?.waitForTransaction) {
+          try { await provider.waitForTransaction(txHash); } catch (waitErr) {
+            console.warn('Poker table: waitForTransaction failed', waitErr);
+          }
+        }
+        return !!txHash;
+      } catch (err) {
+        console.warn('Poker table: AA call failed', signature, err);
+        return false;
+      }
     }
 
     const contracts = typeof bankroll.getContracts === 'function' ? bankroll.getContracts() : null;
@@ -258,8 +292,11 @@
         if (!bal || bal.lt(wei)) throw new Error('Insufficient DCMon balance');
       }
       await ensureAllowance(wei);
-      const tx = await contract.contribute(seatId, wei);
-      await tx.wait();
+      const aaOk = await callViaAA('contribute(uint8,uint256)', [seatId, wei]);
+      if (!aaOk) {
+        const tx = await contract.contribute(seatId, wei);
+        await tx.wait();
+      }
       if (typeof bankroll.refreshBalance === 'function') {
         setTimeout(() => {
           try { bankroll.refreshBalance(addr); } catch (refreshErr) {
@@ -271,9 +308,12 @@
     }
 
     async function joinSeat(seatId) {
-      const tx = await contract.joinSeat(seatId);
-      await tx.wait();
-      cachedAddr = await signer.getAddress();
+      const aaOk = await callViaAA('joinSeat(uint8)', [seatId]);
+      if (!aaOk) {
+        const tx = await contract.joinSeat(seatId);
+        await tx.wait();
+      }
+      cachedAddr = await ownerAddress();
       return true;
     }
 
@@ -281,8 +321,12 @@
       const active = !!(opts && opts.inHand);
       const method = active ? 'leaveDuringHand' : 'unseat';
       if (typeof contract[method] !== 'function') return false;
-      const tx = await contract[method](seatId);
-      await tx.wait();
+      const signature = active ? 'leaveDuringHand(uint8)' : 'unseat(uint8)';
+      const aaOk = await callViaAA(signature, [seatId]);
+      if (!aaOk) {
+        const tx = await contract[method](seatId);
+        await tx.wait();
+      }
       return true;
     }
 
