@@ -1,45 +1,8 @@
-// Dak & Chog coin flip (frontend scaffolding styled like other games)
+﻿// Dak & Chog coin flip (frontend scaffolding styled like other games)
 import { renderTavernBanner, detectChainId, getAddressFor } from '../../js/config.js';
 import '../../js/TavernABI.js';
 import '../../js/DakChogABI.js';
 import '../../js/DCMonABI.js';
-
-const RULES_VERSION = 'v2';
-const statusEl = document.getElementById('dc-status');
-const coinEl = document.getElementById('coin');
-const betInput = document.getElementById('bet');
-if (betInput) betInput.value = formatDcmon(clampBet(betInput.value || MIN_BET));
-const flipBtn = document.getElementById('flip');
-const chooseDak = document.getElementById('choose-dak');
-const chooseChog = document.getElementById('choose-chog');
-const rulesOverlay = document.getElementById('rules-overlay');
-const rulesAck = document.getElementById('rules-ack');
-const openRulesBtn = document.getElementById('open-rules');
-const returnBtn = document.getElementById('return');
-
-// Normalize any mojibake in status messages (e.g., bad ellipses/dashes)
-try {
-  function sanitizeStatus() {
-    try {
-      const t = statusEl?.textContent || '';
-      if (!t) return;
-      let u = t.replace(/�\?�/g, '…')
-               .replace(/�\?"/g, ' — ');
-      if (u !== t) statusEl.textContent = u;
-    } catch {}
-  }
-  const mo = new MutationObserver(sanitizeStatus);
-  if (statusEl) mo.observe(statusEl, { childList: true, characterData: true, subtree: true });
-} catch {}
-
-let provider, signer, wallet, coinContract;
-let coinTargetAddress = null;
-let coinAbi = null;
-let dcmonAddress = null;
-let dcmonRead = null;
-let dcmonToken = null;
-let choice = 'dak';
-let rulesOK = true; // rules gate removed
 
 const IMG_DAK = '../../assets/images/coin-dak.png';
 const IMG_CHOG = '../../assets/images/coin-chog.png';
@@ -58,7 +21,30 @@ const clampBet = (value) => {
   return Math.floor(parsed * 1000 + 1e-9) / 1000;
 };
 
-if (betInput) betInput.value = formatDcmon(clampBet(betInput.value || MIN_BET));
+const RULES_VERSION = 'v2';
+const statusEl = document.getElementById('dc-status');
+const coinEl = document.getElementById('coin');
+const betInput = document.getElementById('bet');
+const flipBtn = document.getElementById('flip');
+const chooseDak = document.getElementById('choose-dak');
+const chooseChog = document.getElementById('choose-chog');
+const rulesOverlay = document.getElementById('rules-overlay');
+const rulesAck = document.getElementById('rules-ack');
+const openRulesBtn = document.getElementById('open-rules');
+const returnBtn = document.getElementById('return');
+
+if (betInput) {
+  betInput.value = formatDcmon(clampBet(betInput.value || MIN_BET));
+}
+
+let provider, signer, wallet, coinContract;
+let coinTargetAddress = null;
+let coinAbi = null;
+let dcmonAddress = null;
+let dcmonRead = null;
+let dcmonToken = null;
+let choice = 'dak';
+let rulesOK = true; // rules gate removed
 
 function rulesFresh(key) { try { const t = Number(localStorage.getItem(key) || 0); return Date.now() - t < 86400000; } catch { return false; } }
 
@@ -253,7 +239,7 @@ flipBtn.addEventListener('click', async () => {
       try { setCoin(resultChog ? 'chog' : 'dak'); } catch {}
       // Optional: one final flip for flair
       try { void coinEl.offsetWidth; coinEl.classList.add('flip'); setTimeout(()=>coinEl.classList.remove('flip'), 900); } catch {}
-      statusEl.textContent = won ? `On-chain: ${resultChog ? 'CHOG' : 'DAK'} — you won!` : `On-chain: ${resultChog ? 'CHOG' : 'DAK'} — you lost.`;
+      statusEl.textContent = won ? `On-chain: ${resultChog ? 'CHOG' : 'DAK'} â€” you won!` : `On-chain: ${resultChog ? 'CHOG' : 'DAK'} â€” you lost.`;
     } else {
       try { coinEl.classList.remove('spin'); } catch {}
       // Fallback: query past logs or just show confirmed
@@ -280,3 +266,7 @@ onReady(async () => {
   try { if (openRulesBtn) openRulesBtn.style.display = 'none'; } catch {}
   await ensureWallet();
 });
+
+
+
+

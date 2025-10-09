@@ -354,6 +354,23 @@
   }
 
   const centerBanner = document.getElementById('poker-center');
+  updateConnectionBanner = (message, tone) => {
+    if (!centerBanner) return;
+    if (!message) {
+      if (centerBanner.dataset.mode === 'connection') {
+        centerBanner.style.display = 'none';
+        centerBanner.dataset.mode = '';
+        centerBanner.style.color = '';
+      }
+      return;
+    }
+    centerBanner.dataset.mode = 'connection';
+    centerBanner.textContent = message;
+    centerBanner.style.display = 'block';
+    if (tone === 'error') centerBanner.style.color = '#ff9a9a';
+    else if (tone === 'info') centerBanner.style.color = '#d7d7d7';
+    else centerBanner.style.color = '';
+  };
   const lastHandBox = document.getElementById('last-hand');
   const lastHandEl = document.getElementById('lh-content');
 
@@ -536,21 +553,34 @@
   const qp = new URL(location.href).searchParams;
   const tableId = qp.get('table') || 'poker-sim-1';
 
-  // Connect socket with environment-aware path
-  const socket = (() => {
-    if (!window.io) return null;
-    try {
-      const host = (location.hostname || '').toLowerCase();
-      const isLocal = host === 'localhost' || host === '127.0.0.1';
-      const path = isLocal ? '/socket.io/' : '/poker.io/';
-      return window.io({ path });
-    } catch {
-      try { return window.io(); } catch { return null; }
-    }
-  })();
-  if (!socket) {
+  // Socket handling with path fallbacks
+  if (!window.io) {
     console.error('Socket.IO missing');
     return;
+  }
+
+  let socket = null;
+  const host = (location.hostname || '').toLowerCase();
+  const socketPaths = (() => {
+    const local = host === 'localhost' || host === '127.0.0.1';
+    if (local) return ['/socket.io/'];
+    return ['/poker.io/', '/socket.io/'];
+  })();
+  let activeSocketPath = null;
+  let triedPaths = new Set();
+
+  function emitSocket(event, payload) {
+    if (!socket) {
+      console.warn('[poker] socket unavailable for', event);
+      return false;
+    }
+    try {
+      socket.emit(event, payload);
+      return true;
+    } catch (err) {
+      console.warn('[poker] emit failed', event, err);
+      return false;
+    }
   }
 
   let lastTable = null;
@@ -560,7 +590,138 @@
   let currentState = null;
   let currentTurnSeat = -1;
   let timerRaf = null;
-  
+  let joinPending = true;
+  let connectionWarnTimer = null;
+  let activeSocketIndex = -1;
+  let updateConnectionBanner = () => {};
+
+  function clearConnectionWarning() {
+    if (connectionWarnTimer) {
+      clearTimeout(connectionWarnTimer);
+      connectionWarnTimer = null;
+    }
+    updateConnectionBanner('', '');
+  }
+
+  function scheduleConnectionWarning(message = 'Connecting to poker server...') {
+    clearConnectionWarning();
+    connectionWarnTimer = setTimeout(() => {
+      updateConnectionBanner(message, 'info');
+    }, 600);
+  }
+
+  function maybeJoinTable() {
+    if (!socket || !socket.connected) {
+      joinPending = true;
+      return;
+    }
+    emitSocket('join_table', { table: tableId });
+    joinPending = false;
+  }
+
+  function onSocketConnect() {
+    clearConnectionWarning();
+    updateConnectionBanner('', '');
+    ensureIdentify();
+    maybeJoinTable();
+  }
+
+  function onSocketDisconnect(reason) {
+    console.warn('[poker] socket disconnected', reason);
+    joinPending = true;
+    scheduleConnectionWarning(reason === 'io client disconnect' ? 'Reconnecting...' : 'Reconnecting to poker server...');
+  }
+
+  function onSocketError(err) {
+    console.warn('[poker] socket error', err);
+  }
+
+  function attachSocketHandlers(newSocket, pathIndex) {
+    if (!newSocket) return;
+    if (socket && socket !== newSocket) {
+      try {
+        socket.off('connect', onSocketConnect);
+        socket.off('disconnect', onSocketDisconnect);
+        socket.off('table:update', handleTableUpdate);
+        socket.off('poker:state', handlePokerState);
+        socket.off('poker:private', handlePokerPrivate);
+        socket.off('poker:hand', handlePokerHand);
+        socket.off('error', onSocketError);
+        socket.off('connect_error', onSocketError);
+        socket.off('reconnect_error', onSocketError);
+        socket.close();
+      } catch {}
+    }
+    socket = newSocket;
+    activeSocketIndex = pathIndex;
+    socket.off('connect', onSocketConnect);
+    socket.on('connect', onSocketConnect);
+    socket.off('disconnect', onSocketDisconnect);
+    socket.on('disconnect', onSocketDisconnect);
+    socket.off('table:update', handleTableUpdate);
+    socket.on('table:update', handleTableUpdate);
+    socket.off('poker:state', handlePokerState);
+    socket.on('poker:state', handlePokerState);
+    socket.off('poker:private', handlePokerPrivate);
+    socket.on('poker:private', handlePokerPrivate);
+    socket.off('poker:hand', handlePokerHand);
+    socket.on('poker:hand', handlePokerHand);
+    socket.off('error', onSocketError);
+    socket.on('error', onSocketError);
+    socket.off('connect_error', onSocketError);
+    socket.on('connect_error', onSocketError);
+    socket.off('reconnect_error', onSocketError);
+    socket.on('reconnect_error', onSocketError);
+    if (socket.connected) {
+      onSocketConnect();
+    }
+  }
+
+  function connectSocket(startIndex = 0) {
+    if (startIndex >= socketPaths.length) {
+      clearConnectionWarning();
+      updateConnectionBanner('Poker server unreachable. Please retry shortly.', 'error');
+      return;
+    }
+    const path = socketPaths[startIndex];
+    scheduleConnectionWarning();
+    try {
+      const candidate = window.io({
+        path,
+        transports: ['websocket', 'polling'],
+        autoConnect: false,
+        reconnection: true,
+        reconnectionAttempts: 5
+      });
+      let connected = false;
+
+      const handleConnect = () => {
+        connected = true;
+        candidate.off('connect_error', handleError);
+        candidate.off('connect_timeout', handleError);
+        attachSocketHandlers(candidate, startIndex);
+      };
+
+      const handleError = (err) => {
+        if (connected) return;
+        console.warn('[poker] socket path failed', path, err?.message || err);
+        candidate.off('connect', handleConnect);
+        candidate.off('connect_error', handleError);
+        candidate.off('connect_timeout', handleError);
+        try { candidate.close(); } catch {}
+        connectSocket(startIndex + 1);
+      };
+
+      candidate.once('connect', handleConnect);
+      candidate.once('connect_error', handleError);
+      candidate.once('connect_timeout', handleError);
+      candidate.connect();
+    } catch (err) {
+      console.warn('[poker] socket init failed on path', path, err);
+      connectSocket(startIndex + 1);
+    }
+  }
+
 
   async function ensureIdentify() {
     try {
@@ -597,7 +758,7 @@
       }
 
       if (isValidAddr(addr)) {
-        socket.emit('identify', { addr });
+        emitSocket('identify', { addr });
         return true;
       }
     } catch (err) {
@@ -684,7 +845,10 @@
   function updateCenter(st) {
     if (!centerBanner) return;
     if (!st) {
+      if (centerBanner.dataset.mode === 'connection') return;
       centerBanner.style.display = 'none';
+      centerBanner.dataset.mode = '';
+      centerBanner.style.color = '';
       return;
     }
     const parts = [];
@@ -693,9 +857,14 @@
     if (Number.isFinite(st.pot)) parts.push(`Pot ${formatChips(st.pot)}${isOnchainTable ? ' DCMon' : ''}`);
     if (Number.isFinite(st.toCall) && st.toCall > 0) parts.push(`To Call ${formatChips(st.toCall)}${isOnchainTable ? ' DCMon' : ''}`);
     if (!parts.length) {
+      if (centerBanner.dataset.mode === 'connection') return;
       centerBanner.style.display = 'none';
+      centerBanner.dataset.mode = '';
+      centerBanner.style.color = '';
       return;
     }
+    centerBanner.dataset.mode = 'game';
+    centerBanner.style.color = '';
     centerBanner.textContent = parts.join(' - ');
     centerBanner.style.display = 'block';
   }
@@ -774,7 +943,7 @@
           }
           payload.amount = amt;
         }
-        socket.emit('poker:act', payload);
+        emitSocket('poker:act', payload);
         hideActionBar();
         return;
       }
@@ -842,7 +1011,7 @@
         if (restoreControls) restoreControls();
       }
 
-      socket.emit('poker:act', payload);
+      emitSocket('poker:act', payload);
       hideActionBar();
     } catch (err) {
       console.error('Poker table: action failed', err);
@@ -1009,7 +1178,7 @@
               return;
             }
           }
-          socket.emit('seat', { index: idx });
+          emitSocket('seat', { index: idx });
         });
         meta.btns.appendChild(sit);
       } else if (isMe) {
@@ -1074,7 +1243,7 @@
               return;
             }
           }
-          socket.emit('seat', { index: -1 });
+          emitSocket('seat', { index: -1 });
         });
         meta.btns.appendChild(leaveBtn);
       }
@@ -1101,16 +1270,13 @@
     } catch {}
   }
 
-  socket.on('connect', () => {
-    ensureIdentify();
-    socket.emit('join_table', { table: tableId });
-  });
-
-  socket.on('table:update', (table) => {
+  function handleTableUpdate(table) {
+    clearConnectionWarning();
+    updateConnectionBanner('', '');
     renderAllSeats(table);
-  });
+  }
 
-  socket.on('poker:state', (state) => {
+  function handlePokerState(state) {
     currentState = state;
     updateCenter(state);
     updateSeatStates(state);
@@ -1118,8 +1284,8 @@
     if (state?.stage !== lastStage) {
       if (state?.stage === 'preflop' && lastTable) {
         (lastTable.seats || []).forEach((seatData, idx) => {
-          const saddr = seatData && String(seatData.addr||'').toLowerCase();
-          const meAddr = (currentAddr()||'').toLowerCase();
+          const saddr = seatData && String(seatData.addr || '').toLowerCase();
+          const meAddr = (currentAddr() || '').toLowerCase();
           const valid = seatData && isValidAddr(saddr);
           if (valid && saddr !== meAddr) {
             setSeatCards(idx, [null, null], { faceDown: true });
@@ -1148,18 +1314,18 @@
     currentTurnSeat = turnSeat;
     startTurnTimer(turnSeat);
     updateActionBar(turnSeat, state);
-  });
+  }
 
-  socket.on('poker:private', (msg) => {
+  function handlePokerPrivate(msg) {
     const seatId = Number.isFinite(msg?.seatId) ? msg.seatId : seatIndexForAddr(msg?.addr);
     if (!Number.isInteger(seatId) || seatId < 0) return;
     if (mySeat < 0) mySeat = seatId;
     if (seatId !== mySeat) return;
     const cards = (msg.cards || []).slice(0, 2);
     setSeatCards(seatId, cards, { faceDown: false });
-  });
+  }
 
-  socket.on('poker:hand', (msg) => {
+  function handlePokerHand(msg) {
     clearTimers();
     hideActionBar();
     if (Array.isArray(msg?.community)) {
@@ -1192,8 +1358,8 @@
       try {
         const winners = Array.isArray(msg?.winners) ? msg.winners : [];
         const names = winners.map(w => short(w?.addr || ''))
-                             .filter(Boolean)
-                             .join(', ');
+          .filter(Boolean)
+          .join(', ');
         const pot = Number.isFinite(msg?.pot) ? (' +' + formatChips(msg.pot) + (isOnchainTable ? ' DCMon' : '')) : '';
         lastHandEl.textContent = names ? ('Last: ' + names + pot) : 'Hand complete';
         if (lastHandBox) lastHandBox.style.display = '';
@@ -1216,7 +1382,7 @@
       });
       updateCenter(null);
     }, 1800);
-  });
+  }
 
   window.addEventListener('resize', () => {
     positionSeats();
@@ -1233,8 +1399,15 @@
   });
   ro.observe(canvas);
 
+  renderAllSeats({
+    id: tableId,
+    seats: Array.from({ length: seatMeta.length }, () => null),
+    capacity: seatMeta.length,
+    simulated: !isOnchainTable,
+    limit: isOnchainTable ? 'NL' : 'F2P'
+  });
+  connectSocket(0);
   ensureIdentify();
-  socket.emit('join_table', { table: tableId });
   window.addEventListener('focus', ensureIdentify);
 })();
 
