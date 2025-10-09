@@ -353,6 +353,7 @@ function initializePokerTable() {
     canvas.insertBefore(burnPile, seats[0] || null);
   }
 
+  let updateConnectionBanner = () => {};
   const centerBanner = document.getElementById('poker-center');
   updateConnectionBanner = (message, tone) => {
     if (!centerBanner) return;
@@ -593,8 +594,6 @@ function initializePokerTable() {
   let joinPending = true;
   let connectionWarnTimer = null;
   let activeSocketIndex = -1;
-  let updateConnectionBanner = () => {};
-
   function clearConnectionWarning() {
     if (connectionWarnTimer) {
       clearTimeout(connectionWarnTimer);
@@ -1434,4 +1433,11 @@ if (document.readyState === 'loading') {
 
 
 
+
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initializePokerTable, { once: true });
+} else {
+  initializePokerTable();
+}
 
