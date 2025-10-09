@@ -2,6 +2,9 @@ Mission 8 - Poker AA Build
 
 Completed
 - AA client bootstrap in `js/aaClient.js` with Monad bundler + paymaster defaults.
+- MetaMask smart account UI (`js/aa/ui.js`) now shows SA status, delegation presets, and action controls.
+- Delegation records persisted with TTL/chain guard (`js/aa/delegation.js`) and AA ops fallback ladder.
+- Smart account send path prefers `wallet_sendCalls` before falling back to signer for full MetaMask SA support.
 - Poker table client in `games/poker/table.js`: seat layout, private hole handling, timers, action bar.
 - Realtime poker server (`server/realtime.js`): betting rounds, burn/flop/turn/river, showdown, auto-start when 2+ players seated.
 - Dealer bridge (`server/dealeronchain.js`): begin/settle hooks (safe no-op without signer).
@@ -18,13 +21,13 @@ Completed
 - Admin treasury flows validated: wrap, approve, pool deposit/redeem confirmed via /admin.
 
 Ready To Verify / Playtest
-- Run live hands on F2P and on-chain (AA identify, paymaster sponsorship, reward logging) with the new automation active.
+- Wallet flow QA: connect MetaMask smart account, issue delegation, and play a full MON-funded hand (include hazard fix).
 - Observe paymaster auto top-ups (logs + balance diffs) after intentionally draining the account on Monad testnet.
 - Demo capture: wallet connect + DCmon buy-in + full hand with reward logging + automatic reward harvest.
 
 In Progress
-- DCmon swaps: integrate actual MON/USDC routes in `processSwapQueue` once Monad DEX liquidity exists.
-- On-chain tables: update poker backend + AA flow to track DCmon chips (contract side ready).
+- DCmon swaps: integrate actual MON/USDC routes in `processSwapQueue` once Monad DEX liquidity exists (blocked on liquidity).
+- On-chain tables: finalize poker backend + AA flow to track DCmon chips (contracts ready, awaiting UI).
 - Frontend: buy-in modal with DCmon + swap UI (Phantom / MetaMask).
 - Reward distribution: choose cadence + ranking for top players; wire to `distributePlayerReward`.
 - Envio indexer: design schema to index DCmon buy-ins, rewards, seat events for fast UI queries.

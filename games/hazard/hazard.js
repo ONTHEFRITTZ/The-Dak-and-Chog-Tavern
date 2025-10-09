@@ -537,18 +537,7 @@ renderTavernBanner({ contractKey: bannerKey, address: tavernAddress, chainId, wa
   try {
     try { if (typeof window !== 'undefined') window.__hazardTxPending = true; } catch {}
     // Always do a static preflight to surface revert reasons before sending
-    try {
-      await contract.callStatic.playHazard(selectedMain, wager);
-    } catch (pre) {
-      const msg = pre?.error?.message || pre?.data?.message || pre?.reason || pre?.message || 'Reverted';
-      statusEl.textContent = 'Rejected: ' + msg;
-      rollBtn.disabled = false;
-      inFlight = false;
-      try { if (typeof window !== 'undefined') window.__hazardTxPending = false; } catch {}
-      return;
-    }
-
-    let gasLimit;
+    let gasLimitBN;
     try {
       const est = await contract.estimateGas.playHazard(selectedMain, wager);
       const min = ethers.BigNumber.from(600000);     // floor for complex paths
@@ -556,12 +545,39 @@ renderTavernBanner({ contractKey: bannerKey, address: tavernAddress, chainId, wa
       let padded = est.mul(160).div(100);            // +60% safety
       if (padded.lt(min)) padded = min;
       if (padded.gt(max)) padded = max;
-      gasLimit = padded;
+      gasLimitBN = padded;
     } catch {
-      gasLimit = ethers.BigNumber.from(800000);      // robust fallback
+      gasLimitBN = ethers.BigNumber.from(800000);      // robust fallback
     }
 
-    const tx = await contract.playHazard(selectedMain, wager, { gasLimit });
+    const overrides = { gasLimit: gasLimitBN.toHexString() };
+
+    try {
+      await contract.callStatic.playHazard(selectedMain, wager, overrides);
+    } catch (pre) {
+      const msg = pre?.error?.message || pre?.data?.message || pre?.reason || pre?.message || 'Reverted';
+      // Some providers dislike hex-string overrides; fall back to bare static call without overrides once
+      if (/cannot override "_hex","_isBigNumber"/i.test(msg)) {
+        try {
+          await contract.callStatic.playHazard(selectedMain, wager);
+        } catch (fallbackPre) {
+          const fallbackMsg = fallbackPre?.error?.message || fallbackPre?.data?.message || fallbackPre?.reason || fallbackPre?.message || 'Reverted';
+          statusEl.textContent = 'Rejected: ' + fallbackMsg;
+          rollBtn.disabled = false;
+          inFlight = false;
+          try { if (typeof window !== 'undefined') window.__hazardTxPending = false; } catch {}
+          return;
+        }
+      } else {
+        statusEl.textContent = 'Rejected: ' + msg;
+        rollBtn.disabled = false;
+        inFlight = false;
+        try { if (typeof window !== 'undefined') window.__hazardTxPending = false; } catch {}
+        return;
+      }
+    }
+
+    const tx = await contract.playHazard(selectedMain, wager, overrides);
     statusEl.textContent = 'Dice rolling on-chain...';
     const receipt = await tx.wait();
     statusEl.textContent = 'Waiting for result...';
