@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Dak & Chog — Global Styles (leaned, de-duped)
+   Dak & Chog ï¿½ Global Styles (leaned, de-duped)
    ========================================================================== */
 
 /* ------------------------------- Fonts ----------------------------------- */
@@ -319,7 +319,7 @@ html[data-table-mode="onchain"] #wallet-inline,
   border-color: rgba(120,200,255,0.22);
 }
 /* ==========================================================================
-   POKER TABLE — MINIMAL, IMAGE-ONLY SURFACE, NO ORANGE TOKENS
+   POKER TABLE ï¿½ MINIMAL, IMAGE-ONLY SURFACE, NO ORANGE TOKENS
    ========================================================================== */
 
 /* Canvas holds the table art + absolutely positioned seats */
@@ -538,7 +538,7 @@ html[data-table-mode="onchain"] #wallet-inline,
   display:none !important; visibility:hidden !important;
 }
 
-/* Community cards: we don't show empty slots — cards are injected only when needed */
+/* Community cards: we don't show empty slots ï¿½ cards are injected only when needed */
 #board { position:absolute; left:50%; top:50%; transform: translate(-50%,-50%); z-index: 3; pointer-events: none; display: flex; align-items:center; }
 #board.empty { display: none; }
 #board .card { margin: 0 4px; }
@@ -606,17 +606,22 @@ html[data-table-mode="onchain"] #wallet-inline,
   line-height: 1.1;
   height: 32px;
   border: 1px solid rgba(255,255,255,0.18);
-  background: rgba(0,0,0,0.25);
-  color: inherit;
+  background: #9200fa;
+  color: #fff;
   font-weight: 600;
   cursor: pointer;
+  box-shadow: 0 0 12px rgba(146,0,250,0.45);
+  transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
 }
 #wallet-inline #wi-wallet-btn:hover {
-  background: rgba(0,0,0,0.35);
+  background: #7a00d2;
+  box-shadow: 0 0 16px rgba(146,0,250,0.58);
+  transform: translateY(-1px);
 }
 #wallet-inline #wi-wallet-btn.active {
-  background: rgba(80,160,120,0.35);
-  border-color: rgba(120,200,255,0.35);
+  background: #5f00a8;
+  border-color: rgba(146,0,250,0.45);
+  box-shadow: 0 0 18px rgba(146,0,250,0.65);
 }
 #wallet-inline #wi-disconnect {
   display: none !important;

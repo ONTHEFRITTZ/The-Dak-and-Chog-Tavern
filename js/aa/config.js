@@ -1,6 +1,8 @@
 // Lightweight AA config that piggybacks your existing config.js and targets your EXISTING HoldemPoker.
 // No contract changes required.
 
+import { MONAD_BUNDLER_RPC as ROOT_MONAD_BUNDLER_RPC, ZD_PAYMASTER_RPC as ROOT_ZD_PAYMASTER_RPC } from '../config.js';
+
 export const MONAD = {
   id: 10143,
   name: 'Monad Testnet',
@@ -29,3 +31,6 @@ export async function getPokerTableAddress(provider) {
 
 // (optional) future: expose registry address here if you add on-chain guardrails later.
 export const PERMISSIONS_REGISTRY = null; // not used in this path
+
+export const MONAD_BUNDLER_RPC = ROOT_MONAD_BUNDLER_RPC;
+export const ZD_PAYMASTER_RPC = ROOT_ZD_PAYMASTER_RPC;

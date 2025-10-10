@@ -1,6 +1,6 @@
 // aa-client.js — minimal AA/session-key client w/ budget guardrails (onchain mode only)
 // Works with your importmap (viem/permissionless) if present; otherwise falls back to injected.
-import { MONAD, AA_FEATURES, getPokerTableAddress, MONAD_BUNDLER_RPC, ZD_PAYMASTER_RPC } from './config.js';
+import { MONAD, AA_FEATURES, getPokerTableAddress, MONAD_BUNDLER_RPC, ZD_PAYMASTER_RPC } from './aa/config.js';
 import { ethers } from './tavern.js';
 import { ensureDelegationToolkitContext } from './aa/toolkit.js';
 import { detectBundler, walletSendCalls, extractTxHash } from './bundler.js';
