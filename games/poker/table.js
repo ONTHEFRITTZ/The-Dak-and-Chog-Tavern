@@ -10,20 +10,34 @@ function initializePokerTable() {
   }
   function requestBankrollRefresh(addr) {
     if (!isOnchainTable || !isValidAddr(addr)) return;
+    let poller = null;
+    let finished = false;
+    const cleanup = () => {
+      if (finished) return;
+      finished = true;
+      if (poller) {
+        clearInterval(poller);
+        poller = null;
+      }
+      document.removeEventListener('bankroll:ready', onReady);
+    };
     const tryRefresh = () => {
       const bankroll = getBankrollHelper();
       if (bankroll?.refreshBalance) {
         try { bankroll.refreshBalance(addr); } catch {}
+        cleanup();
         return true;
       }
       return false;
     };
+    const onReady = () => { tryRefresh(); };
     if (tryRefresh()) return;
-    const onReady = () => {
-      document.removeEventListener('bankroll:ready', onReady);
-      tryRefresh();
-    };
     document.addEventListener('bankroll:ready', onReady);
+    const start = Date.now();
+    poller = setInterval(() => {
+      if (tryRefresh()) return;
+      if (Date.now() - start > 6500) cleanup();
+    }, 600);
   }
   async function waitForBankrollHelper(timeout = 6000) {
     const existing = getBankrollHelper();
@@ -1117,6 +1131,7 @@ function initializePokerTable() {
         });
         meta.btns.appendChild(sit);
       } else if (isMe) {
+        requestBankrollRefresh(seatData.addr);
         if (isOnchainTable && bankroll && typeof bankroll.buyIn === 'function') {
           const myBalance = Number(seatData && seatData.balance != null ? seatData.balance : 0);
           if (!Number.isFinite(myBalance) || myBalance < 1) {
