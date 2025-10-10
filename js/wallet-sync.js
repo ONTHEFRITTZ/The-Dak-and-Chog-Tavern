@@ -214,4 +214,3 @@
     if (state.address) refreshBalances(state.address);
   });
 })();
-

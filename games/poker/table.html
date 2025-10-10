@@ -28,28 +28,18 @@
         const tableId = (u.searchParams.get('table') || '').toLowerCase();
 
         function inferFromTable(t) {
-          // Treat common onchain table id formats as onchain even if mode is missing
-          // e.g. poker-nl-1, poker-limit-2, poker-l-*, holdem-nl-*
-          if (!t) return 'f2p';
+          if (!t) return 'onchain';
           const normalized = String(t).toLowerCase();
           if (/poker[-_]?nl[-_]?/i.test(normalized)) return 'onchain';
           if (/poker[-_]?no[-_]?limit/i.test(normalized)) return 'onchain';
           if (/poker[-_]?limit/i.test(normalized)) return 'onchain';
           if (/holdem[-_]?nl/i.test(normalized)) return 'onchain';
-          if (/(^|[-_])(nl|no[-_]?limit)([-_]|$)/i.test(normalized)) return 'onchain';
-          if (/(^|[-_])(limit|l)([-_]|$)/i.test(normalized)) return 'onchain';
-          return 'f2p';
+          if (/(^|[-_])(nl|no[-_]?limit|limit|l)([-_]|$)/i.test(normalized)) return 'onchain';
+          return 'onchain';
         }
 
         const mode = qpMode;
-        const isLimitMode = /^(limit|l|nolimit|no-?limit|nl)$/i.test(mode);
-        const tag = mode === 'onchain'
-          ? 'onchain'
-          : mode === 'f2p'
-            ? 'f2p'
-            : isLimitMode
-              ? 'onchain'
-              : inferFromTable(tableId);
+        const tag = mode === 'f2p' ? 'f2p' : 'onchain';
 
         document.documentElement.setAttribute('data-table-mode', tag);
 
