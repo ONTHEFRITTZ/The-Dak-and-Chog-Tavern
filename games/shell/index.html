@@ -251,17 +251,20 @@
     (function () {
       try {
         var tag = window.__BUILD_TAG || Date.now();
-        ['wallet-chips','bankroll'].forEach(function(name){
+        ['wallet-chips','wallet-sync','bankroll'].forEach(function(name){
           var el = document.createElement('script');
           el.defer = true;
           el.src = name === 'wallet-chips'
             ? '/js/wallet-chips.js?v=' + encodeURIComponent(tag)
-            : '/js/bankroll.js?v=' + encodeURIComponent(tag);
+            : name === 'wallet-sync'
+              ? '/js/wallet-sync.js?v=' + encodeURIComponent(tag)
+              : '/js/bankroll.js?v=' + encodeURIComponent(tag);
           document.head.appendChild(el);
         });
       } catch (err) {
         try {
           var chips = document.createElement('script'); chips.defer = true; chips.src = '/js/wallet-chips.js?v=' + Date.now(); document.head.appendChild(chips);
+          var sync = document.createElement('script'); sync.defer = true; sync.src = '/js/wallet-sync.js?v=' + Date.now(); document.head.appendChild(sync);
           var bankroll = document.createElement('script'); bankroll.defer = true; bankroll.src = '/js/bankroll.js?v=' + Date.now(); document.head.appendChild(bankroll);
         } catch {}
       }

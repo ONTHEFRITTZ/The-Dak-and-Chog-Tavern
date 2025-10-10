@@ -195,8 +195,20 @@
       try{
         fetch('/assets/build.json',{cache:'no-store'})
           .then(r=>r.ok?r.json():null)
-          .then(b=>{ var tag=(b&&b.commit)?String(b.commit).slice(0,12):Date.now(); load('/js/wallet-chips.js?v='+encodeURIComponent(tag)); load('/js/bankroll.js?v='+encodeURIComponent(tag)); load('poker.js?v='+encodeURIComponent(tag)); })
-          .catch(()=>{ var stamp=Date.now(); load('/js/wallet-chips.js?v='+stamp); load('/js/bankroll.js?v='+stamp); load('poker.js?v='+stamp); });
+          .then(b=>{
+            var tag=(b&&b.commit)?String(b.commit).slice(0,12):Date.now();
+            load('/js/wallet-chips.js?v='+encodeURIComponent(tag));
+            load('/js/wallet-sync.js?v='+encodeURIComponent(tag));
+            load('/js/bankroll.js?v='+encodeURIComponent(tag));
+            load('poker.js?v='+encodeURIComponent(tag));
+          })
+          .catch(()=>{
+            var stamp=Date.now();
+            load('/js/wallet-chips.js?v='+stamp);
+            load('/js/wallet-sync.js?v='+stamp);
+            load('/js/bankroll.js?v='+stamp);
+            load('poker.js?v='+stamp);
+          });
       }catch{ load('poker.js?v='+Date.now()); }
     })();
   </script>

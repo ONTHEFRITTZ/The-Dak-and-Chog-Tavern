@@ -177,6 +177,7 @@
       } catch (err) {
         console.error('ABI preload failed', err);
         const chips = document.createElement('script'); chips.defer = true; chips.src = '/js/wallet-chips.js?v=' + Date.now(); document.head.appendChild(chips);
+        const sync = document.createElement('script'); sync.defer = true; sync.src = '/js/wallet-sync.js?v=' + Date.now(); document.head.appendChild(sync);
         try {
           const fallback = document.createElement('script'); fallback.defer = true; fallback.src = '../../js/bankroll.js?v=' + Date.now(); document.body.appendChild(fallback);
         } catch {}
@@ -369,10 +370,12 @@
       try {
         var tag = window.__BUILD_TAG || Date.now();
         const chips = document.createElement('script'); chips.defer = true; chips.src = '/js/wallet-chips.js?v=' + encodeURIComponent(tag); document.head.appendChild(chips);
+        const sync = document.createElement('script'); sync.defer = true; sync.src = '/js/wallet-sync.js?v=' + encodeURIComponent(tag); document.head.appendChild(sync);
         const bankrollScript = document.createElement('script'); bankrollScript.defer = true; bankrollScript.src = '../../js/bankroll.js?v=' + encodeURIComponent(tag); document.body.appendChild(bankrollScript);
       } catch (err) {
         console.error('Poker bankroll helpers failed to load', err);
         try { const chipsFallback = document.createElement('script'); chipsFallback.defer = true; chipsFallback.src = '/js/wallet-chips.js?v=' + Date.now(); document.head.appendChild(chipsFallback); } catch {}
+        try { const syncFallback = document.createElement('script'); syncFallback.defer = true; syncFallback.src = '/js/wallet-sync.js?v=' + Date.now(); document.head.appendChild(syncFallback); } catch {}
         try { const bankrollFallback = document.createElement('script'); bankrollFallback.defer = true; bankrollFallback.src = '../../js/bankroll.js?v=' + Date.now(); document.body.appendChild(bankrollFallback); } catch {}
       }
     })();
