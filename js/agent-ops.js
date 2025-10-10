@@ -9,12 +9,7 @@ import { AA, defaultAllowlist } from './aaClient.js';
   if (!root) {
     root = document.createElement('div');
     root.id = 'aa-panel';
-    root.style.cssText = [
-      'position:fixed','right:12px','bottom:12px','z-index:12050',
-      'background:rgba(26,14,8,0.9)','border:1px solid rgba(255,255,255,0.12)',
-      'border-radius:14px','padding:10px 12px','color:#f4e6d3',
-      'box-shadow:0 18px 40px rgba(0,0,0,0.45)','min-width:220px'
-    ].join(';');
+    root.style.cssText = 'display:none; flex-direction:column; gap:8px; width:100%; color:#f4e6d3;';
     document.body.appendChild(root);
   }
 

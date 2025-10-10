@@ -1229,6 +1229,21 @@ function initializePokerTable() {
               setTimeout(retrySeat, retryDelay);
             };
             setTimeout(retrySeat, retryDelay);
+          } else {
+            const started = Date.now();
+            const retryDelay = 800;
+            const maxWait = 5000;
+            const retrySeat = () => {
+              if (mySeat === idx) return;
+              if (!document.body.contains(sit)) return;
+              if (Date.now() - started >= maxWait) {
+                try { sit.disabled = false; sit.textContent = original; } catch {}
+                return;
+              }
+              emitSocket('seat', { index: idx });
+              setTimeout(retrySeat, retryDelay);
+            };
+            setTimeout(retrySeat, retryDelay);
           }
         });
         meta.btns.appendChild(sit);

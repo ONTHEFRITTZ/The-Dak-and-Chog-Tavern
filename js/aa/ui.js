@@ -49,10 +49,12 @@ function ensureContainer() {
     host.appendChild(c);
   }
   if (preferredHost) {
+    c.style.display = 'flex';
     c.style.marginLeft = '0';
     c.style.width = '100%';
     c.style.maxWidth = '100%';
   } else {
+    c.style.display = 'none';
     c.style.marginLeft = '8px';
     c.style.maxWidth = '360px';
     c.style.width = '';

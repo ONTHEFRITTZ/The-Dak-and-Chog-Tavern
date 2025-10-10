@@ -41,8 +41,7 @@ async function buildCaveats(toolkitCtx, target, selectors) {
     const type = (typeof enforcerDef === 'object' && enforcerDef?.type) || 'AllowedTargetsEnforcer';
     if (enforcerAddress) {
       caveats.push({
-        enforcer: enforcerAddress,
-        type,
+        enforcer: { address: enforcerAddress, type },
         terms: concat([target]),
         args: '0x'
       });
@@ -56,8 +55,7 @@ async function buildCaveats(toolkitCtx, target, selectors) {
     const type = (typeof enforcerDef === 'object' && enforcerDef?.type) || 'AllowedMethodsEnforcer';
     if (enforcerAddress) {
       caveats.push({
-        enforcer: enforcerAddress,
-        type,
+        enforcer: { address: enforcerAddress, type },
         terms: concat(selectors),
         args: '0x'
       });
