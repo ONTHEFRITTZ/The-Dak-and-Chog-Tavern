@@ -182,6 +182,13 @@
     }
   
     let providerCache = null;
+    function getRequestFn(src) {
+      if (!src) return null;
+      if (typeof src.request === 'function') return src.request.bind(src);
+      if (src.provider && typeof src.provider.request === 'function') return src.provider.request.bind(src.provider);
+      return null;
+    }
+
     async function getProvider() {
       if (providerCache) return providerCache;
       if (!ethers?.providers) return null;
@@ -243,17 +250,22 @@
     return cachedConfig;
   }
 
-  async function ensureTargetNetwork(provider) {
-    if (!provider) return false;
-    try {
-      const mon = await loadMonConfig();
-      if (!mon?.id) return true;
-      const currentHex = await provider.request({ method: 'eth_chainId' }).catch(() => null);
+    async function ensureTargetNetwork(provider) {
+      if (!provider) return false;
+      try {
+        const mon = await loadMonConfig();
+        if (!mon?.id) return true;
+      const request = getRequestFn(provider);
+      if (!request) {
+        console.warn('bankroll: no request method on provider');
+        return false;
+      }
+      const currentHex = await request({ method: 'eth_chainId' }).catch(() => null);
       const currentId = currentHex != null ? parseInt(String(currentHex), 16) : null;
       if (currentId === mon.id) return true;
       const chainHex = '0x' + Number(mon.id).toString(16);
       try {
-        await provider.request({
+        await request({
           method: 'wallet_switchEthereumChain',
           params: [{ chainId: chainHex }]
         });
@@ -261,7 +273,7 @@
       } catch (switchErr) {
         if (switchErr?.code === 4902) {
           try {
-            await provider.request({
+            await request({
               method: 'wallet_addEthereumChain',
               params: [{
                 chainId: chainHex,
