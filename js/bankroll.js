@@ -1,4 +1,4 @@
-// js/bankroll.js
+﻿// js/bankroll.js
 // Global DCMon/MON bankroll helper shared across Tavern experiences.
 (function () {
   if (window.Bankroll && window.Bankroll.__isGlobalBankroll) {
@@ -182,11 +182,16 @@
     }
   
     let providerCache = null;
+    let injectedProvider = null;
     function getRequestFn(src) {
       if (!src) return null;
-      if (typeof src.request === 'function') return src.request.bind(src);
-      if (src.provider && typeof src.provider.request === 'function') return src.provider.request.bind(src.provider);
+      if (typeof src.request === 'function') return (payload) => src.request(payload);
+      if (typeof src.send === 'function') return (payload) => src.send(payload?.method, payload?.params || []);
+      if (src.provider) return getRequestFn(src.provider);
       return null;
+    }
+    function getInjectedProvider() {
+      return injectedProvider || null;
     }
 
     async function getProvider() {
@@ -200,10 +205,12 @@
       if (!injected && window.phantom?.ethereum) injected = window.phantom.ethereum;
       if (!injected) return null;
       try {
+        injectedProvider = injected;
         providerCache = new ethers.providers.Web3Provider(injected, 'any');
         return providerCache;
       } catch (err) {
         console.error('bankroll: provider init failed', err);
+        injectedProvider = null;
         return null;
       }
     }
@@ -252,14 +259,14 @@
 
     async function ensureTargetNetwork(provider) {
       if (!provider) return false;
+      const request = getRequestFn(getInjectedProvider()) || getRequestFn(provider);
+      if (!request) {
+        console.warn('bankroll: no request-capable provider; skipping network enforcement');
+        return true;
+      }
       try {
         const mon = await loadMonConfig();
         if (!mon?.id) return true;
-      const request = getRequestFn(provider);
-      if (!request) {
-        console.warn('bankroll: no request method on provider');
-        return false;
-      }
       const currentHex = await request({ method: 'eth_chainId' }).catch(() => null);
       const currentId = currentHex != null ? parseInt(String(currentHex), 16) : null;
       if (currentId === mon.id) return true;
@@ -673,3 +680,4 @@
 
   document.addEventListener('wallet:ethers-ready', handleReady);
 })();
+
