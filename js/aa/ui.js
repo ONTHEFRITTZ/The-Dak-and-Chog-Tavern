@@ -4,7 +4,7 @@ const __IS_F2P = __MODE === 'f2p';
 
 import { ensureMonadSelected, getAccounts, isSmartAccount, upgradeToSmartAccount } from './account.js';
 import { MONAD } from './config.js';
-import { AA, initAA, getSmartAccountAddress } from './aaClient.js';
+import { AA, initAA, getSmartAccountAddress } from '../aaClient.js';
 import { presets as buildPresets, createDelegation, revokeDelegation, loadDelegation, nowSec } from './delegation.js';
 
 function short(addr) {

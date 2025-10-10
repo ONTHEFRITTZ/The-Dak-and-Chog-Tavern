@@ -4,7 +4,7 @@
 
 import { ethers } from '../tavern.js';
 import { getSmartAccount } from '../tavern.js';
-import { AA, initAA } from './aaClient.js';
+import { AA, initAA } from '../aaClient.js';
 import { loadDelegation } from './delegation.js';
 import { ensureDelegationToolkitContext } from './toolkit.js';
 
