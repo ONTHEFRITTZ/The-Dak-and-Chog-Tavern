@@ -1,4 +1,4 @@
-// js/wallet-chips.js
+﻿// js/wallet-chips.js
 // Adds a Chips trigger to the wallet pill and shares bankroll UI across pages.
 (function () {
   if (window.__WalletChipsMounted) return;
@@ -326,7 +326,7 @@ const CDN_ETHERS_ESM = 'https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.es
       });
   }
 
-  function closeModal() {
+  function closeModal() {\r\n    const trigger = document.getElementById('wi-chips-btn');\r\n    const overlay = document.getElementById('wi-chips-modal');
     const overlay = document.getElementById('wi-chips-modal');
     if (!overlay) return;
 
@@ -376,6 +376,11 @@ const CDN_ETHERS_ESM = 'https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.es
     init();
   }
 })();
+
+
+
+
+
 
 
 

@@ -1,4 +1,4 @@
-﻿// js/bankroll.js
+// js/bankroll.js
 // Global DCMon/MON bankroll helper shared across Tavern experiences.
 (function () {
   if (window.Bankroll && window.Bankroll.__isGlobalBankroll) {
@@ -296,7 +296,7 @@
           }
         }
         if (switchErr?.code === -32601 || String(switchErr?.message || '').toLowerCase().includes('not supported')) {
-          setStatus('Open Phantom → Settings → Networks and add Monad Testnet (Chain ID 10143), then try again.', 'info');
+          setStatus('Open Phantom ? Settings ? Networks and add Monad Testnet (Chain ID 10143), then try again.', 'info');
           return false;
         }
         console.warn('bankroll: wallet_switchEthereumChain failed', switchErr);
@@ -712,6 +712,7 @@
 
   document.addEventListener('wallet:ethers-ready', handleReady);
 })();
+
 
 
 
