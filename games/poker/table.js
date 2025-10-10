@@ -8,6 +8,23 @@ function initializePokerTable() {
   function getBankrollHelper() {
     return window.Bankroll || window.__PokerBankroll || null;
   }
+  function requestBankrollRefresh(addr) {
+    if (!isOnchainTable || !isValidAddr(addr)) return;
+    const tryRefresh = () => {
+      const bankroll = getBankrollHelper();
+      if (bankroll?.refreshBalance) {
+        try { bankroll.refreshBalance(addr); } catch {}
+        return true;
+      }
+      return false;
+    };
+    if (tryRefresh()) return;
+    const onReady = () => {
+      document.removeEventListener('bankroll:ready', onReady);
+      tryRefresh();
+    };
+    document.addEventListener('bankroll:ready', onReady);
+  }
   async function waitForBankrollHelper(timeout = 6000) {
     const existing = getBankrollHelper();
     if (existing) return existing;
@@ -695,6 +712,7 @@ function initializePokerTable() {
       }
       if (isValidAddr(addr)) {
         emitSocket('identify', { addr });
+        requestBankrollRefresh(addr);
         return true;
       }
     } catch (err) {
@@ -1079,6 +1097,23 @@ function initializePokerTable() {
             }
           }
           emitSocket('seat', { index: idx });
+          if (isOnchainTable) {
+            const started = Date.now();
+            const retryDelay = 900;
+            const maxWait = 7000;
+            try { sit.textContent = 'Syncing seat...'; } catch {}
+            const retrySeat = () => {
+              if (mySeat === idx) return;
+              if (!document.body.contains(sit)) return;
+              if (Date.now() - started >= maxWait) {
+                try { sit.disabled = false; sit.textContent = original; } catch {}
+                return;
+              }
+              emitSocket('seat', { index: idx });
+              setTimeout(retrySeat, retryDelay);
+            };
+            setTimeout(retrySeat, retryDelay);
+          }
         });
         meta.btns.appendChild(sit);
       } else if (isMe) {
