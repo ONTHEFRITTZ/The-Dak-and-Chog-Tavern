@@ -1094,6 +1094,74 @@ function initializePokerTable() {
             return;
           }
           if (isOnchainTable) {
+            const bankrollHelper = getBankrollHelper();
+            if (bankrollHelper) {
+              const addr = currentAddr();
+              try {
+                if (typeof bankrollHelper.ensureReadContracts === 'function') {
+                  await bankrollHelper.ensureReadContracts();
+                }
+              } catch (prepErr) {
+                console.warn('Poker table: bankroll ensureReadContracts failed', prepErr);
+              }
+              try {
+                if (typeof bankrollHelper.refreshBalance === 'function') {
+                  await bankrollHelper.refreshBalance(addr);
+                }
+              } catch (balErr) {
+                console.warn('Poker table: bankroll refresh failed', balErr);
+              }
+              const balances = typeof bankrollHelper.getLastBalances === 'function'
+                ? bankrollHelper.getLastBalances()
+                : null;
+              const dcmonWei = balances && balances.dcmonWei ? balances.dcmonWei : null;
+              let dcmonBN = null;
+              if (dcmonWei && window.ethers && window.ethers.BigNumber) {
+                try {
+                  dcmonBN = window.ethers.BigNumber.isBigNumber(dcmonWei)
+                    ? dcmonWei
+                    : window.ethers.BigNumber.from(dcmonWei);
+                } catch (err) {
+                  dcmonBN = null;
+                }
+              }
+              const minWeiRaw = (table && table.meta && table.meta.minBuy && table.meta.minBuy.wei)
+                || (tableSnapshot && tableSnapshot.meta && tableSnapshot.meta.minBuy && tableSnapshot.meta.minBuy.wei)
+                || '';
+              let minWeiBN = null;
+              if (minWeiRaw && window.ethers && window.ethers.BigNumber) {
+                try {
+                  minWeiBN = window.ethers.BigNumber.from(String(minWeiRaw));
+                } catch (err) {
+                  minWeiBN = null;
+                }
+              }
+              let insufficient = false;
+              if (minWeiBN) {
+                insufficient = !dcmonBN || dcmonBN.lt(minWeiBN);
+              } else {
+                if (dcmonBN && window.ethers && window.ethers.BigNumber && window.ethers.BigNumber.isBigNumber(dcmonBN)) {
+                  insufficient = dcmonBN.lte(window.ethers.BigNumber.from(0));
+                } else {
+                  insufficient = !dcmonBN;
+                }
+              }
+              if (insufficient) {
+                try { sit.disabled = false; sit.textContent = original; } catch (err) {}
+                const openModal = typeof window.openWalletChipsModal === 'function'
+                  ? window.openWalletChipsModal
+                  : function () {
+                      const btn = document.getElementById('wi-chips-btn');
+                      if (btn) btn.click();
+                    };
+                try { openModal(); } catch (err) {}
+                const minLabel = (table && table.meta && table.meta.minBuy && table.meta.minBuy.amount)
+                  || (tableSnapshot && tableSnapshot.meta && tableSnapshot.meta.minBuy && tableSnapshot.meta.minBuy.amount)
+                  || '1';
+                alert('You need at least ' + minLabel + ' DCMon to take a seat. Buy in before sitting.');
+                return;
+              }
+            }
             const adapter = await getOnchainAdapter();
             if (!adapter) {
               try { sit.disabled = false; sit.textContent = original; } catch {}
@@ -1132,42 +1200,6 @@ function initializePokerTable() {
         meta.btns.appendChild(sit);
       } else if (isMe) {
         requestBankrollRefresh(seatData.addr);
-        if (isOnchainTable && bankroll && typeof bankroll.buyIn === 'function') {
-          const myBalance = Number(seatData && seatData.balance != null ? seatData.balance : 0);
-          if (!Number.isFinite(myBalance) || myBalance < 1) {
-            const autoBtn = document.createElement('button');
-            autoBtn.textContent = 'Auto Buy 1 DCMon';
-              autoBtn.addEventListener('click', async () => {
-                if (autoBtn.disabled) return;
-                const bankrollNow = getBankrollHelper();
-                if (!bankrollNow || typeof bankrollNow.buyIn !== 'function') {
-                  alert('Open the wallet controls to buy in.');
-                  return;
-                }
-                try {
-                  autoBtn.disabled = true;
-                  const buyInput = document.getElementById('wi-buy-input');
-                  if (buyInput) buyInput.value = '1';
-                  if (typeof bankrollNow.ready === 'function') await bankrollNow.ready();
-                  await bankrollNow.buyIn();
-                  setTimeout(() => {
-                    try {
-                      const helper = getBankrollHelper();
-                      if (helper && typeof helper.refreshBalance === 'function') {
-                        helper.refreshBalance(seatData.addr);
-                      }
-                    } catch (refreshErr) { console.warn('Poker table: auto buy refresh failed', refreshErr); }
-                  }, 350);
-                } catch (err) {
-                  console.error('Poker table: auto buy failed', err);
-                  alert(err?.message || 'Buy-in failed');
-                } finally {
-                  setTimeout(() => { autoBtn.disabled = false; }, 350);
-                }
-              });
-            meta.btns.appendChild(autoBtn);
-          }
-        }
         const leaveBtn = document.createElement('button');
         leaveBtn.textContent = 'Leave';
         leaveBtn.addEventListener('click', async () => {
@@ -1347,3 +1379,9 @@ if (document.readyState === 'loading') {
 } else {
   initializePokerTable();
 }
+
+
+
+
+
+

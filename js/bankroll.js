@@ -91,10 +91,7 @@
     bootstrapped = true;
   
     const ethers = window.ethers;
-    const state = {
-      lastStatus: null,
-      statusTargets: new Set(['wi-bank-status'])
-    };
+    const state = {\r\n      lastStatus: null,\r\n      statusTargets: new Set(['wi-bank-status']),\r\n      balances: { dcmonWei: null, monWei: null }\r\n    };
   
     const balanceTargets = {
       dcmon: new Set(['wi-dcmon-balance', 'wi-dcmon-balance-pill']),
@@ -715,4 +712,7 @@
 
   document.addEventListener('wallet:ethers-ready', handleReady);
 })();
+
+
+
 

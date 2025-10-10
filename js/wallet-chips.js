@@ -347,6 +347,7 @@ const CDN_ETHERS_ESM = 'https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.es
   }
 
   function init() {
+  try { if (!window.openWalletChipsModal) window.openWalletChipsModal = openModal; } catch {}
     ensureBalanceBadges();
     const pill = document.getElementById('wallet-inline');
     if (pill && !document.getElementById('wi-chips-btn')) {
@@ -375,4 +376,7 @@ const CDN_ETHERS_ESM = 'https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.es
     init();
   }
 })();
+
+
+
 
