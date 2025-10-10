@@ -34,22 +34,32 @@ async function buildCaveats(toolkitCtx, target, selectors) {
   const { environment, viem } = toolkitCtx;
   const caveats = [];
 
-  if (target && environment.caveatEnforcers?.AllowedTargetsEnforcer) {
+  if (target && environment?.caveatEnforcers?.AllowedTargetsEnforcer) {
     const { concat } = viem;
-    caveats.push({
-      enforcer: environment.caveatEnforcers.AllowedTargetsEnforcer,
-      terms: concat([target]),
-      args: '0x'
-    });
+    const enforcerDef = environment.caveatEnforcers.AllowedTargetsEnforcer;
+    const enforcerAddress = typeof enforcerDef === 'string' ? enforcerDef : enforcerDef?.address;
+    if (enforcerAddress) {
+      caveats.push({
+        enforcer: enforcerAddress,
+        type: 'AllowedTargetsEnforcer',
+        terms: concat([target]),
+        args: '0x'
+      });
+    }
   }
 
-  if (selectors && selectors.length && environment.caveatEnforcers?.AllowedMethodsEnforcer) {
+  if (selectors && selectors.length && environment?.caveatEnforcers?.AllowedMethodsEnforcer) {
     const { concat } = viem;
-    caveats.push({
-      enforcer: environment.caveatEnforcers.AllowedMethodsEnforcer,
-      terms: concat(selectors),
-      args: '0x'
-    });
+    const enforcerDef = environment.caveatEnforcers.AllowedMethodsEnforcer;
+    const enforcerAddress = typeof enforcerDef === 'string' ? enforcerDef : enforcerDef?.address;
+    if (enforcerAddress) {
+      caveats.push({
+        enforcer: enforcerAddress,
+        type: 'AllowedMethodsEnforcer',
+        terms: concat(selectors),
+        args: '0x'
+      });
+    }
   }
 
   return caveats;
