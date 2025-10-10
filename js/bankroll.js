@@ -261,8 +261,9 @@
       if (!provider) return false;
       const request = getRequestFn(getInjectedProvider()) || getRequestFn(provider);
       if (!request) {
-        console.warn('bankroll: no request-capable provider; skipping network enforcement');
-        return true;
+        setStatus('Add the Monad Testnet (Chain ID 10143) in your wallet, then retry.', 'info');
+        console.warn('bankroll: no request-capable provider; cannot automate network switch');
+        return false;
       }
       try {
         const mon = await loadMonConfig();
@@ -296,6 +297,10 @@
             setStatus('Add Monad Testnet to your wallet to continue.', 'info');
             return false;
           }
+        }
+        if (switchErr?.code === -32601 || String(switchErr?.message || '').toLowerCase().includes('not supported')) {
+          setStatus('Open Phantom → Settings → Networks and add Monad Testnet (Chain ID 10143), then try again.', 'info');
+          return false;
         }
         console.warn('bankroll: wallet_switchEthereumChain failed', switchErr);
         setStatus('Switch to Monad Testnet in your wallet.', 'info');
