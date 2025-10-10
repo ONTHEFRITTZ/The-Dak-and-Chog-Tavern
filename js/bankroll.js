@@ -331,13 +331,65 @@
     let dcmonWrite = null;
     let wmonRead = null;
     let wmonWrite = null;
+    let rpcProvider = null;
+    let dcmonAbiCache = null;
+    let wmonAbiCache = null;
   
-    async function ensureContracts() {
+    async function ensureReadContracts() {
       if (!IS_ONCHAIN_MODE) return false;
       if (!ethers) {
         setStatus('Wallet runtime unavailable.', 'error');
         return false;
       }
+      const mon = await loadMonConfig();
+      if (!rpcProvider && mon?.rpcHttp) {
+        try {
+          rpcProvider = new ethers.providers.JsonRpcProvider(mon.rpcHttp);
+        } catch (err) {
+          console.error('bankroll: rpc provider init failed', err);
+        }
+      }
+      const addressProvider = rpcProvider || await getProvider();
+      if (!addressProvider) {
+        setStatus('Connect wallet first.', 'error');
+        return false;
+      }
+      if (!dcmonAddress) dcmonAddress = await resolveAddress('dcmon', addressProvider);
+      if (!wmonAddress) wmonAddress = await resolveAddress('wmon', addressProvider);
+      if (!dcmonAddress || !wmonAddress) {
+        setStatus('Bankroll contracts not configured.', 'error');
+        return false;
+      }
+      if (!dcmonAbiCache || !wmonAbiCache) {
+        let dcmonAbi = Array.isArray(window.DCMonABI) ? window.DCMonABI : null;
+        let wmonAbi = Array.isArray(window.WMONABI) ? window.WMONABI : (Array.isArray(window.WMON_ABI) ? window.WMON_ABI : null);
+        if (!dcmonAbi || !wmonAbi) {
+          const abisOk = await waitForAbis();
+          dcmonAbi = Array.isArray(window.DCMonABI) ? window.DCMonABI : null;
+          wmonAbi = Array.isArray(window.WMONABI) ? window.WMONABI : (Array.isArray(window.WMON_ABI) ? window.WMON_ABI : null);
+          if (!abisOk || !dcmonAbi || !wmonAbi) {
+            setStatus('Token ABIs unavailable.', 'error');
+            return false;
+          }
+        }
+        if (!Array.isArray(window.WMONABI) && Array.isArray(window.WMON_ABI)) {
+          window.WMONABI = window.WMON_ABI;
+        }
+        dcmonAbiCache = dcmonAbi;
+        wmonAbiCache = Array.isArray(window.WMONABI) ? window.WMONABI : wmonAbi;
+      }
+      const readBase = rpcProvider || addressProvider;
+      if (!readBase) {
+        setStatus('Monad RPC unavailable.', 'error');
+        return false;
+      }
+      if (!dcmonRead) dcmonRead = new ethers.Contract(dcmonAddress, dcmonAbiCache, readBase);
+      if (!wmonRead) wmonRead = new ethers.Contract(wmonAddress, wmonAbiCache, readBase);
+      return true;
+    }
+  
+    async function ensureWriteContracts() {
+      if (!await ensureReadContracts()) return false;
       const provider = await getProvider();
       const signer = await getSigner();
       if (!provider || !signer) {
@@ -346,34 +398,8 @@
       }
       const onMonad = await ensureTargetNetwork(provider);
       if (!onMonad) return false;
-      if (!dcmonAddress) dcmonAddress = await resolveAddress('dcmon', provider);
-      if (!wmonAddress) wmonAddress = await resolveAddress('wmon', provider);
-      if (!dcmonAddress || !wmonAddress) {
-        setStatus('Bankroll contracts not configured.', 'error');
-        return false;
-      }
-      let dcmonAbi = Array.isArray(window.DCMonABI) ? window.DCMonABI : null;
-      let wmonAbi = Array.isArray(window.WMONABI) ? window.WMONABI : (Array.isArray(window.WMON_ABI) ? window.WMON_ABI : null);
-      if (!dcmonAbi || !wmonAbi) {
-        const abisOk = await waitForAbis();
-        dcmonAbi = Array.isArray(window.DCMonABI) ? window.DCMonABI : null;
-        wmonAbi = Array.isArray(window.WMONABI) ? window.WMONABI : (Array.isArray(window.WMON_ABI) ? window.WMON_ABI : null);
-        if (!abisOk || !dcmonAbi || !wmonAbi) {
-          setStatus('Token ABIs unavailable.', 'error');
-          return false;
-        }
-      }
-      if (!Array.isArray(window.WMONABI) && Array.isArray(window.WMON_ABI)) {
-        window.WMONABI = window.WMON_ABI;
-      }
-      if (!dcmonRead || !dcmonWrite) {
-        dcmonRead = new ethers.Contract(dcmonAddress, dcmonAbi, provider);
-        dcmonWrite = dcmonRead.connect(signer);
-      }
-      if (!wmonRead || !wmonWrite) {
-        wmonRead = new ethers.Contract(wmonAddress, wmonAbi, provider);
-        wmonWrite = wmonRead.connect(signer);
-      }
+      if (!dcmonWrite) dcmonWrite = new ethers.Contract(dcmonAddress, dcmonAbiCache, signer);
+      if (!wmonWrite) wmonWrite = new ethers.Contract(wmonAddress, wmonAbiCache, signer);
       return true;
     }
   
@@ -396,7 +422,7 @@
         return null;
       }
       if (IS_ONCHAIN_MODE) {
-        const ok = await ensureContracts();
+        const ok = await ensureReadContracts();
         if (!ok) {
           updateTargetSet(balanceTargets.dcmon, '-');
           updateTargetSet(balanceTargets.mon, '-');
@@ -405,6 +431,7 @@
         try {
           const bal = await dcmonRead.balanceOf(address);
           updateTargetSet(balanceTargets.dcmon, formatEther(bal));
+          setStatus('');
         } catch (err) {
           console.error('bankroll: DCMon balance failed', err);
           updateTargetSet(balanceTargets.dcmon, '-');
@@ -413,10 +440,9 @@
         updateTargetSet(balanceTargets.dcmon, '-');
       }
       try {
-        const provider = await getProvider();
-        if (provider) {
-          await ensureTargetNetwork(provider);
-          const monWei = await provider.getBalance(address);
+        const balanceProvider = rpcProvider || await getProvider();
+        if (balanceProvider) {
+          const monWei = await balanceProvider.getBalance(address);
           updateTargetSet(balanceTargets.mon, formatEther(monWei));
         }
       } catch (err) {
@@ -428,6 +454,7 @@
   
     async function ensureWrap(amountWei, address) {
       if (!IS_ONCHAIN_MODE) return false;
+      if (!await ensureWriteContracts()) return false;
       if (!wmonRead || !wmonWrite) return false;
       const current = await wmonRead.balanceOf(address);
       if (current.gte(amountWei)) return true;
@@ -441,6 +468,7 @@
   
     async function ensureWmonAllowance(amountWei, address) {
       if (!IS_ONCHAIN_MODE) return false;
+      if (!await ensureWriteContracts()) return false;
       const allowance = await wmonRead.allowance(address, dcmonAddress);
       if (allowance.gte(amountWei)) return true;
       setStatus('Approving WMON...', 'info');
@@ -451,6 +479,7 @@
   
     async function ensureDcmonAllowance(amountWei, address, spender) {
       if (!IS_ONCHAIN_MODE) return false;
+      if (!await ensureWriteContracts()) return false;
       const target = spender || dcmonAddress;
       if (!target) return false;
       const allowance = await dcmonRead.allowance(address, target);
@@ -492,8 +521,8 @@
   
     async function buyIn(amountOverride) {
       setStatus('');
-      if (!await ensureContracts()) return;
-  
+      if (!await ensureWriteContracts()) return;
+
       let amountWei = parseAmountToWei(amountOverride);
       if (!amountWei) {
         const fromInput = resolveInputValue(controlTargets.buyInputs);
@@ -528,8 +557,8 @@
   
     async function cashOut(amountOverride) {
       setStatus('');
-      if (!await ensureContracts()) return;
-  
+      if (!await ensureWriteContracts()) return;
+
       let amountWei = parseAmountToWei(amountOverride);
       if (!amountWei) {
         const fromInput = resolveInputValue(controlTargets.cashInputs);
@@ -617,9 +646,10 @@
   
     const api = {
       __isGlobalBankroll: true,
-      ready: async () => ensureContracts(),
+      ready: async () => ensureWriteContracts(),
       refreshBalance,
-      ensureContracts,
+      ensureContracts: ensureWriteContracts,
+      ensureReadContracts,
       getProvider,
       getSigner,
       getAddresses: () => ({ dcmon: dcmonAddress, wmon: wmonAddress }),
