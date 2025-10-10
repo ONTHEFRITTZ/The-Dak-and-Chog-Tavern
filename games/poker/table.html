@@ -1,23 +1,6 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
-  <meta http-equiv="Pragma" content="no-cache">
-  <meta http-equiv="Expires" content="0">
-  <title>Poker Table</title>
-
-  <!-- Pin the user's chosen wallet across the site (inline to avoid CDN rewrites) -->
-  <script>
-    (function () {
-      try {
-        const lc = (v) => String(v || '').toLowerCase();
-        const readPref = () => {
-          try { return lc(sessionStorage.getItem('walletProvider') || localStorage.getItem('walletProvider')); }
-          catch { return ''; }
-        };
-        const savePref = (v) => {
+  </style>
+    }
           try {
             sessionStorage.setItem('walletProvider', lc(v));
             localStorage.setItem('walletProvider', lc(v));
@@ -313,43 +296,25 @@
   </script>
 
   <!-- Optional sidebar -->
-  <script type='module'>
+  <script type="module">
     (async () => {
       const tag = window.__BUILD_TAG || Date.now();
-      const importPath = ../../js/sidebar.js?v=;
-      const movePills = () => {
-        const footer = document.querySelector('.sidebar-footer');
-        if (!footer) return;
-        const maybePills = [
-          document.getElementById('network-banner'),
-          document.getElementById('nb-top-info'),
-          document.querySelector('[data-network-pill]')
-        ].filter(Boolean);
-        maybePills.forEach(el => { if (!footer.contains(el)) footer.appendChild(el); });
-      };
-      const attachFallback = () => {
-        if (window.__SIDEBAR_LOADED__) return;
+      const importPath = `../../js/sidebar.js?v=${encodeURIComponent(tag)}`;
+      try {
+        await import(importPath);
+      } catch (err) {
+        console.warn('sidebar module failed', err);
         const script = document.createElement('script');
         script.defer = true;
         script.src = '/js/sidebar.js?v=' + Date.now();
         const append = () => {
-          if (!document.body) { document.addEventListener('DOMContentLoaded', append, { once: true }); return; }
-          document.body.appendChild(script);
+          if (document.body) document.body.appendChild(script);
+          else document.addEventListener('DOMContentLoaded', append, { once: true });
         };
         append();
-      };
-      try {
-        await import(importPath);
-        movePills();
-        setTimeout(movePills, 200);
-        setTimeout(movePills, 800);
-      } catch (err) {
-        console.warn('sidebar module load failed', err);
-        attachFallback();
       }
     })();
   </script>
-
   <!-- Wallet pill sync -->
   <script>
     (function () {
