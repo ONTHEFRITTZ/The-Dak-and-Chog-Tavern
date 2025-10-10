@@ -4,7 +4,7 @@
 function initializePokerTable() {
   const { ethers } = window;
   const tableMode = (document.documentElement.getAttribute('data-table-mode') || 'f2p').toLowerCase();
-  const isOnchainTable = tableMode === 'onchain';
+  let isOnchainTable = tableMode === 'onchain';
   function getBankrollHelper() {
     return window.Bankroll || window.__PokerBankroll || null;
   }
@@ -282,6 +282,7 @@ function initializePokerTable() {
       return true;
     }
     async function contribute(seatId, chips) {
+      if (!isOnchainTable) return true;
       if (!Number.isFinite(chips) || chips <= 0) return true;
       const wei = chipsToWei(chips);
       if (!wei) throw new Error('Invalid contribution amount');
@@ -306,6 +307,7 @@ function initializePokerTable() {
       return true;
     }
     async function joinSeat(seatId) {
+      if (!isOnchainTable) return true;
       const aaOk = await callViaAA('joinSeat(uint8)', [seatId]);
       if (!aaOk) {
         const tx = await contract.joinSeat(seatId);
@@ -315,6 +317,7 @@ function initializePokerTable() {
       return true;
     }
     async function leaveSeat(seatId, opts) {
+      if (!isOnchainTable) return true;
       const active = !!(opts && opts.inHand);
       const method = active ? 'leaveDuringHand' : 'unseat';
       if (typeof contract[method] !== 'function') return false;
@@ -1054,6 +1057,17 @@ function initializePokerTable() {
     const prevTable = lastTable;
     lastTable = table;
     tableSnapshot = table;
+    if (table?.simulated || table?.category === 'OFFCHAIN_NL') {
+      if (isOnchainTable) {
+        isOnchainTable = false;
+        try { document.documentElement.setAttribute('data-table-mode', 'f2p'); } catch {}
+      }
+    } else {
+      if (!isOnchainTable) {
+        isOnchainTable = true;
+        try { document.documentElement.setAttribute('data-table-mode', 'onchain'); } catch {}
+      }
+    }
     if (isOnchainTable) updateChipValueFromTable(table);
     const bankroll = getBankrollHelper() || null;
     const seatsList = Array.isArray(table?.seats) ? table.seats : [];
@@ -1399,5 +1413,3 @@ if (document.readyState === 'loading') {
 } else {
   initializePokerTable();
 }
-
-

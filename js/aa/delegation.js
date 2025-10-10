@@ -1,7 +1,7 @@
 // js/aa/delegation.js
 // Delegation helpers backed by the MetaMask Delegation Toolkit.
 
-import { MONAD, getPokerTableAddress } from '../config.js';
+import { MONAD, getPokerTableAddress } from './config.js';
 import { ensureDelegationToolkitContext, resetDelegationToolkitContext } from './toolkit.js';
 import { getSmartAccount } from '../tavern.js';
 

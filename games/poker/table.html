@@ -28,18 +28,24 @@
         const tableId = (u.searchParams.get('table') || '').toLowerCase();
 
         function inferFromTable(t) {
-          if (!t) return 'onchain';
+          if (!t) return 'f2p';
           const normalized = String(t).toLowerCase();
+          if (/^poker[-_]?sim/.test(normalized)) return 'f2p';
+          if (/(^|[-_])(sim|practice|f2p|offchain)([-_]|$)/.test(normalized)) return 'f2p';
           if (/poker[-_]?nl[-_]?/i.test(normalized)) return 'onchain';
           if (/poker[-_]?no[-_]?limit/i.test(normalized)) return 'onchain';
           if (/poker[-_]?limit/i.test(normalized)) return 'onchain';
+          if (/poker[-_]?fl[-_]?/i.test(normalized)) return 'onchain';
           if (/holdem[-_]?nl/i.test(normalized)) return 'onchain';
-          if (/(^|[-_])(nl|no[-_]?limit|limit|l)([-_]|$)/i.test(normalized)) return 'onchain';
-          return 'onchain';
+          return 'f2p';
         }
 
         const mode = qpMode;
-        const tag = mode === 'f2p' ? 'f2p' : 'onchain';
+        const tag = mode === 'onchain'
+          ? 'onchain'
+          : mode === 'f2p'
+            ? 'f2p'
+            : inferFromTable(tableId);
 
         document.documentElement.setAttribute('data-table-mode', tag);
 
@@ -253,9 +259,13 @@
   <!-- Agent (only onchain) -->
   <script type="module">
     if (document.documentElement.getAttribute('data-table-mode') === 'onchain') {
+      const tag = window.__BUILD_TAG || Date.now();
       import('../../js/agent-ops.js').catch(() => { });
       import('../../js/agent-sponsor-indicator.js').catch(() => { });
       import('../../js/agent-budget.js').catch(() => { });
+      import(`/js/aa/ui.js?v=${encodeURIComponent(tag)}`).catch((err) => {
+        console.warn('AA UI failed to load', err);
+      });
     }
   </script>
 
