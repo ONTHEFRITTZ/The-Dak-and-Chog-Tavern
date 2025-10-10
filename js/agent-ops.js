@@ -63,7 +63,7 @@ import { AA, defaultAllowlist } from './aaClient.js';
   const budgetField = document.createElement('input');
   budgetField.type = 'number'; budgetField.min = '0'; budgetField.step = '0.001'; budgetField.value = (localStorage.getItem('aa:budget')||'0');
   budgetField.style.cssText = 'width:92px; text-align:center; background:rgba(0,0,0,0.35); border:1px solid rgba(255,255,255,0.16); color:#f4e6d3; border-radius:8px; padding:4px 6px;';
-  root.appendChild(row('Budget (MON)', budgetField));
+  root.appendChild(row('Budget (DCMon)', budgetField));
 
   const grants = document.createElement('div');
   grants.style.cssText = 'display:flex; gap:8px; align-items:center; justify-content:flex-end;';
@@ -96,7 +96,7 @@ import { AA, defaultAllowlist } from './aaClient.js';
         const v = Number(budgetField.value || 0);
         AA.setBudget(v);
         localStorage.setItem('aa:budget', String(v||0));
-        stateLine.textContent = `Budget set to ${v.toFixed(3)} MON`;
+        stateLine.textContent = `Budget set to ${v.toFixed(3)} DCMon`;
       });
 
       sponsorToggle.addEventListener('change', () => {
@@ -109,7 +109,7 @@ import { AA, defaultAllowlist } from './aaClient.js';
         const allow = await defaultAllowlist();
         const cap = Number(localStorage.getItem('aa:budget') || '0') || 0.05;
         const sess = await AA.grantSessionKey({ minutes: 120, monCap: cap, allowlist: allow });
-        stateLine.textContent = `Session granted (cap ${cap} MON, expires in ~2h)`;
+        stateLine.textContent = `Session granted (cap ${cap} DCMon, expires in ~2h)`;
         updatePill();
       });
 

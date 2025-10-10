@@ -38,12 +38,11 @@ async function buildCaveats(toolkitCtx, target, selectors) {
     const { concat } = viem;
     const enforcerDef = environment.caveatEnforcers.AllowedTargetsEnforcer;
     const enforcerAddress = typeof enforcerDef === 'string' ? enforcerDef : enforcerDef?.address;
+    const type = (typeof enforcerDef === 'object' && enforcerDef?.type) || 'AllowedTargetsEnforcer';
     if (enforcerAddress) {
       caveats.push({
-        enforcer: {
-          address: enforcerAddress,
-          type: 'AllowedTargetsEnforcer'
-        },
+        enforcer: enforcerAddress,
+        type,
         terms: concat([target]),
         args: '0x'
       });
@@ -54,12 +53,11 @@ async function buildCaveats(toolkitCtx, target, selectors) {
     const { concat } = viem;
     const enforcerDef = environment.caveatEnforcers.AllowedMethodsEnforcer;
     const enforcerAddress = typeof enforcerDef === 'string' ? enforcerDef : enforcerDef?.address;
+    const type = (typeof enforcerDef === 'object' && enforcerDef?.type) || 'AllowedMethodsEnforcer';
     if (enforcerAddress) {
       caveats.push({
-        enforcer: {
-          address: enforcerAddress,
-          type: 'AllowedMethodsEnforcer'
-        },
+        enforcer: enforcerAddress,
+        type,
         terms: concat(selectors),
         args: '0x'
       });

@@ -56,7 +56,7 @@ import { AA } from './aaClient.js';
     return 0n;
   }
 
-  function formatMon(wei) {
+  function formatDcmon(wei) {
     let v = typeof wei === 'bigint' ? wei : parseWei(wei);
     const neg = v < 0n;
     if (neg) v = -v;
@@ -118,8 +118,8 @@ import { AA } from './aaClient.js';
     let cap = AA.budgetWei && AA.budgetWei > 0n ? AA.budgetWei : 0n;
     if (cap === 0n && limit > 0n) cap = limit;
 
-    const spentStr = formatMon(spent);
-    const capStr = cap > 0n ? formatMon(cap) : '∞';
+    const spentStr = formatDcmon(spent);
+    const capStr = cap > 0n ? formatDcmon(cap) : 'Infinity';
     let pctText = '';
     if (cap > 0n) {
       const pct100 = Number((spent * 10000n) / cap) / 100; // two decimals
@@ -130,8 +130,8 @@ import { AA } from './aaClient.js';
       `Session ${active ? 'On' : 'Off'}`,
       `Gas ${AA.sponsored ? 'On' : 'Off'}`,
       cap === 0n && spent === 0n
-        ? 'Budget ∞'
-        : `Budget ${spentStr}/${capStr} MON${pctText}`
+        ? 'Budget unlimited'
+        : `Budget ${spentStr}/${capStr} DCMon${pctText}`
     ];
 
     pill.textContent = parts.join(' • ');
