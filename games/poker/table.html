@@ -1,60 +1,23 @@
-<!DOCTYPE html>
-  </style>
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+  <title>Poker Table - Dak & Chog</title>
+  <link rel="icon" type="image/png" href="/assets/images/dakandchog-logo.png" />
+  <link id="base-css" rel="stylesheet" href="../../css/style.css" />
+  <style>
+    body {
+      background: #120c08 url('../../assets/images/games-room.png') no-repeat center center fixed !important;
+      background-size: 100% auto !important;
     }
-          try {
-            sessionStorage.setItem('walletProvider', lc(v));
-            localStorage.setItem('walletProvider', lc(v));
-          } catch {}
-        };
+  </style>
 
-        function pickProvider() {
-          const pref = readPref();
-          const phantom = window?.phantom?.ethereum;
-          const eth = window.ethereum;
-
-          if (pref === 'phantom' && phantom) return { name: 'phantom', provider: phantom };
-          if (pref === 'metamask' && eth) return { name: 'metamask', provider: eth };
-
-          if (phantom && !eth) return { name: 'phantom', provider: phantom };
-          if (eth && !phantom) return { name: 'metamask', provider: eth };
-
-          if (eth?.isMetaMask) return { name: 'metamask', provider: eth };
-          if (phantom) return { name: 'phantom', provider: phantom };
-          if (eth) return { name: 'metamask', provider: eth };
-
-          return { name: '', provider: null };
-        }
-
-        const choice = pickProvider();
-        window.walletChoice = {
-          name: choice.name,
-          provider: choice.provider,
-          save: savePref
-        };
-        window.__getSelectedProvider = function () { return window.walletChoice?.provider || null; };
-
-        try {
-          window.ethereum = choice.provider || window.ethereum;
-        } catch {}
-
-        function watch(accountsProvider, tag) {
-          if (!accountsProvider || typeof accountsProvider.on !== 'function') return;
-          try {
-            accountsProvider.on('accountsChanged', (accs) => {
-              if (Array.isArray(accs) && accs[0]) savePref(tag);
-            });
-          } catch {}
-        }
-        watch(choice.provider, choice.name);
-        watch(window?.phantom?.ethereum, 'phantom');
-        watch(window.ethereum, 'metamask');
-
-        window.dispatchEvent(new CustomEvent('wallet:provider:pinned', {
-          detail: { pinned: !!choice.provider, name: choice.name }
-        }));
-      } catch {}
-    })();
-  </script>
+  <!-- Pin the user's chosen wallet across the site (must be before any wallet/AA code) -->
+  <script src="/js/provider-pin.js"></script>
 
   <!-- Decide mode EARLY (onchain/f2p). Accept ?mode=onchain OR infer from ?table= id. -->
   <script>
@@ -172,82 +135,83 @@
           .then(r => r.ok ? r.json() : null).catch(() => null);
         const tag = (b && b.commit) ? String(b.commit).slice(0, 12) : Date.now();
         window.__BUILD_TAG = tag;
-        const link = document.createElement('link');
+        const link = document.getElementById('base-css') || document.createElement('link');
         link.rel = 'stylesheet';
         link.href = `../../css/style.css?v=${encodeURIComponent(tag)}`;
-        document.head.appendChild(link);
+        if (!link.parentNode) document.head.appendChild(link);
       } catch (e) { console.error('style load failed', e); }
     })();
   </script>
 
   <!-- Preloads (poker uses poker-table.png) -->
-  <link rel="preload" as="image" href="../../assets/images/poker-table.png" type="image/png">
-  <link rel="preload" as="image" href="../../assets/images/cards/cards-sprite.png" type="image/png">
-  <link rel="preload" as="image" href="../../assets/images/chog_cards/dak-and-chog-cardback.png" type="image/png">
+  <link rel="preload" as="image" href="../../assets/images/poker-table.png" type="image/png" />
+  <link rel="preload" as="image" href="../../assets/images/cards/cards-sprite.png" type="image/png" />
+  <link rel="preload" as="image" href="../../assets/images/chog_cards/dak-and-chog-cardback.png" type="image/png" />
 
   <!-- Holdem ABI helper -->
   <script>
     (function () {
       try {
         var t = window.__BUILD_TAG || Date.now();
+        var s = document.createElement('script');
         s.src = '../../js/HoldemPokerABI.js?v=' + encodeURIComponent(t);
         document.head.appendChild(s);
-      } catch { }
+      } catch {}
     })();
   </script>
+
   <!-- DCMon / WMON ABI helpers -->
   <script>
     (function () {
       try {
         var tag = window.__BUILD_TAG || Date.now();
-        ['../../js/DCMonABI.js','../../js/WMONABI.js'].forEach(function (path) {
-          var s = document.createElement("script");
+        ['../../js/DCMonABI.js', '../../js/WMONABI.js'].forEach(function (path) {
+          var s = document.createElement('script');
           s.src = path + '?v=' + encodeURIComponent(tag);
           document.head.appendChild(s);
         });
       } catch (err) {
         console.error('ABI preload failed', err);
         const chips = document.createElement('script'); chips.defer = true; chips.src = '/js/wallet-chips.js?v=' + Date.now(); document.head.appendChild(chips);
-        try { const fallback = document.createElement('script'); fallback.defer = true; fallback.src = '../../js/bankroll.js?v=' + Date.now(); document.body.appendChild(fallback); } catch {}
+        try {
+          const fallback = document.createElement('script'); fallback.defer = true; fallback.src = '../../js/bankroll.js?v=' + Date.now(); document.body.appendChild(fallback);
+        } catch {}
       }
     })();
   </script>
-
-
 </head>
 
 <body class="game">
   <!-- Top-right wallet chip (only thing up top) -->
   <div id="wallet-inline">
-      <span id="wi-address">-</span>
+    <span id="wi-address">-</span>
     <button id="wi-disconnect" style="display:none">Disconnect</button>
   </div>
 
+  <!-- Table canvas -->
+  <div class="table-canvas">
+    <div class="table-surface" role="presentation">
+      <img src="/assets/images/poker-table.png"
+           alt="Poker table surface"
+           loading="eager"
+           decoding="async"
+           draggable="false"
+           onerror="this.onerror=null; this.src='../../assets/images/poker-table.png';">
+    </div>
 
-<!-- Table canvas -->
-<div class="table-canvas">
-  <div class="table-surface" role="presentation">
-    <img src="/assets/images/poker-table.png"
-         alt="Poker table surface"
-         loading="eager"
-         decoding="async"
-         draggable="false"
-         onerror="this.onerror=null; this.src='../../assets/images/poker-table.png';">
+    <!-- Center messages -->
+    <div id="poker-center" class="center-banner" style="display:none"></div>
+
+    <!-- 8 seats – keep these exactly like this -->
+    <div class="seat" data-index="0"></div>
+    <div class="seat" data-index="1"></div>
+    <div class="seat" data-index="2"></div>
+    <div class="seat" data-index="3"></div>
+    <div class="seat" data-index="4"></div>
+    <div class="seat" data-index="5"></div>
+    <div class="seat" data-index="6"></div>
+    <div class="seat" data-index="7"></div>
   </div>
-
-  <!-- Center messages -->
-  <div id="poker-center" class="center-banner" style="display:none"></div>
-
-  <!-- 8 seats – keep these exactly like this -->
-  <div class="seat" data-index="0"></div>
-  <div class="seat" data-index="1"></div>
-  <div class="seat" data-index="2"></div>
-  <div class="seat" data-index="3"></div>
-  <div class="seat" data-index="4"></div>
-  <div class="seat" data-index="5"></div>
-  <div class="seat" data-index="6"></div>
-  <div class="seat" data-index="7"></div>
-</div>
 
   <!-- Last hand recap pill -->
   <div id="last-hand" class="last-hand-pill" style="display:none"><span id="lh-content"></span></div>
@@ -291,7 +255,6 @@
       import('../../js/agent-ops.js').catch(() => { });
       import('../../js/agent-sponsor-indicator.js').catch(() => { });
       import('../../js/agent-budget.js').catch(() => { });
-      
     }
   </script>
 
@@ -315,6 +278,7 @@
       }
     })();
   </script>
+
   <!-- Wallet pill sync -->
   <script>
     (function () {
@@ -395,7 +359,7 @@
       } catch {}
     })();
   </script>
-</body>
+
   <script>
     (function () {
       try {
@@ -409,11 +373,5 @@
       }
     })();
   </script>
+</body>
 </html>
-  <style>
-    /* Match poker lobby background */
-    body {
-      background: #120c08 url('../../assets/images/games-room.png') no-repeat center center fixed !important;
-      background-size: 100% auto !important;
-    }
-  </style>

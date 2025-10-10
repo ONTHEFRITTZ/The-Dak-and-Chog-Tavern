@@ -1,5 +1,5 @@
-ï»¿/* ==========================================================================
-   Dak & Chog â€” Global Styles (leaned, de-duped)
+/* ==========================================================================
+   Dak & Chog — Global Styles (leaned, de-duped)
    ========================================================================== */
 
 /* ------------------------------- Fonts ----------------------------------- */
@@ -319,7 +319,7 @@ html[data-table-mode="onchain"] #wallet-inline,
   border-color: rgba(120,200,255,0.22);
 }
 /* ==========================================================================
-   POKER TABLE â€” MINIMAL, IMAGE-ONLY SURFACE, NO ORANGE TOKENS
+   POKER TABLE — MINIMAL, IMAGE-ONLY SURFACE, NO ORANGE TOKENS
    ========================================================================== */
 
 /* Canvas holds the table art + absolutely positioned seats */
@@ -328,7 +328,7 @@ html[data-table-mode="onchain"] #wallet-inline,
   /* Maintain intrinsic table image aspect for correct seat placement */
   --ring-rx: 50;
   --ring-ry: 42;
-  --ring-rotation: -112.5;
+  --ring-rotation: -90;
   aspect-ratio: 1000 / 680;
   width: min(80vw, 1100px);
   max-height: 80vh; height: auto;
@@ -538,7 +538,7 @@ html[data-table-mode="onchain"] #wallet-inline,
   display:none !important; visibility:hidden !important;
 }
 
-/* Community cards: we don't show empty slots â€” cards are injected only when needed */
+/* Community cards: we don't show empty slots — cards are injected only when needed */
 #board { position:absolute; left:50%; top:50%; transform: translate(-50%,-50%); z-index: 3; pointer-events: none; display: flex; align-items:center; }
 #board.empty { display: none; }
 #board .card { margin: 0 4px; }
