@@ -33,6 +33,71 @@ function normalizedAddr(value) {
   }
 }
 
+let monadConfigPromise = null;
+async function loadMonadConfig() {
+  if (monadConfigPromise) return monadConfigPromise;
+  monadConfigPromise = (async () => {
+    try {
+      const mod = await import('../../js/aa/config.js');
+      if (mod?.MONAD) return mod.MONAD;
+    } catch (err) {
+      console.warn('poker lobby: MONAD config import failed', err);
+    }
+    return window?.MONAD || null;
+  })();
+  return monadConfigPromise;
+}
+
+async function ensureMonadNetwork(provider) {
+  if (!provider?.request) return true;
+  try {
+    const mon = await loadMonadConfig();
+    if (!mon?.id) return true;
+    const targetHex = '0x' + Number(mon.id).toString(16);
+    const currentHex = await provider.request({ method: 'eth_chainId' }).catch(() => null);
+    const currentId = currentHex != null
+      ? parseInt(String(currentHex), currentHex?.toString().startsWith('0x') ? 16 : 10)
+      : null;
+    if (currentHex === targetHex || currentId === mon.id) return true;
+    try {
+      await provider.request({
+        method: 'wallet_switchEthereumChain',
+        params: [{ chainId: targetHex }]
+      });
+      return true;
+    } catch (switchErr) {
+      if (switchErr?.code === 4902) {
+        const params = [{
+          chainId: targetHex,
+          chainName: mon.name || 'Monad Testnet',
+          rpcUrls: mon.rpcHttp ? [mon.rpcHttp] : [],
+          nativeCurrency: mon.nativeCurrency || { name: 'MON', symbol: 'MON', decimals: 18 },
+          blockExplorerUrls: mon.explorer ? [mon.explorer] : undefined
+        }];
+        try {
+          await provider.request({
+            method: 'wallet_addEthereumChain',
+            params
+          });
+          return true;
+        } catch (addErr) {
+          console.warn('poker lobby: wallet_addEthereumChain failed', addErr);
+          return false;
+        }
+      }
+      if (switchErr?.code === 4001) {
+        console.warn('poker lobby: user rejected network switch');
+        return false;
+      }
+      console.warn('poker lobby: wallet_switchEthereumChain failed', switchErr);
+      return false;
+    }
+  } catch (err) {
+    console.warn('poker lobby: ensureMonadNetwork failed', err);
+    return false;
+  }
+}
+
 function persistWallet(addr) {
   const normalized = normalizedAddr(addr);
   if (!normalized) {
@@ -300,6 +365,10 @@ async function runPreflight(row, meta) {
     if (!provider) {
       return { ok: false, reason: 'Select a wallet on landing before opening on-chain tables.' };
     }
+    const networkOk = await ensureMonadNetwork(provider);
+    if (!networkOk) {
+      return { ok: false, reason: 'Switch to Monad Testnet in your wallet, then retry.' };
+    }
     if (!window.ethers) {
       return { ok: false, reason: 'Wallet runtime unavailable (ethers).' };
     }
@@ -326,10 +395,18 @@ async function runPreflight(row, meta) {
       }
       const minWei = bigNumberFrom(meta?.minBuy?.wei);
       if (minWei) {
-        const balance = await ctx.contract.balanceOf(addr);
-        if (balance.lt(minWei)) {
-          const label = meta?.minBuy?.amount ? `${meta.minBuy.amount} ${meta.minBuy.unit || meta.currency || 'DCMon'}` : 'the required DCMon';
-          return { ok: true, warning: `Insufficient DCMon (need ${label}). You can mint once the table loads.` };
+        try {
+          const balance = await ctx.contract.balanceOf(addr);
+          if (balance.lt(minWei)) {
+            const label = meta?.minBuy?.amount ? `${meta.minBuy.amount} ${meta.minBuy.unit || meta.currency || 'DCMon'}` : 'the required DCMon';
+            return { ok: true, warning: `Insufficient DCMon (need ${label}). You can mint once the table loads.` };
+          }
+        } catch (balanceErr) {
+          console.warn('poker lobby: DCMon balance check failed', balanceErr);
+          return {
+            ok: true,
+            warning: 'Unable to read your DCMon balance. The table page will offer minting once loaded.'
+          };
         }
       }
     }
