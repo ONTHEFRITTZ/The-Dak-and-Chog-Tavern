@@ -236,7 +236,7 @@
   const TABLE_MODE = (typeof document !== 'undefined' && document.documentElement)
     ? (document.documentElement.getAttribute('data-table-mode') || '').toLowerCase()
     : '';
-  const IS_ONCHAIN_MODE = TABLE_MODE === 'onchain';
+  const IS_ONCHAIN_MODE = TABLE_MODE === 'onchain' || TABLE_MODE === '';
 
     async function loadConfigModule() {
       
