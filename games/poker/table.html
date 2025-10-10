@@ -30,10 +30,14 @@
         function inferFromTable(t) {
           // Treat common onchain table id formats as onchain even if mode is missing
           // e.g. poker-nl-1, poker-limit-2, poker-l-*, holdem-nl-*
-          if (/poker[-_]?nl[-_]?/i.test(t)) return 'onchain';
-          if (/poker[-_]?no[-_]?limit/i.test(t)) return 'onchain';
-          if (/poker[-_]?limit/i.test(t)) return 'onchain';
-          if (/holdem[-_]?nl/i.test(t)) return 'onchain';
+          if (!t) return 'f2p';
+          const normalized = String(t).toLowerCase();
+          if (/poker[-_]?nl[-_]?/i.test(normalized)) return 'onchain';
+          if (/poker[-_]?no[-_]?limit/i.test(normalized)) return 'onchain';
+          if (/poker[-_]?limit/i.test(normalized)) return 'onchain';
+          if (/holdem[-_]?nl/i.test(normalized)) return 'onchain';
+          if (/(^|[-_])(nl|no[-_]?limit)([-_]|$)/i.test(normalized)) return 'onchain';
+          if (/(^|[-_])(limit|l)([-_]|$)/i.test(normalized)) return 'onchain';
           return 'f2p';
         }
 
