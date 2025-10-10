@@ -103,7 +103,7 @@ export async function ensureDelegationToolkitContext() {
       transport: custom(provider)
     });
 
-    const environment = MONAD_DELEGATION_ENV;
+    const environment = normalizeEnvironment(MONAD_DELEGATION_ENV);
 
     return {
       provider,
@@ -125,4 +125,20 @@ export async function ensureDelegationToolkitContext() {
 
 export function resetDelegationToolkitContext() {
   contextPromise = null;
+}
+function normalizeEnvironment(source) {
+  const env = JSON.parse(JSON.stringify(source || {}));
+  const ce = env.caveatEnforcers || {};
+  Object.keys(ce).forEach((key) => {
+    const entry = ce[key];
+    if (entry && typeof entry === 'object' && entry.address) {
+      if (!entry.type) entry.type = key;
+      return;
+    }
+    if (typeof entry === 'string') {
+      ce[key] = { address: entry, type: key };
+    }
+  });
+  env.caveatEnforcers = ce;
+  return env;
 }

@@ -192,33 +192,6 @@ const CDN_ETHERS_ESM = 'https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.es
 
     ensureBadge('wi-mon-balance-pill', 'MON');
     ensureBadge('wi-dcmon-balance-pill', 'DCMon');
-
-    if (document.documentElement.getAttribute('data-table-mode') === 'onchain') {
-      if (!document.getElementById('wi-sponsor-note')) {
-        const sponsor = document.createElement('span');
-        sponsor.id = 'wi-sponsor-note';
-        sponsor.style.fontSize = '11px';
-        sponsor.style.color = '#9ef89e';
-        sponsor.style.opacity = '0.9';
-        wrap.appendChild(sponsor);
-        const updateSponsor = (e) => {
-          try {
-            sponsor.textContent = e?.detail?.active ? 'Gas sponsored by The Dak & Chog' : '';
-          } catch {
-            sponsor.textContent = '';
-          }
-        };
-        window.addEventListener('aa:sponsored', updateSponsor);
-        try {
-          const initial = window.AA && typeof window.AA.sponsored === 'boolean'
-            ? window.AA.sponsored
-            : null;
-          if (initial != null) {
-            updateSponsor({ detail: { active: initial } });
-          }
-        } catch {}
-      }
-    }
   }
 
   function buildBankrollMarkup(container) {
@@ -301,6 +274,13 @@ const CDN_ETHERS_ESM = 'https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.es
     if (aaControls && aaControls.parentElement !== aaHost) {
       aaHost.appendChild(aaControls);
       aaControls.style.width = '100%';
+    }
+
+    const aaPanel = document.getElementById('aa-panel');
+    if (aaPanel && aaPanel.parentElement !== aaHost) {
+      aaPanel.style.display = 'flex';
+      aaPanel.style.width = '100%';
+      aaHost.appendChild(aaPanel);
     }
   }
 
