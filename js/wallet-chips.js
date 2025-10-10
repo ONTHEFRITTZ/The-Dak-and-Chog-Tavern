@@ -122,6 +122,7 @@ const CDN_ETHERS_ESM = 'https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.es
   }
 
   let readyPromise = null;
+  let escapeListenerAttached = false;
   function ensureReady() {
     if (readyPromise) return readyPromise;
     readyPromise = loadDependencies()
@@ -164,7 +165,7 @@ const CDN_ETHERS_ESM = 'https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.es
       wrap.style.display = 'flex';
       wrap.style.alignItems = 'center';
       wrap.style.gap = '8px';
-      const anchor = pill.querySelector('#wi-disconnect');
+      const anchor = pill.querySelector('#wi-wallet-btn') || pill.querySelector('#wi-disconnect');
       pill.insertBefore(wrap, anchor || null);
     }
 
@@ -243,74 +244,140 @@ const CDN_ETHERS_ESM = 'https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.es
     `);
   }
 
+  function ensureModalSections(dialog) {
+    if (!dialog) return;
+
+    let actions = document.getElementById('wi-wallet-actions');
+    if (!actions) {
+      actions = document.createElement('div');
+      actions.id = 'wi-wallet-actions';
+      actions.style.display = 'flex';
+      actions.style.flexDirection = 'column';
+      actions.style.gap = '12px';
+      const heading = document.createElement('div');
+      heading.className = 'wi-wallet-actions-heading';
+      heading.textContent = 'Wallet Controls';
+      heading.style.fontWeight = '600';
+      heading.style.fontSize = '13px';
+      heading.style.opacity = '0.85';
+      actions.appendChild(heading);
+    }
+    if (actions.parentElement !== dialog) {
+      dialog.appendChild(actions);
+    }
+
+    const disconnect = document.getElementById('wi-disconnect');
+    if (disconnect) {
+      disconnect.style.display = 'inline-flex';
+      disconnect.style.alignItems = 'center';
+      disconnect.style.justifyContent = 'center';
+      disconnect.style.width = '100%';
+      disconnect.style.margin = '0';
+      disconnect.style.fontSize = '13px';
+      disconnect.style.padding = '8px 0';
+      if (disconnect.parentElement !== actions) {
+        const heading = actions.querySelector('.wi-wallet-actions-heading');
+        if (heading) {
+          heading.insertAdjacentElement('afterend', disconnect);
+        } else {
+          actions.insertBefore(disconnect, actions.firstChild);
+        }
+      }
+    }
+
+    let aaHost = document.getElementById('wi-aa-panel-host');
+    if (!aaHost) {
+      aaHost = document.createElement('div');
+      aaHost.id = 'wi-aa-panel-host';
+      aaHost.style.display = 'flex';
+      aaHost.style.flexDirection = 'column';
+      aaHost.style.gap = '8px';
+    }
+    if (aaHost.parentElement !== actions) {
+      actions.appendChild(aaHost);
+    }
+
+    const aaControls = document.getElementById('aa-controls');
+    if (aaControls && aaControls.parentElement !== aaHost) {
+      aaHost.appendChild(aaControls);
+      aaControls.style.width = '100%';
+    }
+  }
+
   function createModal() {
     let overlay = document.getElementById('wi-chips-modal');
-    if (overlay) return overlay;
+    let dialog;
 
-    overlay = document.createElement('div');
-    overlay.id = 'wi-chips-modal';
-    overlay.style.position = 'fixed';
-    overlay.style.inset = '0';
-    overlay.style.display = 'none';
-    overlay.style.alignItems = 'center';
-    overlay.style.justifyContent = 'center';
-    overlay.style.background = 'rgba(0,0,0,0.65)';
-    overlay.style.zIndex = '13000';
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'wi-chips-modal';
+      overlay.style.position = 'fixed';
+      overlay.style.inset = '0';
+      overlay.style.display = 'none';
+      overlay.style.alignItems = 'center';
+      overlay.style.justifyContent = 'center';
+      overlay.style.background = 'rgba(0,0,0,0.65)';
+      overlay.style.zIndex = '13000';
 
-    const dialog = document.createElement('div');
-    dialog.style.background = 'var(--panel-bg-soft, rgba(24,20,16,0.95))';
-    dialog.style.border = '1px solid rgba(255,255,255,0.12)';
-    dialog.style.borderRadius = '18px';
-    dialog.style.padding = '20px';
-    dialog.style.width = 'min(92vw, 360px)';
-    dialog.style.boxShadow = '0 24px 60px rgba(0,0,0,0.6)';
-    dialog.style.color = '#f4e6d3';
-    dialog.style.display = 'flex';
-    dialog.style.flexDirection = 'column';
-    dialog.style.gap = '16px';
+      dialog = document.createElement('div');
+      dialog.id = 'wi-wallet-dialog';
+      dialog.style.background = 'var(--panel-bg-soft, rgba(24,20,16,0.95))';
+      dialog.style.border = '1px solid rgba(255,255,255,0.12)';
+      dialog.style.borderRadius = '18px';
+      dialog.style.padding = '20px';
+      dialog.style.width = 'min(92vw, 360px)';
+      dialog.style.boxShadow = '0 24px 60px rgba(0,0,0,0.6)';
+      dialog.style.color = '#f4e6d3';
+      dialog.style.display = 'flex';
+      dialog.style.flexDirection = 'column';
+      dialog.style.gap = '16px';
 
-    const header = document.createElement('div');
-    header.style.display = 'flex';
-    header.style.alignItems = 'center';
-    header.style.justifyContent = 'space-between';
-    header.style.gap = '12px';
+      const header = document.createElement('div');
+      header.style.display = 'flex';
+      header.style.alignItems = 'center';
+      header.style.justifyContent = 'space-between';
+      header.style.gap = '12px';
 
-    const title = document.createElement('h3');
-    title.textContent = 'DCMon Bankroll';
-    title.style.margin = '0';
-    title.style.fontSize = '18px';
+      const title = document.createElement('h3');
+      title.textContent = 'DCMon Bankroll';
+      title.style.margin = '0';
+      title.style.fontSize = '18px';
 
-    const closeBtn = document.createElement('button');
-    closeBtn.id = 'wi-chips-close';
-    closeBtn.textContent = 'Close';
-    closeBtn.style.padding = '6px 14px';
-    closeBtn.style.borderRadius = '10px';
+      const closeBtn = document.createElement('button');
+      closeBtn.id = 'wi-chips-close';
+      closeBtn.textContent = 'Close';
+      closeBtn.style.padding = '6px 14px';
+      closeBtn.style.borderRadius = '10px';
 
-    header.appendChild(title);
-    header.appendChild(closeBtn);
+      header.appendChild(title);
+      header.appendChild(closeBtn);
 
-    let container = document.getElementById('wi-bankroll');
-    if (container) {
-      container.innerHTML = '';
-      if (container.parentElement) container.parentElement.removeChild(container);
+      let container = document.getElementById('wi-bankroll');
+      if (container) {
+        container.innerHTML = '';
+        if (container.parentElement) container.parentElement.removeChild(container);
+      } else {
+        container = document.createElement('div');
+        container.id = 'wi-bankroll';
+      }
+      container.style.display = 'flex';
+      container.style.flexDirection = 'column';
+      container.style.gap = '12px';
+      buildBankrollMarkup(container);
+
+      dialog.appendChild(header);
+      dialog.appendChild(container);
+      overlay.appendChild(dialog);
+      document.body.appendChild(overlay);
+
+      closeBtn.addEventListener('click', closeModal);
+      overlay.addEventListener('click', (ev) => { if (ev.target === overlay) closeModal(); });
+      dialog.addEventListener('click', (ev) => ev.stopPropagation());
     } else {
-      container = document.createElement('div');
-      container.id = 'wi-bankroll';
+      dialog = overlay.querySelector('#wi-wallet-dialog') || overlay.firstElementChild;
     }
-    container.style.display = 'flex';
-    container.style.flexDirection = 'column';
-    container.style.gap = '12px';
-    buildBankrollMarkup(container);
 
-    dialog.appendChild(header);
-    dialog.appendChild(container);
-    overlay.appendChild(dialog);
-    document.body.appendChild(overlay);
-
-    closeBtn.addEventListener('click', closeModal);
-    overlay.addEventListener('click', (ev) => { if (ev.target === overlay) closeModal(); });
-    dialog.addEventListener('click', (ev) => ev.stopPropagation());
-
+    ensureModalSections(dialog);
     return overlay;
   }
 
@@ -320,6 +387,12 @@ const CDN_ETHERS_ESM = 'https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.es
     overlay.setAttribute('aria-hidden', 'false');
     document.body.style.overflow = 'hidden';
     document.body.dataset.chipsModalOpen = '1';
+
+    const trigger = document.getElementById('wi-wallet-btn');
+    if (trigger) {
+      trigger.classList.add('active');
+      trigger.setAttribute('aria-expanded', 'true');
+    }
 
     const statusEl = document.getElementById('wi-bank-status');
     if (statusEl && !statusEl.textContent) statusEl.textContent = 'Loading bankroll...';
@@ -349,7 +422,7 @@ const CDN_ETHERS_ESM = 'https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.es
     const overlay = document.getElementById('wi-chips-modal');
     if (!overlay) return;
 
-    const trigger = document.getElementById('wi-chips-btn');
+    const trigger = document.getElementById('wi-wallet-btn');
     const active = document.activeElement;
     if (active && overlay.contains(active)) {
       if (trigger) {
@@ -363,6 +436,11 @@ const CDN_ETHERS_ESM = 'https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.es
     overlay.setAttribute('aria-hidden', 'true');
     document.body.style.overflow = '';
     delete document.body.dataset.chipsModalOpen;
+
+    if (trigger) {
+      trigger.classList.remove('active');
+      trigger.setAttribute('aria-expanded', 'false');
+    }
   }
 
   function init() {
@@ -371,20 +449,29 @@ const CDN_ETHERS_ESM = 'https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.es
     } catch {}
     ensureBalanceBadges();
     const pill = document.getElementById('wallet-inline');
-    if (pill && !document.getElementById('wi-chips-btn')) {
+    if (pill && !document.getElementById('wi-wallet-btn')) {
       const btn = document.createElement('button');
-      btn.id = 'wi-chips-btn';
-      btn.textContent = 'Chips';
-      btn.style.padding = '6px 12px';
-      btn.style.borderRadius = '10px';
-      btn.style.fontWeight = '600';
+      btn.id = 'wi-wallet-btn';
+      btn.type = 'button';
+      btn.textContent = 'Wallet';
+      btn.setAttribute('aria-haspopup', 'dialog');
+      btn.setAttribute('aria-expanded', 'false');
+      btn.addEventListener('click', () => {
+        if (document.body.dataset.chipsModalOpen) {
+          closeModal();
+        } else {
+          openModal();
+        }
+      });
       pill.appendChild(btn);
-      btn.addEventListener('click', openModal);
+    }
+    if (!escapeListenerAttached) {
       document.addEventListener('keydown', (ev) => {
         if (ev.key === 'Escape' && document.body.dataset.chipsModalOpen) {
           closeModal();
         }
       });
+      escapeListenerAttached = true;
     }
 
     createModal();

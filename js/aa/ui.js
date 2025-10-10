@@ -29,8 +29,9 @@ function ensureContainer() {
     return document.createElement('div');
   }
   let c = document.getElementById('aa-controls');
+  const preferredHost = document.getElementById('wi-aa-panel-host');
+  const host = preferredHost || document.getElementById('wallet-inline') || document.body;
   if (!c) {
-    const host = document.getElementById('wallet-inline') || document.body;
     c = document.createElement('div');
     c.id = 'aa-controls';
     c.style.cssText = [
@@ -44,6 +45,17 @@ function ensureContainer() {
       'color:#f5f5f5'
     ].join(';');
     host.appendChild(c);
+  } else if (host && c.parentElement !== host) {
+    host.appendChild(c);
+  }
+  if (preferredHost) {
+    c.style.marginLeft = '0';
+    c.style.width = '100%';
+    c.style.maxWidth = '100%';
+  } else {
+    c.style.marginLeft = '8px';
+    c.style.maxWidth = '360px';
+    c.style.width = '';
   }
   return c;
 }

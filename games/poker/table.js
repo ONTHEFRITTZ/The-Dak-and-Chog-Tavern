@@ -1180,7 +1180,7 @@ function initializePokerTable() {
                 const openModal = typeof window.openWalletChipsModal === 'function'
                   ? window.openWalletChipsModal
                   : function () {
-                      const btn = document.getElementById('wi-chips-btn');
+                      const btn = document.getElementById('wi-wallet-btn');
                       if (btn) btn.click();
                     };
                 try { openModal(); } catch (err) {}
