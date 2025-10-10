@@ -313,27 +313,41 @@
   </script>
 
   <!-- Optional sidebar -->
-  <script type="module">
-    try {
-      const t = window.__BUILD_TAG || Date.now();
-      import('../../js/sidebar.js?v=' + encodeURIComponent(t)).then(() => {
-        // If any network/contract pills are rendered outside the footer, relocate them.
-        const movePills = () => {
-          const footer = document.querySelector('.sidebar-footer');
-          if (!footer) return;
-          const maybePills = [
-            document.getElementById('network-banner'),
-            document.getElementById('nb-top-info'),
-            document.querySelector('[data-network-pill]'),
-          ].filter(Boolean);
-          maybePills.forEach(el => { if (!footer.contains(el)) footer.appendChild(el); });
+  <script type='module'>
+    (async () => {
+      const tag = window.__BUILD_TAG || Date.now();
+      const importPath = ../../js/sidebar.js?v=;
+      const movePills = () => {
+        const footer = document.querySelector('.sidebar-footer');
+        if (!footer) return;
+        const maybePills = [
+          document.getElementById('network-banner'),
+          document.getElementById('nb-top-info'),
+          document.querySelector('[data-network-pill]')
+        ].filter(Boolean);
+        maybePills.forEach(el => { if (!footer.contains(el)) footer.appendChild(el); });
+      };
+      const attachFallback = () => {
+        if (window.__SIDEBAR_LOADED__) return;
+        const script = document.createElement('script');
+        script.defer = true;
+        script.src = '/js/sidebar.js?v=' + Date.now();
+        const append = () => {
+          if (!document.body) { document.addEventListener('DOMContentLoaded', append, { once: true }); return; }
+          document.body.appendChild(script);
         };
+        append();
+      };
+      try {
+        await import(importPath);
         movePills();
-        // Re-try a couple times in case sidebar paints later
         setTimeout(movePills, 200);
         setTimeout(movePills, 800);
-      });
-    } catch { }
+      } catch (err) {
+        console.warn('sidebar module load failed', err);
+        attachFallback();
+      }
+    })();
   </script>
 
   <!-- Wallet pill sync -->

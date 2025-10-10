@@ -218,7 +218,13 @@
     }
   
     let configModulePromise = null;
+  const TABLE_MODE = (typeof document !== 'undefined' && document.documentElement)
+    ? (document.documentElement.getAttribute('data-table-mode') || '').toLowerCase()
+    : '';
+  const IS_ONCHAIN_MODE = TABLE_MODE === 'onchain';
+
     async function loadConfigModule() {
+      
       if (!configModulePromise) {
         configModulePromise = import('./config.js').catch((err) => {
           console.error('bankroll: config import failed', err);
@@ -303,6 +309,7 @@
     let wmonWrite = null;
   
     async function ensureContracts() {
+      if (!IS_ONCHAIN_MODE) return false;
       if (!ethers) {
         setStatus('Wallet runtime unavailable.', 'error');
         return false;
@@ -364,22 +371,27 @@
         updateTargetSet(balanceTargets.mon, '-');
         return null;
       }
-      const ok = await ensureContracts();
-      if (!ok) {
-        updateTargetSet(balanceTargets.dcmon, '-');
-        updateTargetSet(balanceTargets.mon, '-');
-        return null;
-      }
-      try {
-        const bal = await dcmonRead.balanceOf(address);
-        updateTargetSet(balanceTargets.dcmon, formatEther(bal));
-      } catch (err) {
-        console.error('bankroll: DCMon balance failed', err);
+      if (IS_ONCHAIN_MODE) {
+        const ok = await ensureContracts();
+        if (!ok) {
+          updateTargetSet(balanceTargets.dcmon, '-');
+          updateTargetSet(balanceTargets.mon, '-');
+          return null;
+        }
+        try {
+          const bal = await dcmonRead.balanceOf(address);
+          updateTargetSet(balanceTargets.dcmon, formatEther(bal));
+        } catch (err) {
+          console.error('bankroll: DCMon balance failed', err);
+          updateTargetSet(balanceTargets.dcmon, '-');
+        }
+      } else {
         updateTargetSet(balanceTargets.dcmon, '-');
       }
       try {
         const provider = await getProvider();
         if (provider) {
+          await ensureTargetNetwork(provider);
           const monWei = await provider.getBalance(address);
           updateTargetSet(balanceTargets.mon, formatEther(monWei));
         }
@@ -391,6 +403,7 @@
     }
   
     async function ensureWrap(amountWei, address) {
+      if (!IS_ONCHAIN_MODE) return false;
       if (!wmonRead || !wmonWrite) return false;
       const current = await wmonRead.balanceOf(address);
       if (current.gte(amountWei)) return true;
@@ -403,6 +416,7 @@
     }
   
     async function ensureWmonAllowance(amountWei, address) {
+      if (!IS_ONCHAIN_MODE) return false;
       const allowance = await wmonRead.allowance(address, dcmonAddress);
       if (allowance.gte(amountWei)) return true;
       setStatus('Approving WMON...', 'info');
@@ -412,6 +426,7 @@
     }
   
     async function ensureDcmonAllowance(amountWei, address, spender) {
+      if (!IS_ONCHAIN_MODE) return false;
       const target = spender || dcmonAddress;
       if (!target) return false;
       const allowance = await dcmonRead.allowance(address, target);
