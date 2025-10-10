@@ -91,7 +91,11 @@
     bootstrapped = true;
   
     const ethers = window.ethers;
-    const state = {\r\n      lastStatus: null,\r\n      statusTargets: new Set(['wi-bank-status']),\r\n      balances: { dcmonWei: null, monWei: null }\r\n    };
+    const state = {
+      lastStatus: null,
+      statusTargets: new Set(['wi-bank-status']),
+      balances: { dcmonWei: null, monWei: null }
+    };
   
     const balanceTargets = {
       dcmon: new Set(['wi-dcmon-balance', 'wi-dcmon-balance-pill']),
@@ -414,6 +418,8 @@
     async function refreshBalance(addr) {
       const address = addr || currentAddress();
       if (!address) {
+        state.balances.dcmonWei = null;
+        state.balances.monWei = null;
         updateTargetSet(balanceTargets.dcmon, '-');
         updateTargetSet(balanceTargets.mon, '-');
         return null;
@@ -421,29 +427,36 @@
       if (IS_ONCHAIN_MODE) {
         const ok = await ensureReadContracts();
         if (!ok) {
+          state.balances.dcmonWei = null;
+          state.balances.monWei = null;
           updateTargetSet(balanceTargets.dcmon, '-');
           updateTargetSet(balanceTargets.mon, '-');
           return null;
         }
         try {
           const bal = await dcmonRead.balanceOf(address);
+          state.balances.dcmonWei = bal;
           updateTargetSet(balanceTargets.dcmon, formatEther(bal));
           setStatus('');
         } catch (err) {
           console.error('bankroll: DCMon balance failed', err);
+          state.balances.dcmonWei = null;
           updateTargetSet(balanceTargets.dcmon, '-');
         }
       } else {
+        state.balances.dcmonWei = null;
         updateTargetSet(balanceTargets.dcmon, '-');
       }
       try {
         const balanceProvider = rpcProvider || await getProvider();
         if (balanceProvider) {
           const monWei = await balanceProvider.getBalance(address);
+          state.balances.monWei = monWei;
           updateTargetSet(balanceTargets.mon, formatEther(monWei));
         }
       } catch (err) {
         console.error('bankroll: MON balance failed', err);
+        state.balances.monWei = null;
         updateTargetSet(balanceTargets.mon, '-');
       }
       return true;
@@ -651,6 +664,7 @@
       getSigner,
       getAddresses: () => ({ dcmon: dcmonAddress, wmon: wmonAddress }),
       getContracts: () => ({ dcmonRead, dcmonWrite, wmonRead, wmonWrite }),
+      getLastBalances: () => ({ dcmonWei: state.balances.dcmonWei, monWei: state.balances.monWei }),
       ensureWrap,
       ensureWmonAllowance,
       ensureDcmonAllowance,
@@ -712,7 +726,6 @@
 
   document.addEventListener('wallet:ethers-ready', handleReady);
 })();
-
 
 
 
