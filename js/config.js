@@ -9,6 +9,25 @@ export const PAYMASTER_ADDRESS = "0x225526A98049aCAFb71bB9526dd431E1A114E048";
 // (If your bundler URL already has ?selfFunded=true, it's fine to reuse)
 export const ZD_PAYMASTER_RPC = MONAD_BUNDLER_RPC;
 
+// Primary Monad network metadata (shared by lobby, AA, bankroll helpers)
+export const MONAD = {
+  id: 10143,
+  name: 'Monad Testnet',
+  rpcHttp: 'https://monad-testnet.drpc.org',
+  explorer: 'https://testnet.monadexplorer.com',
+  nativeCurrency: { name: 'MON', symbol: 'MON', decimals: 18 }
+};
+
+try {
+  if (typeof window !== 'undefined') {
+    if (!window.MONAD) window.MONAD = MONAD;
+    if (!window.RPC_ENDPOINTS) window.RPC_ENDPOINTS = {};
+    if (!window.RPC_ENDPOINTS[MONAD.id]) window.RPC_ENDPOINTS[MONAD.id] = MONAD.rpcHttp;
+    if (!window.EXPLORERS) window.EXPLORERS = {};
+    if (!window.EXPLORERS[MONAD.id]) window.EXPLORERS[MONAD.id] = MONAD.explorer;
+  }
+} catch {}
+
 // -------------------- Shared contract addresses --------------------
 // Base defaults (used when no chain-specific mapping exists)
 const DEFAULT_ADDRESSES = {

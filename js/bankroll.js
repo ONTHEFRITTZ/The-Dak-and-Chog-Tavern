@@ -226,7 +226,7 @@
     async function loadConfigModule() {
       
       if (!configModulePromise) {
-        configModulePromise = import('./config.js').catch((err) => {
+        configModulePromise = import('/js/config.js').catch((err) => {
           console.error('bankroll: config import failed', err);
           return null;
         });
