@@ -40,8 +40,10 @@ async function buildCaveats(toolkitCtx, target, selectors) {
     const enforcerAddress = typeof enforcerDef === 'string' ? enforcerDef : enforcerDef?.address;
     if (enforcerAddress) {
       caveats.push({
-        enforcer: enforcerAddress,
-        type: 'AllowedTargetsEnforcer',
+        enforcer: {
+          address: enforcerAddress,
+          type: 'AllowedTargetsEnforcer'
+        },
         terms: concat([target]),
         args: '0x'
       });
@@ -54,8 +56,10 @@ async function buildCaveats(toolkitCtx, target, selectors) {
     const enforcerAddress = typeof enforcerDef === 'string' ? enforcerDef : enforcerDef?.address;
     if (enforcerAddress) {
       caveats.push({
-        enforcer: enforcerAddress,
-        type: 'AllowedMethodsEnforcer',
+        enforcer: {
+          address: enforcerAddress,
+          type: 'AllowedMethodsEnforcer'
+        },
         terms: concat(selectors),
         args: '0x'
       });
