@@ -33,15 +33,34 @@ const CDN_ETHERS_ESM = 'https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.es
   function loadScriptOnce(src, target = 'head') {
     if (scriptCache.has(src)) return scriptCache.get(src);
     const promise = new Promise((resolve, reject) => {
-      try {
-        const el = document.createElement('script');
-        el.defer = true;
-        el.src = src;
-        el.onload = () => resolve();
-        el.onerror = (err) => reject(err);
-        (target === 'body' ? document.body : document.head).appendChild(el);
-      } catch (err) {
-        reject(err);
+      function appendScript() {
+        try {
+          const el = document.createElement('script');
+          el.defer = true;
+          el.src = src;
+          el.onload = () => resolve();
+          el.onerror = (err) => reject(err);
+          const parent = (target === 'body') ? document.body : document.head;
+          (parent || document.documentElement).appendChild(el);
+        } catch (err) {
+          reject(err);
+        }
+      }
+      if (target === 'body' && !document.body) {
+        const waitForBody = () => {
+          if (document.body) {
+            appendScript();
+            return;
+          }
+          if (document.readyState === 'loading') {
+            setTimeout(waitForBody, 25);
+            return;
+          }
+          appendScript();
+        };
+        waitForBody();
+      } else {
+        appendScript();
       }
     });
     scriptCache.set(src, promise);
