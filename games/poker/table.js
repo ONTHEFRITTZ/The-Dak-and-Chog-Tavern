@@ -1030,6 +1030,14 @@ function initializePokerTable() {
       const meta = seatMeta[idx];
       if (actor.folded) meta.seat.classList.add('folded');
       if (actor.acted) meta.seat.classList.add('acted');
+      const stackValue = Number(actor?.stack);
+      if (Number.isFinite(stackValue)) {
+        if (isOnchainTable) {
+          meta.stack.textContent = `Stack: ${formatChips(stackValue)} DCMon`;
+        } else {
+          meta.stack.textContent = `Stack: ${formatChips(stackValue)} chips`;
+        }
+      }
     });
   }
   function isValidAddr(s) {
@@ -1071,9 +1079,14 @@ function initializePokerTable() {
       if (!valid) {
         meta.stack.textContent = '';
       } else if (isOnchainTable) {
-        const rawBalance = Number(seatData && seatData.balance != null ? seatData.balance : 0);
-        const display = Number.isFinite(rawBalance) ? formatDcmonBalance(rawBalance) : '0.000';
-        meta.stack.textContent = `Stack: ${display} DCMon`;
+        const balanceField = seatData && seatData.balance;
+        const rawBalance = Number(balanceField);
+        if (Number.isFinite(rawBalance) && rawBalance > 0) {
+          const display = formatDcmonBalance(rawBalance);
+          meta.stack.textContent = `Stack: ${display} DCMon`;
+        } else {
+          meta.stack.textContent = 'Stack: -- DCMon';
+        }
       } else {
         const chips = Number(seatData && seatData.chips != null ? seatData.chips : 0);
         meta.stack.textContent = `Stack: ${formatChips(chips)} chips`;
@@ -1386,7 +1399,5 @@ if (document.readyState === 'loading') {
 } else {
   initializePokerTable();
 }
-
-
 
 
