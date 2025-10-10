@@ -4,9 +4,45 @@
 
 import { ethers } from '../tavern.js';
 import { getSmartAccount } from '../tavern.js';
-import { AA, initAA } from '../aaClient.js';
 import { loadDelegation } from './delegation.js';
 import { ensureDelegationToolkitContext } from './toolkit.js';
+
+function resolveBuildTag() {
+  return window.__BUILD_TAG || window.__ASSET_TAG || Date.now();
+}
+
+let aaClientModulePromise = null;
+async function ensureAAClientModule() {
+  if (!aaClientModulePromise) {
+    const tag = encodeURIComponent(resolveBuildTag());
+    const candidates = [
+      `/js/aaClient.js?v=${tag}`,
+      `/js/aa/aaClient.js?v=${tag}`
+    ];
+    aaClientModulePromise = (async () => {
+      for (const candidate of candidates) {
+        try {
+          return await import(/* @vite-ignore */ candidate);
+        } catch (err) {
+          if (candidate === candidates[candidates.length - 1]) {
+            console.warn('[aa/ops] Failed to load aaClient module', err);
+          }
+        }
+      }
+      return null;
+    })();
+  }
+  return aaClientModulePromise;
+}
+
+async function getAAClient() {
+  const mod = await ensureAAClientModule();
+  if (!mod) return { AA: null, initAA: null };
+  return {
+    AA: mod.AA || null,
+    initAA: typeof mod.initAA === 'function' ? mod.initAA : null
+  };
+}
 
 // ---------- Utilities ----------
 function toWeiMON(valueMON) {
@@ -41,8 +77,9 @@ export function encodeFromSignature(signature, args = []) {
  * @returns {Promise<string>} txHash
  */
 export async function sendTxViaAA({ to, data, valueMON }) {
+  await ensureAAClientModule();
   const smart = await getSmartAccount();
-  if (!smart) throw new Error('Smart Account not initialized. Connect wallet first.');
+  if (!smart || typeof smart.sendTransaction !== 'function') return null;
   if (!to) throw new Error('Missing "to" address');
 
   const tx = {
@@ -51,14 +88,18 @@ export async function sendTxViaAA({ to, data, valueMON }) {
     value: valueMON != null ? toWeiMON(valueMON) : 0n,
   };
 
-  // ZeroDev SDK returns { hash } or a tx response. We standardize to string.
-  const res = await smart.sendTransaction(tx);
-  const txHash = typeof res === 'string' ? res : (res?.hash || res?.transactionHash);
-  if (!txHash) {
-    console.warn('sendTransaction result:', res);
-    throw new Error('Failed to obtain tx hash from AA send');
+  try {
+    const res = await smart.sendTransaction(tx);
+    const txHash = typeof res === 'string' ? res : (res?.hash || res?.transactionHash);
+    if (!txHash) {
+      console.warn('sendTransaction result:', res);
+      return null;
+    }
+    return txHash;
+  } catch (err) {
+    console.warn('[aa/ops] sendTxViaAA failed', err);
+    return null;
   }
-  return txHash;
 }
 
 /**
@@ -90,9 +131,16 @@ export async function callWithDelegation({ to, signature, args = [], valueMON })
   const data = encodeFromSignature(signature, args);
 
   try {
+    const { AA, initAA } = await getAAClient();
+    if (!AA || typeof initAA !== 'function') {
+      const directHash = await sendTxViaAA({ to, data, valueMON });
+      return directHash || false;
+    }
+
     const delegationRecord = loadDelegation();
     if (!delegationRecord) {
-      return sendTxViaAA({ to, data, valueMON });
+      const directHash = await sendTxViaAA({ to, data, valueMON });
+      return directHash || false;
     }
 
     if (!AA.smartAccountType || AA.smartAccountType !== 'delegation-toolkit') {
@@ -100,17 +148,20 @@ export async function callWithDelegation({ to, signature, args = [], valueMON })
     }
 
     if (AA.smartAccountType !== 'delegation-toolkit') {
-      return sendTxViaAA({ to, data, valueMON });
+      const directHash = await sendTxViaAA({ to, data, valueMON });
+      return directHash || false;
     }
 
     const ctx = AA.toolkitContext || await ensureDelegationToolkitContext();
     if (!ctx) {
-      return sendTxViaAA({ to, data, valueMON });
+      const directHash = await sendTxViaAA({ to, data, valueMON });
+      return directHash || false;
     }
 
     const { toolkit, walletClient, publicClient, environment } = ctx;
     if (!toolkit || !walletClient || !publicClient || !environment?.DelegationManager) {
-      return sendTxViaAA({ to, data, valueMON });
+      const directHash = await sendTxViaAA({ to, data, valueMON });
+      return directHash || false;
     }
 
     const executionBuilder = toolkit.createExecution;
@@ -118,7 +169,8 @@ export async function callWithDelegation({ to, signature, args = [], valueMON })
     const ExecutionMode = toolkit.ExecutionMode;
 
     if (typeof executionBuilder !== 'function' || typeof redeemDelegations !== 'function') {
-      return sendTxViaAA({ to, data, valueMON });
+      const directHash = await sendTxViaAA({ to, data, valueMON });
+      return directHash || false;
     }
 
     const executions = [
@@ -149,6 +201,7 @@ export async function callWithDelegation({ to, signature, args = [], valueMON })
     return txHash;
   } catch (err) {
     console.warn('[aa/ops] Delegated call failed, falling back to AA send', err);
-    return sendTxViaAA({ to, data, valueMON });
+    const directHash = await sendTxViaAA({ to, data, valueMON });
+    return directHash || false;
   }
 }

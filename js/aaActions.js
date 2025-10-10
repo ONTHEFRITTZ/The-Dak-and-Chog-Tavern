@@ -5,6 +5,27 @@
 import { ethers } from 'https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.esm.min.js';
 import { MONAD_BUNDLER_RPC, getAddressFor, detectChainId } from './config.js';
 
+function resolveBuildTag() {
+  return window.__BUILD_TAG || window.__ASSET_TAG || Date.now();
+}
+async function importAAClient() {
+  const tag = encodeURIComponent(resolveBuildTag());
+  const candidates = [
+    `./aaClient.js?v=${tag}`,
+    `./aa/aaClient.js?v=${tag}`
+  ];
+  for (const candidate of candidates) {
+    try {
+      return await import(/* @vite-ignore */ candidate);
+    } catch (err) {
+      if (candidate === candidates[candidates.length - 1]) {
+        console.warn('[aaActions] Failed to load aaClient module', err);
+      }
+    }
+  }
+  return null;
+}
+
 // We expect aaClient.js to live next to this file and export initAA() / getAASigner() / isAAReady()
 // If it doesn't, we gracefully fall back to injected signer.
 let aaReady = false;
@@ -12,7 +33,7 @@ let aaSigner = null;
 
 async function tryLoadAA() {
   try {
-    const mod = await import('./aaClient.js');
+    const mod = await importAAClient();
     if (!mod || typeof mod.initAA !== 'function') return false;
     await mod.initAA({ bundlerUrl: MONAD_BUNDLER_RPC });
     if (typeof mod.getAASigner === 'function') {

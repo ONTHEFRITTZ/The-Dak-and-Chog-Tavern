@@ -245,8 +245,10 @@ function initializePokerTable() {
     }
     async function ensureAAOps() {
       if (aaOpsModule) return aaOpsModule;
+      const tag = window.__BUILD_TAG || window.__ASSET_TAG || Date.now();
+      const src = `/js/aa/ops.js?v=${encodeURIComponent(tag)}`;
       try {
-        aaOpsModule = await import('../../js/aa/ops.js');
+        aaOpsModule = await import(/* @vite-ignore */ src);
       } catch (err) {
         console.warn('Poker table: AA ops unavailable', err);
         aaOpsModule = null;
@@ -1174,7 +1176,12 @@ function initializePokerTable() {
             } catch (err) {
               console.error('Poker table: joinSeat failed', err);
               try { sit.disabled = false; sit.textContent = original; } catch {}
-              alert('Seat transaction failed. Confirm wallet status and retry.');
+              const reason = String(err?.error?.data?.message || err?.data?.message || err?.message || '').toLowerCase();
+              if (reason.includes('taken')) {
+                alert('That seat was just taken. Pick a different seat.');
+              } else {
+                alert('Seat transaction failed. Confirm wallet status and retry.');
+              }
               return;
             }
           }
@@ -1379,8 +1386,6 @@ if (document.readyState === 'loading') {
 } else {
   initializePokerTable();
 }
-
-
 
 
 
