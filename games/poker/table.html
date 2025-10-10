@@ -41,9 +41,15 @@
           return 'f2p';
         }
 
-        const tag = qpMode === 'onchain' ? 'onchain'
-                  : qpMode === 'f2p'     ? 'f2p'
-                  : inferFromTable(tableId);
+        const mode = qpMode;
+        const isLimitMode = /^(limit|l|nolimit|no-?limit|nl)$/i.test(mode);
+        const tag = mode === 'onchain'
+          ? 'onchain'
+          : mode === 'f2p'
+            ? 'f2p'
+            : isLimitMode
+              ? 'onchain'
+              : inferFromTable(tableId);
 
         document.documentElement.setAttribute('data-table-mode', tag);
 
