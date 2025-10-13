@@ -235,6 +235,8 @@ function initializePokerTable() {
     let cachedAddr = null;
     let aaOpsModule = null;
     let lastAAError = null;
+    let seatProbeSupported = true;
+    let seatProbeWarned = false;
     async function ownerAddress() {
       try {
         if (window.AA && typeof window.AA.smartAccountAddress === 'string' && window.AA.smartAccountAddress) {
@@ -313,8 +315,12 @@ function initializePokerTable() {
       return true;
     }
     async function readSeatOwnerLower(seatId) {
-      if (!contract || typeof contract.seats !== 'function') return '';
+      if (!contract || !seatProbeSupported) return '';
       try {
+        if (typeof contract.seats !== 'function') {
+          seatProbeSupported = false;
+          return '';
+        }
         const seatView = await contract.seats(seatId);
         const holder = typeof seatView === 'string'
           ? seatView
@@ -325,7 +331,11 @@ function initializePokerTable() {
               : '';
         return holder ? holder.toLowerCase() : '';
       } catch (err) {
-        console.warn('Poker table: seat view fetch failed', err);
+        if (!seatProbeWarned) {
+          seatProbeWarned = true;
+          console.warn('Poker table: seat view fetch failed, disabling seat owner probe', err);
+        }
+        seatProbeSupported = false;
         return '';
       }
     }
