@@ -107,11 +107,11 @@ async function ensurePresetMap() {
   if (presetCache && delegationTarget) return presetCache;
 
   const ctx = await ensureDelegationToolkitContext();
-  const { viem } = ctx;
+  const viemModule = ctx.viem || (await ensureViem());
   delegationTarget = normalizeAddress(await getPokerTableAddress(ctx.provider));
 
-  const toSelector = viem.toFunctionSelector || ((sig) => {
-    const { toFunctionSelector } = viem;
+  const toSelector = viemModule.toFunctionSelector || ((sig) => {
+    const { toFunctionSelector } = viemModule;
     return toFunctionSelector(sig);
   });
 
@@ -243,4 +243,5 @@ export function isDelegationActive() {
 }
 
 export { nowSec };
+
 
