@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+ï»¿<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
@@ -6,7 +6,7 @@
   <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
-  <title>Dak & Chog Tavern — Enter</title>
+  <title>Dak & Chog Tavern â€” Enter</title>
 
   <link rel="stylesheet" href="/css/style.css" />
 
@@ -90,21 +90,24 @@
       display: inline-flex;
       align-items: center;
       justify-content: center;
+      gap: 8px;
       width: 100%;
       min-width: 0;
       height: 48px;
+      padding: 0;
       border-radius: 10px;
       font-size: 15px;
       font-weight: 600;
       cursor: pointer;
       border: none;
+      text-align: center;
       transition: opacity .15s ease, transform .08s ease;
     }
+
+
     .sa-primary {
-      display: inline-flex;
       align-items: center;
       justify-content: center;
-      gap: 8px;
       background: linear-gradient(135deg,#9200fa,#5f00a8);
       color: #fff;
       text-decoration: none;
@@ -112,8 +115,7 @@
     }
     .sa-primary:hover { opacity: .92; }
     .sa-primary:active { transform: translateY(1px); }
-    .sa-secondary {
-      background: rgba(255,255,255,0.06);
+    .sa-secondary {\r\n      background: rgba(255,255,255,0.06);
       color: #f4e6d3;
     }
     .sa-secondary:hover { opacity: .9; }
@@ -161,14 +163,14 @@
                    style="width:48px; height:48px; object-fit:contain;" />
             </button>
             <div id="phantom-missing" class="subnote" style="display:none;">
-              Don’t have Phantom? <a href="https://phantom.app/download" target="_blank" rel="noopener">Get Phantom</a>
+              Donâ€™t have Phantom? <a href="https://phantom.app/download" target="_blank" rel="noopener">Get Phantom</a>
             </div>
           </div>
         </div>
 
         <div id="wc-status"></div>
         <div class="hint" id="pending-hint" style="display:none;">
-          Request sent — if you don’t see the popup, click the wallet’s extension icon in your browser toolbar.
+          Request sent â€” if you donâ€™t see the popup, click the walletâ€™s extension icon in your browser toolbar.
         </div>
       </div>
     </section>
@@ -263,7 +265,7 @@
         if (saUpgrade) saUpgrade.textContent = "Install MetaMask Smart Accounts";
       } else {
         if (saTitle) saTitle.textContent = "MetaMask Smart Account Recommended";
-        if (saMessage) saMessage.textContent = "We noticed you’re using MetaMask without Smart Accounts. Open MetaMask Portfolio and follow the Smart Account banner to unlock the full Tavern experience.";
+        if (saMessage) saMessage.textContent = "We noticed youâ€™re using MetaMask without Smart Accounts. Open MetaMask Portfolio and follow the Smart Account banner to unlock the full Tavern experience.";
         if (saUpgrade) saUpgrade.textContent = "Enable MetaMask Smart Account";
       }
       saModal.setAttribute("aria-hidden", "false");
@@ -366,7 +368,7 @@
       if (!mm) { setStatus("MetaMask not detected. Please install the extension."); return; }
       if (window.top !== window.self) { setStatus("Open this page in a tab (not an iframe)."); return; }
 
-      lock(btnMM, true); setStatus("Connecting to MetaMask…");
+      lock(btnMM, true); setStatus("Connecting to MetaMaskâ€¦");
       const addr = await ensureAccount(mm, "MetaMask");
       lock(btnMM, false);
       if (!addr) return;
@@ -397,7 +399,7 @@
       if (!ph) { setStatus("Phantom (EVM) not detected."); if (phMissing) phMissing.style.display = "block"; return; }
       if (window.top !== window.self) { setStatus("Open this page in a tab (not an iframe)."); return; }
 
-      lock(btnPH, true); setStatus("Connecting to Phantom…");
+      lock(btnPH, true); setStatus("Connecting to Phantomâ€¦");
       const addr = await ensureAccount(ph, "Phantom");
       lock(btnPH, false);
       if (!addr) return;
@@ -439,6 +441,15 @@
   </script>
 </body>
 </html>
+
+
+
+
+
+
+
+
+
 
 
 
