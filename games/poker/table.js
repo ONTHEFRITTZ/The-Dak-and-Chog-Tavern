@@ -313,50 +313,21 @@ function initializePokerTable() {
       return true;
     }
     async function readSeatOwnerLower(seatId) {
-      if (!contract || typeof seatId === 'undefined') return '';
-      const attempt = async (fn) => {
-        try {
-          const res = await fn();
-          return res ?? null;
-        } catch (err) {
-          console.warn('Poker table: seat owner probe failed', err);
-          return null;
-        }
-      };
-      let seatView = null;
-      const probes = [];
-      if (typeof contract.seats === 'function') probes.push(() => contract.seats(seatId));
-      if (contract.callStatic?.seats) probes.push(() => contract.callStatic.seats(seatId));
-      if (contract.functions?.seats) probes.push(() => contract.functions.seats(seatId));
-      for (const probe of probes) {
-        seatView = await attempt(probe);
-        if (seatView) break;
+      if (!contract || typeof contract.seats !== 'function') return '';
+      try {
+        const seatView = await contract.seats(seatId);
+        const holder = typeof seatView === 'string'
+          ? seatView
+          : seatView && typeof seatView === 'object' && typeof seatView.player === 'string'
+            ? seatView.player
+            : Array.isArray(seatView) && typeof seatView[0] === 'string'
+              ? seatView[0]
+              : '';
+        return holder ? holder.toLowerCase() : '';
+      } catch (err) {
+        console.warn('Poker table: seat view fetch failed', err);
+        return '';
       }
-      if (!seatView && contract.interface && provider) {
-        const candidateNames = ['seats', 'seats(uint8)', 'seats(uint256)'];
-        for (const name of candidateNames) {
-          try {
-            const fn = contract.interface.getFunction(name);
-            if (!fn) continue;
-            const data = contract.interface.encodeFunctionData(fn, [seatId]);
-            const raw = await provider.call({ to: tableAddress, data });
-            const decoded = contract.interface.decodeFunctionResult(fn, raw);
-            seatView = Array.isArray(decoded) ? decoded[0] : decoded;
-            if (seatView) break;
-          } catch (err) {
-            console.warn('Poker table: seat owner manual call failed', err);
-          }
-        }
-      }
-      if (!seatView) return '';
-      let holder = null;
-      if (typeof seatView === 'string') holder = seatView;
-      else if (seatView && typeof seatView === 'object' && 'player' in seatView && typeof seatView.player === 'string') {
-        holder = seatView.player;
-      } else if (Array.isArray(seatView) && typeof seatView[0] === 'string') {
-        holder = seatView[0];
-      }
-      return typeof holder === 'string' ? holder.toLowerCase() : '';
     }
     async function joinSeat(seatId) {
       if (!isOnchainTable) return true;

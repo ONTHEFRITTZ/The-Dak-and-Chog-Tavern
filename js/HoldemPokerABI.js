@@ -42,6 +42,7 @@
     { "inputs": [], "name": "feesAccrued", "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }], "stateMutability": "view", "type": "function" },
     { "inputs": [], "name": "handId", "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }], "stateMutability": "view", "type": "function" },
     { "inputs": [], "name": "inHand", "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }], "stateMutability": "view", "type": "function" },
+    { "inputs": [{ "internalType": "uint8", "name": "", "type": "uint8" }], "name": "seats", "outputs": [{ "internalType": "address", "name": "player", "type": "address" }], "stateMutability": "view", "type": "function" },
     { "inputs": [], "name": "pot", "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }], "stateMutability": "view", "type": "function" },
 
     // Events
