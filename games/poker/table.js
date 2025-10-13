@@ -234,6 +234,7 @@ function initializePokerTable() {
     const contract = new ethers.Contract(tableAddress, window.HoldemPokerABI, signer);
     let cachedAddr = null;
     let aaOpsModule = null;
+    let lastAAError = null;
     async function ownerAddress() {
       try {
         if (window.AA && typeof window.AA.smartAccountAddress === 'string' && window.AA.smartAccountAddress) {
@@ -257,7 +258,10 @@ function initializePokerTable() {
     }
     async function callViaAA(signature, args, valueMON) {
       const ops = await ensureAAOps();
-      if (!ops || typeof ops.callWithDelegation !== 'function') return false;
+      if (!ops || typeof ops.callWithDelegation !== 'function') {
+        lastAAError = new Error('MetaMask smart account delegation unavailable');
+        return false;
+      }
       try {
         const txHash = await ops.callWithDelegation({ to: tableAddress, signature, args, valueMON });
         if (txHash && provider?.waitForTransaction) {
@@ -265,9 +269,11 @@ function initializePokerTable() {
             console.warn('Poker table: waitForTransaction failed', waitErr);
           }
         }
+        lastAAError = null;
         return !!txHash;
       } catch (err) {
         console.warn('Poker table: AA call failed', signature, err);
+        lastAAError = err;
         return false;
       }
     }
@@ -306,10 +312,37 @@ function initializePokerTable() {
       }
       return true;
     }
+    async function readSeatOwnerLower(seatId) {
+      try {
+        const seatView = await contract.seats(seatId);
+        const holder = seatView && (seatView.player || seatView[0]);
+        return typeof holder === 'string' ? holder.toLowerCase() : '';
+      } catch (err) {
+        console.warn('Poker table: seat view fetch failed', err);
+        return '';
+      }
+    }
     async function joinSeat(seatId) {
       if (!isOnchainTable) return true;
+      const smartAddr = (await ownerAddress())?.toLowerCase?.() || '';
+      const seatOwner = await readSeatOwnerLower(seatId);
+      if (seatOwner && seatOwner !== ZERO_ADDR && seatOwner !== smartAddr) {
+        const err = new Error('Seat already taken on-chain.');
+        err.code = 'seat_taken';
+        throw err;
+      }
       const aaOk = await callViaAA('joinSeat(uint8)', [seatId]);
       if (!aaOk) {
+        const signerAddr = typeof signer.getAddress === 'function'
+          ? (await signer.getAddress()).toLowerCase()
+          : '';
+        if (seatOwner && seatOwner !== signerAddr) {
+          const err = new Error('Seat is held by your MetaMask Smart Account. Re-enable smart account delegation to manage this seat.');
+          err.code = 'seat_owner_mismatch';
+          err.details = { seatOwner };
+          err.cause = lastAAError;
+          throw err;
+        }
         const tx = await contract.joinSeat(seatId);
         await tx.wait();
       }
@@ -322,8 +355,29 @@ function initializePokerTable() {
       const method = active ? 'leaveDuringHand' : 'unseat';
       if (typeof contract[method] !== 'function') return false;
       const signature = active ? 'leaveDuringHand(uint8)' : 'unseat(uint8)';
+      const seatOwner = await readSeatOwnerLower(seatId);
+      const smartAddr = (await ownerAddress())?.toLowerCase?.() || '';
       const aaOk = await callViaAA(signature, [seatId]);
       if (!aaOk) {
+        const signerAddr = typeof signer.getAddress === 'function'
+          ? (await signer.getAddress()).toLowerCase()
+          : '';
+        if (seatOwner && seatOwner !== ZERO_ADDR) {
+          if (seatOwner === smartAddr && seatOwner !== signerAddr) {
+            const err = new Error('Seat belongs to your MetaMask Smart Account. Re-enable smart account delegation to leave.');
+            err.code = 'seat_owner_mismatch';
+            err.details = { seatOwner };
+            err.cause = lastAAError;
+            throw err;
+          }
+          if (seatOwner !== signerAddr) {
+            const err = new Error('Seat owned by a different address.');
+            err.code = 'seat_owner_mismatch';
+            err.details = { seatOwner };
+            err.cause = lastAAError;
+            throw err;
+          }
+        }
         const tx = await contract[method](seatId);
         await tx.wait();
       }
@@ -1203,11 +1257,17 @@ function initializePokerTable() {
             } catch (err) {
               console.error('Poker table: joinSeat failed', err);
               try { sit.disabled = false; sit.textContent = original; } catch {}
+              if (err?.code === 'seat_owner_mismatch') {
+                alert('This seat is assigned to your MetaMask Smart Account. Re-enable smart account delegation and try again.');
+                return;
+              }
               const reason = String(err?.error?.data?.message || err?.data?.message || err?.message || '').toLowerCase();
               if (reason.includes('taken')) {
                 alert('That seat was just taken. Pick a different seat.');
                 emitSocket('join_table', { table: tableId, reason: 'seat-refresh' });
                 emitSocket('seat', { index: idx });
+              } else if (reason.includes('seat owner')) {
+                alert('That seat belongs to another address. Connect the wallet that originally joined it.');
               } else {
                 alert('Seat transaction failed. Confirm wallet status and retry.');
               }
@@ -1271,6 +1331,15 @@ function initializePokerTable() {
               console.error('Poker table: leaveSeat failed', err);
               leaveBtn.disabled = false;
               leaveBtn.textContent = 'Leave';
+              if (err?.code === 'seat_owner_mismatch') {
+                alert('Seat control mismatch. Re-enable your MetaMask Smart Account or connect the wallet that originally sat here.');
+                return;
+              }
+              const reason = String(err?.error?.data?.message || err?.data?.message || err?.message || '').toLowerCase();
+              if (reason.includes('seat owner')) {
+                alert('Seat is owned by a different address. Connect the correct wallet to leave.');
+                return;
+              }
               alert('Leave transaction failed. Try again.');
               return;
             }
