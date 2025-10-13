@@ -125,7 +125,20 @@
     .subnote { font-size: 12px; margin-top: 6px; color: rgba(244,230,211,0.9); text-align: center; }
   </style>
 
-  <!-- Pin the chosen wallet as early as possible on this page too -->
+  <!-- Import map for smart account toolkit -->
+  <script type="importmap">
+    {
+      "imports": {
+        "@metamask/delegation-toolkit": "https://esm.sh/@metamask/delegation-toolkit@0.13.0?bundle&target=es2022",
+        "viem": "https://esm.sh/viem@2.31.4",
+        "viem/actions": "https://esm.sh/viem@2.31.4/actions",
+        "viem/accounts": "https://esm.sh/viem@2.31.4/accounts",
+        "viem/chains": "https://esm.sh/viem@2.31.4/chains",
+        "viem/utils": "https://esm.sh/viem@2.31.4/utils",
+        "viem/account-abstraction": "https://esm.sh/viem@2.31.4/account-abstraction"
+      }
+    }
+  </script>  <!-- Pin the chosen wallet as early as possible on this page too -->
   <script src="/js/provider-pin.js"></script>
 </head>
 
@@ -443,6 +456,7 @@
   </script>
 </body>
 </html>
+
 
 
 
