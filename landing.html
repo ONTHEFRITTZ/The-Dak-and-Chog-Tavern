@@ -84,9 +84,12 @@
       padding-left: 20px;
     }
     .sa-benefits li { margin: 4px 0; font-size: 14px; }
-    .sa-actions { display:flex; flex-direction:column; gap:12px; margin-top:10px; }
+    .sa-actions { display:flex; flex-direction:column; gap:12px; margin-top:10px; align-items:stretch; }
     .sa-primary,
     .sa-secondary {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
       width: 100%;
       min-width: 0;
       height: 48px;
@@ -185,14 +188,13 @@
         <li>Priority access to new AA-only features</li>
       </ul>
       <div class="sa-actions">
-        <a href="https://portfolio.metamask.io/smart-account" target="_blank" rel="noopener" class="sa-primary" id="sa-upgrade">
+        <a href="https://portfolio.metamask.io/" target="_blank" rel="noopener" class="sa-primary" id="sa-upgrade">
           Enable MetaMask Smart Account
         </a>
         <button type="button" class="sa-secondary" id="sa-proceed">
           Enter with fewer features
         </button>
-      </div>
-      <div class="subnote" id="sa-subnote">No, I'd like to proceed with fewer features.</div>
+      </div>
     </div>
   </div>
 
@@ -208,10 +210,9 @@
     const saTitle = $("sa-title");
     const saUpgrade = $("sa-upgrade");
     const saProceed = $("sa-proceed");
-    const saSubnote = $("sa-subnote");
     const saDismiss = $("sa-dismiss");
 
-    const SMART_ACCOUNT_UPGRADE_URL = "https://portfolio.metamask.io/smart-account";
+    const SMART_ACCOUNT_UPGRADE_URL = "https://portfolio.metamask.io/";
     const SMART_ACCOUNT_BENEFITS = [
       "Sponsored gas for table ops and delegated gameplay",
       "Safer, session-scoped permissions when you sit",
@@ -257,14 +258,12 @@
       if (saUpgrade) saUpgrade.href = SMART_ACCOUNT_UPGRADE_URL;
       if (mode === "phantom") {
         if (saTitle) saTitle.textContent = "MetaMask Smart Account Unlocks More";
-        if (saMessage) saMessage.textContent = "Phantom works for basic play, but the Dak & Chog extras are tailored for MetaMask Smart Accounts. Install MetaMask Smart Accounts to access the full experience.";
+        if (saMessage) saMessage.textContent = "Phantom works for basic play, but the Dak & Chog extras are tailored for MetaMask Smart Accounts. Open MetaMask Portfolio to enable Smart Accounts and access the full experience.";
         if (saUpgrade) saUpgrade.textContent = "Install MetaMask Smart Accounts";
-        if (saSubnote) saSubnote.textContent = "No, I'd like to stay on Phantom with fewer features.";
       } else {
         if (saTitle) saTitle.textContent = "MetaMask Smart Account Recommended";
-        if (saMessage) saMessage.textContent = "We noticed you’re using MetaMask without Smart Accounts. Enable them to unlock the full Tavern experience.";
+        if (saMessage) saMessage.textContent = "We noticed you’re using MetaMask without Smart Accounts. Open MetaMask Portfolio and follow the Smart Account banner to unlock the full Tavern experience.";
         if (saUpgrade) saUpgrade.textContent = "Enable MetaMask Smart Account";
-        if (saSubnote) saSubnote.textContent = "No, I'd like to proceed with fewer features.";
       }
       saModal.setAttribute("aria-hidden", "false");
       saModal.dataset.mode = mode;
@@ -439,3 +438,10 @@
   </script>
 </body>
 </html>
+
+
+
+
+
+
+
