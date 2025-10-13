@@ -38,59 +38,33 @@ function normalizeAddress(addr) {
   return addr.toLowerCase();
 }
 
-async function buildCaveats(toolkitCtx, target, selectors) {
-  try {
-    const { environment } = toolkitCtx;
-    const viem = toolkitCtx.viem || (await ensureViem());
-    const caveats = [];
+async function buildFunctionCallScope(toolkitCtx, target, selectors) {
+  const viem = toolkitCtx.viem || (await ensureViem());
+  const { isAddress, isHex } = viem;
 
-    if (target && environment?.caveatEnforcers?.AllowedTargetsEnforcer) {
-      const { encodeAbiParameters, isAddress } = viem;
-      const enforcerDef = environment.caveatEnforcers.AllowedTargetsEnforcer;
-      const enforcerAddress = typeof enforcerDef === 'string' ? enforcerDef : enforcerDef?.address;
-      const type = (typeof enforcerDef === 'object' && enforcerDef?.type) || 'AllowedTargetsEnforcer';
-      if (enforcerAddress && (!isAddress || isAddress(target))) {
-        const encodedTargets = encodeAbiParameters
-          ? encodeAbiParameters([{ type: 'address[]' }], [[target]])
-          : `0x${String(target).replace(/^0x/, '')}`;
-        caveats.push({
-          type,
-          enforcer: { address: enforcerAddress, type },
-          terms: encodedTargets,
-          args: '0x'
-        });
-      }
-    }
-
-    if (selectors && selectors.length && environment?.caveatEnforcers?.AllowedMethodsEnforcer) {
-      const { encodeAbiParameters, isHex } = viem;
-      const enforcerDef = environment.caveatEnforcers.AllowedMethodsEnforcer;
-      const enforcerAddress = typeof enforcerDef === 'string' ? enforcerDef : enforcerDef?.address;
-      const type = (typeof enforcerDef === 'object' && enforcerDef?.type) || 'AllowedMethodsEnforcer';
-      const validSelectors = Array.isArray(selectors)
-        ? selectors
-            .map((sig) => (typeof sig === 'string' ? sig : ''))
-            .map((sig) => (sig.startsWith('0x') ? sig : `0x${sig}`))
-            .filter((sig) => sig.length === 10 && (!isHex || isHex(sig)))
-        : [];
-      if (enforcerAddress && validSelectors.length) {
-        const encodedSelectors = encodeAbiParameters
-          ? encodeAbiParameters([{ type: 'bytes4[]' }], [validSelectors])
-          : `0x${validSelectors.map((sig) => sig.slice(2)).join('')}`;
-        caveats.push({
-          type,
-          enforcer: { address: enforcerAddress, type },
-          terms: encodedSelectors,
-          args: '0x'
-        });
-      }
-    }
-
-    return caveats;
-  } catch (err) {
-    console.warn('[aa/delegation] buildCaveats error', err);
-    return [];
+  if (!target) {
+    throw new Error('Unable to resolve poker table contract address.');
   }
+  if (isAddress && !isAddress(target, { strict: false })) {
+    throw new Error('Resolved poker table address is invalid.');
+  }
+
+  const selectorList = Array.isArray(selectors) ? selectors.slice() : [];
+  const normalized = selectorList
+    .map((sig) => (typeof sig === 'string' ? sig.trim() : ''))
+    .map((sig) => (sig.startsWith('0x') ? sig.toLowerCase() : `0x${sig.toLowerCase()}`))
+    .filter((sig) => sig.length === 10 && (!isHex || isHex(sig)));
+
+  const unique = Array.from(new Set(normalized));
+  if (!unique.length) {
+    throw new Error('No valid function selectors available for delegation scope.');
+  }
+
+  return {
+    type: 'functionCall',
+    targets: [target],
+    selectors: unique
+  };
 }
 
 async function resolveDelegatorAddress() {
@@ -167,19 +141,20 @@ export async function createDelegation({ address, preset }) {
     throw new Error('Wallet address is required to create a delegation');
   }
   const delegator = await resolveDelegatorAddress() || delegate;
-  let caveats = [];
+  let scope;
   try {
-    caveats = await buildCaveats(ctx, delegationTarget, choice.selectors || []);
+    scope = await buildFunctionCallScope(ctx, delegationTarget, choice.selectors || []);
   } catch (err) {
-    console.warn('[aa/delegation] buildCaveats failed, falling back to unrestricted delegation', err);
-    caveats = [];
+    console.warn('[aa/delegation] scope creation failed', err);
+    throw err;
   }
 
   const { toolkit, environment, walletClient } = ctx;
   const delegation = toolkit.createDelegation({
     from: delegator,
     to: delegate,
-    caveats,
+    environment,
+    scope,
     salt: randomSalt()
   });
 
@@ -187,7 +162,7 @@ export async function createDelegation({ address, preset }) {
     delegation,
     delegationManager: environment.DelegationManager,
     chainId: MONAD.id,
-    allowInsecureUnrestrictedDelegation: caveats.length === 0
+    allowInsecureUnrestrictedDelegation: !delegation.caveats || delegation.caveats.length === 0
   });
 
   const signature = await walletClient.signTypedData({
@@ -198,6 +173,7 @@ export async function createDelegation({ address, preset }) {
   const signedDelegation = { ...delegation, signature };
   const record = {
     preset: choice.key,
+    scope,
     delegation: signedDelegation,
     permissionContext: [[signedDelegation]],
     from: delegator,

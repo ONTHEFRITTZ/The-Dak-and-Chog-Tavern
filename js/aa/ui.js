@@ -193,6 +193,12 @@ function renderDelegationInfo(state) {
   if (delegation.chainId) {
     rows.push(['Chain', String(delegation.chainId)]);
   }
+  if (delegation.scope?.type) {
+    rows.push(['Scope', delegation.scope.type]);
+  }
+  if (delegation.scope?.selectors?.length) {
+    rows.push(['Selectors', String(delegation.scope.selectors.length)]);
+  }
   if (delegation.permissionContext) {
     try {
       const grants = delegation.permissionContext.length;
