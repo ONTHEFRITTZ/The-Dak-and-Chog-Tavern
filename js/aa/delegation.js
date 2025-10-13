@@ -205,7 +205,7 @@ export async function createDelegation({ address, preset }) {
   }
 
   const delegatorResolved = await resolveDelegatorAddress();
-  const delegate = await resolveDelegateAddress(ctx, address || ctx.account, delegatorResolved);
+  const delegate = await resolveDelegateAddress(ctx, address || ctx.ownerAccount || ctx.account, delegatorResolved);
   if (!delegate) {
     throw new Error('Wallet address is required to create a delegation');
   }

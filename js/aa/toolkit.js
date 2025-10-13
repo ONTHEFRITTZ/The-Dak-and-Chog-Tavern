@@ -66,8 +66,29 @@ export async function ensureDelegationToolkitContext() {
     }
 
     await switchToMonad(provider);
-    const accounts = await requestAccounts(provider);
-    const account = accounts[0];
+    const requested = await requestAccounts(provider);
+    let ownerAccount = requested[0];
+    let internalAccount = requested[0];
+
+    try {
+      const walletAccounts = await provider.request({ method: 'wallet_accounts' });
+      if (Array.isArray(walletAccounts)) {
+        for (const entry of walletAccounts) {
+          const addr = entry?.address || entry?.account || entry?.id || entry?.address?.address;
+          const type = String(entry?.type || entry?.accountType || '').toLowerCase();
+          if (addr && (!type || type.includes('eoa') || type.includes('external'))) {
+            ownerAccount = String(addr).toLowerCase();
+            break;
+          }
+        }
+      }
+    } catch (_) {}
+
+    if (!ownerAccount) ownerAccount = requested[0];
+    if (!internalAccount) internalAccount = requested[0];
+
+    const account = ownerAccount;
+    const accounts = Array.from(new Set([ownerAccount, internalAccount, ...requested].filter(Boolean)));
 
     const [
       viem,
@@ -109,6 +130,8 @@ export async function ensureDelegationToolkitContext() {
       provider,
       accounts,
       account,
+      ownerAccount,
+      internalAccount,
       viem,
       toolkit,
       publicClient,
