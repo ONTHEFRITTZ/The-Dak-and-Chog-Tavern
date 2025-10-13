@@ -315,6 +315,11 @@ async function ensurePoolLiquidity(provider) {
 }
 
 async function ensurePaymasterBalance(provider, overrideAmount = 0n) {
+  const autoDisabled = CONFIG.paymasterTopUpTarget <= 0n || CONFIG.paymasterMinBalance <= 0n;
+  if (autoDisabled && overrideAmount <= 0n) {
+    logger.debug('Paymaster automation disabled; skipping balance check');
+    return;
+  }
   if (!ensureConfigAddress(CONFIG.paymasterAddress, 'DCMON_PAYMASTER_ADDR')) return;
   const ctx = await getContext(provider);
   const { provider: rpc, wmon, signer, operatorAddress } = ctx;
