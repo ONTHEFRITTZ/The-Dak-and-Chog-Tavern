@@ -126,7 +126,17 @@ function initializePokerTable() {
   }
   const canvas = document.querySelector('.table-canvas');
   if (!canvas) return;
-  const seats = Array.from(document.querySelectorAll('.seat'));
+  const MAX_ONCHAIN_SEATS = 6;
+  const seatNodes = Array.from(document.querySelectorAll('.seat'));
+  const seats = isOnchainTable ? seatNodes.slice(0, MAX_ONCHAIN_SEATS) : seatNodes;
+  if (isOnchainTable && seatNodes.length > seats.length) {
+    seatNodes.slice(seats.length).forEach((seat) => {
+      try {
+        seat.classList.add('seat-disabled');
+        seat.style.display = 'none';
+      } catch {}
+    });
+  }
   let onchainAdapterPromise = null;
   let configModulePromise = null;
   let tableSnapshot = null;
@@ -291,6 +301,11 @@ function initializePokerTable() {
     }
     async function contribute(seatId, chips) {
       if (!isOnchainTable) return true;
+      if (seatId >= MAX_ONCHAIN_SEATS) {
+        const err = new Error('Seat unavailable on-chain.');
+        err.code = 'seat_range';
+        throw err;
+      }
       if (!Number.isFinite(chips) || chips <= 0) return true;
       const wei = chipsToWei(chips);
       if (!wei) throw new Error('Invalid contribution amount');
@@ -316,6 +331,11 @@ function initializePokerTable() {
     }
     async function readSeatOwnerLower(seatId) {
       if (!contract || !seatProbeSupported) return '';
+      if (isOnchainTable && seatId >= MAX_ONCHAIN_SEATS) {
+        const outOfRange = new Error('seat-range');
+        outOfRange.code = 'seat_range';
+        throw outOfRange;
+      }
       try {
         if (typeof contract.seats !== 'function') {
           seatProbeSupported = false;
@@ -341,6 +361,11 @@ function initializePokerTable() {
     }
     async function joinSeat(seatId) {
       if (!isOnchainTable) return true;
+      if (seatId >= MAX_ONCHAIN_SEATS) {
+        const err = new Error('Seat unavailable on-chain.');
+        err.code = 'seat_range';
+        throw err;
+      }
       const smartAddr = (await ownerAddress())?.toLowerCase?.() || '';
       const seatOwner = await readSeatOwnerLower(seatId);
       const seatKnown = seatOwner && seatOwner !== ZERO_ADDR;
@@ -369,6 +394,11 @@ function initializePokerTable() {
     }
     async function leaveSeat(seatId, opts) {
       if (!isOnchainTable) return true;
+      if (seatId >= MAX_ONCHAIN_SEATS) {
+        const err = new Error('Seat unavailable on-chain.');
+        err.code = 'seat_range';
+        throw err;
+      }
       const active = !!(opts && opts.inHand);
       const method = active ? 'leaveDuringHand' : 'unseat';
       if (typeof contract[method] !== 'function') return false;
@@ -1282,6 +1312,10 @@ function initializePokerTable() {
                 alert(ownerShort
                   ? `Seat is locked to your MetaMask Smart Account (${ownerShort}). Re-enable smart account delegation and try again.`
                   : 'Seat is locked to your MetaMask Smart Account. Re-enable smart account delegation and try again.');
+                return;
+              }
+              if (err?.code === 'seat_range') {
+                alert('This on-chain table only has six seats. Pick one of the highlighted seats.');
                 return;
               }
               const reason = String(err?.error?.data?.message || err?.data?.message || err?.message || '').toLowerCase();
