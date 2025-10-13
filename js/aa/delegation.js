@@ -16,6 +16,20 @@ import { getSmartAccount } from '../tavern.js';
 const STORAGE_KEY = 'aa:delegation:active';
 const DEFAULT_TTL = 2 * 60 * 60; // 2 hours
 
+const SIGNABLE_DELEGATION_TYPED_DATA_FALLBACK = {
+  Caveat: [
+    { name: 'enforcer', type: 'address' },
+    { name: 'terms', type: 'bytes' }
+  ],
+  Delegation: [
+    { name: 'delegate', type: 'address' },
+    { name: 'delegator', type: 'address' },
+    { name: 'authority', type: 'bytes32' },
+    { name: 'caveats', type: 'Caveat[]' },
+    { name: 'salt', type: 'uint256' }
+  ]
+};
+
 let presetCache = null;
 let delegationTarget = null;
 
@@ -158,12 +172,36 @@ export async function createDelegation({ address, preset }) {
     salt: randomSalt()
   });
 
-  const typedData = toolkit.prepareSignDelegationTypedData({
-    delegation,
-    delegationManager: environment.DelegationManager,
-    chainId: MONAD.id,
-    allowInsecureUnrestrictedDelegation: !delegation.caveats || delegation.caveats.length === 0
-  });
+  const toStruct = typeof toolkit.toDelegationStruct === 'function'
+    ? toolkit.toDelegationStruct.bind(toolkit)
+    : (input) => ({
+        delegate: input.delegate,
+        delegator: input.delegator || input.from,
+        authority: input.authority,
+        caveats: Array.isArray(input.caveats) ? input.caveats : [],
+        salt: (() => {
+          try {
+            if (typeof input.salt === 'bigint') return input.salt;
+            if (typeof input.salt === 'number') return BigInt(input.salt);
+            if (typeof input.salt === 'string' && input.salt) return BigInt(input.salt);
+          } catch {}
+          return 0n;
+        })()
+      });
+
+  const types = toolkit.SIGNABLE_DELEGATION_TYPED_DATA || SIGNABLE_DELEGATION_TYPED_DATA_FALLBACK;
+
+  const typedData = {
+    domain: {
+      chainId: MONAD.id,
+      name: 'DelegationManager',
+      version: '1',
+      verifyingContract: environment.DelegationManager
+    },
+    types,
+    primaryType: 'Delegation',
+    message: toStruct({ ...delegation, delegator, signature: '0x' })
+  };
 
   const signature = await walletClient.signTypedData({
     account: delegate,

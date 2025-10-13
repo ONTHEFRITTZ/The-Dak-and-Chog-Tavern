@@ -353,7 +353,13 @@ function initializePokerTable() {
       } catch (err) {
         if (!seatProbeWarned) {
           seatProbeWarned = true;
-          console.warn('Poker table: seat view fetch failed, disabling seat owner probe', err);
+          const reason = String(err?.message || '').toLowerCase();
+          const isRevert = reason.includes('revert') || reason.includes('execution reverted');
+          const logFn = isRevert ? console.info : console.warn;
+          logFn.call(
+            console,
+            'Poker table: seat owner probe unavailable; continuing without on-chain seat check.'
+          );
         }
         seatProbeSupported = false;
         return '';
