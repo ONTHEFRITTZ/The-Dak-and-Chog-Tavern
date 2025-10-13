@@ -22,6 +22,33 @@ function parseBigInt(value, fallback = 0n) {
   }
 }
 
+function parseAddressList(value) {
+  if (!value) return [];
+  return String(value)
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .map((entry) => {
+      try {
+        return ethers.getAddress(entry);
+      } catch {
+        return null;
+      }
+    })
+    .filter(Boolean);
+}
+
+const rawPokerTables = parseAddressList(process.env.DCMON_POKER_TABLES || '');
+const singlePokerTable = (process.env.DCMON_POKER_TABLE_ADDR || '').trim();
+if (singlePokerTable) {
+  try {
+    const normalized = ethers.getAddress(singlePokerTable);
+    if (!rawPokerTables.includes(normalized)) rawPokerTables.unshift(normalized);
+  } catch {
+    /* ignore invalid single address */
+  }
+}
+
 const CONFIG = {
   rpcUrl: process.env.DCMON_RPC_URL || process.env.MONAD_RPC || '',
   dcmonToken: process.env.DCMON_TOKEN_ADDR || '',
@@ -54,6 +81,9 @@ const CONFIG = {
   dryRun: process.env.DCMON_DRY_RUN !== 'false',
   logLevel: process.env.DCMON_LOG_LEVEL || 'info',
   encryptionKeyHex: process.env.DCMON_LOG_ENC_KEY || '',
+  pokerTables: rawPokerTables,
+  pokerTableAddress: rawPokerTables[0] || '',
+  pokerGasLimit: parseBigInt(process.env.DCMON_POKER_GAS_LIMIT, 0n),
 };
 
 function ensureArtifacts() {

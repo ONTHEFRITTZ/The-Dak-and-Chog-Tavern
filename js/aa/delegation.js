@@ -31,50 +31,55 @@ function normalizeAddress(addr) {
 }
 
 async function buildCaveats(toolkitCtx, target, selectors) {
-  const { environment, viem } = toolkitCtx;
-  const caveats = [];
+  try {
+    const { environment, viem } = toolkitCtx;
+    const caveats = [];
 
-  if (target && environment?.caveatEnforcers?.AllowedTargetsEnforcer) {
-    const { encodeAbiParameters, isAddress } = viem;
-    const enforcerDef = environment.caveatEnforcers.AllowedTargetsEnforcer;
-    const enforcerAddress = typeof enforcerDef === 'string' ? enforcerDef : enforcerDef?.address;
-    const type = (typeof enforcerDef === 'object' && enforcerDef?.type) || 'AllowedTargetsEnforcer';
-    if (enforcerAddress && (!isAddress || isAddress(target))) {
-      const encodedTargets = encodeAbiParameters
-        ? encodeAbiParameters([{ type: 'address[]' }], [[target]])
-        : `0x${String(target).replace(/^0x/, '')}`;
-      caveats.push({
-        enforcer: { address: enforcerAddress, type },
-        terms: encodedTargets,
-        args: '0x'
-      });
+    if (target && environment?.caveatEnforcers?.AllowedTargetsEnforcer) {
+      const { encodeAbiParameters, isAddress } = viem;
+      const enforcerDef = environment.caveatEnforcers.AllowedTargetsEnforcer;
+      const enforcerAddress = typeof enforcerDef === 'string' ? enforcerDef : enforcerDef?.address;
+      const type = (typeof enforcerDef === 'object' && enforcerDef?.type) || 'AllowedTargetsEnforcer';
+      if (enforcerAddress && (!isAddress || isAddress(target))) {
+        const encodedTargets = encodeAbiParameters
+          ? encodeAbiParameters([{ type: 'address[]' }], [[target]])
+          : `0x${String(target).replace(/^0x/, '')}`;
+        caveats.push({
+          enforcer: { address: enforcerAddress, type },
+          terms: encodedTargets,
+          args: '0x'
+        });
+      }
     }
-  }
 
-  if (selectors && selectors.length && environment?.caveatEnforcers?.AllowedMethodsEnforcer) {
-    const { encodeAbiParameters, isHex } = viem;
-    const enforcerDef = environment.caveatEnforcers.AllowedMethodsEnforcer;
-    const enforcerAddress = typeof enforcerDef === 'string' ? enforcerDef : enforcerDef?.address;
-    const type = (typeof enforcerDef === 'object' && enforcerDef?.type) || 'AllowedMethodsEnforcer';
-    const validSelectors = Array.isArray(selectors)
-      ? selectors
-          .map((sig) => (typeof sig === 'string' ? sig : ''))
-          .map((sig) => (sig.startsWith('0x') ? sig : `0x${sig}`))
-          .filter((sig) => sig.length === 10 && (!isHex || isHex(sig)))
-      : [];
-    if (enforcerAddress && validSelectors.length) {
-      const encodedSelectors = encodeAbiParameters
-        ? encodeAbiParameters([{ type: 'bytes4[]' }], [validSelectors])
-        : `0x${validSelectors.map((sig) => sig.slice(2)).join('')}`;
-      caveats.push({
-        enforcer: { address: enforcerAddress, type },
-        terms: encodedSelectors,
-        args: '0x'
-      });
+    if (selectors && selectors.length && environment?.caveatEnforcers?.AllowedMethodsEnforcer) {
+      const { encodeAbiParameters, isHex } = viem;
+      const enforcerDef = environment.caveatEnforcers.AllowedMethodsEnforcer;
+      const enforcerAddress = typeof enforcerDef === 'string' ? enforcerDef : enforcerDef?.address;
+      const type = (typeof enforcerDef === 'object' && enforcerDef?.type) || 'AllowedMethodsEnforcer';
+      const validSelectors = Array.isArray(selectors)
+        ? selectors
+            .map((sig) => (typeof sig === 'string' ? sig : ''))
+            .map((sig) => (sig.startsWith('0x') ? sig : `0x${sig}`))
+            .filter((sig) => sig.length === 10 && (!isHex || isHex(sig)))
+        : [];
+      if (enforcerAddress && validSelectors.length) {
+        const encodedSelectors = encodeAbiParameters
+          ? encodeAbiParameters([{ type: 'bytes4[]' }], [validSelectors])
+          : `0x${validSelectors.map((sig) => sig.slice(2)).join('')}`;
+        caveats.push({
+          enforcer: { address: enforcerAddress, type },
+          terms: encodedSelectors,
+          args: '0x'
+        });
+      }
     }
-  }
 
-  return caveats;
+    return caveats;
+  } catch (err) {
+    console.warn('[aa/delegation] buildCaveats error', err);
+    return [];
+  }
 }
 
 async function resolveDelegatorAddress() {
@@ -151,7 +156,13 @@ export async function createDelegation({ address, preset }) {
     throw new Error('Wallet address is required to create a delegation');
   }
   const delegator = await resolveDelegatorAddress() || delegate;
-  const caveats = await buildCaveats(ctx, delegationTarget, choice.selectors || []);
+  let caveats = [];
+  try {
+    caveats = await buildCaveats(ctx, delegationTarget, choice.selectors || []);
+  } catch (err) {
+    console.warn('[aa/delegation] buildCaveats failed, falling back to unrestricted delegation', err);
+    caveats = [];
+  }
 
   const { toolkit, environment, walletClient } = ctx;
   const delegation = toolkit.createDelegation({

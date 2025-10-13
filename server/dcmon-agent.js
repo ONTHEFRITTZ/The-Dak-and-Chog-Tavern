@@ -10,7 +10,7 @@ const { ethers } = require('ethers');
 const { CONFIG } = require('./dcmon/config');
 const { logger, persistLog } = require('./dcmon/logger');
 const { listSwaps, enqueueSwap, takeNextPending, markSwap } = require('./dcmon/queue');
-const { buildContracts } = require('./dcmon/contracts');
+const { buildContracts, connectPokerTable } = require('./dcmon/contracts');
 
 const formatEther = (value) => {
   try {
@@ -78,7 +78,7 @@ async function getContext(provider) {
     cachedOperatorAddress = await signer.getAddress();
   }
 
-  let contracts = { wmon: null, dcmon: null, pool: null };
+  let contracts = { wmon: null, dcmon: null, pool: null, pokerTables: {} };
   const contractsKey = provider || signer || null;
   if (contractsKey) {
     if (!cachedContracts || cachedContractsKey !== contractsKey) {
@@ -95,6 +95,7 @@ async function getContext(provider) {
     wmon: contracts?.wmon || null,
     dcmon: contracts?.dcmon || null,
     pool: contracts?.pool || null,
+    pokerTables: contracts?.pokerTables || {},
   };
 }
 
@@ -487,6 +488,60 @@ async function fulfillPoolRedeem(amount, ctx) {
   await redeemFromPool(amount, ctx);
 }
 
+async function fulfillSeatTask(task, ctx) {
+  const { provider, signer } = ctx;
+  if (!provider) throw new Error('Provider required for poker seat task');
+  if (!signer && !CONFIG.dryRun) throw new Error('Signer required for poker seat task');
+
+  let tableAddress = normalizeAddress(task.table || task.address || task.tableAddress, null);
+  if (!tableAddress && CONFIG.pokerTableAddress) {
+    tableAddress = normalizeAddress(CONFIG.pokerTableAddress, null);
+  }
+  if (!tableAddress) throw new Error('Seat task requires a valid table address');
+
+  const seatRaw = task.seat ?? task.seatId ?? task.index;
+  const seatIndex = Number(seatRaw);
+  if (!Number.isInteger(seatIndex) || seatIndex < 0 || seatIndex > 255) {
+    throw new Error('Seat task requires a seat index between 0 and 255');
+  }
+
+  ctx.pokerTables = ctx.pokerTables || {};
+  let poker = ctx.pokerTables[tableAddress];
+  if (!poker) {
+    poker = connectPokerTable(tableAddress, provider, signer);
+    if (poker) ctx.pokerTables[tableAddress] = poker;
+  }
+  if (!poker) throw new Error('Poker table contract unavailable');
+
+  const type = (task.type || '').toLowerCase();
+  const actionField = (task.action || '').toLowerCase();
+  const forceLeave = type === 'table_force_leave'
+    || actionField === 'leave'
+    || actionField === 'leave_during_hand'
+    || actionField === 'leaveduringhand'
+    || actionField === 'force'
+    || task.force === 'hand'
+    || task.inHand === true;
+
+  const method = forceLeave ? 'leaveDuringHand' : 'unseat';
+  const label = method === 'leaveDuringHand' ? 'poker_leave_during_hand' : 'poker_unseat';
+  const overrides = {};
+  if (CONFIG.pokerGasLimit > 0n) overrides.gasLimit = CONFIG.pokerGasLimit;
+
+  await executeTx(label, () => {
+    if (method === 'leaveDuringHand') return poker.leaveDuringHand(seatIndex, overrides);
+    return poker.unseat(seatIndex, overrides);
+  }, { table: tableAddress, seat: seatIndex, method });
+
+  persistLog('poker_seat_task_complete', {
+    table: tableAddress,
+    seat: seatIndex,
+    method,
+    dryRun: CONFIG.dryRun,
+  });
+  logger.info({ table: tableAddress, seat: seatIndex, method }, 'Poker seat task executed');
+}
+
 async function processSwapQueue(provider) {
   const pending = listSwaps().filter(s => s.status === 'pending').length;
   if (!pending) return;
@@ -511,6 +566,12 @@ async function processSwapQueue(provider) {
           break;
         case 'pool_redeem':
           await fulfillPoolRedeem(amount, ctx);
+          break;
+        case 'table_unseat':
+          await fulfillSeatTask({ ...swap, action: 'unseat' }, ctx);
+          break;
+        case 'table_force_leave':
+          await fulfillSeatTask({ ...swap, action: 'leaveDuringHand' }, ctx);
           break;
         default:
           logger.warn({ swap }, 'Unknown swap type; marking as failed');

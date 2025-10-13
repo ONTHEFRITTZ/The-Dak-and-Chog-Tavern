@@ -25,13 +25,30 @@ function parseAmount(input) {
 
 (async () => {
   try {
-    const type = (await prompt('Swap type (paymaster/buyin/cashout/pool_deposit/pool_redeem): ')).trim() || 'buyin';
-    const user = (await prompt('User address (optional): ')).trim();
-    const amountInput = (await prompt('Amount (wei or decimal MON): ')).trim();
+    const type = (await prompt('Task type (paymaster/buyin/cashout/pool_deposit/pool_redeem/table_unseat/table_force_leave): ')).trim() || 'buyin';
+    const lowerType = type.toLowerCase();
+    const isSeatTask = lowerType === 'table_unseat' || lowerType === 'table_force_leave';
+
+    const user = isSeatTask ? '' : (await prompt('User address (optional): ')).trim();
+    const amountInput = isSeatTask ? '0' : (await prompt('Amount (wei or decimal MON): ')).trim();
+
+    let table = '';
+    let seat = '';
+    if (isSeatTask) {
+      table = (await prompt('Poker table address (leave blank for default): ')).trim();
+      seat = (await prompt('Seat index (0-5): ')).trim();
+    }
+
     const note = (await prompt('Note (optional): ')).trim();
 
     const amount = parseAmount(amountInput);
-    const id = enqueueSwap({ type, user, amount, note });
+    const payload = { type, user, amount, note };
+    if (isSeatTask) {
+      if (table) payload.table = table;
+      payload.seat = seat || '0';
+    }
+
+    const id = enqueueSwap(payload);
     console.log(`Swap queued with id ${id}`);
   } catch (err) {
     console.error('Failed to enqueue swap', err);

@@ -55,7 +55,9 @@ module.exports = {
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
       env: {
         NODE_ENV: 'production',
-        DCMON_LOG_LEVEL: 'info'
+        DCMON_LOG_LEVEL: process.env.DCMON_LOG_LEVEL || 'info',
+        DCMON_POKER_TABLES: process.env.DCMON_POKER_TABLES || '0x681BADA5D0d012ABEB9f8A8F0E38758396DE0db3',
+        DCMON_POKER_GAS_LIMIT: process.env.DCMON_POKER_GAS_LIMIT || '0'
       },
       env_production: {
         NODE_ENV: 'production'
@@ -63,3 +65,4 @@ module.exports = {
     }
   ]
 };
+
