@@ -52,6 +52,60 @@ function normalizeAddress(addr) {
   return addr.toLowerCase();
 }
 
+async function resolveDelegateAddress(ctx, fallback, avoid) {
+  const avoidLc = normalizeAddress(avoid);
+  const candidates = [];
+  const push = (value, { prioritize = false } = {}) => {
+    if (!value || typeof value !== 'string') return;
+    const trimmed = value.trim();
+    if (!trimmed) return;
+    const lc = trimmed.toLowerCase();
+    if (lc === avoidLc) return;
+    if (prioritize) {
+      candidates.unshift(lc);
+    } else if (!candidates.includes(lc)) {
+      candidates.push(lc);
+    }
+  };
+
+  try {
+    const walletAccounts = await ctx?.provider?.request?.({ method: 'wallet_accounts' });
+    if (Array.isArray(walletAccounts)) {
+      for (const entry of walletAccounts) {
+        const addr = entry?.address || entry?.account || entry?.id || entry?.address?.address;
+        const type = String(entry?.type || entry?.accountType || '').toLowerCase();
+        if (addr && (!type || type.includes('eoa') || type.includes('external'))) {
+          const normalized = normalizeAddress(addr);
+          if (normalized && normalized !== avoidLc) {
+            return normalized;
+          }
+        }
+      }
+    }
+  } catch {}
+
+  try { push(ctx?.provider?.selectedAddress, { prioritize: true }); } catch {}
+  try { push(ctx?.provider?.selectedWalletAddress, { prioritize: true }); } catch {}
+
+  (ctx?.accounts || []).forEach((value) => push(value, { prioritize: true }));
+  push(fallback, { prioritize: false });
+
+  for (const candidate of candidates) {
+    if (candidate) return candidate;
+  }
+  if (avoidLc) return avoidLc;
+
+  try {
+    const accounts = await ctx?.provider?.request?.({ method: 'eth_accounts' });
+    if (Array.isArray(accounts)) {
+      const found = accounts.map(normalizeAddress).find((acc) => acc && acc !== avoidLc);
+      if (found) return found;
+    }
+  } catch {}
+
+  return avoidLc || normalizeAddress(fallback || ctx?.accounts?.[0] || null);
+}
+
 async function buildFunctionCallScope(toolkitCtx, target, selectors) {
   const viem = toolkitCtx.viem || (await ensureViem());
   const { isAddress, isHex } = viem;
@@ -150,11 +204,15 @@ export async function createDelegation({ address, preset }) {
     throw new Error('Unknown delegation preset');
   }
 
-  const delegate = normalizeAddress(address || ctx.account);
+  const delegatorResolved = await resolveDelegatorAddress();
+  const delegate = await resolveDelegateAddress(ctx, address || ctx.account, delegatorResolved);
   if (!delegate) {
     throw new Error('Wallet address is required to create a delegation');
   }
-  const delegator = await resolveDelegatorAddress() || delegate;
+  if (delegatorResolved && delegatorResolved === delegate) {
+    throw new Error('MetaMask returned a smart account address. Please select the base MetaMask account and try again.');
+  }
+  const delegator = delegatorResolved || delegate;
   let scope;
   try {
     scope = await buildFunctionCallScope(ctx, delegationTarget, choice.selectors || []);
@@ -189,19 +247,28 @@ export async function createDelegation({ address, preset }) {
         })()
       });
 
-  const types = toolkit.SIGNABLE_DELEGATION_TYPED_DATA || SIGNABLE_DELEGATION_TYPED_DATA_FALLBACK;
-
-  const typedData = {
-    domain: {
+  let typedData;
+  if (typeof toolkit.prepareSignDelegationTypedData === 'function') {
+    typedData = toolkit.prepareSignDelegationTypedData({
+      delegation,
+      delegationManager: environment.DelegationManager,
       chainId: MONAD.id,
-      name: 'DelegationManager',
-      version: '1',
-      verifyingContract: environment.DelegationManager
-    },
-    types,
-    primaryType: 'Delegation',
-    message: toStruct({ ...delegation, delegator, signature: '0x' })
-  };
+      allowInsecureUnrestrictedDelegation: !delegation.caveats || delegation.caveats.length === 0
+    });
+  } else {
+    const types = toolkit.SIGNABLE_DELEGATION_TYPED_DATA || SIGNABLE_DELEGATION_TYPED_DATA_FALLBACK;
+    typedData = {
+      domain: {
+        chainId: MONAD.id,
+        name: 'DelegationManager',
+        version: '1',
+        verifyingContract: environment.DelegationManager
+      },
+      types,
+      primaryType: 'Delegation',
+      message: toStruct({ ...delegation, delegator, signature: '0x' })
+    };
+  }
 
   const signature = await walletClient.signTypedData({
     account: delegate,
@@ -216,6 +283,7 @@ export async function createDelegation({ address, preset }) {
     permissionContext: [[signedDelegation]],
     from: delegator,
     to: delegate,
+    delegate,
     createdAt: nowSec(),
     end: nowSec() + (choice.ttlSeconds || DEFAULT_TTL),
     chainId: MONAD.id
