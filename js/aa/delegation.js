@@ -54,6 +54,7 @@ async function buildCaveats(toolkitCtx, target, selectors) {
           ? encodeAbiParameters([{ type: 'address[]' }], [[target]])
           : `0x${String(target).replace(/^0x/, '')}`;
         caveats.push({
+          type,
           enforcer: { address: enforcerAddress, type },
           terms: encodedTargets,
           args: '0x'
@@ -77,6 +78,7 @@ async function buildCaveats(toolkitCtx, target, selectors) {
           ? encodeAbiParameters([{ type: 'bytes4[]' }], [validSelectors])
           : `0x${validSelectors.map((sig) => sig.slice(2)).join('')}`;
         caveats.push({
+          type,
           enforcer: { address: enforcerAddress, type },
           terms: encodedSelectors,
           args: '0x'
@@ -243,5 +245,8 @@ export function isDelegationActive() {
 }
 
 export { nowSec };
+
+
+
 
 
