@@ -1,7 +1,15 @@
-// js/aa/delegation.js
+﻿// js/aa/delegation.js
 // Delegation helpers backed by the MetaMask Delegation Toolkit.
 
 import { MONAD, getPokerTableAddress } from './config.js';
+let viemImportPromise;
+async function ensureViem() {
+  if (!viemImportPromise) {
+    viemImportPromise = import('https://esm.sh/viem@2.31.4');
+  }
+  return viemImportPromise;
+}
+
 import { ensureDelegationToolkitContext, resetDelegationToolkitContext } from './toolkit.js';
 import { getSmartAccount } from '../tavern.js';
 
@@ -32,7 +40,8 @@ function normalizeAddress(addr) {
 
 async function buildCaveats(toolkitCtx, target, selectors) {
   try {
-    const { environment, viem } = toolkitCtx;
+    const { environment } = toolkitCtx;
+    const viem = toolkitCtx.viem || (await ensureViem());
     const caveats = [];
 
     if (target && environment?.caveatEnforcers?.AllowedTargetsEnforcer) {
@@ -234,3 +243,4 @@ export function isDelegationActive() {
 }
 
 export { nowSec };
+
