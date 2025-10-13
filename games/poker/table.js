@@ -1206,6 +1206,8 @@ function initializePokerTable() {
               const reason = String(err?.error?.data?.message || err?.data?.message || err?.message || '').toLowerCase();
               if (reason.includes('taken')) {
                 alert('That seat was just taken. Pick a different seat.');
+                emitSocket('join_table', { table: tableId, reason: 'seat-refresh' });
+                emitSocket('seat', { index: idx });
               } else {
                 alert('Seat transaction failed. Confirm wallet status and retry.');
               }

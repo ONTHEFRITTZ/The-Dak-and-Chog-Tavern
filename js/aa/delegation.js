@@ -35,28 +35,40 @@ async function buildCaveats(toolkitCtx, target, selectors) {
   const caveats = [];
 
   if (target && environment?.caveatEnforcers?.AllowedTargetsEnforcer) {
-    const { concat } = viem;
+    const { encodeAbiParameters, isAddress } = viem;
     const enforcerDef = environment.caveatEnforcers.AllowedTargetsEnforcer;
     const enforcerAddress = typeof enforcerDef === 'string' ? enforcerDef : enforcerDef?.address;
     const type = (typeof enforcerDef === 'object' && enforcerDef?.type) || 'AllowedTargetsEnforcer';
-    if (enforcerAddress) {
+    if (enforcerAddress && (!isAddress || isAddress(target))) {
+      const encodedTargets = encodeAbiParameters
+        ? encodeAbiParameters([{ type: 'address[]' }], [[target]])
+        : `0x${String(target).replace(/^0x/, '')}`;
       caveats.push({
         enforcer: { address: enforcerAddress, type },
-        terms: concat([target]),
+        terms: encodedTargets,
         args: '0x'
       });
     }
   }
 
   if (selectors && selectors.length && environment?.caveatEnforcers?.AllowedMethodsEnforcer) {
-    const { concat } = viem;
+    const { encodeAbiParameters, isHex } = viem;
     const enforcerDef = environment.caveatEnforcers.AllowedMethodsEnforcer;
     const enforcerAddress = typeof enforcerDef === 'string' ? enforcerDef : enforcerDef?.address;
     const type = (typeof enforcerDef === 'object' && enforcerDef?.type) || 'AllowedMethodsEnforcer';
-    if (enforcerAddress) {
+    const validSelectors = Array.isArray(selectors)
+      ? selectors
+          .map((sig) => (typeof sig === 'string' ? sig : ''))
+          .map((sig) => (sig.startsWith('0x') ? sig : `0x${sig}`))
+          .filter((sig) => sig.length === 10 && (!isHex || isHex(sig)))
+      : [];
+    if (enforcerAddress && validSelectors.length) {
+      const encodedSelectors = encodeAbiParameters
+        ? encodeAbiParameters([{ type: 'bytes4[]' }], [validSelectors])
+        : `0x${validSelectors.map((sig) => sig.slice(2)).join('')}`;
       caveats.push({
         enforcer: { address: enforcerAddress, type },
-        terms: concat(selectors),
+        terms: encodedSelectors,
         args: '0x'
       });
     }

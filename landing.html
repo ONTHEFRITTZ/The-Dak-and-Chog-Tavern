@@ -43,7 +43,79 @@
     }
     .wallet-btn:active { transform: translateY(1px); }
     .wallet-btn[disabled] { opacity:.6; pointer-events:none; }
-    .subnote { font-size: 12px; margin-top: 6px; }
+    #sa-modal {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0,0,0,0.68);
+      z-index: 15000;
+      padding: 20px;
+    }
+    #sa-modal[aria-hidden="false"] { display: flex; }
+    .sa-dialog {
+      background: var(--panel-bg-soft);
+      border: 1px solid rgba(255,255,255,0.16);
+      border-radius: 16px;
+      box-shadow: 0 28px 70px rgba(0,0,0,0.6);
+      padding: 24px 26px;
+      width: min(92vw, 460px);
+      color: #f4e6d3;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      position: relative;
+    }
+    .sa-close {
+      position: absolute;
+      top: 10px;
+      right: 12px;
+      background: transparent;
+      border: none;
+      color: #f4e6d3;
+      font-size: 26px;
+      cursor: pointer;
+    }
+    .sa-close:hover { color: #fff; }
+    .sa-benefits {
+      text-align: left;
+      margin: 8px 0 0;
+      padding-left: 20px;
+    }
+    .sa-benefits li { margin: 4px 0; font-size: 14px; }
+    .sa-actions { display:flex; flex-direction:column; gap:12px; margin-top:10px; }
+    .sa-primary,
+    .sa-secondary {
+      width: 100%;
+      min-width: 0;
+      height: 48px;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: opacity .15s ease, transform .08s ease;
+    }
+    .sa-primary {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      background: linear-gradient(135deg,#9200fa,#5f00a8);
+      color: #fff;
+      text-decoration: none;
+      box-shadow: 0 0 20px rgba(146,0,250,0.45);
+    }
+    .sa-primary:hover { opacity: .92; }
+    .sa-primary:active { transform: translateY(1px); }
+    .sa-secondary {
+      background: rgba(255,255,255,0.06);
+      color: #f4e6d3;
+    }
+    .sa-secondary:hover { opacity: .9; }
+    .sa-secondary:active { transform: translateY(1px); }
+    .subnote { font-size: 12px; margin-top: 6px; color: rgba(244,230,211,0.9); text-align: center; }
   </style>
 
   <!-- Pin the chosen wallet as early as possible on this page too -->
@@ -99,17 +171,61 @@
     </section>
   </main>
 
-  <script>
+  <div id="sa-modal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="sa-title">
+    <div class="sa-dialog">
+      <button type="button" class="sa-close" id="sa-dismiss" aria-label="Dismiss smart account notice">&times;</button>
+      <h2 id="sa-title" style="margin:0;">MetaMask Smart Account Recommended</h2>
+      <p id="sa-message" style="margin:4px 0 2px; font-size:15px; line-height:1.4;">
+        We noticed you don't have a MetaMask Smart Account yet. Enable it to unlock the full Tavern experience.
+      </p>
+      <ul class="sa-benefits">
+        <li>Sponsored gas for table ops and delegated gameplay</li>
+        <li>Safer, session-scoped permissions when you sit</li>
+        <li>Faster re-buys and quest tracking</li>
+        <li>Priority access to new AA-only features</li>
+      </ul>
+      <div class="sa-actions">
+        <a href="https://portfolio.metamask.io/smart-account" target="_blank" rel="noopener" class="sa-primary" id="sa-upgrade">
+          Enable MetaMask Smart Account
+        </a>
+        <button type="button" class="sa-secondary" id="sa-proceed">
+          Enter with fewer features
+        </button>
+      </div>
+      <div class="subnote" id="sa-subnote">No, I'd like to proceed with fewer features.</div>
+    </div>
+  </div>
+
+  <script type="module">
     const $ = id => document.getElementById(id);
     const statusEl = $("wc-status");
     const pendingHint = $("pending-hint");
     const btnMM = $("btn-metamask");
     const btnPH = $("btn-phantom");
     const phMissing = $("phantom-missing");
+    const saModal = $("sa-modal");
+    const saMessage = $("sa-message");
+    const saTitle = $("sa-title");
+    const saUpgrade = $("sa-upgrade");
+    const saProceed = $("sa-proceed");
+    const saSubnote = $("sa-subnote");
+    const saDismiss = $("sa-dismiss");
+
+    const SMART_ACCOUNT_UPGRADE_URL = "https://portfolio.metamask.io/smart-account";
+    const SMART_ACCOUNT_BENEFITS = [
+      "Sponsored gas for table ops and delegated gameplay",
+      "Safer, session-scoped permissions when you sit",
+      "Faster re-buys and quest tracking",
+      "Priority access to new AA-only features"
+    ];
+
+    let pendingEntry = null;
+    let aaAccountModule = null;
 
     function setStatus(msg) { statusEl.textContent = msg || ""; }
     function lock(btn, on) { if (btn) btn.disabled = !!on; }
     function redirectHome() { location.replace("/index.html"); }
+    function resetPendingEntry() { pendingEntry = null; }
     function markSigned(addr, which) {
       try {
         sessionStorage.setItem("walletSigned", "true");
@@ -124,6 +240,89 @@
         if (window.walletChoice?.save) window.walletChoice.save(which);
       } catch {}
     }
+    function updateBenefitsList() {
+      if (!saModal) return;
+      const list = saModal.querySelector(".sa-benefits");
+      if (!list) return;
+      list.innerHTML = SMART_ACCOUNT_BENEFITS.map((item) => `<li>${item}</li>`).join("");
+    }
+    function closeSmartAccountModal({ reset } = {}) {
+      if (!saModal) return;
+      saModal.setAttribute("aria-hidden", "true");
+      if (reset) resetPendingEntry();
+    }
+    function openSmartAccountModal(mode) {
+      if (!saModal) return false;
+      updateBenefitsList();
+      if (saUpgrade) saUpgrade.href = SMART_ACCOUNT_UPGRADE_URL;
+      if (mode === "phantom") {
+        if (saTitle) saTitle.textContent = "MetaMask Smart Account Unlocks More";
+        if (saMessage) saMessage.textContent = "Phantom works for basic play, but the Dak & Chog extras are tailored for MetaMask Smart Accounts. Install MetaMask Smart Accounts to access the full experience.";
+        if (saUpgrade) saUpgrade.textContent = "Install MetaMask Smart Accounts";
+        if (saSubnote) saSubnote.textContent = "No, I'd like to stay on Phantom with fewer features.";
+      } else {
+        if (saTitle) saTitle.textContent = "MetaMask Smart Account Recommended";
+        if (saMessage) saMessage.textContent = "We noticed you’re using MetaMask without Smart Accounts. Enable them to unlock the full Tavern experience.";
+        if (saUpgrade) saUpgrade.textContent = "Enable MetaMask Smart Account";
+        if (saSubnote) saSubnote.textContent = "No, I'd like to proceed with fewer features.";
+      }
+      saModal.setAttribute("aria-hidden", "false");
+      saModal.dataset.mode = mode;
+      return true;
+    }
+    async function loadAAAccountModule() {
+      if (aaAccountModule) return aaAccountModule;
+      try {
+        aaAccountModule = await import("./js/aa/account.js");
+      } catch (err) {
+        console.warn("Failed to load smart account helpers", err);
+        aaAccountModule = null;
+      }
+      return aaAccountModule;
+    }
+    async function hasMetaMaskSmartAccount(address) {
+      const addr = String(address || "");
+      if (!addr) return false;
+      const mod = await loadAAAccountModule();
+      if (!mod || typeof mod.isSmartAccount !== "function") return false;
+      try {
+        return await mod.isSmartAccount(addr);
+      } catch (err) {
+        console.warn("MetaMask smart account detection failed", err);
+        return false;
+      }
+    }
+    function finalizePendingEntry() {
+      const entry = pendingEntry;
+      resetPendingEntry();
+      if (entry && typeof entry.onProceed === "function") {
+        entry.onProceed();
+      }
+    }
+    function configureModalEvents() {
+      if (!saModal) return;
+      saProceed?.addEventListener("click", () => {
+        closeSmartAccountModal();
+        finalizePendingEntry();
+      });
+      saDismiss?.addEventListener("click", () => {
+        closeSmartAccountModal({ reset: true });
+        setStatus("Smart Account prompt dismissed.");
+      });
+      saModal.addEventListener("click", (evt) => {
+        if (evt.target === saModal) {
+          closeSmartAccountModal({ reset: true });
+          setStatus("Smart Account prompt dismissed.");
+        }
+      });
+      window.addEventListener("keydown", (evt) => {
+        if (evt.key === "Escape" && saModal.getAttribute("aria-hidden") === "false") {
+          closeSmartAccountModal({ reset: true });
+          setStatus("Smart Account prompt dismissed.");
+        }
+      });
+    }
+    configureModalEvents();
 
     function getMetaMaskProvider() {
       const eth = window.ethereumAll?.metamask || (window.ethereum?.isMetaMask ? window.ethereum : null);
@@ -170,7 +369,26 @@
       lock(btnMM, true); setStatus("Connecting to MetaMask…");
       const addr = await ensureAccount(mm, "MetaMask");
       lock(btnMM, false);
-      if (addr) { markSigned(addr, "metamask"); redirectHome(); }
+      if (!addr) return;
+
+      const smart = await hasMetaMaskSmartAccount(addr);
+      if (smart) {
+        markSigned(addr, "metamask");
+        redirectHome();
+        return;
+      }
+
+      pendingEntry = {
+        mode: "metamask",
+        address: addr,
+        onProceed() { markSigned(addr, "metamask"); redirectHome(); }
+      };
+      const opened = openSmartAccountModal("metamask");
+      if (opened) {
+        setStatus("MetaMask connected. Enable Smart Accounts to unlock all features.");
+        return;
+      }
+      finalizePendingEntry();
     }
 
     async function connectPhantom() {
@@ -182,7 +400,19 @@
       lock(btnPH, true); setStatus("Connecting to Phantom…");
       const addr = await ensureAccount(ph, "Phantom");
       lock(btnPH, false);
-      if (addr) { markSigned(addr, "phantom"); redirectHome(); }
+      if (!addr) return;
+
+      pendingEntry = {
+        mode: "phantom",
+        address: addr,
+        onProceed() { markSigned(addr, "phantom"); redirectHome(); }
+      };
+      const opened = openSmartAccountModal("phantom");
+      if (opened) {
+        setStatus("Phantom connected. MetaMask Smart Accounts unlock the full Tavern.");
+        return;
+      }
+      finalizePendingEntry();
     }
 
     // Reveal wallet choices after age confirm
