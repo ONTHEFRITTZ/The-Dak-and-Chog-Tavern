@@ -313,20 +313,57 @@ function initializePokerTable() {
       return true;
     }
     async function readSeatOwnerLower(seatId) {
-      try {
-        const seatView = await contract.seats(seatId);
-        const holder = seatView && (seatView.player || seatView[0]);
-        return typeof holder === 'string' ? holder.toLowerCase() : '';
-      } catch (err) {
-        console.warn('Poker table: seat view fetch failed', err);
-        return '';
+      if (!contract || typeof seatId === 'undefined') return '';
+      const attempt = async (fn) => {
+        try {
+          const res = await fn();
+          return res ?? null;
+        } catch (err) {
+          console.warn('Poker table: seat owner probe failed', err);
+          return null;
+        }
+      };
+      let seatView = null;
+      const probes = [];
+      if (typeof contract.seats === 'function') probes.push(() => contract.seats(seatId));
+      if (contract.callStatic?.seats) probes.push(() => contract.callStatic.seats(seatId));
+      if (contract.functions?.seats) probes.push(() => contract.functions.seats(seatId));
+      for (const probe of probes) {
+        seatView = await attempt(probe);
+        if (seatView) break;
       }
+      if (!seatView && contract.interface && provider) {
+        const candidateNames = ['seats', 'seats(uint8)', 'seats(uint256)'];
+        for (const name of candidateNames) {
+          try {
+            const fn = contract.interface.getFunction(name);
+            if (!fn) continue;
+            const data = contract.interface.encodeFunctionData(fn, [seatId]);
+            const raw = await provider.call({ to: tableAddress, data });
+            const decoded = contract.interface.decodeFunctionResult(fn, raw);
+            seatView = Array.isArray(decoded) ? decoded[0] : decoded;
+            if (seatView) break;
+          } catch (err) {
+            console.warn('Poker table: seat owner manual call failed', err);
+          }
+        }
+      }
+      if (!seatView) return '';
+      let holder = null;
+      if (typeof seatView === 'string') holder = seatView;
+      else if (seatView && typeof seatView === 'object' && 'player' in seatView && typeof seatView.player === 'string') {
+        holder = seatView.player;
+      } else if (Array.isArray(seatView) && typeof seatView[0] === 'string') {
+        holder = seatView[0];
+      }
+      return typeof holder === 'string' ? holder.toLowerCase() : '';
     }
     async function joinSeat(seatId) {
       if (!isOnchainTable) return true;
       const smartAddr = (await ownerAddress())?.toLowerCase?.() || '';
       const seatOwner = await readSeatOwnerLower(seatId);
-      if (seatOwner && seatOwner !== ZERO_ADDR && seatOwner !== smartAddr) {
+      const seatKnown = seatOwner && seatOwner !== ZERO_ADDR;
+      if (seatKnown && seatOwner !== smartAddr) {
         const err = new Error('Seat already taken on-chain.');
         err.code = 'seat_taken';
         throw err;
@@ -336,7 +373,7 @@ function initializePokerTable() {
         const signerAddr = typeof signer.getAddress === 'function'
           ? (await signer.getAddress()).toLowerCase()
           : '';
-        if (seatOwner && seatOwner !== signerAddr) {
+        if (seatKnown && seatOwner !== signerAddr) {
           const err = new Error('Seat is held by your MetaMask Smart Account. Re-enable smart account delegation to manage this seat.');
           err.code = 'seat_owner_mismatch';
           err.details = { seatOwner };
@@ -356,13 +393,14 @@ function initializePokerTable() {
       if (typeof contract[method] !== 'function') return false;
       const signature = active ? 'leaveDuringHand(uint8)' : 'unseat(uint8)';
       const seatOwner = await readSeatOwnerLower(seatId);
+      const seatKnown = seatOwner && seatOwner !== ZERO_ADDR;
       const smartAddr = (await ownerAddress())?.toLowerCase?.() || '';
       const aaOk = await callViaAA(signature, [seatId]);
       if (!aaOk) {
         const signerAddr = typeof signer.getAddress === 'function'
           ? (await signer.getAddress()).toLowerCase()
           : '';
-        if (seatOwner && seatOwner !== ZERO_ADDR) {
+        if (seatKnown) {
           if (seatOwner === smartAddr && seatOwner !== signerAddr) {
             const err = new Error('Seat belongs to your MetaMask Smart Account. Re-enable smart account delegation to leave.');
             err.code = 'seat_owner_mismatch';
@@ -383,7 +421,7 @@ function initializePokerTable() {
       }
       return true;
     }
-    return { address: tableAddress, contract, joinSeat, leaveSeat, contribute, ownerAddress };
+    return { address: tableAddress, contract, joinSeat, leaveSeat, contribute, ownerAddress, readSeatOwnerLower };
   }
   setChipValue(chipValueDcmon);
   if (!seats.length) return;
@@ -1258,7 +1296,11 @@ function initializePokerTable() {
               console.error('Poker table: joinSeat failed', err);
               try { sit.disabled = false; sit.textContent = original; } catch {}
               if (err?.code === 'seat_owner_mismatch') {
-                alert('This seat is assigned to your MetaMask Smart Account. Re-enable smart account delegation and try again.');
+                const owner = typeof err?.details?.seatOwner === 'string' ? err.details.seatOwner : '';
+                const ownerShort = owner ? short(owner) : '';
+                alert(ownerShort
+                  ? `Seat is locked to your MetaMask Smart Account (${ownerShort}). Re-enable smart account delegation and try again.`
+                  : 'Seat is locked to your MetaMask Smart Account. Re-enable smart account delegation and try again.');
                 return;
               }
               const reason = String(err?.error?.data?.message || err?.data?.message || err?.message || '').toLowerCase();
@@ -1267,7 +1309,16 @@ function initializePokerTable() {
                 emitSocket('join_table', { table: tableId, reason: 'seat-refresh' });
                 emitSocket('seat', { index: idx });
               } else if (reason.includes('seat owner')) {
-                alert('That seat belongs to another address. Connect the wallet that originally joined it.');
+                let latestOwner = '';
+                try {
+                  latestOwner = typeof adapter.readSeatOwnerLower === 'function' ? await adapter.readSeatOwnerLower(idx) : '';
+                } catch (probeErr) {
+                  console.warn('Poker table: seat owner probe post-failure failed', probeErr);
+                }
+                const ownerShort = latestOwner ? short(latestOwner) : '';
+                alert(ownerShort
+                  ? `That seat belongs to ${ownerShort}. Connect the wallet that originally joined it.`
+                  : 'That seat belongs to another address. Connect the wallet that originally joined it.');
               } else {
                 alert('Seat transaction failed. Confirm wallet status and retry.');
               }
@@ -1332,12 +1383,25 @@ function initializePokerTable() {
               leaveBtn.disabled = false;
               leaveBtn.textContent = 'Leave';
               if (err?.code === 'seat_owner_mismatch') {
-                alert('Seat control mismatch. Re-enable your MetaMask Smart Account or connect the wallet that originally sat here.');
+                const owner = typeof err?.details?.seatOwner === 'string' ? err.details.seatOwner : '';
+                const ownerShort = owner ? short(owner) : '';
+                alert(ownerShort
+                  ? `Seat control mismatch. Re-enable your MetaMask Smart Account (${ownerShort}) or connect the wallet that originally sat here.`
+                  : 'Seat control mismatch. Re-enable your MetaMask Smart Account or connect the wallet that originally sat here.');
                 return;
               }
               const reason = String(err?.error?.data?.message || err?.data?.message || err?.message || '').toLowerCase();
               if (reason.includes('seat owner')) {
-                alert('Seat is owned by a different address. Connect the correct wallet to leave.');
+                let latestOwner = '';
+                try {
+                  latestOwner = typeof adapter.readSeatOwnerLower === 'function' ? await adapter.readSeatOwnerLower(idx) : '';
+                } catch (probeErr) {
+                  console.warn('Poker table: seat owner probe post-failure failed', probeErr);
+                }
+                const ownerShort = latestOwner ? short(latestOwner) : '';
+                alert(ownerShort
+                  ? `Seat is owned by ${ownerShort}. Connect that wallet to leave.`
+                  : 'Seat is owned by a different address. Connect the correct wallet to leave.');
                 return;
               }
               alert('Leave transaction failed. Try again.');
