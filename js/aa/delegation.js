@@ -16,6 +16,8 @@ import { getSmartAccount } from '../tavern.js';
 
 const STORAGE_KEY = 'aa:delegation:active';
 const DEFAULT_TTL = 2 * 60 * 60; // 2 hours
+const DELEGATION_SUPPRESS_KEY = 'aa:delegation:suppress';
+const DELEGATION_SUPPRESS_PERSIST_KEY = 'aa:delegation:suppress:persist';
 
 const SIGNABLE_DELEGATION_TYPED_DATA_FALLBACK = {
   Caveat: [
@@ -52,6 +54,28 @@ function randomSalt() {
 function normalizeAddress(addr) {
   if (!addr) return null;
   return addr.toLowerCase();
+}
+
+export function isDelegationSuppressed() {
+  try {
+    if (sessionStorage.getItem(DELEGATION_SUPPRESS_KEY) === 'true') return true;
+  } catch {}
+  try {
+    if (localStorage.getItem(DELEGATION_SUPPRESS_PERSIST_KEY) === 'true') return true;
+  } catch {}
+  return false;
+}
+
+function suppressDelegation(reason) {
+  try { sessionStorage.setItem(DELEGATION_SUPPRESS_KEY, 'true'); } catch {}
+  try { localStorage.setItem(DELEGATION_SUPPRESS_PERSIST_KEY, 'true'); } catch {}
+  if (reason) console.warn('[aa/delegation] Delegation suppressed:', reason);
+  else console.warn('[aa/delegation] Delegation suppressed.');
+}
+
+export function clearDelegationSuppression() {
+  try { sessionStorage.removeItem(DELEGATION_SUPPRESS_KEY); } catch {}
+  try { localStorage.removeItem(DELEGATION_SUPPRESS_PERSIST_KEY); } catch {}
 }
 
 async function getWalletAccounts(ctx) {
@@ -450,6 +474,7 @@ export async function createDelegation({ address, preset, presetKey }) {
   } catch (err) {
     const msg = String(err?.message || err?.data?.message || '').toLowerCase();
     if (msg.includes('external signature requests') && msg.includes('internal accounts')) {
+      suppressDelegation('MetaMask rejected delegation for smart account');
       const helper = new Error(
         'MetaMask needs to sign this delegation from your base account. Open MetaMask, temporarily disable Smart Accounts for this wallet, approve the signature, then re-enable Smart Accounts.'
       );
@@ -491,7 +516,9 @@ export async function ensureDelegationActive({ presetKey, address, force = false
     }
   } else {
     try { localStorage.removeItem(STORAGE_KEY); } catch {}
+    clearDelegationSuppression();
   }
+  if (isDelegationSuppressed()) return null;
   if (ensureDelegationPromise) {
     try {
       return await ensureDelegationPromise;
@@ -557,7 +584,7 @@ export function isDelegationActive() {
   return !!loadDelegation();
 }
 
-export { nowSec };
+export { nowSec, isDelegationSuppressed };
 
 if (typeof window !== 'undefined') {
   const autoEnsureDelegation = () => {

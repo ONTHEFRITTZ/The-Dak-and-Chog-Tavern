@@ -5,7 +5,15 @@ const __IS_F2P = __MODE === 'f2p';
 import { ensureMonadSelected, getAccounts, isSmartAccount, upgradeToSmartAccount } from './account.js';
 import { MONAD } from './config.js';
 import { AA, initAA, getSmartAccountAddress } from '../aaClient.js';
-import { presets as buildPresets, revokeDelegation, loadDelegation, ensureDelegationActive, nowSec } from './delegation.js';
+import {
+  presets as buildPresets,
+  revokeDelegation,
+  loadDelegation,
+  ensureDelegationActive,
+  nowSec,
+  clearDelegationSuppression,
+  isDelegationSuppressed
+} from './delegation.js';
 
 function short(addr) {
   return addr && addr.length > 10 ? `${addr.slice(0, 6)}...${addr.slice(-4)}` : (addr || '');
@@ -23,6 +31,8 @@ function formatRelativeExpiry(tsSec) {
   const days = Math.floor(hours / 24);
   return `${days}d ${hours % 24}h`;
 }
+
+const SMART_ACCOUNT_OPT_IN_KEY = 'aa.smartAccount.optIn';
 
 function ensureContainer() {
   if (__IS_F2P) {
@@ -191,11 +201,24 @@ function renderStatus(state) {
 }
 
 function renderDelegationInfo(state) {
-  const { delegation, delegationActive, smartAddress, delegationError } = state;
+  const {
+    delegation,
+    delegationActive,
+    smartAddress,
+    delegationError,
+    smartOptIn,
+    delegationSuppressed
+  } = state;
   const box = ensureDelegationBox();
   box.innerHTML = '';
   if (!delegation) {
-    box.textContent = 'Delegation: none configured';
+    if (!smartOptIn) {
+      box.textContent = 'Smart account disabled. Enable it to sign a delegation.';
+    } else if (delegationSuppressed) {
+      box.textContent = 'Delegation blocked by MetaMask. Disable Smart Accounts in MetaMask, then click "Enable Smart Account" again.';
+    } else {
+      box.textContent = 'Delegation: none configured';
+    }
     return;
   }
 
@@ -247,7 +270,15 @@ function renderDelegationInfo(state) {
 }
 
 async function renderButtons(state, presetMap) {
-  const { addr, controller, chainOk, smartType, delegationActive } = state;
+  const {
+    addr,
+    controller,
+    chainOk,
+    smartType,
+    delegationActive,
+    smartOptIn,
+    delegationSuppressed
+  } = state;
   const actions = ensureActionsBox();
   actions.innerHTML = '';
 
@@ -265,6 +296,12 @@ async function renderButtons(state, presetMap) {
     const warn = document.createElement('div');
     warn.style.cssText = 'font-size:11px;color:#ff9a9a;margin-bottom:6px;max-width:320px;';
     warn.textContent = state.delegationError.message || 'Delegation setup failed. Open MetaMask and ensure the base account is connected.';
+    actions.appendChild(warn);
+  }
+  if (delegationSuppressed) {
+    const warn = document.createElement('div');
+    warn.style.cssText = 'font-size:11px;color:#ff9a9a;margin-bottom:6px;max-width:320px;';
+    warn.textContent = 'Delegation signing was previously rejected. Disable MetaMask Smart Accounts, then click "Enable Smart Account" to try again.';
     actions.appendChild(warn);
   }
 
@@ -312,6 +349,44 @@ async function renderButtons(state, presetMap) {
     }, 'Switching...');
     actions.appendChild(switchBtn);
   }
+
+  if (!smartOptIn) {
+    const enableBtn = makeButton('Enable Smart Account');
+    if (!chainOk) {
+      enableBtn.disabled = true;
+      enableBtn.style.background = 'rgba(0,0,0,0.45)';
+      enableBtn.style.color = disabledColor;
+    } else {
+      safeRun(enableBtn, async () => {
+        clearDelegationSuppression();
+        const delegation = await ensureDelegationActive({ force: true, address: controller || addr });
+        if (!delegation) {
+          throw new Error('Delegation signature was not completed.');
+        }
+        try { localStorage.setItem(SMART_ACCOUNT_OPT_IN_KEY, 'true'); } catch {}
+        await initAA({});
+      }, 'Enabling...');
+    }
+    actions.appendChild(enableBtn);
+
+    const note = document.createElement('div');
+    note.style.cssText = 'font-size:11px;color:rgba(255,255,255,0.75);margin-top:6px;max-width:340px;';
+    note.innerHTML = 'MetaMask may ask you to temporarily disable Smart Accounts so the base wallet can sign the delegation.';
+    actions.appendChild(note);
+    return;
+  }
+
+  const disableBtn = makeButton('Use Base Wallet Only');
+  safeRun(disableBtn, async () => {
+    try { localStorage.setItem(SMART_ACCOUNT_OPT_IN_KEY, 'false'); } catch {}
+    clearDelegationSuppression();
+    try { await revokeDelegation(); } catch {}
+    try {
+      AA.smartAccountType = 'fallback';
+      AA.toolkitContext = null;
+    } catch {}
+  }, 'Disabling...');
+  actions.appendChild(disableBtn);
 
   const upgradeBtn = makeButton(
     smartType === 'delegation-toolkit' ? 'Smart Account Ready' : 'Initialize Smart Account'
@@ -436,19 +511,32 @@ async function hydrate() {
   const accounts = await getAccounts();
   const addr = (accounts[0] || '').toLowerCase();
 
+  const smartOptIn = (() => {
+    try { return localStorage.getItem(SMART_ACCOUNT_OPT_IN_KEY) === 'true'; } catch { return false; }
+  })();
+  const delegationSuppressed = isDelegationSuppressed();
+
   let smartAccountAddress = addr;
-  let smartType = AA.smartAccountType || 'fallback';
+  let smartType = 'fallback';
   let bundlerReady = false;
-  try {
-    await initAA({});
-    smartAccountAddress = (await getSmartAccountAddress()) || addr;
-    smartType = AA.smartAccountType || smartType;
-    bundlerReady = smartType === 'delegation-toolkit' && !!AA.toolkitContext;
-  } catch (err) {
-    console.warn('[aa/ui] initAA failed', err);
-    smartAccountAddress = AA.smartAccountAddress || addr;
-    smartType = AA.smartAccountType || smartType;
-    bundlerReady = smartType === 'delegation-toolkit' && !!AA.toolkitContext;
+  if (smartOptIn) {
+    try {
+      await initAA({});
+      smartAccountAddress = (await getSmartAccountAddress()) || addr;
+      smartType = AA.smartAccountType || 'fallback';
+      bundlerReady = smartType === 'delegation-toolkit' && !!AA.toolkitContext;
+    } catch (err) {
+      console.warn('[aa/ui] initAA failed', err);
+      smartAccountAddress = AA.smartAccountAddress || addr;
+      smartType = AA.smartAccountType || 'fallback';
+      bundlerReady = smartType === 'delegation-toolkit' && !!AA.toolkitContext;
+    }
+  } else {
+    try {
+      AA.smartAccountType = 'fallback';
+      AA.smartAccountAddress = addr;
+      AA.toolkitContext = null;
+    } catch {}
   }
 
   if (smartType === 'fallback') {
@@ -466,14 +554,14 @@ async function hydrate() {
   const sponsored = typeof AA.sponsored === 'boolean' ? AA.sponsored : null;
 
   let presetsMap = null;
-  if (smartType === 'delegation-toolkit' && chainOk) {
+  if (smartOptIn && smartType === 'delegation-toolkit' && chainOk) {
     try {
       presetsMap = await buildPresets();
     } catch (err) {
       console.warn('[aa/ui] unable to build presets', err);
     }
 
-    if (!delegationActive) {
+    if (!delegationActive && !delegationSuppressed) {
       try {
         delegation = await ensureDelegationActive({});
         delegationActive = !!(delegation && nowSec() < (delegation.end || 0));
@@ -493,6 +581,8 @@ async function hydrate() {
     smartType,
     delegation,
     delegationActive,
+    smartOptIn,
+    delegationSuppressed,
     delegationError,
     chainOk,
     bundlerReady,

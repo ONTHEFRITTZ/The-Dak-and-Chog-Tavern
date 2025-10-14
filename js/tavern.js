@@ -125,6 +125,9 @@ function isOnchainPage() {
   } catch {}
   return m === 'onchain';
 }
+function isSmartAccountOptedIn() {
+  try { return localStorage.getItem('aa.smartAccount.optIn') === 'true'; } catch { return false; }
+}
 async function maybeInitAA(provider) {
   if (!isOnchainPage()) return null;
   try {
@@ -278,7 +281,7 @@ export async function connectWallet(key = 'metamask', injectedOverride) {
       window.dispatchEvent(new CustomEvent('wallet:connected', { detail: { address: userAddress } }));
     } catch {}
 
-    if (isOnchainPage()) {
+    if (isOnchainPage() && isSmartAccountOptedIn()) {
       try { await maybeInitAA(mm); } catch (aaErr) { console.warn('AA init failed', aaErr); }
     } else {
       smartAccount = null;

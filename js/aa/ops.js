@@ -4,7 +4,7 @@
 
 import { ethers } from '../tavern.js';
 import { getSmartAccount } from '../tavern.js';
-import { loadDelegation, ensureDelegationActive, nowSec } from './delegation.js';
+import { loadDelegation, ensureDelegationActive, nowSec, isDelegationSuppressed } from './delegation.js';
 import { ensureDelegationToolkitContext } from './toolkit.js';
 
 function resolveBuildTag() {
@@ -130,6 +130,11 @@ export async function callWithDelegation({ to, signature, args = [], valueMON })
 
   const data = encodeFromSignature(signature, args);
 
+  if (!isSmartAccountOptedIn() || isDelegationSuppressed()) {
+    const directHash = await sendTxViaAA({ to, data, valueMON });
+    return directHash || false;
+  }
+
   try {
     const { AA, initAA } = await getAAClient();
     if (!AA || typeof initAA !== 'function') {
@@ -211,4 +216,8 @@ export async function callWithDelegation({ to, signature, args = [], valueMON })
     const directHash = await sendTxViaAA({ to, data, valueMON });
     return directHash || false;
   }
+}
+const SMART_ACCOUNT_OPT_IN_KEY = 'aa.smartAccount.optIn';
+function isSmartAccountOptedIn() {
+  try { return localStorage.getItem(SMART_ACCOUNT_OPT_IN_KEY) === 'true'; } catch { return false; }
 }
