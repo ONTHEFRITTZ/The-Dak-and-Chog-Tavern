@@ -56,7 +56,7 @@ function normalizeAddress(addr) {
   return addr.toLowerCase();
 }
 
-function isDelegationSuppressed() {
+export function isDelegationSuppressed() {
   try {
     if (sessionStorage.getItem(DELEGATION_SUPPRESS_KEY) === 'true') return true;
   } catch {}
@@ -584,7 +584,7 @@ export function isDelegationActive() {
   return !!loadDelegation();
 }
 
-export { nowSec, isDelegationSuppressed };
+export { nowSec };
 
 if (typeof window !== 'undefined') {
   const autoEnsureDelegation = () => {
