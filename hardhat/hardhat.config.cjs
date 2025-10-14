@@ -2,7 +2,14 @@ const path = require('path');
 require('@nomicfoundation/hardhat-toolbox');
 require('dotenv').config();
 
-const { ALCHEMY_URL, INFURA_URL, PRIVATE_KEY, ETHERSCAN_KEY } = process.env;
+const {
+  ALCHEMY_URL,
+  INFURA_URL,
+  PRIVATE_KEY,
+  ETHERSCAN_KEY,
+  MONAD_RPC_URL,
+  MONAD_PRIVATE_KEY
+} = process.env;
 
 module.exports = {
   paths: {
@@ -17,6 +24,10 @@ module.exports = {
     sepolia: {
       url: ALCHEMY_URL || INFURA_URL || '',
       accounts: PRIVATE_KEY ? [PRIVATE_KEY] : [],
+    },
+    monad: {
+      url: MONAD_RPC_URL || 'https://monad-testnet.drpc.org',
+      accounts: MONAD_PRIVATE_KEY ? [MONAD_PRIVATE_KEY] : (PRIVATE_KEY ? [PRIVATE_KEY] : []),
     },
   },
   etherscan: { apiKey: ETHERSCAN_KEY || '' },

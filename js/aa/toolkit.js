@@ -18,6 +18,7 @@ const MONAD_CHAIN = {
 };
 
 let contextPromise = null;
+let walletAccountsSupported = undefined;
 
 async function requestAccounts(provider) {
   const accounts = await provider.request({ method: 'eth_requestAccounts' });
@@ -66,29 +67,80 @@ export async function ensureDelegationToolkitContext() {
     }
 
     await switchToMonad(provider);
-    const requested = await requestAccounts(provider);
-    let ownerAccount = requested[0];
-    let internalAccount = requested[0];
+    const requestedRaw = await requestAccounts(provider);
+    const requestedSet = new Set(requestedRaw.filter(Boolean));
+    let ownerAccount = requestedRaw[0] || null;
+    let internalAccount = requestedRaw[0] || null;
 
-    try {
-      const walletAccounts = await provider.request({ method: 'wallet_accounts' });
-      if (Array.isArray(walletAccounts)) {
-        for (const entry of walletAccounts) {
-          const addr = entry?.address || entry?.account || entry?.id || entry?.address?.address;
-          const type = String(entry?.type || entry?.accountType || '').toLowerCase();
-          if (addr && (!type || type.includes('eoa') || type.includes('external'))) {
-            ownerAccount = String(addr).toLowerCase();
+    let accountsByType = null;
+
+    if (walletAccountsSupported !== false) {
+      try {
+        const walletAccounts = await provider.request({ method: 'wallet_accounts' });
+        if (Array.isArray(walletAccounts)) {
+          accountsByType = walletAccounts;
+          walletAccountsSupported = true;
+        }
+      } catch (err) {
+        if (err?.code === -32601) {
+          walletAccountsSupported = false;
+        } else {
+          console.warn('[aa/toolkit] wallet_accounts request failed', err);
+        }
+      }
+    }
+
+    if ((!accountsByType || !accountsByType.length) && typeof provider._metamask?.getProviderState === 'function') {
+      try {
+        const state = await provider._metamask.getProviderState();
+        if (state?.internalAccounts && typeof state.internalAccounts === 'object') {
+          accountsByType = Object.values(state.internalAccounts);
+        } else if (state?.accounts && Array.isArray(state.accounts)) {
+          accountsByType = state.accounts.map((addr) => ({ address: addr }));
+        }
+      } catch (stateErr) {
+        console.warn('[aa/toolkit] provider state lookup failed', stateErr);
+      }
+    }
+
+    if ((!accountsByType || !accountsByType.length) && ownerAccount === internalAccount) {
+      try {
+        await provider.request({
+          method: 'wallet_requestPermissions',
+          params: [{ eth_accounts: {} }]
+        });
+        const extra = await provider.request({ method: 'eth_accounts' });
+        if (Array.isArray(extra)) {
+          extra.forEach((addr) => {
+            const normalized = String(addr || '').toLowerCase();
+            if (normalized) requestedSet.add(normalized);
+          });
+        }
+      } catch (permErr) {
+        console.warn('[aa/toolkit] permission prompt declined', permErr);
+      }
+    }
+
+    if (Array.isArray(accountsByType)) {
+      for (const entry of accountsByType) {
+        const addr = entry?.address || entry?.account || entry?.id || entry?.address?.address;
+        const type = String(entry?.type || entry?.accountType || entry?.accountTypeMetadata?.name || '').toLowerCase();
+        if (addr) {
+          const normalized = String(addr).toLowerCase();
+          if (!internalAccount) internalAccount = normalized;
+          if (!type || type.includes('eoa') || type.includes('external')) {
+            ownerAccount = normalized;
             break;
           }
         }
       }
-    } catch (_) {}
+    }
 
-    if (!ownerAccount) ownerAccount = requested[0];
-    if (!internalAccount) internalAccount = requested[0];
+    if (!ownerAccount) ownerAccount = requestedRaw[0] || null;
+    if (!internalAccount) internalAccount = requestedRaw[0] || null;
 
     const account = ownerAccount;
-    const accounts = Array.from(new Set([ownerAccount, internalAccount, ...requested].filter(Boolean)));
+    const accounts = Array.from(new Set([ownerAccount, internalAccount, ...Array.from(requestedSet)].filter(Boolean)));
 
     const [
       viem,
@@ -125,6 +177,15 @@ export async function ensureDelegationToolkitContext() {
     });
 
     const environment = normalizeEnvironment(MONAD_DELEGATION_ENV);
+
+    try {
+      if (ownerAccount) {
+        localStorage.setItem('aa.controllerAddress', ownerAccount);
+      }
+      if (internalAccount) {
+        localStorage.setItem('aa.smartAccountAddress', internalAccount);
+      }
+    } catch {}
 
     return {
       provider,

@@ -5,7 +5,7 @@ const __IS_F2P = __MODE === 'f2p';
 import { ensureMonadSelected, getAccounts, isSmartAccount, upgradeToSmartAccount } from './account.js';
 import { MONAD } from './config.js';
 import { AA, initAA, getSmartAccountAddress } from '../aaClient.js';
-import { presets as buildPresets, createDelegation, revokeDelegation, loadDelegation, nowSec } from './delegation.js';
+import { presets as buildPresets, revokeDelegation, loadDelegation, ensureDelegationActive, nowSec } from './delegation.js';
 
 function short(addr) {
   return addr && addr.length > 10 ? `${addr.slice(0, 6)}...${addr.slice(-4)}` : (addr || '');
@@ -136,14 +136,25 @@ function setBusy(button, busy, labelWhenBusy = 'Working...') {
 }
 
 function renderStatus(state) {
-  const { addr, smartAddress, smartType, delegationActive, delegation, chainOk, bundlerReady, sponsored } = state;
+  const {
+    addr,
+    controller,
+    smartAddress,
+    smartType,
+    delegationActive,
+    delegation,
+    chainOk,
+    bundlerReady,
+    sponsored,
+    delegationError
+  } = state;
   const box = ensureStatusBox();
   const statusBits = [];
 
-  if (!addr) {
+  if (!controller) {
     statusBits.push('Wallet: not connected');
   } else {
-    statusBits.push(`Wallet: ${short(addr)}`);
+    statusBits.push(`Wallet: ${short(controller)}`);
   }
 
   if (smartType === 'delegation-toolkit') {
@@ -159,9 +170,16 @@ function renderStatus(state) {
   const netLabel = chainOk ? `Network: ${MONAD.name || 'Monad Testnet'}` : 'Network: switch to Monad';
   statusBits.push(netLabel);
 
-  const delegationLabel = delegationActive
-    ? `Delegation: active${delegation?.preset ? ` (${delegation.preset})` : ''}`
-    : (delegation ? 'Delegation: expired' : 'Delegation: none');
+  let delegationLabel;
+  if (delegationError) {
+    delegationLabel = `Delegation: setup failed (${delegationError.message || delegationError})`;
+  } else if (delegationActive) {
+    delegationLabel = `Delegation: active${delegation?.preset ? ` (${delegation.preset})` : ''}`;
+  } else if (delegation) {
+    delegationLabel = 'Delegation: expired';
+  } else {
+    delegationLabel = 'Delegation: none';
+  }
   statusBits.push(delegationLabel);
 
   statusBits.push(`Bundler: ${bundlerReady ? 'ready' : 'fallback'}`);
@@ -173,7 +191,7 @@ function renderStatus(state) {
 }
 
 function renderDelegationInfo(state) {
-  const { delegation, delegationActive, smartAddress } = state;
+  const { delegation, delegationActive, smartAddress, delegationError } = state;
   const box = ensureDelegationBox();
   box.innerHTML = '';
   if (!delegation) {
@@ -185,6 +203,13 @@ function renderDelegationInfo(state) {
   header.textContent = delegationActive ? 'Delegation is active' : 'Delegation saved (inactive)';
   header.style.cssText = 'font-weight:700;';
   box.appendChild(header);
+
+  if (delegationError) {
+    const warn = document.createElement('div');
+    warn.textContent = delegationError.message || String(delegationError);
+    warn.style.cssText = 'margin-top:4px;color:#ff9a9a;font-size:11px;';
+    box.appendChild(warn);
+  }
 
   const rows = [];
   rows.push(['Preset', delegation.preset || 'custom']);
@@ -222,18 +247,25 @@ function renderDelegationInfo(state) {
 }
 
 async function renderButtons(state, presetMap) {
-  const { addr, chainOk, smartType, delegationActive } = state;
+  const { addr, controller, chainOk, smartType, delegationActive } = state;
   const actions = ensureActionsBox();
   actions.innerHTML = '';
 
   const disabledColor = 'rgba(255,255,255,0.35)';
 
-  if (!addr) {
+  if (!controller) {
     const note = document.createElement('span');
     note.style.cssText = 'font-size:11px;color:rgba(255,255,255,0.8);';
     note.textContent = 'Connect MetaMask to enable smart account controls.';
     actions.appendChild(note);
     return;
+  }
+
+  if (state.delegationError) {
+    const warn = document.createElement('div');
+    warn.style.cssText = 'font-size:11px;color:#ff9a9a;margin-bottom:6px;max-width:320px;';
+    warn.textContent = state.delegationError.message || 'Delegation setup failed. Open MetaMask and ensure the base account is connected.';
+    actions.appendChild(warn);
   }
 
   const makeButton = (label) => {
@@ -339,22 +371,21 @@ async function renderButtons(state, presetMap) {
   }
   actions.appendChild(select);
 
-  const startBtn = makeButton('Issue Delegation');
+  const reissueBtn = makeButton('Reissue Delegation');
   if (!delegationAvailable) {
-    startBtn.disabled = true;
-    startBtn.style.background = 'rgba(0,0,0,0.45)';
-    startBtn.style.color = disabledColor;
+    reissueBtn.disabled = true;
+    reissueBtn.style.background = 'rgba(0,0,0,0.45)';
+    reissueBtn.style.color = disabledColor;
   } else {
-    safeRun(startBtn, async () => {
+    safeRun(reissueBtn, async () => {
       const presetsMapFresh = presets || await buildPresets();
-      const chosen = select.value === 'playPlusTableOps'
-        ? presetsMapFresh.playPlusTableOps
-        : presetsMapFresh.playOnly;
-      if (!chosen) throw new Error('Preset not found');
-      await createDelegation({ address: addr, preset: chosen });
-    }, 'Issuing...');
+      const presetKey = select.value === 'playPlusTableOps' ? 'playPlusTableOps' : 'playOnly';
+      const choice = presetsMapFresh[presetKey] || presetsMapFresh.playPlusTableOps || presetsMapFresh.playOnly;
+      if (!choice) throw new Error('Preset not found');
+      await ensureDelegationActive({ presetKey: choice.key, address: controller || addr, force: true });
+    }, 'Reissuing...');
   }
-  actions.appendChild(startBtn);
+  actions.appendChild(reissueBtn);
 
   const revokeBtn = makeButton('Revoke Delegation');
   if (!delegationAvailable || !delegationActive) {
@@ -429,8 +460,9 @@ async function hydrate() {
     } catch {}
   }
 
-  const delegation = loadDelegation();
-  const delegationActive = !!(delegation && nowSec() < (delegation.end || 0));
+  let delegation = loadDelegation();
+  let delegationActive = !!(delegation && nowSec() < (delegation.end || 0));
+  let delegationError = null;
   const sponsored = typeof AA.sponsored === 'boolean' ? AA.sponsored : null;
 
   let presetsMap = null;
@@ -440,14 +472,28 @@ async function hydrate() {
     } catch (err) {
       console.warn('[aa/ui] unable to build presets', err);
     }
+
+    if (!delegationActive) {
+      try {
+        delegation = await ensureDelegationActive({});
+        delegationActive = !!(delegation && nowSec() < (delegation.end || 0));
+      } catch (autoErr) {
+        delegationError = autoErr;
+        console.warn('[aa/ui] automatic delegation setup failed', autoErr);
+      }
+    }
   }
+
+  const controllerAddr = AA.controllerAddress || addr || null;
 
   const state = {
     addr,
+    controller: controllerAddr,
     smartAddress: smartAccountAddress,
     smartType,
     delegation,
     delegationActive,
+    delegationError,
     chainOk,
     bundlerReady,
     sponsored

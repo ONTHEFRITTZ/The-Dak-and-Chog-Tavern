@@ -365,6 +365,48 @@ function initializePokerTable() {
         return '';
       }
     }
+    async function autoClearSeat(seatId) {
+      const waitFor = async (txHash) => {
+        if (!txHash) return;
+        try {
+          if (provider?.waitForTransaction) {
+            await provider.waitForTransaction(txHash);
+          }
+        } catch (err) {
+          console.warn('Poker table: wait after auto-clear failed', err);
+        }
+      };
+      try {
+        const tx = await callViaAA('unseat(uint8)', [seatId]);
+        if (tx) {
+          await waitFor(tx);
+          return true;
+        }
+      } catch (err) {
+        const msg = String(err?.message || '').toLowerCase();
+        if (msg.includes('hand')) {
+          try {
+            const tx = await callViaAA('leaveDuringHand(uint8)', [seatId]);
+            if (tx) {
+              await waitFor(tx);
+              return true;
+            }
+          } catch (err2) {
+            console.warn('Poker table: leaveDuringHand auto-clear failed', err2);
+          }
+        } else {
+          console.warn('Poker table: auto-unseat via AA failed', err);
+        }
+      }
+      if (typeof contract.unseat === 'function') {
+        try {
+          const tx = await contract.unseat(seatId);
+          await tx.wait();
+          return true;
+        } catch {}
+      }
+      return false;
+    }
     async function joinSeat(seatId) {
       if (!isOnchainTable) return true;
       if (seatId >= MAX_ONCHAIN_SEATS) {
@@ -373,8 +415,19 @@ function initializePokerTable() {
         throw err;
       }
       const smartAddr = (await ownerAddress())?.toLowerCase?.() || '';
-      const seatOwner = await readSeatOwnerLower(seatId);
-      const seatKnown = seatOwner && seatOwner !== ZERO_ADDR;
+      let seatOwner = await readSeatOwnerLower(seatId);
+      let seatKnown = seatOwner && seatOwner !== ZERO_ADDR;
+      if (seatKnown && seatOwner === smartAddr) {
+        const cleared = await autoClearSeat(seatId);
+        if (cleared) {
+          seatOwner = await readSeatOwnerLower(seatId);
+          seatKnown = seatOwner && seatOwner !== ZERO_ADDR;
+        } else {
+          const err = new Error('Seat already taken on-chain.');
+          err.code = 'seat_taken';
+          throw err;
+        }
+      }
       if (seatKnown && seatOwner !== smartAddr) {
         const err = new Error('Seat already taken on-chain.');
         err.code = 'seat_taken';
@@ -437,6 +490,25 @@ function initializePokerTable() {
         await tx.wait();
       }
       return true;
+    }
+
+    if (isOnchainTable) {
+      setTimeout(() => {
+        (async () => {
+          try {
+            const smartAddr = (await ownerAddress())?.toLowerCase?.() || '';
+            if (!smartAddr) return;
+            for (let seatId = 0; seatId < MAX_ONCHAIN_SEATS; seatId++) {
+              const holder = await readSeatOwnerLower(seatId);
+              if (holder && holder === smartAddr) {
+                await autoClearSeat(seatId);
+              }
+            }
+          } catch (err) {
+            console.warn('Poker table: automatic seat cleanup failed', err);
+          }
+        })();
+      }, 0);
     }
     return { address: tableAddress, contract, joinSeat, leaveSeat, contribute, ownerAddress, readSeatOwnerLower };
   }

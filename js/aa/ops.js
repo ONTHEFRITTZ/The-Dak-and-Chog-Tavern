@@ -4,7 +4,7 @@
 
 import { ethers } from '../tavern.js';
 import { getSmartAccount } from '../tavern.js';
-import { loadDelegation } from './delegation.js';
+import { loadDelegation, ensureDelegationActive, nowSec } from './delegation.js';
 import { ensureDelegationToolkitContext } from './toolkit.js';
 
 function resolveBuildTag() {
@@ -137,7 +137,14 @@ export async function callWithDelegation({ to, signature, args = [], valueMON })
       return directHash || false;
     }
 
-    const delegationRecord = loadDelegation();
+    let delegationRecord = loadDelegation();
+    if (!delegationRecord || !delegationRecord.end || nowSec() >= delegationRecord.end) {
+      try {
+        delegationRecord = await ensureDelegationActive({});
+      } catch (err) {
+        console.warn('[aa/ops] ensure delegation failed', err);
+      }
+    }
     if (!delegationRecord) {
       const directHash = await sendTxViaAA({ to, data, valueMON });
       return directHash || false;

@@ -84,8 +84,19 @@ async function resolveDelegateAddress(ctx, fallback, avoid) {
     }
   } catch {}
 
+  push(ctx?.account, { prioritize: true });
+  push(ctx?.ownerAccount, { prioritize: true });
+  push(ctx?.internalAccount, { prioritize: false });
   try { push(ctx?.provider?.selectedAddress, { prioritize: true }); } catch {}
   try { push(ctx?.provider?.selectedWalletAddress, { prioritize: true }); } catch {}
+
+  try { push(window?.walletChoice?.provider?.selectedAddress, { prioritize: true }); } catch {}
+
+  try { push(sessionStorage.getItem('walletAddress'), { prioritize: true }); } catch {}
+  try { push(localStorage.getItem('walletAddress'), { prioritize: true }); } catch {}
+  try { push(sessionStorage.getItem('walletMsgAddress'), { prioritize: true }); } catch {}
+  try { push(localStorage.getItem('aa.controllerAddress'), { prioritize: true }); } catch {}
+  try { push(localStorage.getItem('aa.smartAccountAddress'), { prioritize: false }); } catch {}
 
   (ctx?.accounts || []).forEach((value) => push(value, { prioritize: true }));
   push(fallback, { prioritize: false });
@@ -196,10 +207,22 @@ export async function presets() {
   return ensurePresetMap();
 }
 
-export async function createDelegation({ address, preset }) {
+export async function createDelegation({ address, preset, presetKey }) {
   const ctx = await ensureDelegationToolkitContext();
   const presetsMap = await ensurePresetMap();
-  const choice = preset?.key ? preset : presetsMap[preset] || preset;
+  let choice = null;
+  if (preset?.key) {
+    choice = preset;
+  } else if (presetKey && presetsMap[presetKey]) {
+    choice = presetsMap[presetKey];
+  } else if (preset && presetsMap[preset]) {
+    choice = presetsMap[preset];
+  } else {
+    choice = presetsMap.playPlusTableOps
+      || presetsMap.playOnly
+      || Object.values(presetsMap)[0]
+      || null;
+  }
   if (!choice || !choice.key) {
     throw new Error('Unknown delegation preset');
   }
@@ -270,10 +293,24 @@ export async function createDelegation({ address, preset }) {
     };
   }
 
-  const signature = await walletClient.signTypedData({
-    account: delegate,
-    ...typedData
-  });
+  let signature;
+  try {
+    signature = await walletClient.signTypedData({
+      account: delegate,
+      ...typedData
+    });
+  } catch (err) {
+    const msg = String(err?.message || err?.data?.message || '').toLowerCase();
+    if (msg.includes('external signature requests') && msg.includes('internal accounts')) {
+      const helper = new Error(
+        'MetaMask needs to sign this delegation from your base account. Open MetaMask, temporarily disable Smart Accounts for this wallet, approve the signature, then re-enable Smart Accounts.'
+      );
+      helper.cause = err;
+      helper.code = 'delegate_internal_account';
+      throw helper;
+    }
+    throw err;
+  }
 
   const signedDelegation = { ...delegation, signature };
   const record = {
@@ -284,6 +321,7 @@ export async function createDelegation({ address, preset }) {
     from: delegator,
     to: delegate,
     delegate,
+    controller: delegator,
     createdAt: nowSec(),
     end: nowSec() + (choice.ttlSeconds || DEFAULT_TTL),
     chainId: MONAD.id
@@ -294,6 +332,48 @@ export async function createDelegation({ address, preset }) {
   } catch (_) {}
 
   return record;
+}
+
+let ensureDelegationPromise = null;
+export async function ensureDelegationActive({ presetKey, address, force = false } = {}) {
+  if (!force) {
+    const existing = loadDelegation();
+    if (existing && existing.end && nowSec() < existing.end) {
+      return existing;
+    }
+  } else {
+    try { localStorage.removeItem(STORAGE_KEY); } catch {}
+  }
+  if (ensureDelegationPromise) {
+    try {
+      return await ensureDelegationPromise;
+    } catch {
+      // fallthrough to retry
+    }
+  }
+  ensureDelegationPromise = (async () => {
+    const ctx = await ensureDelegationToolkitContext();
+    const presetsMap = await ensurePresetMap();
+    const choice = presetsMap[presetKey || 'playPlusTableOps']
+      || presetsMap.playPlusTableOps
+      || presetsMap.playOnly
+      || Object.values(presetsMap)[0];
+    if (!choice) {
+      throw new Error('Delegation presets are unavailable.');
+    }
+    const delegateAddr = address || ctx.ownerAccount || ctx.account;
+    const record = await createDelegation({ address: delegateAddr, preset: choice });
+    try {
+      localStorage.setItem('aa.delegation.lastPreset', choice.key || '');
+    } catch {}
+    return record;
+  })();
+  try {
+    const result = await ensureDelegationPromise;
+    return result;
+  } finally {
+    ensureDelegationPromise = null;
+  }
 }
 
 export function loadDelegation() {
@@ -328,7 +408,12 @@ export function isDelegationActive() {
 
 export { nowSec };
 
-
-
-
-
+if (typeof window !== 'undefined') {
+  const autoEnsureDelegation = () => {
+    ensureDelegationActive({}).catch((err) => {
+      console.warn('[aa/delegation] auto-ensure failed', err);
+    });
+  };
+  window.addEventListener('wallet:connected', autoEnsureDelegation);
+  window.addEventListener('aa:smartaccount', autoEnsureDelegation);
+}

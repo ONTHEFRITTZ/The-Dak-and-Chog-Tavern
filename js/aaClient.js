@@ -87,6 +87,8 @@ export function enableToolkitSmartAccount() {
 export const AA = {
   provider: null,
   address: null,
+  controllerAddress: null,
+  internalAddress: null,
   chainId: 0,
   sponsored: false,
   session: null,  // { allowlist:[{to, selectors:[sig,...]}], spendLimitWei:string, spentWei:string, exp:number }
@@ -109,11 +111,32 @@ export const AA = {
     // Resolve primary address (used for from:)
     try {
       const accs = await this.provider.request({ method: 'eth_accounts' });
-      this.address = accs && accs[0] || null;
+      const first = accs && accs[0] ? String(accs[0]).toLowerCase() : null;
+      this.address = first;
+      if (!this.controllerAddress) {
+        this.controllerAddress = first;
+      }
     } catch {}
+
+    try {
+      if (!this.controllerAddress) {
+        const stored = localStorage.getItem('aa.controllerAddress');
+        if (stored) this.controllerAddress = String(stored).toLowerCase();
+      }
+      if (!this.internalAddress) {
+        const storedInternal = localStorage.getItem('aa.smartAccountAddress');
+        if (storedInternal) this.internalAddress = String(storedInternal).toLowerCase();
+      }
+    } catch {}
+    if (this.controllerAddress) {
+      this.address = this.controllerAddress;
+    }
 
     // emit initial sponsor state for pill
     window.dispatchEvent(new CustomEvent('aa:sponsored', { detail: { active: this.sponsored } }));
+    try {
+      window.dispatchEvent(new CustomEvent('aa:controller', { detail: { controller: this.controllerAddress } }));
+    } catch {}
 
     return this;
   },
@@ -421,6 +444,9 @@ export async function initAA({ bundlerUrl = MONAD_BUNDLER_RPC, paymasterUrl = ZD
   AA.smartAccountAddress = aaSmartAccount?.address || null;
   AA.smartAccountType = aaSmartAccount?.type || 'fallback';
   AA.toolkitContext = aaSmartAccount?.context || null;
+  AA.controllerAddress = AA.toolkitContext?.ownerAccount || AA.toolkitContext?.account || AA.address || null;
+  AA.internalAddress = AA.toolkitContext?.internalAccount || AA.smartAccountAddress || null;
+  AA.address = AA.controllerAddress || AA.address;
 
   try {
     window.dispatchEvent(new CustomEvent('aa:smartaccount', {
@@ -428,6 +454,11 @@ export async function initAA({ bundlerUrl = MONAD_BUNDLER_RPC, paymasterUrl = ZD
         address: AA.smartAccountAddress,
         type: AA.smartAccountType
       }
+    }));
+  } catch {}
+  try {
+    window.dispatchEvent(new CustomEvent('aa:controller', {
+      detail: { controller: AA.controllerAddress }
     }));
   } catch {}
 
