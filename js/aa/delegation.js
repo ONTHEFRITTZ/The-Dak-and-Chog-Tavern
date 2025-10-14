@@ -11,6 +11,7 @@ async function ensureViem() {
 }
 
 import { ensureDelegationToolkitContext, resetDelegationToolkitContext } from './toolkit.js';
+import { AA, initAA } from '../aaClient.js';
 import { getSmartAccount } from '../tavern.js';
 
 const STORAGE_KEY = 'aa:delegation:active';
@@ -97,7 +98,7 @@ async function getWalletAccounts(ctx) {
   }
 }
 
-async function resolveDelegateAddress(ctx, fallback, avoid) {
+async function resolveDelegateAddress(ctx, fallback, avoid, smartAccountInstance) {
   const avoidLc = normalizeAddress(avoid);
   const candidates = [];
   const push = (value, { prioritize = false } = {}) => {
@@ -143,7 +144,10 @@ async function resolveDelegateAddress(ctx, fallback, avoid) {
   try { push(localStorage.getItem('aa.controllerAddress'), { prioritize: true }); } catch {}
   try { push(localStorage.getItem('aa.smartAccountAddress'), { prioritize: false }); } catch {}
   try {
-    const smart = await getSmartAccount();
+    let smart = smartAccountInstance;
+    if (!smart) {
+      smart = await getSmartAccount();
+    }
     const ctxMaybe = smart?.context || smart?.toolkitContext || null;
     if (ctxMaybe) {
       push(ctxMaybe.ownerAccount, { prioritize: true });
@@ -207,16 +211,61 @@ async function buildFunctionCallScope(toolkitCtx, target, selectors) {
   };
 }
 
-async function resolveDelegatorAddress() {
-  try {
-    const smart = await getSmartAccount();
-    if (!smart) return null;
-    if (typeof smart.getAddress === 'function') {
-      return normalizeAddress(await smart.getAddress());
+async function resolveDelegatorAddress(ctx, smartAccountInstance) {
+  const internalLc = normalizeAddress(ctx?.internalAccount)
+    || normalizeAddress(AA?.smartAccountAddress)
+    || null;
+
+  const prefer = [];
+  const push = (value, { prioritize = false } = {}) => {
+    if (!value || typeof value !== 'string') return;
+    const normalized = normalizeAddress(value);
+    if (!normalized) return;
+    if (prefer.includes(normalized)) return;
+    if (prioritize) {
+      prefer.unshift(normalized);
+    } else {
+      prefer.push(normalized);
     }
-    if (smart.address) return normalizeAddress(smart.address);
+  };
+
+  push(ctx?.ownerAccount, { prioritize: true });
+  push(ctx?.account, { prioritize: true });
+  try { push(ctx?.provider?.selectedAddress, { prioritize: true }); } catch {}
+  try { push(ctx?.provider?.selectedWalletAddress, { prioritize: true }); } catch {}
+  (ctx?.accounts || []).forEach((value) => push(value, { prioritize: false }));
+
+  try { push(AA?.controllerAddress, { prioritize: true }); } catch {}
+  try { push(AA?.address, { prioritize: false }); } catch {}
+
+  try { push(localStorage.getItem('aa.controllerAddress'), { prioritize: true }); } catch {}
+  try { push(sessionStorage.getItem('walletAddress'), { prioritize: true }); } catch {}
+  try { push(localStorage.getItem('walletAddress'), { prioritize: true }); } catch {}
+
+  try {
+    let smart = smartAccountInstance;
+    if (!smart) {
+      smart = await getSmartAccount();
+    }
+    if (smart) {
+      push(smart.controllerAddress, { prioritize: true });
+      push(smart.controller, { prioritize: true });
+      push(smart.ownerAddress, { prioritize: true });
+      const ctxMaybe = smart.context || smart.toolkitContext || null;
+      if (ctxMaybe) {
+        push(ctxMaybe.ownerAccount, { prioritize: true });
+        push(ctxMaybe.account, { prioritize: true });
+      }
+    }
   } catch {}
-  return null;
+
+  for (const candidate of prefer) {
+    if (candidate && candidate !== internalLc) {
+      return candidate;
+    }
+  }
+
+  return prefer[0] || null;
 }
 
 async function ensurePresetMap() {
@@ -271,6 +320,23 @@ export async function presets() {
 export async function createDelegation({ address, preset, presetKey }) {
   const ctx = await ensureDelegationToolkitContext();
   const presetsMap = await ensurePresetMap();
+
+  let smartAccountInstance = null;
+  try {
+    smartAccountInstance = await getSmartAccount();
+  } catch {}
+  if (!smartAccountInstance || typeof smartAccountInstance !== 'object') {
+    smartAccountInstance = null;
+  }
+  if (!smartAccountInstance || (!smartAccountInstance.signDelegation && !(smartAccountInstance.mmAccount && smartAccountInstance.mmAccount.signDelegation))) {
+    try {
+      const smartFromInit = await initAA({});
+      if (smartFromInit) smartAccountInstance = smartFromInit;
+    } catch (err) {
+      console.warn('[aa/delegation] initAA for delegation context failed', err);
+    }
+  }
+
   let choice = null;
   if (preset?.key) {
     choice = preset;
@@ -288,15 +354,43 @@ export async function createDelegation({ address, preset, presetKey }) {
     throw new Error('Unknown delegation preset');
   }
 
-  const delegatorResolved = await resolveDelegatorAddress();
-  const delegate = await resolveDelegateAddress(ctx, address || ctx.ownerAccount || ctx.account, delegatorResolved);
+  const delegatorResolved = await resolveDelegatorAddress(ctx, smartAccountInstance);
+  const delegate = await resolveDelegateAddress(ctx, address || ctx.ownerAccount || ctx.account, delegatorResolved, smartAccountInstance);
   if (!delegate) {
     throw new Error('Wallet address is required to create a delegation');
   }
-  if (delegatorResolved && delegatorResolved === delegate) {
-    throw new Error('MetaMask returned a smart account address. Please select the base MetaMask account and try again.');
+  const internalLc = normalizeAddress(ctx.internalAccount)
+    || normalizeAddress(AA?.smartAccountAddress)
+    || null;
+  const controllerLc = normalizeAddress(ctx.ownerAccount)
+    || normalizeAddress(AA?.controllerAddress)
+    || null;
+  const smartAccountActive = internalLc && controllerLc && internalLc !== controllerLc;
+  const smartOwnerHint = (() => {
+    const smart = smartAccountInstance;
+    const mm = smart?.mmAccount || smart;
+    return normalizeAddress(
+      mm?.ownerAddress
+      || mm?.controllerAddress
+      || mm?.controller
+      || smart?.controllerAddress
+      || smart?.controller
+    );
+  })();
+
+  let delegator = delegatorResolved || smartOwnerHint || controllerLc || delegate;
+  if (smartAccountActive && delegator === internalLc) {
+    if (smartOwnerHint && smartOwnerHint !== internalLc) {
+      delegator = smartOwnerHint;
+    } else if (controllerLc && controllerLc !== internalLc) {
+      delegator = controllerLc;
+    } else {
+      throw new Error('MetaMask did not expose the base account controller. Temporarily disable Smart Accounts, approve the delegation, then re-enable them.');
+    }
   }
-  const delegator = delegatorResolved || delegate;
+  if (!delegator) {
+    throw new Error('MetaMask controller address unavailable. Please reconnect your wallet and try again.');
+  }
   let scope;
   try {
     scope = await buildFunctionCallScope(ctx, delegationTarget, choice.selectors || []);
@@ -354,12 +448,24 @@ export async function createDelegation({ address, preset, presetKey }) {
     };
   }
 
+  const mmAccount = smartAccountInstance?.mmAccount || smartAccountInstance || null;
   let signature;
   try {
-    signature = await walletClient.signTypedData({
-      account: delegator,
-      ...typedData
-    });
+    if (mmAccount && typeof mmAccount.signDelegation === 'function') {
+      signature = await mmAccount.signDelegation({
+        delegation,
+        chainId: MONAD.id,
+        delegationManager: environment.DelegationManager,
+        name: 'DelegationManager',
+        version: '1',
+        allowInsecureUnrestrictedDelegation: !delegation.caveats || delegation.caveats.length === 0
+      });
+    } else {
+      signature = await walletClient.signTypedData({
+        account: delegator,
+        ...typedData
+      });
+    }
   } catch (err) {
     const msg = String(err?.message || err?.data?.message || '').toLowerCase();
     if (msg.includes('external signature requests') && msg.includes('internal accounts')) {
