@@ -80,18 +80,7 @@ export async function ensureDelegationToolkitContext() {
       walletAccountsSupported = false;
     }
 
-    if ((!accountsByType || !accountsByType.length) && typeof provider._metamask?.getProviderState === 'function') {
-      try {
-        const state = await provider._metamask.getProviderState();
-        if (state?.internalAccounts && typeof state.internalAccounts === 'object') {
-          accountsByType = Object.values(state.internalAccounts);
-        } else if (state?.accounts && Array.isArray(state.accounts)) {
-          accountsByType = state.accounts.map((addr) => ({ address: addr }));
-        }
-      } catch (stateErr) {
-        console.warn('[aa/toolkit] provider state lookup failed', stateErr);
-      }
-    }
+    // Skip provider._metamask introspection when wallet_accounts is unsupported to avoid RPC noise.
 
     if ((!accountsByType || !accountsByType.length) && ownerAccount === internalAccount) {
       try {
