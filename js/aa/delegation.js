@@ -391,6 +391,19 @@ export async function createDelegation({ address, preset, presetKey }) {
   if (!delegator) {
     throw new Error('MetaMask controller address unavailable. Please reconnect your wallet and try again.');
   }
+  const viemModule = ctx.viem || (await ensureViem());
+  const normalizeHex = (value, label) => {
+    if (!value) {
+      throw new Error(`${label || 'address'} is missing.`);
+    }
+    try {
+      return viemModule.getAddress(value);
+    } catch (err) {
+      throw new Error(`${label || 'address'} is invalid: ${value}`);
+    }
+  };
+  const delegatorHex = normalizeHex(delegator, 'Delegator address');
+  const delegateHex = normalizeHex(delegate, 'Delegate address');
   let scope;
   try {
     scope = await buildFunctionCallScope(ctx, delegationTarget, choice.selectors || []);
@@ -401,8 +414,8 @@ export async function createDelegation({ address, preset, presetKey }) {
 
   const { toolkit, environment, walletClient } = ctx;
   const delegation = toolkit.createDelegation({
-    from: delegator,
-    to: delegate,
+    from: delegatorHex,
+    to: delegateHex,
     environment,
     scope,
     salt: randomSalt()
@@ -444,7 +457,7 @@ export async function createDelegation({ address, preset, presetKey }) {
       },
       types,
       primaryType: 'Delegation',
-      message: toStruct({ ...delegation, delegator, signature: '0x' })
+      message: toStruct({ ...delegation, delegator: delegatorHex, signature: '0x' })
     };
   }
 
@@ -462,7 +475,7 @@ export async function createDelegation({ address, preset, presetKey }) {
       });
     } else {
       signature = await walletClient.signTypedData({
-        account: delegator,
+        account: delegatorHex,
         ...typedData
       });
     }
