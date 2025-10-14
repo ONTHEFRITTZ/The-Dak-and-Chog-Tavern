@@ -227,7 +227,9 @@ function initializePokerTable() {
         return null;
       });
     }
-    return onchainAdapterPromise;
+    const adapter = await onchainAdapterPromise;
+    if (!adapter) onchainAdapterPromise = null;
+    return adapter;
   }
   async function createOnchainAdapter() {
     if (!isOnchainTable || !ethers || !window.HoldemPokerABI) return null;
@@ -252,11 +254,26 @@ function initializePokerTable() {
         console.warn('Poker table: fallback provider init failed', provErr);
       }
     }
+    if (provider && typeof provider.send === 'function') {
+      try { await provider.send('eth_requestAccounts', []); } catch (reqErr) {
+        console.warn('Poker table: provider account request failed', reqErr);
+      }
+    } else if (window.ethereum && typeof window.ethereum.request === 'function') {
+      try { await window.ethereum.request({ method: 'eth_requestAccounts' }); } catch {}
+    }
     let signer = bankroll && typeof bankroll.getSigner === 'function'
       ? await bankroll.getSigner()
       : null;
     if (!signer && provider?.getSigner) {
-      try { signer = await provider.getSigner(); } catch {}
+      try {
+        signer = await provider.getSigner();
+      } catch (signErr) {
+        console.warn('Poker table: provider getSigner failed', signErr);
+        signer = null;
+      }
+    }
+    if (signer && !cachedAddr) {
+      try { cachedAddr = (await signer.getAddress()).toLowerCase(); } catch {}
     }
     if (!provider || !signer) throw new Error('Connect wallet before joining on-chain tables');
     const tableAddress = await resolvePokerTableAddress(provider);
