@@ -18,6 +18,7 @@ const STORAGE_KEY = 'aa:delegation:active';
 const DEFAULT_TTL = 2 * 60 * 60; // 2 hours
 const DELEGATION_SUPPRESS_KEY = 'aa:delegation:suppress';
 const DELEGATION_SUPPRESS_PERSIST_KEY = 'aa:delegation:suppress:persist';
+const SMART_ACCOUNT_OPT_IN_KEY = 'aa.smartAccount.optIn';
 
 const SIGNABLE_DELEGATION_TYPED_DATA_FALLBACK = {
   Caveat: [
@@ -588,6 +589,10 @@ export { nowSec };
 
 if (typeof window !== 'undefined') {
   const autoEnsureDelegation = () => {
+    try {
+      if (localStorage.getItem(SMART_ACCOUNT_OPT_IN_KEY) !== 'true') return;
+    } catch {}
+    if (isDelegationSuppressed()) return;
     ensureDelegationActive({}).catch((err) => {
       console.warn('[aa/delegation] auto-ensure failed', err);
     });
