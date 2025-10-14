@@ -5,7 +5,12 @@ import { MONAD, getPokerTableAddress } from './config.js';
 let viemImportPromise;
 async function ensureViem() {
   if (!viemImportPromise) {
-    viemImportPromise = import('https://esm.sh/viem@2.31.4');
+    try {
+      viemImportPromise = import('viem');
+    } catch (_) {
+      // Fallback to CDN only if local import resolution fails in-browser.
+      viemImportPromise = import('https://esm.sh/viem');
+    }
   }
   return viemImportPromise;
 }
