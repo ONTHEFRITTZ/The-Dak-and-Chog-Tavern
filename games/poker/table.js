@@ -72,6 +72,33 @@ function initializePokerTable() {
       onReady();
     });
   }
+  async function waitForGlobal(checkFn, label, timeout = 6000, interval = 80) {
+    try {
+      if (typeof checkFn === 'function' && checkFn()) return true;
+    } catch {}
+    return new Promise((resolve) => {
+      const deadline = Date.now() + timeout;
+      let poller = null;
+      const cleanup = (result) => {
+        if (poller) clearInterval(poller);
+        resolve(result);
+      };
+      poller = setInterval(() => {
+        try {
+          if (typeof checkFn === 'function' && checkFn()) {
+            cleanup(true);
+            return;
+          }
+        } catch {}
+        if (Date.now() > deadline) {
+          if (label) {
+            console.warn(`Poker table: wait for ${label} timed out`);
+          }
+          cleanup(false);
+        }
+      }, interval);
+    });
+  }
   const trimDecimals = (str) => {
     if (str == null) return '';
     let out = String(str);
@@ -138,6 +165,7 @@ function initializePokerTable() {
     });
   }
   let onchainAdapterPromise = null;
+  let onchainAdapterError = null;
   let configModulePromise = null;
   let tableSnapshot = null;
   let chipValueDcmon = isOnchainTable ? 0.001 : 1;
@@ -221,18 +249,46 @@ function initializePokerTable() {
   async function getOnchainAdapter() {
     if (!isOnchainTable) return null;
     if (!onchainAdapterPromise) {
-      onchainAdapterPromise = createOnchainAdapter().catch((err) => {
-        console.error('Poker table: adapter init failed', err);
-        onchainAdapterPromise = null;
-        return null;
-      });
+      onchainAdapterPromise = createOnchainAdapter()
+        .then((adapter) => {
+          onchainAdapterError = null;
+          return adapter;
+        })
+        .catch((err) => {
+          const wrapped = err instanceof Error ? err : new Error(String(err || 'On-chain adapter error'));
+          onchainAdapterError = wrapped;
+          console.error('Poker table: adapter init failed', err);
+          onchainAdapterPromise = null;
+          return null;
+        });
     }
     const adapter = await onchainAdapterPromise;
-    if (!adapter) onchainAdapterPromise = null;
+    if (!adapter) {
+      onchainAdapterPromise = null;
+    }
     return adapter;
   }
+  function describeAdapterError(defaultMessage) {
+    if (onchainAdapterError && onchainAdapterError.message) {
+      return `On-chain adapter unavailable: ${onchainAdapterError.message}`;
+    }
+    return defaultMessage || 'On-chain adapter unavailable. Refresh and try again.';
+  }
   async function createOnchainAdapter() {
-    if (!isOnchainTable || !ethers || !window.HoldemPokerABI) return null;
+    if (!isOnchainTable) return null;
+    const ethersReady = await waitForGlobal(() => {
+      if (window.ethers && window.ethers.Contract) {
+        if (!ethers) ethers = window.ethers;
+        return true;
+      }
+      return false;
+    }, 'ethers');
+    if (!ethersReady || !ethers) throw new Error('Ethers.js not loaded');
+    const abiReady = await waitForGlobal(
+      () => Array.isArray(window.HoldemPokerABI) && window.HoldemPokerABI.length > 0,
+      'HoldemPokerABI'
+    );
+    if (!abiReady) throw new Error('HoldemPoker ABI not loaded');
     let bankroll = null;
     try {
       bankroll = await waitForBankrollHelper();
@@ -271,9 +327,6 @@ function initializePokerTable() {
         console.warn('Poker table: provider getSigner failed', signErr);
         signer = null;
       }
-    }
-    if (signer && !cachedAddr) {
-      try { cachedAddr = (await signer.getAddress()).toLowerCase(); } catch {}
     }
     if (!provider || !signer) throw new Error('Connect wallet before joining on-chain tables');
     const tableAddress = await resolvePokerTableAddress(provider);
@@ -1173,7 +1226,7 @@ function initializePokerTable() {
       }
       const adapter = await getOnchainAdapter();
       if (!adapter) {
-        alert('Wallet adapter unavailable. Refresh and try again.');
+        alert(describeAdapterError('Wallet adapter unavailable. Refresh and try again.'));
         return;
       }
       const actor = actorForSeat(state, seatIndex) || {};
@@ -1448,12 +1501,12 @@ function initializePokerTable() {
                 return;
               }
             }
-            const adapter = await getOnchainAdapter();
-            if (!adapter) {
-              try { sit.disabled = false; sit.textContent = original; } catch {}
-              alert('On-chain adapter unavailable. Refresh and try again.');
-              return;
-            }
+      const adapter = await getOnchainAdapter();
+      if (!adapter) {
+        try { sit.disabled = false; sit.textContent = original; } catch {}
+        alert(describeAdapterError());
+        return;
+      }
             try {
               sit.textContent = 'Joining...';
               await adapter.joinSeat(idx);
@@ -1537,11 +1590,11 @@ function initializePokerTable() {
           if (leaveBtn.disabled) return;
           await ensureIdentify();
           if (isOnchainTable) {
-            const adapter = await getOnchainAdapter();
-            if (!adapter) {
-              alert('On-chain adapter unavailable. Refresh and try again.');
-              return;
-            }
+      const adapter = await getOnchainAdapter();
+      if (!adapter) {
+        alert(describeAdapterError());
+        return;
+      }
             try {
               leaveBtn.disabled = true;
               leaveBtn.textContent = 'Leaving...';
