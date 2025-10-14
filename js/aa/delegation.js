@@ -33,6 +33,7 @@ const SIGNABLE_DELEGATION_TYPED_DATA_FALLBACK = {
 let presetCache = null;
 let delegationTarget = null;
 let walletAccountsSupported = undefined;
+let walletAccountsPermissionRequested = false;
 
 function nowSec() {
   return Math.floor(Date.now() / 1000);
@@ -67,6 +68,19 @@ async function getWalletAccounts(ctx) {
   const provider = ctx?.provider;
   if (!provider || typeof provider.request !== 'function') return [];
   try {
+    if (!walletAccountsPermissionRequested) {
+      walletAccountsPermissionRequested = true;
+      try {
+        await provider.request({
+          method: 'wallet_requestPermissions',
+          params: [{ wallet_accounts: {} }]
+        });
+      } catch (permErr) {
+        if (permErr?.code !== 4001) {
+          console.warn('[aa/delegation] wallet_accounts permission request failed', permErr);
+        }
+      }
+    }
     const walletAccounts = await provider.request({ method: 'wallet_accounts' });
     if (Array.isArray(walletAccounts) && walletAccounts.length) {
       walletAccountsSupported = true;
@@ -128,6 +142,22 @@ async function resolveDelegateAddress(ctx, fallback, avoid) {
   try { push(sessionStorage.getItem('walletMsgAddress'), { prioritize: true }); } catch {}
   try { push(localStorage.getItem('aa.controllerAddress'), { prioritize: true }); } catch {}
   try { push(localStorage.getItem('aa.smartAccountAddress'), { prioritize: false }); } catch {}
+  try {
+    const smart = await getSmartAccount();
+    const ctxMaybe = smart?.context || smart?.toolkitContext || null;
+    if (ctxMaybe) {
+      push(ctxMaybe.ownerAccount, { prioritize: true });
+      push(ctxMaybe.account, { prioritize: true });
+      push(ctxMaybe.controllerAddress, { prioritize: true });
+      push(ctxMaybe.internalAccount, { prioritize: false });
+    }
+    if (smart?.controllerAddress) {
+      push(typeof smart.controllerAddress === 'function' ? await smart.controllerAddress() : smart.controllerAddress, { prioritize: true });
+    }
+    if (smart?.mmAccount?.ownerAddress) {
+      push(smart.mmAccount.ownerAddress, { prioritize: true });
+    }
+  } catch {}
 
   (ctx?.accounts || []).forEach((value) => push(value, { prioritize: true }));
   push(fallback, { prioritize: false });
