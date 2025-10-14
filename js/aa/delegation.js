@@ -34,7 +34,6 @@ const SIGNABLE_DELEGATION_TYPED_DATA_FALLBACK = {
 let presetCache = null;
 let delegationTarget = null;
 let walletAccountsSupported = undefined;
-let walletAccountsPermissionRequested = false;
 
 function nowSec() {
   return Math.floor(Date.now() / 1000);
@@ -69,19 +68,6 @@ async function getWalletAccounts(ctx) {
   const provider = ctx?.provider;
   if (!provider || typeof provider.request !== 'function') return [];
   try {
-    if (!walletAccountsPermissionRequested) {
-      walletAccountsPermissionRequested = true;
-      try {
-        await provider.request({
-          method: 'wallet_requestPermissions',
-          params: [{ wallet_accounts: {} }]
-        });
-      } catch (permErr) {
-        if (permErr?.code !== 4001) {
-          console.warn('[aa/delegation] wallet_accounts permission request failed', permErr);
-        }
-      }
-    }
     const walletAccounts = await provider.request({ method: 'wallet_accounts' });
     if (Array.isArray(walletAccounts) && walletAccounts.length) {
       walletAccountsSupported = true;
@@ -463,63 +449,27 @@ export async function createDelegation({ address, preset, presetKey }) {
     };
   }
 
-  const mmAccount = smartAccountInstance?.mmAccount || smartAccountInstance || null;
-  let signature = null;
-  let lastError = null;
-
-  const attemptWalletSign = async () => {
-    if (!walletClient || typeof walletClient.signTypedData !== 'function') return null;
-    try {
-      return await walletClient.signTypedData({
-        account: delegatorHex,
-        ...typedData
-      });
-    } catch (err) {
-      lastError = err;
-      const msg = String(err?.message || err?.data?.message || '').toLowerCase();
-      if (msg.includes('external signature requests') && msg.includes('internal accounts')) {
-        // Smart account required for this wallet; allow fallback.
-        return null;
-      }
-      throw err;
-    }
-  };
-
-  const attemptSmartAccountSign = async () => {
-    if (!mmAccount || typeof mmAccount.signDelegation !== 'function') return null;
-    try {
-      return await mmAccount.signDelegation({
-        delegation,
-        chainId: MONAD.id,
-        delegationManager: environment.DelegationManager,
-        name: 'DelegationManager',
-        version: '1',
-        allowInsecureUnrestrictedDelegation: !delegation.caveats || delegation.caveats.length === 0
-      });
-    } catch (err) {
-      lastError = err;
-      return null;
-    }
-  };
-
-  signature = await attemptWalletSign();
-  if (!signature) {
-    signature = await attemptSmartAccountSign();
+  if (!walletClient || typeof walletClient.signTypedData !== 'function') {
+    throw new Error('MetaMask wallet client unavailable for delegation signing.');
   }
-  if (!signature) {
-    if (lastError) {
-      const msg = String(lastError?.message || lastError?.data?.message || '').toLowerCase();
-      if (msg.includes('external signature requests') && msg.includes('internal accounts')) {
-        const helper = new Error(
-          'MetaMask needs to sign this delegation from your base account. Open MetaMask, temporarily disable Smart Accounts for this wallet, approve the signature, then re-enable Smart Accounts.'
-        );
-        helper.cause = lastError;
-        helper.code = 'delegate_internal_account';
-        throw helper;
-      }
-      throw lastError;
+
+  let signature;
+  try {
+    signature = await walletClient.signTypedData({
+      account: delegatorHex,
+      ...typedData
+    });
+  } catch (err) {
+    const msg = String(err?.message || err?.data?.message || '').toLowerCase();
+    if (msg.includes('external signature requests') && msg.includes('internal accounts')) {
+      const helper = new Error(
+        'MetaMask needs to sign this delegation from your base account. Open MetaMask, temporarily disable Smart Accounts for this wallet, approve the signature, then re-enable Smart Accounts.'
+      );
+      helper.cause = err;
+      helper.code = 'delegate_internal_account';
+      throw helper;
     }
-    throw new Error('Unable to sign delegation.');
+    throw err;
   }
 
   const signedDelegation = { ...delegation, signature };
