@@ -1,4 +1,4 @@
-﻿// js/aa/delegation.js
+// js/aa/delegation.js
 // Delegation helpers backed by the MetaMask Delegation Toolkit.
 
 import { MONAD, getPokerTableAddress } from './config.js';
@@ -56,7 +56,7 @@ function normalizeAddress(addr) {
   return addr.toLowerCase();
 }
 
-export function isDelegationSuppressed() {
+function isDelegationSuppressed() {
   try {
     if (sessionStorage.getItem(DELEGATION_SUPPRESS_KEY) === 'true') return true;
   } catch {}
@@ -584,7 +584,7 @@ export function isDelegationActive() {
   return !!loadDelegation();
 }
 
-export { nowSec };
+export { nowSec, isDelegationSuppressed };
 
 if (typeof window !== 'undefined') {
   const autoEnsureDelegation = () => {
