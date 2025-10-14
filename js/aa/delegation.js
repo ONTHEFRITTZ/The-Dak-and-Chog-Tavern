@@ -129,6 +129,45 @@ function toHexString(value) {
 
 function sanitizeDelegationStruct(struct, { delegatorHex, delegateHex, viemModule }) {
   const { getAddress } = viemModule;
+  const isHexLike = (v) => typeof v === 'string' && /^0x[0-9a-fA-F]*$/.test(v);
+
+  const coerceAddress = (value) => {
+    try {
+      const extracted = extractAddress(value) || (typeof value === 'string' ? value : null);
+      if (!extracted) return null;
+      return getAddress(extracted);
+    } catch {
+      return null;
+    }
+  };
+
+  const deepFixAddresses = (node, seen = new Set()) => {
+    if (!node || typeof node !== 'object') return node;
+    if (seen.has(node)) return node;
+    seen.add(node);
+    if (Array.isArray(node)) {
+      return node.map((entry) => deepFixAddresses(entry, seen));
+    }
+    const out = { ...node };
+    for (const key of Object.keys(out)) {
+      const v = out[key];
+      if (!v) continue;
+      // Common address-bearing keys
+      if (['address','account','owner','target','delegate','delegator','from','to','controller','enforcer'].includes(key)) {
+        const fixed = coerceAddress(v);
+        if (fixed) { out[key] = fixed; continue; }
+      }
+      // Terms should be hex bytes
+      if (key === 'terms' && typeof v !== 'string') {
+        out[key] = toHexString(v);
+        continue;
+      }
+      if (typeof v === 'object') {
+        out[key] = deepFixAddresses(v, seen);
+      }
+    }
+    return out;
+  };
   const ensureAddress = (value, fallback, label) => {
     const extracted = extractAddress(value) || (typeof value === 'string' ? value : null) || fallback;
     if (!extracted) {
@@ -157,26 +196,21 @@ function sanitizeDelegationStruct(struct, { delegatorHex, delegateHex, viemModul
   } else {
     base.caveats = base.caveats.map((caveat) => {
       if (!caveat || typeof caveat !== 'object') return caveat;
-      const normalized = { ...caveat };
+      const normalized = deepFixAddresses(caveat);
       if (normalized.enforcer) {
-        try {
-          normalized.enforcer = getAddress(
-            extractAddress(normalized.enforcer) || normalized.enforcer
-          );
-        } catch {}
+        const fixed = coerceAddress(normalized.enforcer);
+        if (fixed) normalized.enforcer = fixed;
       }
       if (normalized.terms && typeof normalized.terms !== 'string') {
-        try {
-          normalized.terms = toHexString(normalized.terms);
-        } catch {
-          normalized.terms = toHexString('');
-        }
+        try { normalized.terms = toHexString(normalized.terms); } catch { normalized.terms = '0x'; }
       }
       return normalized;
     });
   }
 
-  return base;
+  // Final deep pass to coerce any nested address-like fields
+  const final = deepFixAddresses(base);
+  return final;
 }
 
 export function isDelegationSuppressed() {
@@ -595,6 +629,20 @@ export async function createDelegation({ address, preset, presetKey }) {
   let signature;
   const mm = (smartAccountInstance && smartAccountInstance.mmAccount) || smartAccountInstance || null;
   if (mm && typeof mm.signDelegation === 'function') {
+    try {
+      // Preflight validation to surface any lingering object-shaped addresses
+      const viem = ctx.viem || (await ensureViem());
+      const { isAddress } = viem;
+      const offenders = [];
+      const asStr = (v) => (typeof v === 'string' ? v : (v && typeof v.toString === 'function' ? v.toString() : v));
+      const checkAddr = (label, v) => { const s = asStr(v); if (!s || typeof s !== 'string' || !isAddress?.(s, { strict: false })) offenders.push(`${label}=${String(s)}`); };
+      checkAddr('delegator', delegation.delegator);
+      checkAddr('delegate', delegation.delegate);
+      (Array.isArray(delegation.caveats) ? delegation.caveats : []).forEach((c, i) => checkAddr(`caveat[${i}].enforcer`, c && c.enforcer));
+      if (offenders.length) {
+        console.warn('[aa/delegation] preflight found non-address fields:', offenders);
+      }
+    } catch {}
     try {
       signature = await mm.signDelegation({
         delegation,
