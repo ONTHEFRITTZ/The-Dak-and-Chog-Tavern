@@ -145,6 +145,25 @@ contract HoldemPoker {
         emit LeftDuringHand(msg.sender, seatId);
     }
 
+    /// @notice Owner emergency helper to clear a seat if the player is stuck/offline.
+    /// @param seatId The seat to clear.
+    /// @param duringHand Set true if a hand is currently active and the player must be treated as leaving mid-hand.
+    function forceUnseat(uint8 seatId, bool duringHand) external nonReentrant onlyOwner {
+        require(seatId < MAX_SEATS, "seat");
+        address holder = seats[seatId].player;
+        require(holder != address(0), "empty");
+
+        if (duringHand) {
+            require(inHand, "no hand");
+            seats[seatId].player = address(0);
+            emit LeftDuringHand(holder, seatId);
+        } else {
+            require(!inHand, "in hand");
+            seats[seatId].player = address(0);
+            emit SeatLeft(holder, seatId, 0);
+        }
+    }
+
     // --- Hand lifecycle ---
     function beginHand(uint8 dealer, uint8 sb, uint8 bb) external nonReentrant {
         require(!paused, "paused");
