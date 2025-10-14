@@ -57,6 +57,49 @@ function normalizeAddress(addr) {
   return addr.toLowerCase();
 }
 
+function extractAddress(value, seen) {
+  if (!value) return null;
+  if (typeof value === 'string') return value;
+  if (typeof value !== 'object') return null;
+
+  const visited = seen || new Set();
+  if (visited.has(value)) return null;
+  visited.add(value);
+
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      const resolved = extractAddress(entry, visited);
+      if (resolved) return resolved;
+    }
+    return null;
+  }
+
+  const candidateKeys = [
+    'address',
+    'account',
+    'id',
+    'value',
+    'owner',
+    'target',
+    'delegate',
+    'delegator'
+  ];
+  for (const key of candidateKeys) {
+    const nested = value[key];
+    const resolved = extractAddress(nested, visited);
+    if (resolved) return resolved;
+  }
+
+  try {
+    const str = value.toString?.();
+    if (typeof str === 'string' && str && str !== '[object Object]') {
+      return str;
+    }
+  } catch {}
+
+  return null;
+}
+
 export function isDelegationSuppressed() {
   try {
     if (sessionStorage.getItem(DELEGATION_SUPPRESS_KEY) === 'true') return true;
@@ -98,8 +141,9 @@ async function resolveDelegateAddress(ctx, fallback, avoid, smartAccountInstance
   const avoidLc = normalizeAddress(avoid);
   const candidates = [];
   const push = (value, { prioritize = false } = {}) => {
-    if (!value || typeof value !== 'string') return;
-    const trimmed = value.trim();
+    const extracted = extractAddress(value);
+    if (!extracted || typeof extracted !== 'string') return;
+    const trimmed = extracted.trim();
     if (!trimmed) return;
     const lc = trimmed.toLowerCase();
     if (lc === avoidLc) return;
@@ -114,7 +158,10 @@ async function resolveDelegateAddress(ctx, fallback, avoid, smartAccountInstance
     const walletAccounts = await getWalletAccounts(ctx);
     if (Array.isArray(walletAccounts)) {
       for (const entry of walletAccounts) {
-        const addr = entry?.address || entry?.account || entry?.id || entry?.address?.address;
+        const addr = extractAddress(entry)
+          || extractAddress(entry?.address)
+          || extractAddress(entry?.account)
+          || extractAddress(entry?.id);
         const type = String(entry?.type || entry?.accountType || '').toLowerCase();
         if (addr && (!type || type.includes('eoa') || type.includes('external'))) {
           const normalized = normalizeAddress(addr);
@@ -210,14 +257,15 @@ async function buildFunctionCallScope(toolkitCtx, target, selectors) {
 }
 
 async function resolveDelegatorAddress(ctx, smartAccountInstance) {
-  const internalLc = normalizeAddress(ctx?.internalAccount)
-    || normalizeAddress(AA?.smartAccountAddress)
+  const internalLc = normalizeAddress(extractAddress(ctx?.internalAccount))
+    || normalizeAddress(extractAddress(AA?.smartAccountAddress))
     || null;
 
   const prefer = [];
   const push = (value, { prioritize = false } = {}) => {
-    if (!value || typeof value !== 'string') return;
-    const normalized = normalizeAddress(value);
+    const extracted = extractAddress(value);
+    if (!extracted || typeof extracted !== 'string') return;
+    const normalized = normalizeAddress(extracted);
     if (!normalized) return;
     if (prefer.includes(normalized)) return;
     if (prioritize) {
@@ -360,11 +408,11 @@ export async function createDelegation({ address, preset, presetKey }) {
   if (!delegate) {
     throw new Error('Wallet address is required to create a delegation');
   }
-  const internalLc = normalizeAddress(ctx.internalAccount)
-    || normalizeAddress(AA?.smartAccountAddress)
+  const internalLc = normalizeAddress(extractAddress(ctx.internalAccount))
+    || normalizeAddress(extractAddress(AA?.smartAccountAddress))
     || null;
-  const controllerLc = normalizeAddress(ctx.ownerAccount)
-    || normalizeAddress(AA?.controllerAddress)
+  const controllerLc = normalizeAddress(extractAddress(ctx.ownerAccount))
+    || normalizeAddress(extractAddress(AA?.controllerAddress))
     || null;
   const smartAccountActive = internalLc && controllerLc && internalLc !== controllerLc;
   const smartOwnerHint = (() => {
