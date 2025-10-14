@@ -56,7 +56,7 @@ module.exports = {
       env: {
         NODE_ENV: 'production',
         DCMON_LOG_LEVEL: process.env.DCMON_LOG_LEVEL || 'info',
-        DCMON_POKER_TABLES: process.env.DCMON_POKER_TABLES || '0x681BADA5D0d012ABEB9f8A8F0E38758396DE0db3',
+        DCMON_POKER_TABLES: process.env.DCMON_POKER_TABLES || '0x424F89FE230331df8f656B683812b6394c323f17',
         DCMON_POKER_GAS_LIMIT: process.env.DCMON_POKER_GAS_LIMIT || '0',
         DCMON_PAYMASTER_MIN: process.env.DCMON_PAYMASTER_MIN || '0',
         DCMON_PAYMASTER_TARGET: process.env.DCMON_PAYMASTER_TARGET || '0',

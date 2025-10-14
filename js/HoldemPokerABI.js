@@ -12,6 +12,7 @@
     { "inputs": [{ "internalType": "address", "name": "poolAddr", "type": "address" }], "name": "setPool", "outputs": [], "stateMutability": "nonpayable", "type": "function" },
     { "inputs": [{ "internalType": "address", "name": "newOwner", "type": "address" }], "name": "transferOwnership", "outputs": [], "stateMutability": "nonpayable", "type": "function" },
     { "inputs": [{ "internalType": "address", "name": "to", "type": "address" }, { "internalType": "uint256", "name": "amount", "type": "uint256" }], "name": "withdrawFees", "outputs": [], "stateMutability": "nonpayable", "type": "function" },
+    { "inputs": [{ "internalType": "uint8", "name": "seatId", "type": "uint8" }, { "internalType": "bool", "name": "duringHand", "type": "bool" }], "name": "forceUnseat", "outputs": [], "stateMutability": "nonpayable", "type": "function" },
 
     // Gameplay
     { "inputs": [{ "internalType": "uint8", "name": "seatId", "type": "uint8" }], "name": "joinSeat", "outputs": [], "stateMutability": "nonpayable", "type": "function" },
