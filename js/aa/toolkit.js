@@ -187,12 +187,16 @@ export async function ensureDelegationToolkitContext() {
       }
     } catch {}
 
+    const walletAccountsList = Array.isArray(accountsByType) ? accountsByType : null;
+
     return {
       provider,
       accounts,
       account,
       ownerAccount,
       internalAccount,
+      walletAccounts: walletAccountsList,
+      walletAccountsSupported,
       viem,
       toolkit,
       publicClient,

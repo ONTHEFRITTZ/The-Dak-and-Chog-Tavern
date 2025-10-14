@@ -32,6 +32,7 @@ const SIGNABLE_DELEGATION_TYPED_DATA_FALLBACK = {
 
 let presetCache = null;
 let delegationTarget = null;
+let walletAccountsSupported = undefined;
 
 function nowSec() {
   return Math.floor(Date.now() / 1000);
@@ -52,6 +53,36 @@ function normalizeAddress(addr) {
   return addr.toLowerCase();
 }
 
+async function getWalletAccounts(ctx) {
+  if (ctx?.walletAccountsSupported === false) {
+    walletAccountsSupported = false;
+  }
+  if (walletAccountsSupported === false) {
+    return Array.isArray(ctx?.walletAccounts) ? ctx.walletAccounts : [];
+  }
+  if (Array.isArray(ctx?.walletAccounts) && ctx.walletAccounts.length) {
+    walletAccountsSupported = true;
+    return ctx.walletAccounts;
+  }
+  const provider = ctx?.provider;
+  if (!provider || typeof provider.request !== 'function') return [];
+  try {
+    const walletAccounts = await provider.request({ method: 'wallet_accounts' });
+    if (Array.isArray(walletAccounts) && walletAccounts.length) {
+      walletAccountsSupported = true;
+      return walletAccounts;
+    }
+    return [];
+  } catch (err) {
+    if (err && (err.code === -32601 || err.code === 'METHOD_NOT_FOUND')) {
+      walletAccountsSupported = false;
+      return [];
+    }
+    console.warn('[aa/delegation] wallet_accounts request failed', err);
+    return [];
+  }
+}
+
 async function resolveDelegateAddress(ctx, fallback, avoid) {
   const avoidLc = normalizeAddress(avoid);
   const candidates = [];
@@ -69,7 +100,7 @@ async function resolveDelegateAddress(ctx, fallback, avoid) {
   };
 
   try {
-    const walletAccounts = await ctx?.provider?.request?.({ method: 'wallet_accounts' });
+    const walletAccounts = await getWalletAccounts(ctx);
     if (Array.isArray(walletAccounts)) {
       for (const entry of walletAccounts) {
         const addr = entry?.address || entry?.account || entry?.id || entry?.address?.address;
@@ -296,7 +327,7 @@ export async function createDelegation({ address, preset, presetKey }) {
   let signature;
   try {
     signature = await walletClient.signTypedData({
-      account: delegate,
+      account: delegator,
       ...typedData
     });
   } catch (err) {
