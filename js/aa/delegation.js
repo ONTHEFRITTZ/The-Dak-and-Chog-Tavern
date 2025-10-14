@@ -65,23 +65,8 @@ async function getWalletAccounts(ctx) {
     walletAccountsSupported = true;
     return ctx.walletAccounts;
   }
-  const provider = ctx?.provider;
-  if (!provider || typeof provider.request !== 'function') return [];
-  try {
-    const walletAccounts = await provider.request({ method: 'wallet_accounts' });
-    if (Array.isArray(walletAccounts) && walletAccounts.length) {
-      walletAccountsSupported = true;
-      return walletAccounts;
-    }
-    return [];
-  } catch (err) {
-    if (err && (err.code === -32601 || err.code === 'METHOD_NOT_FOUND')) {
-      walletAccountsSupported = false;
-      return [];
-    }
-    console.warn('[aa/delegation] wallet_accounts request failed', err);
-    return [];
-  }
+  walletAccountsSupported = false;
+  return [];
 }
 
 async function resolveDelegateAddress(ctx, fallback, avoid, smartAccountInstance) {

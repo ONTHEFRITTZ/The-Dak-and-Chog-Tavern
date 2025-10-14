@@ -74,20 +74,10 @@ export async function ensureDelegationToolkitContext() {
 
     let accountsByType = null;
 
-    if (walletAccountsSupported !== false) {
-      try {
-        const walletAccounts = await provider.request({ method: 'wallet_accounts' });
-        if (Array.isArray(walletAccounts)) {
-          accountsByType = walletAccounts;
-          walletAccountsSupported = true;
-        }
-      } catch (err) {
-        if (err?.code === -32601) {
-          walletAccountsSupported = false;
-        } else {
-          console.warn('[aa/toolkit] wallet_accounts request failed', err);
-        }
-      }
+    if (walletAccountsSupported !== false && Array.isArray(accountsByType) && accountsByType.length) {
+      walletAccountsSupported = true;
+    } else if (walletAccountsSupported === undefined) {
+      walletAccountsSupported = false;
     }
 
     if ((!accountsByType || !accountsByType.length) && typeof provider._metamask?.getProviderState === 'function') {
