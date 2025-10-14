@@ -184,7 +184,7 @@ async function resolveDelegateAddress(ctx, fallback, avoid, smartAccountInstance
 
 async function buildFunctionCallScope(toolkitCtx, target, selectors) {
   const viem = toolkitCtx.viem || (await ensureViem());
-  const { isAddress, isHex } = viem;
+  const { isAddress, isHex, getAddress } = viem;
 
   if (!target) {
     throw new Error('Unable to resolve poker table contract address.');
@@ -204,9 +204,11 @@ async function buildFunctionCallScope(toolkitCtx, target, selectors) {
     throw new Error('No valid function selectors available for delegation scope.');
   }
 
+  const targetHex = getAddress ? getAddress(target) : target;
+
   return {
     type: 'functionCall',
-    targets: [target],
+    targets: [targetHex],
     selectors: unique
   };
 }
@@ -462,10 +464,31 @@ export async function createDelegation({ address, preset, presetKey }) {
   }
 
   const mmAccount = smartAccountInstance?.mmAccount || smartAccountInstance || null;
-  let signature;
-  try {
-    if (mmAccount && typeof mmAccount.signDelegation === 'function') {
-      signature = await mmAccount.signDelegation({
+  let signature = null;
+  let lastError = null;
+
+  const attemptWalletSign = async () => {
+    if (!walletClient || typeof walletClient.signTypedData !== 'function') return null;
+    try {
+      return await walletClient.signTypedData({
+        account: delegatorHex,
+        ...typedData
+      });
+    } catch (err) {
+      lastError = err;
+      const msg = String(err?.message || err?.data?.message || '').toLowerCase();
+      if (msg.includes('external signature requests') && msg.includes('internal accounts')) {
+        // Smart account required for this wallet; allow fallback.
+        return null;
+      }
+      throw err;
+    }
+  };
+
+  const attemptSmartAccountSign = async () => {
+    if (!mmAccount || typeof mmAccount.signDelegation !== 'function') return null;
+    try {
+      return await mmAccount.signDelegation({
         delegation,
         chainId: MONAD.id,
         delegationManager: environment.DelegationManager,
@@ -473,23 +496,30 @@ export async function createDelegation({ address, preset, presetKey }) {
         version: '1',
         allowInsecureUnrestrictedDelegation: !delegation.caveats || delegation.caveats.length === 0
       });
-    } else {
-      signature = await walletClient.signTypedData({
-        account: delegatorHex,
-        ...typedData
-      });
+    } catch (err) {
+      lastError = err;
+      return null;
     }
-  } catch (err) {
-    const msg = String(err?.message || err?.data?.message || '').toLowerCase();
-    if (msg.includes('external signature requests') && msg.includes('internal accounts')) {
-      const helper = new Error(
-        'MetaMask needs to sign this delegation from your base account. Open MetaMask, temporarily disable Smart Accounts for this wallet, approve the signature, then re-enable Smart Accounts.'
-      );
-      helper.cause = err;
-      helper.code = 'delegate_internal_account';
-      throw helper;
+  };
+
+  signature = await attemptWalletSign();
+  if (!signature) {
+    signature = await attemptSmartAccountSign();
+  }
+  if (!signature) {
+    if (lastError) {
+      const msg = String(lastError?.message || lastError?.data?.message || '').toLowerCase();
+      if (msg.includes('external signature requests') && msg.includes('internal accounts')) {
+        const helper = new Error(
+          'MetaMask needs to sign this delegation from your base account. Open MetaMask, temporarily disable Smart Accounts for this wallet, approve the signature, then re-enable Smart Accounts.'
+        );
+        helper.cause = lastError;
+        helper.code = 'delegate_internal_account';
+        throw helper;
+      }
+      throw lastError;
     }
-    throw err;
+    throw new Error('Unable to sign delegation.');
   }
 
   const signedDelegation = { ...delegation, signature };
