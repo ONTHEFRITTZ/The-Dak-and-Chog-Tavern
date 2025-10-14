@@ -2,7 +2,7 @@
 // Restores the image-based felt, seat layout, private hole handling, burn flashes,
 // simple dealing animations, action controls.
 function initializePokerTable() {
-  const { ethers } = window;
+  let ethers = window.ethers;
   const tableMode = (document.documentElement.getAttribute('data-table-mode') || 'f2p').toLowerCase();
   let isOnchainTable = tableMode === 'onchain';
   function getBankrollHelper() {
@@ -283,7 +283,20 @@ function initializePokerTable() {
       }
       return false;
     }, 'ethers');
-    if (!ethersReady || !ethers) throw new Error('Ethers.js not loaded');
+    if (!ethersReady || !ethers) {
+      try {
+        const mod = await import('https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.esm.min.js');
+        if (mod?.ethers) {
+          ethers = mod.ethers;
+          try { window.ethers = mod.ethers; } catch {}
+        }
+      } catch (err) {
+        throw new Error('Ethers.js not loaded');
+      }
+      if (!ethers || !ethers.Contract) {
+        throw new Error('Ethers.js not loaded');
+      }
+    }
     const abiReady = await waitForGlobal(
       () => Array.isArray(window.HoldemPokerABI) && window.HoldemPokerABI.length > 0,
       'HoldemPokerABI'
