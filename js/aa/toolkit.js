@@ -195,17 +195,15 @@ export function resetDelegationToolkitContext() {
 }
 function normalizeEnvironment(source) {
   const env = JSON.parse(JSON.stringify(source || {}));
-  const ce = env.caveatEnforcers || {};
-  Object.keys(ce).forEach((key) => {
-    const entry = ce[key];
-    if (entry && typeof entry === 'object' && entry.address) {
-      if (!entry.type) entry.type = key;
-      return;
+  try {
+    if (env && env.caveatEnforcers && typeof env.caveatEnforcers === 'object') {
+      Object.keys(env.caveatEnforcers).forEach((k) => {
+        const v = env.caveatEnforcers[k];
+        env.caveatEnforcers[k] = (v && typeof v === 'object' && typeof v.address === 'string') ? v.address : v;
+      });
     }
-    if (typeof entry === 'string') {
-      ce[key] = { address: entry, type: key };
-    }
-  });
-  env.caveatEnforcers = ce;
+  } catch {}
   return env;
 }
+
+
