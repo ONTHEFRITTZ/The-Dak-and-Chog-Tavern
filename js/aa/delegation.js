@@ -307,6 +307,12 @@ export async function presets() {
 
 export async function createDelegation({ address, preset, presetKey }) {
   const ctx = await ensureDelegationToolkitContext();
+  if (ctx?.walletAccountsSupported === false || walletAccountsSupported === false) {
+    throw new Error('MetaMask wallet does not support wallet_accounts. Delegation disabled.');
+  }
+  if (!ctx?.walletClient || typeof ctx.walletClient.signTypedData !== 'function') {
+    throw new Error('MetaMask wallet client unavailable for delegation signing.');
+  }
   const presetsMap = await ensurePresetMap();
 
   let smartAccountInstance = null;
@@ -513,6 +519,12 @@ export async function ensureDelegationActive({ presetKey, address, force = false
   }
   ensureDelegationPromise = (async () => {
     const ctx = await ensureDelegationToolkitContext();
+    if (ctx?.walletAccountsSupported === false || walletAccountsSupported === false) {
+      return null;
+    }
+    if (!ctx?.walletClient || typeof ctx.walletClient.signTypedData !== 'function') {
+      return null;
+    }
     const presetsMap = await ensurePresetMap();
     const choice = presetsMap[presetKey || 'playPlusTableOps']
       || presetsMap.playPlusTableOps
