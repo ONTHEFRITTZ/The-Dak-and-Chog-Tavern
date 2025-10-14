@@ -231,13 +231,33 @@ function initializePokerTable() {
   }
   async function createOnchainAdapter() {
     if (!isOnchainTable || !ethers || !window.HoldemPokerABI) return null;
-    const bankroll = await waitForBankrollHelper();
-    if (typeof bankroll.ensureContracts === 'function') {
+    let bankroll = null;
+    try {
+      bankroll = await waitForBankrollHelper();
+    } catch (err) {
+      console.warn('Poker table: bankroll helper unavailable, using fallback provider', err);
+      bankroll = null;
+    }
+    if (bankroll && typeof bankroll.ensureContracts === 'function') {
       const ok = await bankroll.ensureContracts();
       if (!ok) throw new Error('Bankroll contracts unavailable');
     }
-    const provider = typeof bankroll.getProvider === 'function' ? await bankroll.getProvider() : null;
-    const signer = typeof bankroll.getSigner === 'function' ? await bankroll.getSigner() : null;
+    let provider = bankroll && typeof bankroll.getProvider === 'function'
+      ? await bankroll.getProvider()
+      : null;
+    if (!provider && window.ethereum && ethers?.providers?.Web3Provider) {
+      try {
+        provider = new ethers.providers.Web3Provider(window.ethereum, 'any');
+      } catch (provErr) {
+        console.warn('Poker table: fallback provider init failed', provErr);
+      }
+    }
+    let signer = bankroll && typeof bankroll.getSigner === 'function'
+      ? await bankroll.getSigner()
+      : null;
+    if (!signer && provider?.getSigner) {
+      try { signer = await provider.getSigner(); } catch {}
+    }
     if (!provider || !signer) throw new Error('Connect wallet before joining on-chain tables');
     const tableAddress = await resolvePokerTableAddress(provider);
     if (!tableAddress) throw new Error('Poker table address missing');
@@ -289,15 +309,54 @@ function initializePokerTable() {
         return false;
       }
     }
-    const contracts = typeof bankroll.getContracts === 'function' ? bankroll.getContracts() : null;
-    const dcmonRead = contracts?.dcmonRead || null;
+    const contracts = bankroll && typeof bankroll.getContracts === 'function' ? bankroll.getContracts() : null;
+    let dcmonRead = contracts?.dcmonRead || null;
+    if (!dcmonRead && provider) {
+      try {
+        const config = await loadConfigModule();
+        const dcmonAddr =
+          (config?.CONTRACTS && config.CONTRACTS.dcmon)
+          || (window.CONTRACTS && window.CONTRACTS.dcmon)
+          || null;
+        const dcmonAbi = Array.isArray(window.DCMonABI)
+          ? window.DCMonABI
+          : (window.__BANKROLL_FALLBACK_ABIS__?.dcmon || []);
+        if (dcmonAddr && Array.isArray(dcmonAbi) && dcmonAbi.length) {
+          dcmonRead = new ethers.Contract(dcmonAddr, dcmonAbi, provider);
+        }
+      } catch (dcmonErr) {
+        console.warn('Poker table: dcmon contract fallback failed', dcmonErr);
+      }
+    }
     async function ensureAllowance(amountWei) {
+      if (!amountWei) return true;
       const addr = await ownerAddress();
-      if (typeof bankroll.ensureDcmonAllowance === 'function') {
+      if (bankroll && typeof bankroll.ensureDcmonAllowance === 'function') {
         const allowed = await bankroll.ensureDcmonAllowance(amountWei, addr, tableAddress);
         if (!allowed) throw new Error('DCMon allowance not granted');
+        return true;
       }
-      return true;
+      if (!dcmonRead) return true;
+      try {
+        const current = await dcmonRead.allowance(addr, tableAddress);
+        if (current && typeof current.gte === 'function' && current.gte(amountWei)) {
+          return true;
+        }
+      } catch (allowErr) {
+        console.warn('Poker table: allowance check failed', allowErr);
+      }
+      try {
+        const dcmonWriter = dcmonRead.connect(signer);
+        const maxUint = (ethers?.constants?.MaxUint256)
+          || (ethers?.BigNumber ? ethers.BigNumber.from('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff') : null);
+        const approvalAmount = maxUint || amountWei;
+        const tx = await dcmonWriter.approve(tableAddress, approvalAmount);
+        await tx.wait();
+        return true;
+      } catch (approveErr) {
+        console.warn('Poker table: DCMon approve failed', approveErr);
+        throw new Error('DCMon allowance not granted');
+      }
     }
     async function contribute(seatId, chips) {
       if (!isOnchainTable) return true;
@@ -320,7 +379,7 @@ function initializePokerTable() {
         const tx = await contract.contribute(seatId, wei);
         await tx.wait();
       }
-      if (typeof bankroll.refreshBalance === 'function') {
+      if (bankroll && typeof bankroll.refreshBalance === 'function') {
         setTimeout(() => {
           try { bankroll.refreshBalance(addr); } catch (refreshErr) {
             console.warn('Poker table: refresh after contribute failed', refreshErr);
