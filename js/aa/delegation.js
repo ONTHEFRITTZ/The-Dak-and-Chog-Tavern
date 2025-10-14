@@ -57,6 +57,123 @@ function normalizeAddress(addr) {
   return addr.toLowerCase();
 }
 
+function extractAddress(value, seen) {
+  if (!value) return null;
+  if (typeof value === 'string') return value;
+  if (typeof value !== 'object') return null;
+
+  const visited = seen || new Set();
+  if (visited.has(value)) return null;
+  visited.add(value);
+
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      const resolved = extractAddress(entry, visited);
+      if (resolved) return resolved;
+    }
+    return null;
+  }
+
+  const candidateKeys = [
+    'address',
+    'account',
+    'id',
+    'value',
+    'owner',
+    'target',
+    'delegate',
+    'delegator'
+  ];
+  for (const key of candidateKeys) {
+    const nested = value[key];
+    const resolved = extractAddress(nested, visited);
+    if (resolved) return resolved;
+  }
+
+  try {
+    const str = value.toString?.();
+    if (typeof str === 'string' && str && str !== '[object Object]') {
+      return str;
+    }
+  } catch {}
+
+  return null;
+}
+
+function toHexString(value) {
+  if (!value) return '0x';
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return '0x';
+    return trimmed.startsWith('0x') ? trimmed : `0x${trimmed}`;
+  }
+  if (value instanceof Uint8Array || ArrayBuffer.isView(value)) {
+    return `0x${Array.from(value, (b) => b.toString(16).padStart(2, '0')).join('')}`;
+  }
+  if (Array.isArray(value) && value.every((entry) => typeof entry === 'number')) {
+    return `0x${value.map((b) => Number(b).toString(16).padStart(2, '0')).join('')}`;
+  }
+  try {
+    const str = value.toString?.();
+    if (typeof str === 'string' && str && str !== '[object Object]') {
+      return str.startsWith('0x') ? str : `0x${str}`;
+    }
+  } catch {}
+  return '0x';
+}
+
+function sanitizeDelegationStruct(struct, { delegatorHex, delegateHex, viemModule }) {
+  const { getAddress } = viemModule;
+  const ensureAddress = (value, fallback, label) => {
+    const extracted = extractAddress(value) || (typeof value === 'string' ? value : null) || fallback;
+    if (!extracted) {
+      throw new Error(`${label || 'address'} is missing.`);
+    }
+    try {
+      return getAddress(extracted);
+    } catch (err) {
+      throw new Error(`${label || 'address'} is invalid: ${extracted}`);
+    }
+  };
+
+  const input = struct && typeof struct === 'object' ? struct : {};
+  const base = { ...input };
+
+  const sanitizedDelegate = ensureAddress(base.delegate ?? base.to, delegateHex, 'Delegate address');
+  const sanitizedDelegator = ensureAddress(base.delegator ?? base.from, delegatorHex, 'Delegator address');
+
+  base.from = ensureAddress(base.from, sanitizedDelegator, 'Delegation.from');
+  base.delegator = sanitizedDelegator;
+  base.to = ensureAddress(base.to, sanitizedDelegate, 'Delegation.to');
+  base.delegate = sanitizedDelegate;
+
+  if (!Array.isArray(base.caveats)) {
+    base.caveats = [];
+  } else {
+    base.caveats = base.caveats.map((caveat) => {
+      if (!caveat || typeof caveat !== 'object') return caveat;
+      const normalized = { ...caveat };
+      if (normalized.enforcer) {
+        try {
+          normalized.enforcer = getAddress(
+            extractAddress(normalized.enforcer) || normalized.enforcer
+          );
+        } catch {}
+      }
+      if (normalized.terms && typeof normalized.terms !== 'string') {
+        try {
+          normalized.terms = toHexString(normalized.terms);
+        } catch {
+          normalized.terms = toHexString('');
+        }
+      }
+      return normalized;
+    });
+  }
+
+  return base;
+}
+
 export function isDelegationSuppressed() {
   try {
     if (sessionStorage.getItem(DELEGATION_SUPPRESS_KEY) === 'true') return true;
@@ -98,8 +215,9 @@ async function resolveDelegateAddress(ctx, fallback, avoid, smartAccountInstance
   const avoidLc = normalizeAddress(avoid);
   const candidates = [];
   const push = (value, { prioritize = false } = {}) => {
-    if (!value || typeof value !== 'string') return;
-    const trimmed = value.trim();
+    const extracted = extractAddress(value);
+    if (!extracted || typeof extracted !== 'string') return;
+    const trimmed = extracted.trim();
     if (!trimmed) return;
     const lc = trimmed.toLowerCase();
     if (lc === avoidLc) return;
@@ -114,7 +232,10 @@ async function resolveDelegateAddress(ctx, fallback, avoid, smartAccountInstance
     const walletAccounts = await getWalletAccounts(ctx);
     if (Array.isArray(walletAccounts)) {
       for (const entry of walletAccounts) {
-        const addr = entry?.address || entry?.account || entry?.id || entry?.address?.address;
+        const addr = extractAddress(entry)
+          || extractAddress(entry?.address)
+          || extractAddress(entry?.account)
+          || extractAddress(entry?.id);
         const type = String(entry?.type || entry?.accountType || '').toLowerCase();
         if (addr && (!type || type.includes('eoa') || type.includes('external'))) {
           const normalized = normalizeAddress(addr);
@@ -210,14 +331,15 @@ async function buildFunctionCallScope(toolkitCtx, target, selectors) {
 }
 
 async function resolveDelegatorAddress(ctx, smartAccountInstance) {
-  const internalLc = normalizeAddress(ctx?.internalAccount)
-    || normalizeAddress(AA?.smartAccountAddress)
+  const internalLc = normalizeAddress(extractAddress(ctx?.internalAccount))
+    || normalizeAddress(extractAddress(AA?.smartAccountAddress))
     || null;
 
   const prefer = [];
   const push = (value, { prioritize = false } = {}) => {
-    if (!value || typeof value !== 'string') return;
-    const normalized = normalizeAddress(value);
+    const extracted = extractAddress(value);
+    if (!extracted || typeof extracted !== 'string') return;
+    const normalized = normalizeAddress(extracted);
     if (!normalized) return;
     if (prefer.includes(normalized)) return;
     if (prioritize) {
@@ -360,11 +482,11 @@ export async function createDelegation({ address, preset, presetKey }) {
   if (!delegate) {
     throw new Error('Wallet address is required to create a delegation');
   }
-  const internalLc = normalizeAddress(ctx.internalAccount)
-    || normalizeAddress(AA?.smartAccountAddress)
+  const internalLc = normalizeAddress(extractAddress(ctx.internalAccount))
+    || normalizeAddress(extractAddress(AA?.smartAccountAddress))
     || null;
-  const controllerLc = normalizeAddress(ctx.ownerAccount)
-    || normalizeAddress(AA?.controllerAddress)
+  const controllerLc = normalizeAddress(extractAddress(ctx.ownerAccount))
+    || normalizeAddress(extractAddress(AA?.controllerAddress))
     || null;
   const smartAccountActive = internalLc && controllerLc && internalLc !== controllerLc;
   const smartOwnerHint = (() => {
@@ -414,13 +536,15 @@ export async function createDelegation({ address, preset, presetKey }) {
   }
 
   const { toolkit, environment, walletClient } = ctx;
-  const delegation = toolkit.createDelegation({
+  const delegationRaw = toolkit.createDelegation({
     from: delegatorHex,
     to: delegateHex,
     environment,
     scope,
     salt: randomSalt()
   });
+
+  const delegation = sanitizeDelegationStruct(delegationRaw, { delegatorHex, delegateHex, viemModule });
 
   const toStruct = typeof toolkit.toDelegationStruct === 'function'
     ? toolkit.toDelegationStruct.bind(toolkit)
@@ -508,10 +632,10 @@ export async function createDelegation({ address, preset, presetKey }) {
     scope,
     delegation: signedDelegation,
     permissionContext: [[signedDelegation]],
-    from: delegator,
-    to: delegate,
-    delegate,
-    controller: delegator,
+    from: signedDelegation.delegator,
+    to: signedDelegation.delegate,
+    delegate: signedDelegation.delegate,
+    controller: signedDelegation.delegator,
     createdAt: nowSec(),
     end: nowSec() + (choice.ttlSeconds || DEFAULT_TTL),
     chainId: MONAD.id
