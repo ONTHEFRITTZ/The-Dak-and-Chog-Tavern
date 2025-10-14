@@ -584,7 +584,7 @@ export function isDelegationActive() {
   return !!loadDelegation();
 }
 
-export { nowSec, isDelegationSuppressed };
+export { nowSec };
 
 if (typeof window !== 'undefined') {
   const autoEnsureDelegation = () => {
