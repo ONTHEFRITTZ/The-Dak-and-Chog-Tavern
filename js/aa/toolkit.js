@@ -141,18 +141,6 @@ export async function ensureDelegationToolkitContext() {
         }
       } catch {}
 
-      // Helper: attempt an import() and normalize default export
-      const tryImport = async (spec) => {
-        try {
-          const mod = await import(spec);
-          const tk = (mod && mod.default && !mod.toMetaMaskSmartAccount) ? mod.default : mod;
-          if (tk && typeof tk.toMetaMaskSmartAccount === 'function' && tk.Implementation && (tk.Implementation.Hybrid || tk.Implementation.EIP7702Stateless || tk.Implementation.MultiSig)) {
-            return tk;
-          }
-        } catch {}
-        return null;
-      };
-
       // Helper: fetch same-origin file and import via blob to bypass wrong MIME
       const tryImportViaBlob = async (spec) => {
         try {
@@ -174,42 +162,18 @@ export async function ensureDelegationToolkitContext() {
         return null;
       };
 
-      const candidates = [
-        // Prefer same-origin vendored build first (absolute URL to avoid base path issues)
+      // Only use same-origin vendor files to avoid CDN/CORS and noisy logs
+      const vendors = [
         '/js/vendor/metamask-delegation-toolkit-latest.mjs',
         '/js/vendor/metamask-delegation-toolkit-v15.mjs',
-        // Relative fallbacks (when served under /js/aa/ path)
-        '../vendor/metamask-delegation-toolkit-v15.mjs',
         '../vendor/metamask-delegation-toolkit-latest.mjs',
-        // Pin v15 from CDNs
-        'https://esm.sh/@metamask/delegation-toolkit@0.15.3',
-        'https://esm.sh/@metamask/delegation-toolkit@0.15.2',
-        'https://esm.sh/@metamask/delegation-toolkit@0.15.0',
-        'https://unpkg.com/@metamask/delegation-toolkit@0.15.3/dist/index.js?module',
-        'https://unpkg.com/@metamask/delegation-toolkit@0.15.0/dist/index.js?module',
-        'https://cdn.jsdelivr.net/npm/@metamask/delegation-toolkit@0.15.3/+esm',
-        'https://cdn.jsdelivr.net/npm/@metamask/delegation-toolkit@0.15.0/+esm',
-        // Local package if available (rare in browser)
-        '@metamask/delegation-toolkit'
+        '../vendor/metamask-delegation-toolkit-v15.mjs',
       ];
-      for (const spec of candidates) {
-        // Prefer blob-import first for same-origin (bypasses wrong MIME types)
-        try {
-          const u = new URL(spec, location.origin);
-          if (u.origin === location.origin) {
-            const tk2 = await tryImportViaBlob(spec);
-            if (tk2) return tk2;
-            // As a fallback, try a direct import (may log MIME error depending on server config)
-            const tk1 = await tryImport(spec);
-            if (tk1) return tk1;
-            continue;
-          }
-        } catch {}
-        // Cross-origin: try normal ESM import (CORS/CDN)
-        const tk1 = await tryImport(spec);
-        if (tk1) return tk1;
+      for (const spec of vendors) {
+        const tk = await tryImportViaBlob(spec);
+        if (tk) return tk;
       }
-      throw new Error('MetaMask Delegation Toolkit v0.15.x unavailable (all sources failed).');
+      throw new Error('MetaMask Delegation Toolkit v0.15.x vendor file not found or unreadable. Ensure /js/vendor/metamask-delegation-toolkit-latest.mjs exists.');
     }
 
     let toolkit = await loadToolkitV15();
