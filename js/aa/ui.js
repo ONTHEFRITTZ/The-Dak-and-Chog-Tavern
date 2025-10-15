@@ -370,11 +370,14 @@ async function renderButtons(state, presetMap) {
         const targetDelegate = mmAddr;
         let existing = loadDelegation();
         if (!existing || !(existing.end && nowSec() < existing.end)) {
-          existing = await ensureDelegationActive({ address: targetDelegate, force: false });
+          const delMod = await import('../aa/delegation.js');
+          existing = await delMod.loadDelegation?.();
+          if (!existing || !(existing.end && nowSec() < existing.end)) {
+            existing = await delMod.issueOpenDelegationForLanding();
+          }
         }
         if (!existing) {
-          const record = await ensureDelegationActive({ address: targetDelegate, force: true });
-          if (!record) throw new Error("Delegation signature was not completed.");
+          throw new Error("Delegation signature was not completed.");
         }
         try { localStorage.setItem(SMART_ACCOUNT_OPT_IN_KEY, "true"); } catch {}
         await initAA({});
