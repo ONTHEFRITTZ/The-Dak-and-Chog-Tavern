@@ -606,40 +606,43 @@ export async function createDelegation({ address, preset, presetKey }) {
         })()
       });
 
+  // Prepare typedData only for diagnostics; we no longer attempt external signTypedData for delegations.
   let typedData;
-  if (typeof toolkit.prepareSignDelegationTypedData === 'function') {
-    typedData = toolkit.prepareSignDelegationTypedData({
-      delegation,
-      delegationManager: environment.DelegationManager,
-      chainId: MONAD.id,
-      allowInsecureUnrestrictedDelegation: !delegation.caveats || delegation.caveats.length === 0
-    });
-  } else {
-    const types = toolkit.SIGNABLE_DELEGATION_TYPED_DATA || SIGNABLE_DELEGATION_TYPED_DATA_FALLBACK;
-    typedData = {
-      domain: {
+  try {
+    if (typeof toolkit.prepareSignDelegationTypedData === 'function') {
+      typedData = toolkit.prepareSignDelegationTypedData({
+        delegation,
+        delegationManager: environment.DelegationManager,
         chainId: MONAD.id,
-        name: 'DelegationManager',
-        version: '1',
-        verifyingContract: environment.DelegationManager
-      },
-      types,
-      primaryType: 'Delegation',
-      message: toStruct({ ...delegation, delegator: delegatorHex, signature: '0x' })
-    };
-  }
+        allowInsecureUnrestrictedDelegation: !delegation.caveats || delegation.caveats.length === 0
+      });
+    } else {
+      const types = toolkit.SIGNABLE_DELEGATION_TYPED_DATA || SIGNABLE_DELEGATION_TYPED_DATA_FALLBACK;
+      typedData = {
+        domain: {
+          chainId: MONAD.id,
+          name: 'DelegationManager',
+          version: '1',
+          verifyingContract: environment.DelegationManager
+        },
+        types,
+        primaryType: 'Delegation',
+        message: toStruct({ ...delegation, delegator: delegatorHex, signature: '0x' })
+      };
+    }
+  } catch {}
 
     // Prefer internal smart-account signer when available; fallback to walletClient (EOA) otherwise.
   let signature;
   const mm = (smartAccountInstance && smartAccountInstance.mmAccount) || smartAccountInstance || null;
-  // If delegating to the internal smart account, prefer internal signing via the toolkit.
+  // Require internal signing via the toolkit when delegating to the smart account.
   let delegateIsInternal = false;
   try {
     const internalHexTry = internalLc ? viemModule.getAddress(internalLc) : null;
     delegateIsInternal = !!(internalHexTry && internalHexTry.toLowerCase() === delegateHex.toLowerCase());
   } catch {}
 
-  // Only attempt internal signing when delegating to the smart account and the mm signer is available.
+  // Only attempt signing when delegating to the smart account and the mm signer is available.
   if (delegateIsInternal && mm && typeof mm.signDelegation === 'function') {
     try {
       // Preflight validation to surface any lingering object-shaped addresses
@@ -669,34 +672,10 @@ export async function createDelegation({ address, preset, presetKey }) {
     }
   }
   if (!signature) {
-    if (delegateIsInternal) {
-      // External signature path is blocked by MetaMask for internal-account delegations.
-      const helper = new Error('MetaMask Smart Account must sign this delegation internally. Enable Smart Accounts and try again.');
-      helper.code = 'delegate_internal_requires_mm_signer';
-      suppressDelegation('MetaMask rejected external signature for internal-account delegation');
-      throw helper;
-    }
-    if (!walletClient || typeof walletClient.signTypedData !== 'function') {
-      throw new Error('MetaMask wallet client unavailable for delegation signing.');
-    }
-    try {
-      signature = await walletClient.signTypedData({
-        account: delegatorHex,
-        ...typedData
-      });
-    } catch (err) {
-      const msg = String(err?.message || err?.data?.message || '').toLowerCase();
-      if (msg.includes('external signature requests') && msg.includes('internal accounts')) {
-        suppressDelegation('MetaMask rejected delegation for smart account');
-        const helper = new Error(
-          'MetaMask needs to sign this delegation from your base account. Open MetaMask, temporarily disable Smart Accounts for this wallet, approve the signature, then re-enable Smart Accounts.'
-        );
-        helper.cause = err;
-        helper.code = 'delegate_internal_account';
-        throw helper;
-      }
-      throw err;
-    }
+    const helper = new Error('MetaMask Smart Account must sign this delegation internally. Enable Smart Accounts and try again.');
+    helper.code = 'delegate_mm_signer_required';
+    suppressDelegation('MetaMask rejected external signature for delegation');
+    throw helper;
   }
   const signedDelegation = { ...delegation, signature };
   const record = {
@@ -741,7 +720,7 @@ export async function ensureDelegationActive({ presetKey, address, force = false
   }
   ensureDelegationPromise = (async () => {
     const ctx = await ensureDelegationToolkitContext();
-    if (!ctx?.walletClient || typeof ctx.walletClient.signTypedData !== 'function') {
+    if (!ctx?.toolkit) {
       return null;
     }
     const presetsMap = await ensurePresetMap();
