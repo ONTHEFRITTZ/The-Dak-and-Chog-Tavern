@@ -132,7 +132,13 @@ export async function ensureDelegationToolkitContext() {
 
     async function loadToolkitV15() {
       const candidates = [
-        // Pin v15 first
+        // Prefer same-origin vendored build first (absolute URL to avoid base path issues)
+        '/js/vendor/metamask-delegation-toolkit-v15.mjs',
+        '/js/vendor/metamask-delegation-toolkit-latest.mjs',
+        // Relative fallbacks (when served under /js/aa/ path)
+        '../vendor/metamask-delegation-toolkit-v15.mjs',
+        '../vendor/metamask-delegation-toolkit-latest.mjs',
+        // Pin v15 from CDNs
         'https://esm.sh/@metamask/delegation-toolkit@0.15.3',
         'https://esm.sh/@metamask/delegation-toolkit@0.15.2',
         'https://esm.sh/@metamask/delegation-toolkit@0.15.0',
@@ -140,10 +146,8 @@ export async function ensureDelegationToolkitContext() {
         'https://unpkg.com/@metamask/delegation-toolkit@0.15.0/dist/index.js?module',
         'https://cdn.jsdelivr.net/npm/@metamask/delegation-toolkit@0.15.3/+esm',
         'https://cdn.jsdelivr.net/npm/@metamask/delegation-toolkit@0.15.0/+esm',
-        // Local package if available
-        '@metamask/delegation-toolkit',
-        // Last resort: vendored (may be older)
-        '../vendor/metamask-delegation-toolkit-latest.mjs'
+        // Local package if available (rare in browser)
+        '@metamask/delegation-toolkit'
       ];
       for (const spec of candidates) {
         try {
