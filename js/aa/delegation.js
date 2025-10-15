@@ -883,8 +883,16 @@ export async function issueOpenDelegationForLanding() {
   const deployParams2 = [delegatorHex, [], [], []];
   const mm = await toMetaMaskSmartAccount({ owner: delegatorHex, chain: chainObj2, implementation: impl2, transport: walletClient.transport, deployParams: deployParams2, deploySalt: '0x0', signer: { walletClient }, client: publicClient });
 
+  // Require internal signer support; do not fall back to external typed-data signing.
+  const mmSigner = (mm && typeof mm.signDelegation === 'function') ? mm : (mm && mm.mmAccount && typeof mm.mmAccount.signDelegation === 'function' ? mm.mmAccount : null);
+  if (!mmSigner) {
+    const err = new Error('Smart Accounts appear disabled in MetaMask. Open MetaMask and enable Smart Accounts for this wallet, then try again.');
+    err.code = 'internal_signer_unavailable';
+    throw err;
+  }
+
   let signature = null;
-  let sigResult = await mm.signDelegation({ delegation, chainId: MONAD.id, delegationManager: environment.DelegationManager, name: 'DelegationManager', version: '1', allowInsecureUnrestrictedDelegation: true });
+  let sigResult = await mmSigner.signDelegation({ delegation, chainId: MONAD.id, delegationManager: environment.DelegationManager, name: 'DelegationManager', version: '1', allowInsecureUnrestrictedDelegation: true });
   if (typeof sigResult === 'string') signature = sigResult;
   else if (sigResult && typeof sigResult === 'object') signature = sigResult.signature || sigResult.sig || sigResult.data?.signature || null;
   if (!signature) throw new Error('Delegation signature was not produced.');
