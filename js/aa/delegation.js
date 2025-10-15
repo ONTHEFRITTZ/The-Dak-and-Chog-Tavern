@@ -647,14 +647,14 @@ export async function createDelegation({ address, preset, presetKey }) {
   let mm = (smartAccountInstance && smartAccountInstance.mmAccount) || smartAccountInstance || null;
   // Always construct a fresh Hybrid mm account to ensure correct internal signer wiring
   try {
-    const { toolkit, walletClient, publicClient } = ctx;
+    const { toolkit, walletClient } = ctx;
     const { toMetaMaskSmartAccount, Implementation } = toolkit || {};
     const impl = (Implementation?.Hybrid || Implementation?.EIP7702Stateless || Implementation?.MultiSig || undefined);
-    const chainObj = walletClient?.chain || publicClient?.chain || null;
     if (typeof toMetaMaskSmartAccount === 'function' && walletClient?.transport && delegatorHex) {
+      // Use 0.13.x signature: ownerAddress + chainId + transport
       const rebuilt = await toMetaMaskSmartAccount({
-        owner: delegatorHex,
-        chain: chainObj || { id: MONAD.id, name: MONAD.name || 'Monad Testnet', nativeCurrency: { name: 'MON', symbol: 'MON', decimals: 18 } },
+        ownerAddress: delegatorHex,
+        chainId: MONAD.id,
         implementation: impl,
         transport: walletClient.transport
       });

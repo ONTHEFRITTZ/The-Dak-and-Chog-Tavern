@@ -73,18 +73,8 @@ export async function ensureDelegationToolkitContext() {
     let internalAccount = requestedRaw[0] || null;
 
     let accountsByType = null;
-    // Try MetaMask multi-account enumeration to distinguish owner (EOA) vs internal (smart)
-    try {
-      const listed = await provider.request({ method: 'wallet_accounts' });
-      if (Array.isArray(listed) && listed.length) {
-        accountsByType = listed;
-        walletAccountsSupported = true;
-      } else if (walletAccountsSupported === undefined) {
-        walletAccountsSupported = false;
-      }
-    } catch {
-      if (walletAccountsSupported === undefined) walletAccountsSupported = false;
-    }
+    // Avoid wallet_accounts on providers that don't implement it to prevent RPC error noise
+    walletAccountsSupported = false;
 
     if (walletAccountsSupported !== false && Array.isArray(accountsByType) && accountsByType.length) {
       walletAccountsSupported = true;
@@ -112,21 +102,7 @@ export async function ensureDelegationToolkitContext() {
       }
     }
 
-    if (Array.isArray(accountsByType)) {
-      for (const entry of accountsByType) {
-        const addr = entry?.address || entry?.account || entry?.id || entry?.address?.address;
-        const type = String(entry?.type || entry?.accountType || entry?.accountTypeMetadata?.name || '').toLowerCase();
-        if (!addr) continue;
-        const normalized = String(addr).toLowerCase();
-        if (type.includes('eoa') || type.includes('external')) {
-          ownerAccount = normalized;
-        } else if (type.includes('smart') || type.includes('internal')) {
-          if (!internalAccount) internalAccount = normalized;
-        } else {
-          if (!ownerAccount) ownerAccount = normalized;
-        }
-      }
-    }
+    // If a future provider returns wallet_accounts, we can classify here.
 
     if (!ownerAccount) ownerAccount = requestedRaw[0] || null;
     if (!internalAccount) internalAccount = requestedRaw[0] || null;
