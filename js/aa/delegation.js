@@ -645,19 +645,42 @@ export async function createDelegation({ address, preset, presetKey }) {
     // Prefer internal smart-account signer when available; fallback to walletClient (EOA) otherwise.
   let signature;
   let mm = (smartAccountInstance && smartAccountInstance.mmAccount) || smartAccountInstance || null;
-  // Always construct a fresh Hybrid mm account to ensure correct internal signer wiring
+  // Always construct a fresh mm account (try v0.15+ signature first, then v0.13.x)
   try {
-    const { toolkit, walletClient } = ctx;
+    const { toolkit, walletClient, publicClient } = ctx;
     const { toMetaMaskSmartAccount, Implementation } = toolkit || {};
     const impl = (Implementation?.Hybrid || Implementation?.EIP7702Stateless || Implementation?.MultiSig || undefined);
     if (typeof toMetaMaskSmartAccount === 'function' && walletClient?.transport && delegatorHex) {
-      // Use 0.13.x signature: ownerAddress + chainId + transport
-      const rebuilt = await toMetaMaskSmartAccount({
-        ownerAddress: delegatorHex,
-        chainId: MONAD.id,
-        implementation: impl,
-        transport: walletClient.transport
-      });
+      let rebuilt = null;
+      // Attempt v0.15+ signature (owner + chain)
+      try {
+        const chainObj = walletClient?.chain || publicClient?.chain || {
+          id: MONAD.id,
+          name: MONAD.name || 'Monad Testnet',
+          nativeCurrency: { name: 'MON', symbol: 'MON', decimals: 18 }
+        };
+        rebuilt = await toMetaMaskSmartAccount({
+          owner: delegatorHex,
+          chain: chainObj,
+          implementation: impl,
+          transport: walletClient.transport
+        });
+      } catch (v15err) {
+        console.warn('[aa/delegation] mm build v15 failed, trying v13', v15err);
+      }
+      // Fallback to v0.13.x (ownerAddress + chainId)
+      if (!rebuilt || typeof rebuilt.signDelegation !== 'function') {
+        try {
+          rebuilt = await toMetaMaskSmartAccount({
+            ownerAddress: delegatorHex,
+            chainId: MONAD.id,
+            implementation: impl,
+            transport: walletClient.transport
+          });
+        } catch (v13err) {
+          console.warn('[aa/delegation] mm build v13 failed', v13err);
+        }
+      }
       if (rebuilt) mm = rebuilt;
     }
   } catch (e) {
