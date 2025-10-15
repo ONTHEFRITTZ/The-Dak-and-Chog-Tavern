@@ -151,6 +151,20 @@ export async function ensureDelegationToolkitContext() {
       transport: custom(provider)
     });
 
+    const walletChain = walletClient?.chain || MONAD_CHAIN;
+    if (walletClient && !walletClient.chain) {
+      try {
+        Object.defineProperty(walletClient, 'chain', {
+          configurable: true,
+          enumerable: true,
+          value: walletChain,
+          writable: false
+        });
+      } catch (_) {
+        // Ignore inability to define the property; we fall back to returning walletChain separately.
+      }
+    }
+
     const environment = normalizeEnvironment(MONAD_DELEGATION_ENV);
 
     try {
@@ -176,6 +190,7 @@ export async function ensureDelegationToolkitContext() {
       toolkit,
       publicClient,
       walletClient,
+      walletChain,
       environment
     };
   })().catch(err => {

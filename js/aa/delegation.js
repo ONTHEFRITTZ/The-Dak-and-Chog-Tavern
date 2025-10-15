@@ -478,6 +478,12 @@ export async function presets() {
 
 export async function createDelegation({ address, preset, presetKey }) {
   const ctx = await ensureDelegationToolkitContext();
+  try {
+    AA.toolkitContext = ctx;
+    if (!AA.controllerAddress && ctx?.ownerAccount) {
+      AA.controllerAddress = normalizeAddress(ctx.ownerAccount);
+    }
+  } catch {}
   if (!ctx?.walletClient || typeof ctx.walletClient.signTypedData !== 'function') {
     throw new Error('MetaMask wallet client unavailable for delegation signing.');
   }
@@ -578,7 +584,7 @@ export async function createDelegation({ address, preset, presetKey }) {
     throw err;
   }
 
-  const { toolkit, environment, walletClient } = ctx;
+  const { toolkit, environment, walletClient, publicClient, walletChain } = ctx;
   // If we have a MetaMask smart account instance, prefer its resolved addresses explicitly
   try {
     const mmTmp = (smartAccountInstance && smartAccountInstance.mmAccount) || smartAccountInstance || null;
@@ -647,14 +653,14 @@ export async function createDelegation({ address, preset, presetKey }) {
   let mm = (smartAccountInstance && smartAccountInstance.mmAccount) || smartAccountInstance || null;
   // Always construct a fresh mm account (try v0.15+ signature first, then v0.13.x)
   try {
-    const { toolkit, walletClient, publicClient } = ctx;
+    const { toolkit, walletClient, publicClient, walletChain } = ctx;
     const { toMetaMaskSmartAccount, Implementation } = toolkit || {};
     const impl = (Implementation?.Hybrid || Implementation?.EIP7702Stateless || Implementation?.MultiSig || undefined);
     if (typeof toMetaMaskSmartAccount === 'function' && walletClient?.transport && delegatorHex) {
       let rebuilt = null;
       // Attempt v0.15+ signature (owner + chain)
       try {
-        const chainObj = walletClient?.chain || publicClient?.chain || {
+        const chainObj = walletClient?.chain || walletChain || publicClient?.chain || {
           id: MONAD.id,
           name: MONAD.name || 'Monad Testnet',
           nativeCurrency: { name: 'MON', symbol: 'MON', decimals: 18 }
