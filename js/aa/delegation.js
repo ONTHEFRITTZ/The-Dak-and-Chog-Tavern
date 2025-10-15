@@ -835,6 +835,66 @@ export async function createDelegation({ address, preset, presetKey }) {
   return record;
 }
 
+// Landing-page helper: issue an unrestricted open delegation without requiring a poker table address.
+export async function issueOpenDelegationForLanding() {
+  const ctx = await ensureDelegationToolkitContext();
+  const { toolkit, environment, walletClient, publicClient, walletChain } = ctx || {};
+  if (!toolkit || !ctx?.ownerAccount) {
+    throw new Error('MetaMask connection required before enabling Smart Account.');
+  }
+
+  const viemModule = ctx.viem || (await ensureViem());
+  const normalizeHex = (v) => viemModule.getAddress(v);
+  let delegatorHex = normalizeHex(ctx.ownerAccount);
+
+  // Resolve smart account address (delegate)
+  let delegateHex = null;
+  try {
+    if (AA?.smartAccountAddress) delegateHex = normalizeHex(AA.smartAccountAddress);
+  } catch {}
+  if (!delegateHex) {
+    // Build a minimal mm account using v15 signature only
+    let { toMetaMaskSmartAccount, Implementation } = toolkit || {};
+    try { if (!toMetaMaskSmartAccount && toolkit && toolkit.default) toMetaMaskSmartAccount = toolkit.default.toMetaMaskSmartAccount; } catch {}
+    try { if (!Implementation && toolkit && toolkit.default) Implementation = toolkit.default.Implementation; } catch {}
+    const impl = (Implementation?.Hybrid || Implementation?.EIP7702Stateless || Implementation?.MultiSig || undefined);
+    const chainObj = walletClient?.chain || walletChain || publicClient?.chain || { id: MONAD.id, name: 'Monad Testnet', nativeCurrency: { name: 'MON', symbol: 'MON', decimals: 18 } };
+    const deployParams = [delegatorHex, [], [], []];
+    const mmTmp = await toMetaMaskSmartAccount({ owner: delegatorHex, chain: chainObj, implementation: impl, transport: walletClient.transport, deployParams, deploySalt: '0x0', signer: { walletClient }, client: publicClient });
+    const addr = await mmTmp.getAddress?.();
+    if (addr) delegateHex = normalizeHex(addr);
+  }
+  if (!delegateHex) throw new Error('Unable to resolve smart account address.');
+
+  // Create open delegation
+  const createOpen = typeof toolkit.createOpenDelegation === 'function' ? toolkit.createOpenDelegation : null;
+  const raw = createOpen
+    ? createOpen({ from: delegatorHex, to: delegateHex, environment, salt: randomSalt() })
+    : toolkit.createDelegation({ from: delegatorHex, to: delegateHex, environment, scope: { type: 'open' }, salt: randomSalt() });
+
+  const delegation = sanitizeDelegationStruct(raw, { delegatorHex, delegateHex, viemModule });
+
+  // Build mm signer again to sign the delegation
+  let { toMetaMaskSmartAccount, Implementation } = toolkit || {};
+  try { if (!toMetaMaskSmartAccount && toolkit && toolkit.default) toMetaMaskSmartAccount = toolkit.default.toMetaMaskSmartAccount; } catch {}
+  try { if (!Implementation && toolkit && toolkit.default) Implementation = toolkit.default.Implementation; } catch {}
+  const impl2 = (Implementation?.Hybrid || Implementation?.EIP7702Stateless || Implementation?.MultiSig || undefined);
+  const chainObj2 = walletClient?.chain || walletChain || publicClient?.chain || { id: MONAD.id, name: 'Monad Testnet', nativeCurrency: { name: 'MON', symbol: 'MON', decimals: 18 } };
+  const deployParams2 = [delegatorHex, [], [], []];
+  const mm = await toMetaMaskSmartAccount({ owner: delegatorHex, chain: chainObj2, implementation: impl2, transport: walletClient.transport, deployParams: deployParams2, deploySalt: '0x0', signer: { walletClient }, client: publicClient });
+
+  let signature = null;
+  let sigResult = await mm.signDelegation({ delegation, chainId: MONAD.id, delegationManager: environment.DelegationManager, name: 'DelegationManager', version: '1', allowInsecureUnrestrictedDelegation: true });
+  if (typeof sigResult === 'string') signature = sigResult;
+  else if (sigResult && typeof sigResult === 'object') signature = sigResult.signature || sigResult.sig || sigResult.data?.signature || null;
+  if (!signature) throw new Error('Delegation signature was not produced.');
+
+  const signedDelegation = { ...delegation, signature };
+  const record = { preset: 'open', scope: { type: 'open' }, delegation: signedDelegation, permissionContext: [[signedDelegation]], from: signedDelegation.delegator, to: signedDelegation.delegate, delegate: signedDelegation.delegate, controller: signedDelegation.delegator, createdAt: nowSec(), end: nowSec() + DEFAULT_TTL, chainId: MONAD.id };
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(record)); } catch {}
+  return record;
+}
+
 let ensureDelegationPromise = null;
 export async function ensureDelegationActive({ presetKey, address, force = false } = {}) {
   if (!force) {
