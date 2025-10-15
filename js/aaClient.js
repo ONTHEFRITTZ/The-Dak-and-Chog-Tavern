@@ -500,6 +500,50 @@ export function isAAReady() {
 }
 
 export async function getSmartAccountAddress() {
+  // If already initialized and not fallback, return it
+  if (aaReady && aaSmartAccount && aaSmartAccount.type === 'delegation-toolkit' && aaSmartAccount.address) {
+    return aaSmartAccount.address;
+  }
+
+  // Attempt a lightweight v15 derivation to compute address without full wiring
+  try {
+    const toolkitCtx = await ensureDelegationToolkitContext();
+    AA.toolkitContext = toolkitCtx;
+    let { toolkit, publicClient, walletClient } = toolkitCtx || {};
+    let t = toolkit;
+    try { if (!t?.toMetaMaskSmartAccount && t?.default) t = t.default; } catch {}
+    const toMetaMaskSmartAccount = t?.toMetaMaskSmartAccount;
+    const Implementation = t?.Implementation;
+    if (typeof toMetaMaskSmartAccount !== 'function') {
+      return null;
+    }
+    const owner = toolkitCtx?.account || toolkitCtx?.ownerAccount;
+    if (!owner) return null;
+    const chainObj = (walletClient && walletClient.chain) || toolkitCtx?.walletChain || publicClient?.chain || {
+      id: MONAD.id,
+      name: 'Monad Testnet',
+      nativeCurrency: { name: 'MON', symbol: 'MON', decimals: 18 }
+    };
+    const deployParams = [owner, [], [], []];
+    const acc = await toMetaMaskSmartAccount({
+      owner,
+      chain: chainObj,
+      implementation: (Implementation?.Hybrid || Implementation?.EIP7702Stateless || Implementation?.MultiSig),
+      transport: walletClient?.transport,
+      deployParams,
+      deploySalt: '0x0',
+      signer: { walletClient },
+      client: publicClient
+    });
+    const addr = acc && (typeof acc.getAddress === 'function' ? await acc.getAddress() : acc.address);
+    if (addr) {
+      AA.smartAccountAddress = String(addr).toLowerCase();
+      storeSmartAccount(MONAD.id, AA.smartAccountAddress);
+      return AA.smartAccountAddress;
+    }
+  } catch {}
+
+  // Final fallback: initialize AA (may still return fallback EOA)
   if (!aaReady || !aaSmartAccount) {
     await initAA({});
   }
