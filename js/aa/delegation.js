@@ -8,8 +8,8 @@ async function ensureViem() {
     try {
       viemImportPromise = import('viem');
     } catch (_) {
-      // Fallback to CDN only if local import resolution fails in-browser.
-      viemImportPromise = import('https://esm.sh/viem');
+      // Fallback to pinned CDN version to avoid mixed viem builds.
+      viemImportPromise = import('https://esm.sh/viem@2.38.2');
     }
   }
   return viemImportPromise;

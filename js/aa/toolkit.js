@@ -137,14 +137,14 @@ export async function ensureDelegationToolkitContext() {
     // Load viem + MetaMask Delegation Toolkit with CDN fallbacks for browser environments
     const viem = await (async () => {
       try { return await import('viem'); } catch (_) {}
-      try { return await import('https://esm.sh/viem'); } catch (_) {}
+      try { return await import('https://esm.sh/viem@2.38.2'); } catch (_) {}
       // Last resort (should not happen): throw to surface clear error
       throw new Error('Unable to load viem (both local and CDN failed).');
     })();
 
     const toolkit = await (async () => {
       try { return await import('@metamask/delegation-toolkit'); } catch (_) {}
-      try { return await import('https://esm.sh/@metamask/delegation-toolkit'); } catch (_) {}
+      try { return await import('https://esm.sh/@metamask/delegation-toolkit@0.15.0'); } catch (_) {}
       throw new Error('Unable to load MetaMask Delegation Toolkit (both local and CDN failed).');
     })();
 
