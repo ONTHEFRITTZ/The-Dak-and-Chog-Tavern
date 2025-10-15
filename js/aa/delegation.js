@@ -595,6 +595,10 @@ export async function createDelegation({ address, preset, presetKey }) {
       if (mmAddr) delegateHex = normalizeHex(mmAddr, 'Delegate address');
     }
   } catch {}
+  if (delegateHex.toLowerCase() === delegatorHex.toLowerCase()) {
+    throw new Error('Resolved delegate equals controller EOA. Enable Smart Accounts first so delegation targets the smart account, not the EOA.');
+  }
+
   const delegationRaw = toolkit.createDelegation({
     from: delegatorHex,
     to: delegateHex,
@@ -651,58 +655,40 @@ export async function createDelegation({ address, preset, presetKey }) {
     // Prefer internal smart-account signer when available; fallback to walletClient (EOA) otherwise.
   let signature;
   let mm = (smartAccountInstance && smartAccountInstance.mmAccount) || smartAccountInstance || null;
-  // Always construct a fresh mm account (try v0.15+ signature first, then v0.13.x)
+  // Prefer existing mm account. Otherwise, build strictly with v0.15+ signature (no v13 fallback)
   try {
     const { toolkit, walletClient, publicClient, walletChain } = ctx;
     const { toMetaMaskSmartAccount, Implementation } = toolkit || {};
     const impl = (Implementation?.Hybrid || Implementation?.EIP7702Stateless || Implementation?.MultiSig || undefined);
-    if (typeof toMetaMaskSmartAccount === 'function' && walletClient?.transport && delegatorHex) {
-      let rebuilt = null;
-      // Attempt v0.15+ signature (owner + chain)
-      try {
-        const chainObj = walletClient?.chain || walletChain || publicClient?.chain || {
-          id: MONAD.id,
-          name: MONAD.name || 'Monad Testnet',
-          nativeCurrency: { name: 'MON', symbol: 'MON', decimals: 18 }
-        };
-        rebuilt = await toMetaMaskSmartAccount({
-          owner: delegatorHex,
-          chain: chainObj,
-          implementation: impl,
-          transport: walletClient.transport,
-          // Provide signer/client for libs that still access them
-          signer: { walletClient },
-          client: publicClient
-        });
-      } catch (v15err) {
-        console.warn('[aa/delegation] mm build v15 failed, trying v13', v15err);
-      }
-      // Fallback to v0.13.x (ownerAddress + chainId)
-      if (!rebuilt || typeof rebuilt.signDelegation !== 'function') {
-        try {
-          rebuilt = await toMetaMaskSmartAccount({
-            ownerAddress: delegatorHex,
-            chainId: MONAD.id,
-            implementation: impl,
-            transport: walletClient.transport
-          });
-        } catch (v13err) {
-          console.warn('[aa/delegation] mm build v13 failed', v13err);
-        }
-      }
+    const hasInternalSigner = !!(mm && typeof mm.signDelegation === 'function');
+    if (!hasInternalSigner && typeof toMetaMaskSmartAccount === 'function' && walletClient?.transport && delegatorHex) {
+      const chainObj = walletClient?.chain || walletChain || publicClient?.chain || {
+        id: MONAD.id,
+        name: MONAD.name || 'Monad Testnet',
+        nativeCurrency: { name: 'MON', symbol: 'MON', decimals: 18 }
+      };
+      // Provide simple deploy params for the Hybrid implementation to avoid counterfactual errors
+      const deployParams = [delegatorHex, [], [], []];
+      const rebuilt = await toMetaMaskSmartAccount({
+        owner: delegatorHex,
+        chain: chainObj,
+        implementation: impl,
+        transport: walletClient.transport,
+        // Include deploy params/salt for counterfactual derivation
+        deployParams,
+        deploySalt: '0x0',
+        // Provide signer/client for libs that still access them
+        signer: { walletClient },
+        client: publicClient
+      });
       if (rebuilt) mm = rebuilt;
     }
   } catch (e) {
-    console.warn('[aa/delegation] toMetaMaskSmartAccount build failed', e);
+    console.warn('[aa/delegation] toMetaMaskSmartAccount v15 build failed', e);
   }
   // Require internal signing via the toolkit when delegating to the smart account.
   let delegateIsInternal = false;
-  try {
-    const internalHexTry = internalLc ? viemModule.getAddress(internalLc) : null;
-    delegateIsInternal = !!(internalHexTry && internalHexTry.toLowerCase() === delegateHex.toLowerCase());
-  } catch {}
-  // If we couldn't confirm via internalLc, compare against the active mm account address directly.
-  if (!delegateIsInternal && mm) {
+  if (mm) {
     try {
       const mmAddr = (typeof mm.getAddress === 'function') ? await mm.getAddress() : (mm.address || null);
       if (mmAddr) {

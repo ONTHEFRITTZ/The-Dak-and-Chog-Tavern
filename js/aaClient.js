@@ -313,36 +313,22 @@ async function buildToolkitSmartAccount(injected, { bundlerUrl, paymasterUrl }) 
     const deployParams = [ownerAddress, [], [], []];
     let mmAccount;
     try {
-      // Prefer v0.15+ signature while remaining backward compatible
+      // Build strictly with v0.15+ signature only
       const chainObj = (walletClient && walletClient.chain) || toolkitCtx?.walletChain || publicClient?.chain || {
         id: MONAD.id,
         name: 'Monad Testnet',
         nativeCurrency: { name: 'MON', symbol: 'MON', decimals: 18 }
       };
-      // Try v15 fields
-      try {
-        mmAccount = await toMetaMaskSmartAccount({
-          owner: ownerAddress,
-          chain: chainObj,
-          implementation: (Implementation?.Hybrid || Implementation?.EIP7702Stateless || Implementation?.MultiSig),
-          transport: walletClient?.transport,
-          // Also include signer/client to satisfy libs that still read them
-          signer: { walletClient },
-          client: publicClient,
-          ...(stored ? { address: stored } : { deployParams, deploySalt: '0x0' })
-        });
-      } catch (v15err) {
-        // Fallback to v0.13.x style
-        mmAccount = await toMetaMaskSmartAccount({
-          ownerAddress,
-          chainId,
-          implementation: (Implementation?.Hybrid || Implementation?.EIP7702Stateless || Implementation?.MultiSig),
-          transport: walletClient?.transport,
-          signer: { walletClient },
-          client: publicClient,
-          ...(stored ? { address: stored } : { deployParams, deploySalt: '0x0' })
-        });
-      }
+      mmAccount = await toMetaMaskSmartAccount({
+        owner: ownerAddress,
+        chain: chainObj,
+        implementation: (Implementation?.Hybrid || Implementation?.EIP7702Stateless || Implementation?.MultiSig),
+        transport: walletClient?.transport,
+        // Include signer/client for libs that still read them
+        signer: { walletClient },
+        client: publicClient,
+        ...(stored ? { address: stored } : { deployParams, deploySalt: '0x0' })
+      });
     } catch (err) {
       if (err?.code === 4001 || /User rejected/i.test(err?.message || '')) {
         suppressToolkit('user rejected MetaMask smart account upgrade');
@@ -489,6 +475,13 @@ export async function initAA({ bundlerUrl = MONAD_BUNDLER_RPC, paymasterUrl = ZD
   try { window.smartAccount = aaSmartAccount; } catch {}
   return aaSmartAccount;
 }
+
+// Expose AA on window for debugging/inspection in the console
+try {
+  if (typeof window !== 'undefined') {
+    window.AA = AA;
+  }
+} catch {}
 
 export async function initSmartAccount(provider) {
   return initAA({ provider });
