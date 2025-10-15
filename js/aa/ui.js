@@ -407,6 +407,15 @@ async function renderButtons(state, presetMap) {
     return;
   }
 
+  // Show internal signer readiness for quick diagnosis
+  try {
+    const status = document.createElement('div');
+    status.style.cssText = 'font-size:11px;color:rgba(255,255,255,0.75);margin:4px 0;';
+    const ready = (window.smartAccount && (window.smartAccount.signDelegation || (window.smartAccount.mmAccount && window.smartAccount.mmAccount.signDelegation))) ? 'ready' : 'not ready';
+    status.textContent = `Internal signer: ${ready}`;
+    actions.appendChild(status);
+  } catch {}
+
   const disableBtn = makeButton('Use Base Wallet Only');
   safeRun(disableBtn, async () => {
     try { localStorage.setItem(SMART_ACCOUNT_OPT_IN_KEY, 'false'); } catch {}

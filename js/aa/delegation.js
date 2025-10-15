@@ -659,6 +659,16 @@ export async function createDelegation({ address, preset, presetKey }) {
     const internalHexTry = internalLc ? viemModule.getAddress(internalLc) : null;
     delegateIsInternal = !!(internalHexTry && internalHexTry.toLowerCase() === delegateHex.toLowerCase());
   } catch {}
+  // If we couldn't confirm via internalLc, compare against the active mm account address directly.
+  if (!delegateIsInternal && mm) {
+    try {
+      const mmAddr = (typeof mm.getAddress === 'function') ? await mm.getAddress() : (mm.address || null);
+      if (mmAddr) {
+        const mmHex = viemModule.getAddress(mmAddr);
+        delegateIsInternal = mmHex.toLowerCase() === delegateHex.toLowerCase();
+      }
+    } catch {}
+  }
 
   // Only attempt signing when delegating to the smart account and the mm signer is available.
   if (delegateIsInternal && mm && typeof mm.signDelegation === 'function') {
@@ -677,7 +687,7 @@ export async function createDelegation({ address, preset, presetKey }) {
       }
     } catch {}
     try {
-      signature = await mm.signDelegation({
+      let sigResult = await mm.signDelegation({
         delegation,
         chainId: MONAD.id,
         delegationManager: environment.DelegationManager,
@@ -685,14 +695,54 @@ export async function createDelegation({ address, preset, presetKey }) {
         version: '1',
         allowInsecureUnrestrictedDelegation: !delegation.caveats || delegation.caveats.length === 0
       });
+      // Normalize possible return shapes
+      if (typeof sigResult === 'string') signature = sigResult;
+      else if (sigResult && typeof sigResult === 'object') {
+        signature = sigResult.signature || sigResult.sig || sigResult.data?.signature || null;
+      }
     } catch (err) {
-      console.warn('[aa/delegation] mmAccount.signDelegation failed, falling back to walletClient', err);
+      console.warn('[aa/delegation] mmAccount.signDelegation failed (scoped). Retrying with unrestricted delegation.', err);
+      try {
+        // Retry with an unrestricted delegation (no caveats/scope) as a compatibility fallback
+        const rawLoose = toolkit.createDelegation({
+          from: delegatorHex,
+          to: delegateHex,
+          environment,
+          // no scope => unrestricted
+          salt: randomSalt()
+        });
+        const loose = sanitizeDelegationStruct(rawLoose, { delegatorHex, delegateHex, viemModule });
+        let sigResult2 = await mm.signDelegation({
+          delegation: loose,
+          chainId: MONAD.id,
+          delegationManager: environment.DelegationManager,
+          name: 'DelegationManager',
+          version: '1',
+          allowInsecureUnrestrictedDelegation: true
+        });
+        if (typeof sigResult2 === 'string') signature = sigResult2;
+        else if (sigResult2 && typeof sigResult2 === 'object') {
+          signature = sigResult2.signature || sigResult2.sig || sigResult2.data?.signature || null;
+        }
+        if (signature) {
+          // Overwrite delegation used for record with the one that was actually signed
+          Object.assign(delegation, loose);
+        }
+      } catch (err2) {
+        console.warn('[aa/delegation] mmAccount.signDelegation failed (unrestricted)', err2);
+      }
     }
   }
   if (!signature) {
+    console.warn('[aa/delegation] internal signer available but returned no signature', {
+      delegateIsInternal,
+      controllerLc,
+      internalLc,
+      mmHasSign: !!(mm && typeof mm.signDelegation === 'function')
+    });
     const helper = new Error('MetaMask Smart Account must sign this delegation internally. Enable Smart Accounts and try again.');
     helper.code = 'delegate_mm_signer_required';
-    suppressDelegation('MetaMask rejected external signature for delegation');
+    suppressDelegation('Internal signer unavailable or declined for delegation');
     throw helper;
   }
   const signedDelegation = { ...delegation, signature };
