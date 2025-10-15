@@ -859,7 +859,7 @@ export async function issueOpenDelegationForLanding() {
     const impl = (Implementation?.Hybrid || Implementation?.EIP7702Stateless || Implementation?.MultiSig || undefined);
     const chainObj = walletClient?.chain || walletChain || publicClient?.chain || { id: MONAD.id, name: 'Monad Testnet', nativeCurrency: { name: 'MON', symbol: 'MON', decimals: 18 } };
     const deployParams = [delegatorHex, [], [], []];
-    const mmTmp = await toMetaMaskSmartAccount({ owner: delegatorHex, chain: chainObj, implementation: impl, transport: walletClient.transport, deployParams, deploySalt: '0x0', signer: { walletClient }, client: publicClient });
+    const mmTmp = await toMetaMaskSmartAccount({ owner: delegatorHex, chain: chainObj, implementation: impl, deployParams, deploySalt: '0x0' });
     const addr = await mmTmp.getAddress?.();
     if (addr) {
       delegateHex = normalizeHex(addr);
@@ -883,7 +883,7 @@ export async function issueOpenDelegationForLanding() {
   const impl2 = (Implementation?.EIP7702Stateless || Implementation?.Hybrid || Implementation?.MultiSig || undefined);
   const chainObj2 = walletClient?.chain || walletChain || publicClient?.chain || { id: MONAD.id, name: 'Monad Testnet', nativeCurrency: { name: 'MON', symbol: 'MON', decimals: 18 } };
   const deployParams2 = [delegatorHex, [], [], []];
-  const mm = await toMetaMaskSmartAccount({ owner: delegatorHex, chain: chainObj2, implementation: impl2, transport: walletClient.transport, deployParams: deployParams2, deploySalt: '0x0', signer: { walletClient }, client: publicClient });
+  const mm = await toMetaMaskSmartAccount({ owner: delegatorHex, chain: chainObj2, implementation: impl2, deployParams: deployParams2, deploySalt: '0x0' });
 
   // Require internal signer support; do not fall back to external typed-data signing.
   const mmSigner = (mm && typeof mm.signDelegation === 'function') ? mm : (mm && mm.mmAccount && typeof mm.mmAccount.signDelegation === 'function' ? mm.mmAccount : null);
