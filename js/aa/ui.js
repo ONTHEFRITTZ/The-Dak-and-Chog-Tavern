@@ -367,17 +367,17 @@ async function renderButtons(state, presetMap) {
         if (!mmAddr) {
           throw new Error('Smart Accounts appear disabled in MetaMask. Click "Open MetaMask" below and enable Smart Accounts for this wallet, then try again.');
         }
-        const targetDelegate = mmAddr || controller || addr;
-        const delegation = await ensureDelegationActive({ force: true, address: targetDelegate });
-        if (!delegation) {
-          throw new Error('Delegation signature was not completed.');
+        const targetDelegate = mmAddr;
+        let existing = loadDelegation();
+        if (!existing || !(existing.end && nowSec() < existing.end)) {
+          existing = await ensureDelegationActive({ address: targetDelegate, force: false });
         }
-        try { localStorage.setItem(SMART_ACCOUNT_OPT_IN_KEY, 'true'); } catch {}
+        if (!existing) {
+          const record = await ensureDelegationActive({ address: targetDelegate, force: true });
+          if (!record) throw new Error("Delegation signature was not completed.");
+        }
+        try { localStorage.setItem(SMART_ACCOUNT_OPT_IN_KEY, "true"); } catch {}
         await initAA({});
-      }, 'Enabling...');
-    }
-    actions.appendChild(enableBtn);
-
     // Provide a helper to open MetaMask so user can enable Smart Accounts
     const openMM = makeButton('Open MetaMask');
     if (!chainOk) {
@@ -499,7 +499,7 @@ async function renderButtons(state, presetMap) {
       const presetKey = select.value === 'playPlusTableOps' ? 'playPlusTableOps' : 'playOnly';
       const choice = presetsMapFresh[presetKey] || presetsMapFresh.playPlusTableOps || presetsMapFresh.playOnly;
       if (!choice) throw new Error('Preset not found');
-      await ensureDelegationActive({ presetKey: choice.key, address: controller || addr, force: true });
+      await ensureDelegationActive({ presetKey: choice.key, address: controller || addr, force: false });
     }, 'Reissuing...');
   }
   actions.appendChild(reissueBtn);
@@ -640,3 +640,4 @@ window.addEventListener('load', () => { hydrate().catch(() => {}); });
 window.addEventListener('wallet:connected', () => { hydrate().catch(() => {}); });
 window.addEventListener('aa:smartaccount', () => { hydrate().catch(() => {}); });
 window.addEventListener('aa:session', () => { hydrate().catch(() => {}); });
+
