@@ -359,6 +359,7 @@ async function renderButtons(state, presetMap) {
     } else {
       safeRun(enableBtn, async () => {
         clearDelegationSuppression();
+        try { const m = await import('../aaClient.js'); m.enableToolkitSmartAccount?.(); } catch {}
         // Derive the smart account address first so the delegation targets the internal account.
         await initAA({});
         const mmAddr = (await getSmartAccountAddress()) || null;
@@ -437,6 +438,7 @@ async function renderButtons(state, presetMap) {
     upgradeBtn.style.color = disabledColor;
   } else {
     safeRun(upgradeBtn, async () => {
+      try { const m = await import('../aaClient.js'); m.enableToolkitSmartAccount?.(); } catch {}
       const ok = await upgradeToSmartAccount();
       if (!ok) {
         throw new Error('Unable to initialize MetaMask smart account.');
