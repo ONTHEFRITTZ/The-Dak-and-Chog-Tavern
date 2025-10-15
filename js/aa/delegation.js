@@ -746,9 +746,15 @@ export async function createDelegation({ address, preset, presetKey }) {
     } catch (err) {
       console.warn('[aa/delegation] mmAccount.signDelegation failed (scoped). Retrying with unrestricted delegation.', err);
       try {
-        // Retry with an unrestricted delegation using v15 helper when available
-        // Use explicit open scope to avoid vendor differences across builds
-        const rawLoose = toolkit.createDelegation({ from: delegatorHex, to: delegateHex, environment, scope: { type: 'open' }, salt: randomSalt() });
+        // Retry with an unrestricted delegation. Prefer toolkit helper when available; otherwise build minimal open delegation directly.
+        let rawLoose;
+        const createOpen = (toolkit && typeof toolkit.createOpenDelegation === 'function') ? toolkit.createOpenDelegation : null;
+        if (createOpen) {
+          rawLoose = createOpen({ from: delegatorHex, to: delegateHex, environment, salt: randomSalt() });
+        } else {
+          const zero32 = '0x' + '00'.repeat(32);
+          rawLoose = { delegate: delegateHex, delegator: delegatorHex, authority: zero32, caveats: [], salt: 0n };
+        }
         const loose = sanitizeDelegationStruct(rawLoose, { delegatorHex, delegateHex, viemModule });
         let sigResult2 = await mm.signDelegation({
           delegation: loose,
@@ -869,8 +875,15 @@ export async function issueOpenDelegationForLanding() {
   }
   if (!delegateHex) throw new Error('Unable to resolve smart account address.');
 
-  // Create open delegation (explicit scope) to be robust across vendor variations
-  const raw = toolkit.createDelegation({ from: delegatorHex, to: delegateHex, environment, scope: { type: 'open' }, salt: randomSalt() });
+  // Create open delegation – prefer toolkit helper; fallback to minimal unrestricted delegation
+  let raw;
+  const createOpenLanding = (toolkit && typeof toolkit.createOpenDelegation === 'function') ? toolkit.createOpenDelegation : null;
+  if (createOpenLanding) {
+    raw = createOpenLanding({ from: delegatorHex, to: delegateHex, environment, salt: randomSalt() });
+  } else {
+    const zero32 = '0x' + '00'.repeat(32);
+    raw = { delegate: delegateHex, delegator: delegatorHex, authority: zero32, caveats: [], salt: 0n };
+  }
 
   const delegation = sanitizeDelegationStruct(raw, { delegatorHex, delegateHex, viemModule });
 
