@@ -564,3 +564,10 @@ export const client = {
     return signer.sendTransaction(tx);
   }
 };
+
+// Expose helpers on window for console debugging without import path issues
+try {
+  if (typeof window !== 'undefined') {
+    window.getSmartAccountAddress = getSmartAccountAddress;
+  }
+} catch {}
