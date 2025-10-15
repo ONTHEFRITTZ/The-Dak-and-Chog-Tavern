@@ -886,7 +886,12 @@ export async function issueOpenDelegationForLanding() {
   const mm = await toMetaMaskSmartAccount({ owner: delegatorHex, chain: chainObj2, implementation: impl2, deployParams: deployParams2, deploySalt: '0x0' });
 
   // Require internal signer support; do not fall back to external typed-data signing.
-  const mmSigner = (mm && typeof mm.signDelegation === 'function') ? mm : (mm && mm.mmAccount && typeof mm.mmAccount.signDelegation === 'function' ? mm.mmAccount : null);
+  let mmSigner = null;
+  if (mm && mm.mmAccount && typeof mm.mmAccount.signDelegation === 'function') {
+    mmSigner = mm.mmAccount;
+  } else if (mm && typeof mm.signDelegation === 'function') {
+    mmSigner = mm;
+  }
   if (!mmSigner) {
     const err = new Error('Smart Accounts appear disabled in MetaMask. Open MetaMask and enable Smart Accounts for this wallet, then try again.');
     err.code = 'internal_signer_unavailable';
