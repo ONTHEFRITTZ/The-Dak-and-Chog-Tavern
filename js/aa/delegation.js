@@ -645,23 +645,22 @@ export async function createDelegation({ address, preset, presetKey }) {
     // Prefer internal smart-account signer when available; fallback to walletClient (EOA) otherwise.
   let signature;
   let mm = (smartAccountInstance && smartAccountInstance.mmAccount) || smartAccountInstance || null;
-  // If internal signer is not exposed by the current smartAccount instance, try to construct it from toolkit context.
-  if (!mm || typeof mm.signDelegation !== 'function') {
-    try {
-      const { toolkit, walletClient } = ctx;
-      const { toMetaMaskSmartAccount, Implementation } = toolkit || {};
-      const impl = (Implementation && (Implementation.Hybrid || Implementation.EIP7702Stateless || Implementation.MultiSig)) || undefined;
-      if (typeof toMetaMaskSmartAccount === 'function' && walletClient?.transport && delegatorHex) {
-        mm = await toMetaMaskSmartAccount({
-          ownerAddress: delegatorHex,
-          chainId: MONAD.id,
-          implementation: impl,
-          transport: walletClient.transport
-        });
-      }
-    } catch (e) {
-      console.warn('[aa/delegation] toMetaMaskSmartAccount build failed', e);
+  // Always construct a fresh Hybrid mm account to ensure correct internal signer wiring
+  try {
+    const { toolkit, walletClient } = ctx;
+    const { toMetaMaskSmartAccount, Implementation } = toolkit || {};
+    const impl = (Implementation?.Hybrid || Implementation?.EIP7702Stateless || Implementation?.MultiSig || undefined);
+    if (typeof toMetaMaskSmartAccount === 'function' && walletClient?.transport && delegatorHex) {
+      const rebuilt = await toMetaMaskSmartAccount({
+        ownerAddress: delegatorHex,
+        chainId: MONAD.id,
+        implementation: impl,
+        transport: walletClient.transport
+      });
+      if (rebuilt) mm = rebuilt;
     }
+  } catch (e) {
+    console.warn('[aa/delegation] toMetaMaskSmartAccount build failed', e);
   }
   // Require internal signing via the toolkit when delegating to the smart account.
   let delegateIsInternal = false;
