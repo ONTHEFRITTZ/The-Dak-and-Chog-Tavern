@@ -403,6 +403,62 @@
         address: addr,
         onProceed() { markSigned(addr, "metamask"); redirectHome(); }
       };
-</script>
+      const opened = openSmartAccountModal("metamask");
+      if (opened) {
+        setStatus("MetaMask connected. Enable Smart Accounts to unlock all features.");
+        return;
+      }
+      finalizePendingEntry();
+    }
+
+    async function connectPhantom() {
+      pendingHint.style.display = "none";
+      const ph = getPhantomEvmProvider();
+      if (!ph) { setStatus("Phantom (EVM) not detected."); if (phMissing) phMissing.style.display = "block"; return; }
+      if (window.top !== window.self) { setStatus("Open this page in a tab (not an iframe)."); return; }
+
+      lock(btnPH, true); setStatus("Connecting to Phantom.");
+      const addr = await ensureAccount(ph, "Phantom");
+      lock(btnPH, false);
+      if (!addr) return;
+
+      pendingEntry = {
+        mode: "phantom",
+        address: addr,
+        onProceed() { markSigned(addr, "phantom"); redirectHome(); }
+      };
+      const opened = openSmartAccountModal("phantom");
+      if (opened) {
+        setStatus("Phantom connected. MetaMask Smart Accounts unlock the full Tavern.");
+        return;
+      }
+      finalizePendingEntry();
+    }
+
+    async function enableSmartAccountNow() {
+      try {
+        setStatus('Preparing Smart Account...');
+        const aa = await import('/js/aaClient.js');
+        aa.enableToolkitSmartAccount?.();
+        // Derive smart account and issue an open delegation immediately (no table scope required)
+        await aa.initSmartAccount?.();
+        const del = await import('/js/aa/delegation.js');
+        await del.issueOpenDelegationForLanding();
+        try { localStorage.setItem('aa.smartAccount.optIn', 'true'); } catch {}
+        setStatus('Smart Account enabled. Entering...');
+        finalizePendingEntry();
+      } catch (err) {
+        console.warn('Enable Smart Account failed', err);
+        // Fallback: open MetaMask portfolio page so user can enable SA manually
+        try { window.open('https://portfolio.metamask.io/', '_blank', 'noopener'); } catch {}
+        setStatus('Open MetaMask Portfolio to enable Smart Accounts, then return.');
+      }
+    }
+
+    // Button handlers
+    $("btn-metamask")?.addEventListener("click", connectMetaMask);
+    $("btn-phantom")?.addEventListener("click", connectPhantom);
+    saEnableHere?.addEventListener('click', enableSmartAccountNow);
+  </script>
 </body>
 </html>
