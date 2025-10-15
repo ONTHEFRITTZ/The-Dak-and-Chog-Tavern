@@ -71,9 +71,12 @@ async function loadToolkitV15() {
       if (!res.ok) return null;
       let code = await res.text();
       try {
+        // Normalize jsDelivr-style ESM sub-imports to esm.sh (more reliable)
         code = code
-          .replaceAll('"/npm/', '"https://cdn.jsdelivr.net/npm/')
-          .replaceAll("'/npm/", "'https://cdn.jsdelivr.net/npm/");
+          // Double-quoted imports
+          .replace(/"\/npm\/(.*?)\/\+esm"/g, '"https://esm.sh/$1"')
+          // Single-quoted imports
+          .replace(/'\/npm\/(.*?)\/\+esm'/g, '\'https://esm.sh/$1\'');
       } catch {}
       const vendorUrl = URL.createObjectURL(new Blob([code], { type: 'text/javascript' }));
       // Wrap the vendor as a module that attaches exports to window.__mmdt as well
