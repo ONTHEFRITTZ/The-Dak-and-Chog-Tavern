@@ -50,6 +50,13 @@ if [ -d "$WEBROOT" ]; then
 fi
 sudo mv "$UPLOAD" "$WEBROOT"
 
+# --- Guard: ensure delegation guard is present in live JS ---
+if ! grep -q "delegate_mm_signer_required" "$WEBROOT/js/aa/delegation.js" 2>/dev/null; then
+  echo "ERROR: delegation guard not found in js/aa/delegation.js (delegate_mm_signer_required)." >&2
+  echo "Aborting to avoid serving stale JS. Ensure latest main is deployed." >&2
+  exit 1
+fi
+
 # --- Permissions and deploy marker ---
 sudo mkdir -p "$WEBROOT/assets"
 printf '%s @ %s\n' "$commit" "$builtAt" | sudo tee "$WEBROOT/assets/deploy_check.txt" >/dev/null

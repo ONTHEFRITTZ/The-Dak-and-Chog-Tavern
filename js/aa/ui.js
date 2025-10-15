@@ -362,6 +362,10 @@ async function renderButtons(state, presetMap) {
         // Derive the smart account address first so the delegation targets the internal account.
         await initAA({});
         const mmAddr = (await getSmartAccountAddress()) || null;
+        // If Smart Accounts are not active in MetaMask, block and show guidance.
+        if (!mmAddr) {
+          throw new Error('Smart Accounts appear disabled in MetaMask. Click "Open MetaMask" below and enable Smart Accounts for this wallet, then try again.');
+        }
         const targetDelegate = mmAddr || controller || addr;
         const delegation = await ensureDelegationActive({ force: true, address: targetDelegate });
         if (!delegation) {
@@ -373,9 +377,32 @@ async function renderButtons(state, presetMap) {
     }
     actions.appendChild(enableBtn);
 
+    // Provide a helper to open MetaMask so user can enable Smart Accounts
+    const openMM = makeButton('Open MetaMask');
+    if (!chainOk) {
+      openMM.disabled = true;
+      openMM.style.background = 'rgba(0,0,0,0.45)';
+      openMM.style.color = disabledColor;
+    } else {
+      safeRun(openMM, async () => {
+        try {
+          // Ensure correct network first
+          await ensureMonadSelected({ requestSwitch: true });
+        } catch {}
+        try {
+          const provider = (typeof window.__getSelectedProvider === 'function' ? window.__getSelectedProvider() : window.ethereum) || null;
+          if (provider && typeof provider.request === 'function') {
+            // Permissions request reliably opens MetaMask; user can enable Smart Accounts in the UI
+            await provider.request({ method: 'wallet_requestPermissions', params: [{ eth_accounts: {} }] });
+          }
+        } catch (_) {}
+      }, 'Opening...');
+    }
+    actions.appendChild(openMM);
+
     const note = document.createElement('div');
     note.style.cssText = 'font-size:11px;color:rgba(255,255,255,0.75);margin-top:6px;max-width:340px;';
-    note.innerHTML = 'MetaMask may ask you to temporarily disable Smart Accounts so the base wallet can sign the delegation.';
+    note.innerHTML = 'If Smart Accounts are disabled in MetaMask, click <strong>Open MetaMask</strong> and enable Smart Accounts for this wallet. Then click <strong>Enable Smart Account</strong> again.';
     actions.appendChild(note);
     return;
   }
