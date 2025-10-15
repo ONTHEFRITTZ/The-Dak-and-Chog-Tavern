@@ -862,7 +862,12 @@ export async function issueOpenDelegationForLanding() {
     const deployParams = [delegatorHex, [], [], []];
     const mmTmp = await toMetaMaskSmartAccount({ owner: delegatorHex, chain: chainObj, implementation: impl, transport: walletClient.transport, deployParams, deploySalt: '0x0', signer: { walletClient }, client: publicClient });
     const addr = await mmTmp.getAddress?.();
-    if (addr) delegateHex = normalizeHex(addr);
+    if (addr) {
+      delegateHex = normalizeHex(addr);
+      try { localStorage.setItem('aa.smartAccountAddress', delegateHex); } catch {}
+      try { AA.smartAccountAddress = delegateHex; } catch {}
+      try { window.dispatchEvent(new CustomEvent('aa:smartaccount', { detail: { address: delegateHex, type: 'delegation-toolkit' } })); } catch {}
+    }
   }
   if (!delegateHex) throw new Error('Unable to resolve smart account address.');
 
@@ -892,6 +897,9 @@ export async function issueOpenDelegationForLanding() {
   const signedDelegation = { ...delegation, signature };
   const record = { preset: 'open', scope: { type: 'open' }, delegation: signedDelegation, permissionContext: [[signedDelegation]], from: signedDelegation.delegator, to: signedDelegation.delegate, delegate: signedDelegation.delegate, controller: signedDelegation.delegator, createdAt: nowSec(), end: nowSec() + DEFAULT_TTL, chainId: MONAD.id };
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(record)); } catch {}
+  try { localStorage.setItem('aa.smartAccount.optIn', 'true'); } catch {}
+  try { AA.smartAccountAddress = delegateHex; } catch {}
+  try { window.dispatchEvent(new CustomEvent('aa:smartaccount', { detail: { address: delegateHex, type: 'delegation-toolkit' } })); } catch {}
   return record;
 }
 
