@@ -70,7 +70,8 @@ export async function ensureDelegationToolkitContext() {
     const requestedRaw = await requestAccounts(provider);
     const requestedSet = new Set(requestedRaw.filter(Boolean));
     let ownerAccount = requestedRaw[0] || null;
-    let internalAccount = requestedRaw[0] || null;
+    // Do NOT assume internal smart account equals the EOA; leave null until built via toolkit
+    let internalAccount = null;
 
     let accountsByType = null;
     // Avoid wallet_accounts on providers that don't implement it to prevent RPC error noise

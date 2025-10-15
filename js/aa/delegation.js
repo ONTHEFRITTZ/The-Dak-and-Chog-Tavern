@@ -669,7 +669,10 @@ export async function createDelegation({ address, preset, presetKey }) {
           owner: delegatorHex,
           chain: chainObj,
           implementation: impl,
-          transport: walletClient.transport
+          transport: walletClient.transport,
+          // Provide signer/client for libs that still access them
+          signer: { walletClient },
+          client: publicClient
         });
       } catch (v15err) {
         console.warn('[aa/delegation] mm build v15 failed, trying v13', v15err);
@@ -866,7 +869,31 @@ export async function ensureDelegationActive({ presetKey, address, force = false
     if (!choice) {
       throw new Error('Delegation presets are unavailable.');
     }
-    const delegateAddr = address || ctx.ownerAccount || ctx.account;
+    // Delegate must be the smart account address; resolve robustly
+    let delegateAddr = address;
+    if (!delegateAddr) {
+      try { delegateAddr = AA?.smartAccountAddress || null; } catch {}
+    }
+    if (!delegateAddr) {
+      try {
+        const smart = await getSmartAccount();
+        if (smart) {
+          delegateAddr = (typeof smart.getAddress === 'function') ? await smart.getAddress() : (smart.address || null);
+        }
+      } catch {}
+    }
+    if (!delegateAddr) {
+      // As a last resort, attempt initAA then re-check
+      try {
+        const smartFromInit = await initAA({});
+        if (smartFromInit) {
+          delegateAddr = (typeof smartFromInit.getAddress === 'function') ? await smartFromInit.getAddress() : (smartFromInit.address || null);
+        }
+      } catch {}
+    }
+    if (!delegateAddr) {
+      throw new Error('Smart Account address unavailable. Enable Smart Accounts before creating a delegation.');
+    }
     const record = await createDelegation({ address: delegateAddr, preset: choice });
     try {
       localStorage.setItem('aa.delegation.lastPreset', choice.key || '');
