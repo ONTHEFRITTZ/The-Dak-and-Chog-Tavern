@@ -362,9 +362,10 @@ async function buildFunctionCallScope(toolkitCtx, target, selectors) {
 
   const targetHex = getAddress ? getAddress(target) : target;
 
+  // v15 expects a single `target` (not `targets`) for functionCall scope
   return {
     type: 'functionCall',
-    targets: [targetHex],
+    target: targetHex,
     selectors: unique
   };
 }
@@ -745,14 +746,11 @@ export async function createDelegation({ address, preset, presetKey }) {
     } catch (err) {
       console.warn('[aa/delegation] mmAccount.signDelegation failed (scoped). Retrying with unrestricted delegation.', err);
       try {
-        // Retry with an unrestricted delegation (no caveats/scope) as a compatibility fallback
-        const rawLoose = toolkit.createDelegation({
-          from: delegatorHex,
-          to: delegateHex,
-          environment,
-          // no scope => unrestricted
-          salt: randomSalt()
-        });
+        // Retry with an unrestricted delegation using v15 helper when available
+        const createOpen = typeof toolkit.createOpenDelegation === 'function' ? toolkit.createOpenDelegation : null;
+        const rawLoose = createOpen
+          ? createOpen({ from: delegatorHex, to: delegateHex, environment, salt: randomSalt() })
+          : toolkit.createDelegation({ from: delegatorHex, to: delegateHex, environment, scope: { type: 'open' }, salt: randomSalt() });
         const loose = sanitizeDelegationStruct(rawLoose, { delegatorHex, delegateHex, viemModule });
         let sigResult2 = await mm.signDelegation({
           delegation: loose,
