@@ -359,7 +359,11 @@ async function renderButtons(state, presetMap) {
     } else {
       safeRun(enableBtn, async () => {
         clearDelegationSuppression();
-        const delegation = await ensureDelegationActive({ force: true, address: controller || addr });
+        // Derive the smart account address first so the delegation targets the internal account.
+        await initAA({});
+        const mmAddr = (await getSmartAccountAddress()) || null;
+        const targetDelegate = mmAddr || controller || addr;
+        const delegation = await ensureDelegationActive({ force: true, address: targetDelegate });
         if (!delegation) {
           throw new Error('Delegation signature was not completed.');
         }

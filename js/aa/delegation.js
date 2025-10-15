@@ -516,17 +516,21 @@ export async function createDelegation({ address, preset, presetKey }) {
     throw new Error('Unknown delegation preset');
   }
 
-  const delegatorResolved = await resolveDelegatorAddress(ctx, smartAccountInstance);
-  const delegate = await resolveDelegateAddress(ctx, address || ctx.ownerAccount || ctx.account, delegatorResolved, smartAccountInstance);
-  if (!delegate) {
-    throw new Error('Wallet address is required to create a delegation');
-  }
-  const internalLc = normalizeAddress(extractAddress(ctx.internalAccount))
-    || normalizeAddress(extractAddress(AA?.smartAccountAddress))
-    || null;
+  // Resolve controller (EOA) strictly from ownerAccount/account; never fall back to internal
   const controllerLc = normalizeAddress(extractAddress(ctx.ownerAccount))
+    || normalizeAddress(extractAddress(ctx.account))
     || normalizeAddress(extractAddress(AA?.controllerAddress))
     || null;
+  // Delegate should be the smart account address (when available), otherwise the provided address
+  const internalLc = normalizeAddress(extractAddress(AA?.smartAccountAddress))
+    || normalizeAddress(extractAddress(ctx.internalAccount))
+    || null;
+  const delegate = normalizeAddress(extractAddress(address))
+    || internalLc
+    || null;
+  if (!delegate) {
+    throw new Error('Unable to determine smart account address to delegate to. Initialize the smart account first.');
+  }
   const smartAccountActive = internalLc && controllerLc && internalLc !== controllerLc;
   const smartOwnerHint = (() => {
     const smart = smartAccountInstance;
@@ -540,7 +544,7 @@ export async function createDelegation({ address, preset, presetKey }) {
     );
   })();
 
-  let delegator = delegatorResolved || smartOwnerHint || controllerLc || delegate;
+  let delegator = smartOwnerHint || controllerLc;
   if (smartAccountActive && delegator === internalLc) {
     if (smartOwnerHint && smartOwnerHint !== internalLc) {
       delegator = smartOwnerHint;

@@ -72,17 +72,8 @@ export async function ensureDelegationToolkitContext() {
     let ownerAccount = requestedRaw[0] || null;
     let internalAccount = requestedRaw[0] || null;
 
-    let accountsByType = null;
-    // Try MetaMask multi-account enumeration to distinguish owner (EOA) vs internal (smart)
-    try {
-      const listed = await provider.request({ method: 'wallet_accounts' });
-      if (Array.isArray(listed) && listed.length) {
-        accountsByType = listed;
-        walletAccountsSupported = true;
-      }
-    } catch {
-      if (walletAccountsSupported === undefined) walletAccountsSupported = false;
-    }
+    let accountsByType = null; // Avoid wallet_accounts to prevent RPC errors; rely on heuristics and toolkit later
+    walletAccountsSupported = false;
 
     if (walletAccountsSupported !== false && Array.isArray(accountsByType) && accountsByType.length) {
       walletAccountsSupported = true;
@@ -110,23 +101,7 @@ export async function ensureDelegationToolkitContext() {
       }
     }
 
-    if (Array.isArray(accountsByType)) {
-      for (const entry of accountsByType) {
-        const addr = entry?.address || entry?.account || entry?.id || entry?.address?.address;
-        const type = String(entry?.type || entry?.accountType || entry?.accountTypeMetadata?.name || '').toLowerCase();
-        if (!addr) continue;
-        const normalized = String(addr).toLowerCase();
-        // classify
-        if (type.includes('eoa') || type.includes('external')) {
-          ownerAccount = normalized;
-        } else if (type.includes('smart') || type.includes('internal')) {
-          if (!internalAccount) internalAccount = normalized;
-        } else {
-          // Unknown type: default to external unless already set
-          if (!ownerAccount) ownerAccount = normalized;
-        }
-      }
-    }
+    // If toolkit later exposes internal account, we will store it into localStorage via ensureDelegation or initAA
 
     if (!ownerAccount) ownerAccount = requestedRaw[0] || null;
     if (!internalAccount) internalAccount = requestedRaw[0] || null;
