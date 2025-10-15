@@ -130,27 +130,41 @@ export async function ensureDelegationToolkitContext() {
       throw new Error('Unable to load viem (both local and CDN failed).');
     })();
 
-    let toolkit = await (async () => {
-      // Vendored local ESM (built at deploy) to avoid runtime CDN issues
-      try { return await import('../vendor/metamask-delegation-toolkit-latest.mjs'); } catch (_) {}
-      // Prefer local install if present
-      try { return await import('@metamask/delegation-toolkit'); } catch (_) {}
-      // v0.15.x CDN fallbacks (v13 is not acceptable for this project)
-      try { return await import('https://esm.sh/@metamask/delegation-toolkit@0.15.3'); } catch (_) {}
-      try { return await import('https://esm.sh/@metamask/delegation-toolkit@0.15.0'); } catch (_) {}
-      try { return await import('https://cdn.jsdelivr.net/npm/@metamask/delegation-toolkit@0.15.3/+esm'); } catch (_) {}
-      try { return await import('https://cdn.jsdelivr.net/npm/@metamask/delegation-toolkit@0.15.0/+esm'); } catch (_) {}
-      try { return await import('https://unpkg.com/@metamask/delegation-toolkit@0.15.3/dist/index.js?module'); } catch (_) {}
-      try { return await import('https://unpkg.com/@metamask/delegation-toolkit@0.15.0/dist/index.js?module'); } catch (_) {}
-      throw new Error('Unable to load MetaMask Delegation Toolkit v0.15.x (local + CDNs failed).');
-    })();
+    async function loadToolkitV15() {
+      const candidates = [
+        // Pin v15 first
+        'https://esm.sh/@metamask/delegation-toolkit@0.15.3',
+        'https://esm.sh/@metamask/delegation-toolkit@0.15.2',
+        'https://esm.sh/@metamask/delegation-toolkit@0.15.0',
+        'https://unpkg.com/@metamask/delegation-toolkit@0.15.3/dist/index.js?module',
+        'https://unpkg.com/@metamask/delegation-toolkit@0.15.0/dist/index.js?module',
+        'https://cdn.jsdelivr.net/npm/@metamask/delegation-toolkit@0.15.3/+esm',
+        'https://cdn.jsdelivr.net/npm/@metamask/delegation-toolkit@0.15.0/+esm',
+        // Local package if available
+        '@metamask/delegation-toolkit',
+        // Last resort: vendored (may be older)
+        '../vendor/metamask-delegation-toolkit-latest.mjs'
+      ];
+      for (const spec of candidates) {
+        try {
+          const mod = await import(spec);
+          // Normalize default shape
+          const tk = (mod && mod.default && !mod.toMetaMaskSmartAccount) ? mod.default : mod;
+          if (tk && typeof tk.toMetaMaskSmartAccount === 'function') {
+            // Require v15 Implementation constants to be present
+            if (tk.Implementation && (tk.Implementation.Hybrid || tk.Implementation.EIP7702Stateless || tk.Implementation.MultiSig)) {
+              return tk;
+            }
+          }
+        } catch (_) { /* try next */ }
+      }
+      throw new Error('MetaMask Delegation Toolkit v0.15.x unavailable (all sources failed).');
+    }
+
+    let toolkit = await loadToolkitV15();
 
     // Normalize module shape: some CDN builds expose exports under `default`
-    try {
-      if (toolkit && typeof toolkit === 'object' && toolkit.default && !toolkit.toMetaMaskSmartAccount) {
-        toolkit = toolkit.default;
-      }
-    } catch {}
+    // already normalized above
 
     const { createPublicClient, createWalletClient, http, custom } = viem;
 
