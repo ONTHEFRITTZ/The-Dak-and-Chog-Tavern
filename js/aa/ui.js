@@ -579,7 +579,7 @@ async function hydrate() {
   } else {
     try {
       AA.smartAccountType = 'fallback';
-      AA.smartAccountAddress = addr;
+      AA.smartAccountAddress = null;
       AA.toolkitContext = null;
     } catch {}
   }
@@ -643,4 +643,5 @@ window.addEventListener('load', () => { hydrate().catch(() => {}); });
 window.addEventListener('wallet:connected', () => { hydrate().catch(() => {}); });
 window.addEventListener('aa:smartaccount', () => { hydrate().catch(() => {}); });
 window.addEventListener('aa:session', () => { hydrate().catch(() => {}); });
+
 
