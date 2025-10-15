@@ -632,8 +632,15 @@ export async function createDelegation({ address, preset, presetKey }) {
     // Prefer internal smart-account signer when available; fallback to walletClient (EOA) otherwise.
   let signature;
   const mm = (smartAccountInstance && smartAccountInstance.mmAccount) || smartAccountInstance || null;
-  // Only attempt internal MetaMask signing when smart account is clearly active.
-  if (smartAccountActive && mm && typeof mm.signDelegation === 'function') {
+  // If delegating to the internal smart account, prefer internal signing via the toolkit.
+  let delegateIsInternal = false;
+  try {
+    const internalHexTry = internalLc ? viemModule.getAddress(internalLc) : null;
+    delegateIsInternal = !!(internalHexTry && internalHexTry.toLowerCase() === delegateHex.toLowerCase());
+  } catch {}
+
+  // Only attempt internal signing when delegating to the smart account and the mm signer is available.
+  if (delegateIsInternal && mm && typeof mm.signDelegation === 'function') {
     try {
       // Preflight validation to surface any lingering object-shaped addresses
       const viem = ctx.viem || (await ensureViem());
@@ -662,6 +669,13 @@ export async function createDelegation({ address, preset, presetKey }) {
     }
   }
   if (!signature) {
+    if (delegateIsInternal) {
+      // External signature path is blocked by MetaMask for internal-account delegations.
+      const helper = new Error('MetaMask Smart Account must sign this delegation internally. Enable Smart Accounts and try again.');
+      helper.code = 'delegate_internal_requires_mm_signer';
+      suppressDelegation('MetaMask rejected external signature for internal-account delegation');
+      throw helper;
+    }
     if (!walletClient || typeof walletClient.signTypedData !== 'function') {
       throw new Error('MetaMask wallet client unavailable for delegation signing.');
     }
