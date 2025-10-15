@@ -568,8 +568,8 @@ export async function createDelegation({ address, preset, presetKey }) {
       throw new Error(`${label || 'address'} is invalid: ${value}`);
     }
   };
-  const delegatorHex = normalizeHex(delegator, 'Delegator address');
-  const delegateHex = normalizeHex(delegate, 'Delegate address');
+  let delegatorHex = normalizeHex(delegator, 'Delegator address');
+  let delegateHex = normalizeHex(delegate, 'Delegate address');
   let scope;
   try {
     scope = await buildFunctionCallScope(ctx, delegationTarget, choice.selectors || []);
@@ -579,6 +579,16 @@ export async function createDelegation({ address, preset, presetKey }) {
   }
 
   const { toolkit, environment, walletClient } = ctx;
+  // If we have a MetaMask smart account instance, prefer its resolved addresses explicitly
+  try {
+    const mmTmp = (smartAccountInstance && smartAccountInstance.mmAccount) || smartAccountInstance || null;
+    if (mmTmp) {
+      const mmOwner = mmTmp.ownerAddress || mmTmp.controllerAddress || mmTmp.controller || null;
+      const mmAddr = typeof mmTmp.getAddress === 'function' ? await mmTmp.getAddress() : (mmTmp.address || null);
+      if (mmOwner) delegatorHex = normalizeHex(mmOwner, 'Delegator address');
+      if (mmAddr) delegateHex = normalizeHex(mmAddr, 'Delegate address');
+    }
+  } catch {}
   const delegationRaw = toolkit.createDelegation({
     from: delegatorHex,
     to: delegateHex,
