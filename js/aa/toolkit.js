@@ -109,13 +109,19 @@ export async function ensureDelegationToolkitContext() {
     const account = ownerAccount;
     const accounts = Array.from(new Set([ownerAccount, internalAccount, ...Array.from(requestedSet)].filter(Boolean)));
 
-    const [
-      viem,
-      toolkit
-    ] = await Promise.all([
-      import('viem'),
-      import('@metamask/delegation-toolkit')
-    ]);
+    // Load viem + MetaMask Delegation Toolkit with CDN fallbacks for browser environments
+    const viem = await (async () => {
+      try { return await import('viem'); } catch (_) {}
+      try { return await import('https://esm.sh/viem'); } catch (_) {}
+      // Last resort (should not happen): throw to surface clear error
+      throw new Error('Unable to load viem (both local and CDN failed).');
+    })();
+
+    const toolkit = await (async () => {
+      try { return await import('@metamask/delegation-toolkit'); } catch (_) {}
+      try { return await import('https://esm.sh/@metamask/delegation-toolkit'); } catch (_) {}
+      throw new Error('Unable to load MetaMask Delegation Toolkit (both local and CDN failed).');
+    })();
 
     const { createPublicClient, createWalletClient, http, custom } = viem;
 
