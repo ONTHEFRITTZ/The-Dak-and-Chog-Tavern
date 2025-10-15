@@ -170,10 +170,9 @@ export async function ensureDelegationToolkitContext() {
 
       // Only use same-origin vendor files to avoid CDN/CORS and noisy logs
       const vendors = [
+        // Only use the known-present vendor file to avoid 404 noise
         '/js/vendor/metamask-delegation-toolkit-latest.mjs',
-        '/js/vendor/metamask-delegation-toolkit-v15.mjs',
-        '../vendor/metamask-delegation-toolkit-latest.mjs',
-        '../vendor/metamask-delegation-toolkit-v15.mjs',
+        '../vendor/metamask-delegation-toolkit-latest.mjs'
       ];
       for (const spec of vendors) {
         const tk = await tryImportViaBlob(spec);
