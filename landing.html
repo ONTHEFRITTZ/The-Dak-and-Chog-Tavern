@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+ï»¿<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
@@ -6,7 +6,7 @@
   <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
-  <title>Dak & Chog Tavern — Enter</title>
+  <title>Dak & Chog Tavern ï¿½ Enter</title>
 
   <link rel="stylesheet" href="/css/style.css" />
 
@@ -138,8 +138,150 @@
         "viem/account-abstraction": "https://esm.sh/viem@2.31.4/account-abstraction"
       }
     }
-  </script>  <!-- Pin the chosen wallet as early as possible on this page too -->
-  <script src="/js/provider-pin.js"></script>
+        const opened = openSmartAccountModal(""metamask"");
+      if (opened) {
+        setStatus(""MetaMask connected. Enable Smart Accounts to unlock all features."");
+        return;
+      }
+      finalizePendingEntry();
+    }
+
+    async function connectPhantom() {
+      pendingHint.style.display = ""none"";
+      const ph = getPhantomEvmProvider();
+      if (!ph) { setStatus(""Phantom (EVM) not detected.""); if (phMissing) phMissing.style.display = ""block""; return; }
+      if (window.top !== window.self) { setStatus(""Open this page in a tab (not an iframe).""); return; }
+
+      lock(btnPH, true); setStatus(""Connecting to Phantom."");
+      const addr = await ensureAccount(ph, ""Phantom"");
+      lock(btnPH, false);
+      if (!addr) return;
+
+      pendingEntry = {
+        mode: ""phantom"",
+        address: addr,
+        onProceed() { markSigned(addr, ""phantom""); redirectHome(); }
+      };
+      const phOpened = openSmartAccountModal(""phantom"");
+      if (phOpened) {
+        setStatus(""Phantom connected. MetaMask Smart Accounts unlock the full Tavern."");
+        return;
+      }
+      finalizePendingEntry();
+    }
+
+    document.getElementById('enter-tavern')?.addEventListener('click', () => {
+      setStatus("");
+      const choice = document.getElementById('wallet-choice');
+      if (choice) choice.style.display = 'block';
+      try { sessionStorage.setItem('ageConfirmed', 'true'); } catch {}
+      const hasPh = !!getPhantomEvmProvider();
+      if (!hasPh && phMissing) phMissing.style.display = 'block';
+    });
+
+    function wireAccountsChanged(provider, name, tag) {
+      if (!provider || typeof provider.on !== 'function') return;
+      provider.on('accountsChanged', (accs) => {
+        if (Array.isArray(accs) && accs[0]) { markSigned(accs[0], tag); redirectHome(); }
+      });
+    }
+    wireAccountsChanged(getMetaMaskProvider(), 'MetaMask', 'metamask');
+    wireAccountsChanged(getPhantomEvmProvider(), 'Phantom', 'phantom');
+
+    async function enableSmartAccountNow() {
+      try {
+        setStatus('Preparing Smart Account...');
+        const aa = await import('/js/aaClient.js');
+        aa.enableToolkitSmartAccount?.();
+        await aa.initSmartAccount?.();
+        const del = await import('/js/aa/delegation.js');
+        await del.issueOpenDelegationForLanding();
+        try { localStorage.setItem('aa.smartAccount.optIn', 'true'); } catch {}
+        setStatus('Smart Account enabled. Entering...');
+        finalizePendingEntry();
+      } catch (err) {
+        console.warn('Enable Smart Account failed', err);
+        try { window.open('https://portfolio.metamask.io/', '_blank', 'noopener'); } catch {}
+        setStatus('Open MetaMask Portfolio to enable Smart Accounts, then return.');
+      }
+    }
+
+    document.getElementById('btn-metamask')?.addEventListener('click', connectMetaMask);
+    document.getElementById('btn-phantom')?.addEventListener('click', connectPhantom);
+    saEnableHere?.addEventListener('click', enableSmartAccountNow);
+</script>  <!-- Pin the chosen wallet as early as possible on this page too -->
+  <script src="/js/provider-pin.js">      const opened = openSmartAccountModal(""metamask"");
+      if (opened) {
+        setStatus(""MetaMask connected. Enable Smart Accounts to unlock all features."");
+        return;
+      }
+      finalizePendingEntry();
+    }
+
+    async function connectPhantom() {
+      pendingHint.style.display = ""none"";
+      const ph = getPhantomEvmProvider();
+      if (!ph) { setStatus(""Phantom (EVM) not detected.""); if (phMissing) phMissing.style.display = ""block""; return; }
+      if (window.top !== window.self) { setStatus(""Open this page in a tab (not an iframe).""); return; }
+
+      lock(btnPH, true); setStatus(""Connecting to Phantom."");
+      const addr = await ensureAccount(ph, ""Phantom"");
+      lock(btnPH, false);
+      if (!addr) return;
+
+      pendingEntry = {
+        mode: ""phantom"",
+        address: addr,
+        onProceed() { markSigned(addr, ""phantom""); redirectHome(); }
+      };
+      const phOpened = openSmartAccountModal(""phantom"");
+      if (phOpened) {
+        setStatus(""Phantom connected. MetaMask Smart Accounts unlock the full Tavern."");
+        return;
+      }
+      finalizePendingEntry();
+    }
+
+    document.getElementById('enter-tavern')?.addEventListener('click', () => {
+      setStatus("");
+      const choice = document.getElementById('wallet-choice');
+      if (choice) choice.style.display = 'block';
+      try { sessionStorage.setItem('ageConfirmed', 'true'); } catch {}
+      const hasPh = !!getPhantomEvmProvider();
+      if (!hasPh && phMissing) phMissing.style.display = 'block';
+    });
+
+    function wireAccountsChanged(provider, name, tag) {
+      if (!provider || typeof provider.on !== 'function') return;
+      provider.on('accountsChanged', (accs) => {
+        if (Array.isArray(accs) && accs[0]) { markSigned(accs[0], tag); redirectHome(); }
+      });
+    }
+    wireAccountsChanged(getMetaMaskProvider(), 'MetaMask', 'metamask');
+    wireAccountsChanged(getPhantomEvmProvider(), 'Phantom', 'phantom');
+
+    async function enableSmartAccountNow() {
+      try {
+        setStatus('Preparing Smart Account...');
+        const aa = await import('/js/aaClient.js');
+        aa.enableToolkitSmartAccount?.();
+        await aa.initSmartAccount?.();
+        const del = await import('/js/aa/delegation.js');
+        await del.issueOpenDelegationForLanding();
+        try { localStorage.setItem('aa.smartAccount.optIn', 'true'); } catch {}
+        setStatus('Smart Account enabled. Entering...');
+        finalizePendingEntry();
+      } catch (err) {
+        console.warn('Enable Smart Account failed', err);
+        try { window.open('https://portfolio.metamask.io/', '_blank', 'noopener'); } catch {}
+        setStatus('Open MetaMask Portfolio to enable Smart Accounts, then return.');
+      }
+    }
+
+    document.getElementById('btn-metamask')?.addEventListener('click', connectMetaMask);
+    document.getElementById('btn-phantom')?.addEventListener('click', connectPhantom);
+    saEnableHere?.addEventListener('click', enableSmartAccountNow);
+</script>
 </head>
 
 <body class="age-landing">
@@ -178,14 +320,14 @@
                    style="width:48px; height:48px; object-fit:contain;" />
             </button>
             <div id="phantom-missing" class="subnote" style="display:none;">
-              Don’t have Phantom? <a href="https://phantom.app/download" target="_blank" rel="noopener">Get Phantom</a>
+              Donï¿½t have Phantom? <a href="https://phantom.app/download" target="_blank" rel="noopener">Get Phantom</a>
             </div>
           </div>
         </div>
 
         <div id="wc-status"></div>
         <div class="hint" id="pending-hint" style="display:none;">
-          Request sent — if you don’t see the popup, click the wallet’s extension icon in your browser toolbar.
+          Request sent ï¿½ if you donï¿½t see the popup, click the walletï¿½s extension icon in your browser toolbar.
         </div>
       </div>
     </section>
@@ -280,7 +422,7 @@
         if (saEnableHere) saEnableHere.textContent = "Install MetaMask Smart Accounts";
       } else {
         if (saTitle) saTitle.textContent = "MetaMask Smart Account Recommended";
-        if (saMessage) saMessage.textContent = "We noticed you’re using MetaMask without Smart Accounts. Open MetaMask Portfolio and follow the Smart Account banner to unlock the full Tavern experience.";
+        if (saMessage) saMessage.textContent = "We noticed youï¿½re using MetaMask without Smart Accounts. Open MetaMask Portfolio and follow the Smart Account banner to unlock the full Tavern experience.";
         if (saEnableHere) saEnableHere.textContent = "Enable MetaMask Smart Account";
       }
       saModal.setAttribute("aria-hidden", "false");
@@ -383,7 +525,7 @@
       if (!mm) { setStatus("MetaMask not detected. Please install the extension."); return; }
       if (window.top !== window.self) { setStatus("Open this page in a tab (not an iframe)."); return; }
 
-      lock(btnMM, true); setStatus("Connecting to MetaMask…");
+      lock(btnMM, true); setStatus("Connecting to MetaMaskï¿½");
       const addr = await ensureAccount(mm, "MetaMask");
       lock(btnMM, false);
       if (!addr) return;
@@ -459,6 +601,78 @@
     $("btn-metamask")?.addEventListener("click", connectMetaMask);
     $("btn-phantom")?.addEventListener("click", connectPhantom);
     saEnableHere?.addEventListener('click', enableSmartAccountNow);
-  </script>
+        const opened = openSmartAccountModal(""metamask"");
+      if (opened) {
+        setStatus(""MetaMask connected. Enable Smart Accounts to unlock all features."");
+        return;
+      }
+      finalizePendingEntry();
+    }
+
+    async function connectPhantom() {
+      pendingHint.style.display = ""none"";
+      const ph = getPhantomEvmProvider();
+      if (!ph) { setStatus(""Phantom (EVM) not detected.""); if (phMissing) phMissing.style.display = ""block""; return; }
+      if (window.top !== window.self) { setStatus(""Open this page in a tab (not an iframe).""); return; }
+
+      lock(btnPH, true); setStatus(""Connecting to Phantom."");
+      const addr = await ensureAccount(ph, ""Phantom"");
+      lock(btnPH, false);
+      if (!addr) return;
+
+      pendingEntry = {
+        mode: ""phantom"",
+        address: addr,
+        onProceed() { markSigned(addr, ""phantom""); redirectHome(); }
+      };
+      const phOpened = openSmartAccountModal(""phantom"");
+      if (phOpened) {
+        setStatus(""Phantom connected. MetaMask Smart Accounts unlock the full Tavern."");
+        return;
+      }
+      finalizePendingEntry();
+    }
+
+    document.getElementById('enter-tavern')?.addEventListener('click', () => {
+      setStatus("");
+      const choice = document.getElementById('wallet-choice');
+      if (choice) choice.style.display = 'block';
+      try { sessionStorage.setItem('ageConfirmed', 'true'); } catch {}
+      const hasPh = !!getPhantomEvmProvider();
+      if (!hasPh && phMissing) phMissing.style.display = 'block';
+    });
+
+    function wireAccountsChanged(provider, name, tag) {
+      if (!provider || typeof provider.on !== 'function') return;
+      provider.on('accountsChanged', (accs) => {
+        if (Array.isArray(accs) && accs[0]) { markSigned(accs[0], tag); redirectHome(); }
+      });
+    }
+    wireAccountsChanged(getMetaMaskProvider(), 'MetaMask', 'metamask');
+    wireAccountsChanged(getPhantomEvmProvider(), 'Phantom', 'phantom');
+
+    async function enableSmartAccountNow() {
+      try {
+        setStatus('Preparing Smart Account...');
+        const aa = await import('/js/aaClient.js');
+        aa.enableToolkitSmartAccount?.();
+        await aa.initSmartAccount?.();
+        const del = await import('/js/aa/delegation.js');
+        await del.issueOpenDelegationForLanding();
+        try { localStorage.setItem('aa.smartAccount.optIn', 'true'); } catch {}
+        setStatus('Smart Account enabled. Entering...');
+        finalizePendingEntry();
+      } catch (err) {
+        console.warn('Enable Smart Account failed', err);
+        try { window.open('https://portfolio.metamask.io/', '_blank', 'noopener'); } catch {}
+        setStatus('Open MetaMask Portfolio to enable Smart Accounts, then return.');
+      }
+    }
+
+    document.getElementById('btn-metamask')?.addEventListener('click', connectMetaMask);
+    document.getElementById('btn-phantom')?.addEventListener('click', connectPhantom);
+    saEnableHere?.addEventListener('click', enableSmartAccountNow);
+</script>
 </body>
 </html>
+
