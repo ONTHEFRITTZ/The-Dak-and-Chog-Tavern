@@ -477,13 +477,25 @@ export async function presets() {
 }
 
 export async function createDelegation({ address, preset, presetKey }) {
-  const ctx = await ensureDelegationToolkitContext();
+  let ctx = await ensureDelegationToolkitContext();
   try {
     AA.toolkitContext = ctx;
     if (!AA.controllerAddress && ctx?.ownerAccount) {
       AA.controllerAddress = normalizeAddress(ctx.ownerAccount);
     }
   } catch {}
+  // Ensure we have an EOA (controller) — if not, prompt the wallet now (user gesture context)
+  if (!ctx?.ownerAccount) {
+    try {
+      await ctx?.provider?.request?.({ method: 'eth_requestAccounts' });
+      resetDelegationToolkitContext();
+      ctx = await ensureDelegationToolkitContext();
+      AA.toolkitContext = ctx;
+    } catch {}
+  }
+  if (!ctx?.ownerAccount) {
+    throw new Error('Connect MetaMask before enabling Smart Accounts.');
+  }
   if (!ctx?.walletClient || typeof ctx.walletClient.signTypedData !== 'function') {
     throw new Error('MetaMask wallet client unavailable for delegation signing.');
   }
@@ -658,7 +670,9 @@ export async function createDelegation({ address, preset, presetKey }) {
   // Prefer existing mm account. Otherwise, build strictly with v0.15+ signature (no v13 fallback)
   try {
     const { toolkit, walletClient, publicClient, walletChain } = ctx;
-    const { toMetaMaskSmartAccount, Implementation } = toolkit || {};
+    let { toMetaMaskSmartAccount, Implementation } = toolkit || {};
+    try { if (!toMetaMaskSmartAccount && toolkit && toolkit.default) toMetaMaskSmartAccount = toolkit.default.toMetaMaskSmartAccount; } catch {}
+    try { if (!Implementation && toolkit && toolkit.default) Implementation = toolkit.default.Implementation; } catch {}
     const impl = (Implementation?.Hybrid || Implementation?.EIP7702Stateless || Implementation?.MultiSig || undefined);
     const hasInternalSigner = !!(mm && typeof mm.signDelegation === 'function');
     if (!hasInternalSigner && typeof toMetaMaskSmartAccount === 'function' && walletClient?.transport && delegatorHex) {

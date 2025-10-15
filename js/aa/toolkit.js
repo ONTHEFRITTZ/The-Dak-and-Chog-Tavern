@@ -58,9 +58,20 @@ export async function ensureDelegationToolkitContext() {
   if (contextPromise) return contextPromise;
 
   contextPromise = (async () => {
+    function pickMetaMaskProvider() {
+      try {
+        const winEth = window.ethereum;
+        if (winEth && Array.isArray(winEth.providers)) {
+          const mm = winEth.providers.find(p => p && p.isMetaMask && typeof p.request === 'function');
+          if (mm) return mm;
+        }
+        if (winEth && winEth.isMetaMask && typeof winEth.request === 'function') return winEth;
+      } catch {}
+      return null;
+    }
     const provider = (typeof window.__getSelectedProvider === 'function'
-      ? window.__getSelectedProvider()
-      : window.ethereum) || null;
+      ? window.__getSelectedProvider('metamask')
+      : null) || pickMetaMaskProvider() || window.ethereum || null;
 
     if (!provider || typeof provider.request !== 'function') {
       throw new Error('MetaMask provider not detected');
@@ -119,7 +130,7 @@ export async function ensureDelegationToolkitContext() {
       throw new Error('Unable to load viem (both local and CDN failed).');
     })();
 
-    const toolkit = await (async () => {
+    let toolkit = await (async () => {
       // Vendored local ESM (built at deploy) to avoid runtime CDN issues
       try { return await import('../vendor/metamask-delegation-toolkit-latest.mjs'); } catch (_) {}
       // Prefer local install if present
@@ -133,6 +144,13 @@ export async function ensureDelegationToolkitContext() {
       try { return await import('https://unpkg.com/@metamask/delegation-toolkit@0.15.0/dist/index.js?module'); } catch (_) {}
       throw new Error('Unable to load MetaMask Delegation Toolkit v0.15.x (local + CDNs failed).');
     })();
+
+    // Normalize module shape: some CDN builds expose exports under `default`
+    try {
+      if (toolkit && typeof toolkit === 'object' && toolkit.default && !toolkit.toMetaMaskSmartAccount) {
+        toolkit = toolkit.default;
+      }
+    } catch {}
 
     const { createPublicClient, createWalletClient, http, custom } = viem;
 

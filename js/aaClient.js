@@ -301,7 +301,7 @@ async function buildToolkitSmartAccount(injected, { bundlerUrl, paymasterUrl }) 
     const toMetaMaskSmartAccount = toolkit?.toMetaMaskSmartAccount;
     const Implementation = toolkit?.Implementation;
 
-    if (typeof toMetaMaskSmartAccount !== 'function' || !Implementation?.Hybrid) {
+    if (typeof toMetaMaskSmartAccount !== 'function') {
       return null;
     }
 
