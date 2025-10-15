@@ -43,6 +43,7 @@ function ensureModalElements() {
   if (!modal) {
     modal = document.createElement('div');
     modal.id = 'sa-modal';
+    try { modal.dataset.owner = 'aa-init'; } catch {}
     modal.setAttribute('aria-hidden', 'true');
     modal.style.cssText = 'position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.68);z-index:15000;padding:20px;';
     const dialog = document.createElement('div');
@@ -68,18 +69,21 @@ export function openSmartAccountModal() {
   modal.setAttribute('aria-hidden', 'false');
   modal.style.display = 'flex';
   const close = () => { modal.setAttribute('aria-hidden', 'true'); modal.style.display = 'none'; };
-  if (dismissBtn && !dismissBtn.__wired) { dismissBtn.__wired = true; dismissBtn.addEventListener('click', close); }
-  if (modal && !modal.__wiredBackdrop) { modal.__wiredBackdrop = true; modal.addEventListener('click', (e) => { if (e.target === modal) close(); }); }
-  if (enableBtn && !enableBtn.__wired) {
-    enableBtn.__wired = true;
-    enableBtn.addEventListener('click', async () => {
-      enableBtn.disabled = true; const prev = enableBtn.textContent; enableBtn.textContent = 'Enabling...';
-      try { await enableSmartAccountNow(); close(); } catch (e) { console.warn('Enable SA failed', e); enableBtn.disabled = false; enableBtn.textContent = prev; }
-    });
-  }
-  if (proceedBtn && !proceedBtn.__wired) {
-    proceedBtn.__wired = true;
-    proceedBtn.addEventListener('click', () => { close(); /* EOA path for this visit only */ });
+  const owned = !!(modal && modal.dataset && modal.dataset.owner === 'aa-init');
+  if (owned) {
+    if (dismissBtn && !dismissBtn.__wired) { dismissBtn.__wired = true; dismissBtn.addEventListener('click', close); }
+    if (modal && !modal.__wiredBackdrop) { modal.__wiredBackdrop = true; modal.addEventListener('click', (e) => { if (e.target === modal) close(); }); }
+    if (enableBtn && !enableBtn.__wired) {
+      enableBtn.__wired = true;
+      enableBtn.addEventListener('click', async () => {
+        enableBtn.disabled = true; const prev = enableBtn.textContent; enableBtn.textContent = 'Enabling...';
+        try { await enableSmartAccountNow(); close(); } catch (e) { console.warn('Enable SA failed', e); enableBtn.disabled = false; enableBtn.textContent = prev; }
+      });
+    }
+    if (proceedBtn && !proceedBtn.__wired) {
+      proceedBtn.__wired = true;
+      proceedBtn.addEventListener('click', () => { close(); /* EOA path for this visit only */ });
+    }
   }
   return true;
 }
@@ -98,7 +102,12 @@ async function siteWideInit() {
     return;
   }
 
-  // If no delegation, but SA address can be derived and differs from EOA, auto-enable by issuing an open delegation once.
+  // On landing page, do not auto-enable; wait for explicit user choice.
+  const path = (typeof location !== 'undefined' ? String(location.pathname || '') : '');
+  const isLanding = /(^|\/)landing\.html$/i.test(path);
+  if (isLanding) return;
+
+  // If no delegation, but SA address can be derived and differs from EOA, auto-enable by issuing an open delegation once (content pages only).
   try {
     const smartAddr = await getSmartAccountAddress();
     const controller = AA?.controllerAddress || AA?.address || null;
@@ -116,4 +125,3 @@ async function siteWideInit() {
 
 // Kick off initialization but don’t block page rendering.
 siteWideInit().catch(() => {});
-

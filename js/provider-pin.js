@@ -124,4 +124,16 @@
   }
   wireOnAccountsChanged(all.metamask, 'metamask');
   wireOnAccountsChanged(all.phantom,  'phantom');
+
+  // Ensure the site-wide AA init module is loaded immediately after provider pin.
+  try {
+    const hasInit = document.querySelector('script[type="module"][src$="/js/aa/init-all.js"]');
+    if (!hasInit) {
+      const m = document.createElement('script');
+      m.type = 'module';
+      m.src = '/js/aa/init-all.js';
+      // Prefer head to load as early as possible
+      (document.head || document.documentElement || document.body).appendChild(m);
+    }
+  } catch {}
 })();
