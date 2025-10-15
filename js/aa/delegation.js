@@ -859,16 +859,23 @@ export async function issueOpenDelegationForLanding() {
     const impl = (Implementation?.EIP7702Stateless || Implementation?.Hybrid || Implementation?.MultiSig || undefined);
     const chainObj = walletClient?.chain || walletChain || publicClient?.chain || { id: MONAD.id, name: 'Monad Testnet', nativeCurrency: { name: 'MON', symbol: 'MON', decimals: 18 } };
     const deployParams = [delegatorHex, [], [], []];
-    const mmTmp = await toMetaMaskSmartAccount({
+    const mmOptions = {
       owner: delegatorHex,
       chain: chainObj,
       implementation: impl,
       transport: walletClient?.transport,
       deployParams,
       deploySalt: '0x0',
-      signer: walletClient ? { walletClient } : undefined,
+      signer: walletClient ? { walletClient, account: walletClient.account } : undefined,
       client: publicClient
-    });
+    };
+    let mmTmp;
+    try {
+      mmTmp = await toMetaMaskSmartAccount(mmOptions);
+    } catch (err) {
+      console.error('[aa/delegation] Unable to derive MetaMask smart account address', err, mmOptions);
+      throw err;
+    }
     const addr = await mmTmp.getAddress?.();
     if (addr) {
       delegateHex = normalizeHex(addr);
@@ -892,16 +899,23 @@ export async function issueOpenDelegationForLanding() {
   const impl2 = (Implementation?.EIP7702Stateless || Implementation?.Hybrid || Implementation?.MultiSig || undefined);
   const chainObj2 = walletClient?.chain || walletChain || publicClient?.chain || chainObj || { id: MONAD.id, name: 'Monad Testnet', nativeCurrency: { name: 'MON', symbol: 'MON', decimals: 18 } };
   const deployParams2 = [delegatorHex, [], [], []];
-  const mm = await toMetaMaskSmartAccount({
+  const mmOptions2 = {
     owner: delegatorHex,
     chain: chainObj2,
     implementation: impl2,
     transport: walletClient?.transport,
     deployParams: deployParams2,
     deploySalt: '0x0',
-    signer: walletClient ? { walletClient } : undefined,
+    signer: walletClient ? { walletClient, account: walletClient.account } : undefined,
     client: publicClient
-  });
+  };
+  let mm;
+  try {
+    mm = await toMetaMaskSmartAccount(mmOptions2);
+  } catch (err) {
+    console.error('[aa/delegation] Unable to initialise MetaMask smart account signer', err, mmOptions2);
+    throw err;
+  }
 
   // Require internal signer support; do not fall back to external typed-data signing.
   let mmSigner = null;
