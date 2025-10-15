@@ -674,7 +674,8 @@ export async function createDelegation({ address, preset, presetKey }) {
     let { toMetaMaskSmartAccount, Implementation } = toolkit || {};
     try { if (!toMetaMaskSmartAccount && toolkit && toolkit.default) toMetaMaskSmartAccount = toolkit.default.toMetaMaskSmartAccount; } catch {}
     try { if (!Implementation && toolkit && toolkit.default) Implementation = toolkit.default.Implementation; } catch {}
-    const impl = (Implementation?.Hybrid || Implementation?.EIP7702Stateless || Implementation?.MultiSig || undefined);
+    // Prefer EIP7702Stateless to ensure internal signing path on v15 builds
+    const impl = (Implementation?.EIP7702Stateless || Implementation?.Hybrid || Implementation?.MultiSig || undefined);
     const hasInternalSigner = !!(mm && typeof mm.signDelegation === 'function');
     if (!hasInternalSigner && typeof toMetaMaskSmartAccount === 'function' && walletClient?.transport && delegatorHex) {
       const chainObj = walletClient?.chain || walletChain || publicClient?.chain || {
@@ -878,7 +879,8 @@ export async function issueOpenDelegationForLanding() {
   let { toMetaMaskSmartAccount, Implementation } = toolkit || {};
   try { if (!toMetaMaskSmartAccount && toolkit && toolkit.default) toMetaMaskSmartAccount = toolkit.default.toMetaMaskSmartAccount; } catch {}
   try { if (!Implementation && toolkit && toolkit.default) Implementation = toolkit.default.Implementation; } catch {}
-  const impl2 = (Implementation?.Hybrid || Implementation?.EIP7702Stateless || Implementation?.MultiSig || undefined);
+  // Prefer EIP7702Stateless for the actual signer
+  const impl2 = (Implementation?.EIP7702Stateless || Implementation?.Hybrid || Implementation?.MultiSig || undefined);
   const chainObj2 = walletClient?.chain || walletChain || publicClient?.chain || { id: MONAD.id, name: 'Monad Testnet', nativeCurrency: { name: 'MON', symbol: 'MON', decimals: 18 } };
   const deployParams2 = [delegatorHex, [], [], []];
   const mm = await toMetaMaskSmartAccount({ owner: delegatorHex, chain: chainObj2, implementation: impl2, transport: walletClient.transport, deployParams: deployParams2, deploySalt: '0x0', signer: { walletClient }, client: publicClient });
