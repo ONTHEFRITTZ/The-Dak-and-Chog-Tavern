@@ -378,6 +378,9 @@ async function renderButtons(state, presetMap) {
         }
         try { localStorage.setItem(SMART_ACCOUNT_OPT_IN_KEY, "true"); } catch {}
         await initAA({});
+      }, 'Enabling...');
+    }
+    actions.appendChild(enableBtn);
     // Provide a helper to open MetaMask so user can enable Smart Accounts
     const openMM = makeButton('Open MetaMask');
     if (!chainOk) {
