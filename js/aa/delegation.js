@@ -856,7 +856,7 @@ export async function issueOpenDelegationForLanding() {
     let { toMetaMaskSmartAccount, Implementation } = toolkit || {};
     try { if (!toMetaMaskSmartAccount && toolkit && toolkit.default) toMetaMaskSmartAccount = toolkit.default.toMetaMaskSmartAccount; } catch {}
     try { if (!Implementation && toolkit && toolkit.default) Implementation = toolkit.default.Implementation; } catch {}
-    const impl = (Implementation?.Hybrid || Implementation?.EIP7702Stateless || Implementation?.MultiSig || undefined);
+    const impl = (Implementation?.EIP7702Stateless || Implementation?.Hybrid || Implementation?.MultiSig || undefined);
     const chainObj = walletClient?.chain || walletChain || publicClient?.chain || { id: MONAD.id, name: 'Monad Testnet', nativeCurrency: { name: 'MON', symbol: 'MON', decimals: 18 } };
     const deployParams = [delegatorHex, [], [], []];
     const mmTmp = await toMetaMaskSmartAccount({ owner: delegatorHex, chain: chainObj, implementation: impl, deployParams, deploySalt: '0x0' });
@@ -881,7 +881,7 @@ export async function issueOpenDelegationForLanding() {
   try { if (!Implementation && toolkit && toolkit.default) Implementation = toolkit.default.Implementation; } catch {}
   // Prefer EIP7702Stateless for the actual signer
   const impl2 = (Implementation?.EIP7702Stateless || Implementation?.Hybrid || Implementation?.MultiSig || undefined);
-  const chainObj2 = walletClient?.chain || walletChain || publicClient?.chain || { id: MONAD.id, name: 'Monad Testnet', nativeCurrency: { name: 'MON', symbol: 'MON', decimals: 18 } };
+  const chainObj2 = walletClient?.chain || walletChain || publicClient?.chain || chainObj || { id: MONAD.id, name: 'Monad Testnet', nativeCurrency: { name: 'MON', symbol: 'MON', decimals: 18 } };
   const deployParams2 = [delegatorHex, [], [], []];
   const mm = await toMetaMaskSmartAccount({ owner: delegatorHex, chain: chainObj2, implementation: impl2, deployParams: deployParams2, deploySalt: '0x0' });
 
