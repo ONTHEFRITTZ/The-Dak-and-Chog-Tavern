@@ -452,7 +452,7 @@ export async function initAA({ bundlerUrl = MONAD_BUNDLER_RPC, paymasterUrl = ZD
   aaSigner = created.signer;
   aaReady = true;
   lastBundlerUrl = bundlerUrl;
-  AA.smartAccountAddress = aaSmartAccount?.address || null;
+  AA.smartAccountAddress = (aaSmartAccount?.type === 'delegation-toolkit') ? (aaSmartAccount?.address || null) : null;
   AA.smartAccountType = aaSmartAccount?.type || 'fallback';
   AA.toolkitContext = aaSmartAccount?.context || null;
   AA.controllerAddress = AA.toolkitContext?.ownerAccount || AA.toolkitContext?.account || AA.address || null;
@@ -536,7 +536,7 @@ export async function getSmartAccountAddress() {
       client: publicClient
     });
     const addr = acc && (typeof acc.getAddress === 'function' ? await acc.getAddress() : acc.address);
-    if (addr) {
+    if (addr && (acc?.type === 'delegation-toolkit' || acc?.mmAccount)) {
       AA.smartAccountAddress = String(addr).toLowerCase();
       storeSmartAccount(MONAD.id, AA.smartAccountAddress);
       return AA.smartAccountAddress;
