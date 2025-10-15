@@ -389,13 +389,13 @@
       if (!addr) return;
 
       const smart = await hasMetaMaskSmartAccount(addr);
-      if (smart) {
-        markSigned(addr, "metamask");
-        redirectHome();
-        return;
+        try {
+          await enableSmartAccountNow();
+          return;
+        } catch (e) {
+          console.warn("Auto-enable failed; showing modal", e);
+        }
       }
-
-      pendingEntry = {
         mode: "metamask",
         address: addr,
         onProceed() { markSigned(addr, "metamask"); redirectHome(); }

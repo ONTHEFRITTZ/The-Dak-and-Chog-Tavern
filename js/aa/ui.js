@@ -560,7 +560,10 @@ async function hydrate() {
   const addr = (accounts[0] || '').toLowerCase();
 
   const smartOptIn = (() => {
-    try { return localStorage.getItem(SMART_ACCOUNT_OPT_IN_KEY) === 'true'; } catch { return false; }
+    try {
+      const d = loadDelegation();
+      return !!(d && d.end && nowSec() < d.end);
+    } catch { return false; }
   })();
   const delegationSuppressed = isDelegationSuppressed();
 
