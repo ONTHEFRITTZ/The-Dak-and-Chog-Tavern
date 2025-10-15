@@ -144,7 +144,8 @@ export async function ensureDelegationToolkitContext() {
 
     const toolkit = await (async () => {
       try { return await import('@metamask/delegation-toolkit'); } catch (_) {}
-      try { return await import('https://esm.sh/@metamask/delegation-toolkit@0.15.0'); } catch (_) {}
+      try { return await import('https://esm.sh/@metamask/delegation-toolkit@0.13.0'); } catch (_) {}
+      try { return await import('https://cdn.jsdelivr.net/npm/@metamask/delegation-toolkit@0.13.0/+esm'); } catch (_) {}
       throw new Error('Unable to load MetaMask Delegation Toolkit (both local and CDN failed).');
     })();
 
