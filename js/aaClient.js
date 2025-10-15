@@ -296,6 +296,7 @@ async function buildToolkitSmartAccount(injected, { bundlerUrl, paymasterUrl }) 
   }
   try {
     const toolkitCtx = await ensureDelegationToolkitContext();
+    try { AA.toolkitContext = toolkitCtx; } catch {}
     const { toolkit, publicClient, walletClient } = toolkitCtx || {};
     const toMetaMaskSmartAccount = toolkit?.toMetaMaskSmartAccount;
     const Implementation = toolkit?.Implementation;

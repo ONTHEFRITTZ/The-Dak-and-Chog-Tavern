@@ -120,10 +120,18 @@ export async function ensureDelegationToolkitContext() {
     })();
 
     const toolkit = await (async () => {
+      // Vendored local ESM (built at deploy) to avoid runtime CDN issues
+      try { return await import('../vendor/metamask-delegation-toolkit-latest.mjs'); } catch (_) {}
+      // Prefer local install if present
       try { return await import('@metamask/delegation-toolkit'); } catch (_) {}
-      try { return await import('https://esm.sh/@metamask/delegation-toolkit@0.13.0'); } catch (_) {}
-      try { return await import('https://cdn.jsdelivr.net/npm/@metamask/delegation-toolkit@0.13.0/+esm'); } catch (_) {}
-      throw new Error('Unable to load MetaMask Delegation Toolkit (both local and CDN failed).');
+      // v0.15.x CDN fallbacks (v13 is not acceptable for this project)
+      try { return await import('https://esm.sh/@metamask/delegation-toolkit@0.15.3'); } catch (_) {}
+      try { return await import('https://esm.sh/@metamask/delegation-toolkit@0.15.0'); } catch (_) {}
+      try { return await import('https://cdn.jsdelivr.net/npm/@metamask/delegation-toolkit@0.15.3/+esm'); } catch (_) {}
+      try { return await import('https://cdn.jsdelivr.net/npm/@metamask/delegation-toolkit@0.15.0/+esm'); } catch (_) {}
+      try { return await import('https://unpkg.com/@metamask/delegation-toolkit@0.15.3/dist/index.js?module'); } catch (_) {}
+      try { return await import('https://unpkg.com/@metamask/delegation-toolkit@0.15.0/dist/index.js?module'); } catch (_) {}
+      throw new Error('Unable to load MetaMask Delegation Toolkit v0.15.x (local + CDNs failed).');
     })();
 
     const { createPublicClient, createWalletClient, http, custom } = viem;
@@ -179,7 +187,7 @@ export async function ensureDelegationToolkitContext() {
 
     const walletAccountsList = Array.isArray(accountsByType) ? accountsByType : null;
 
-    return {
+    const ctx = {
       provider,
       accounts,
       account,
@@ -194,6 +202,10 @@ export async function ensureDelegationToolkitContext() {
       walletChain,
       environment
     };
+
+    try { window.__mmdt = toolkit; } catch {}
+    try { window.__aaToolkitContext = ctx; } catch {}
+    return ctx;
   })().catch(err => {
     contextPromise = null;
     throw err;
