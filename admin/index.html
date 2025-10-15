@@ -5,6 +5,21 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Tavern Admin (Owner Only)</title>
   <link rel="icon" type="image/png" href="/assets/images/dakandchog-logo.png">
+  <script type="importmap">
+    {
+      "imports": {
+        "@metamask/delegation-toolkit": "/js/vendor/metamask-delegation-toolkit-latest.mjs",
+        "viem": "https://esm.sh/viem@2.38.2",
+        "viem/actions": "https://esm.sh/viem@2.38.2/actions",
+        "viem/accounts": "https://esm.sh/viem@2.38.2/accounts",
+        "viem/chains": "https://esm.sh/viem@2.38.2/chains",
+        "viem/utils": "https://esm.sh/viem@2.38.2/utils",
+        "viem/account-abstraction": "https://esm.sh/viem@2.38.2/account-abstraction"
+      }
+    }
+  </script>
+  <script src="/js/provider-pin.js"></script>
+  <script type="module" src="/js/aa/init-all.js"></script>
   <script>
     (async()=>{
       try{

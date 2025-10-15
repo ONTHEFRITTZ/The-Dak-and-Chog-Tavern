@@ -23,7 +23,21 @@
       }catch(e){ console.error('head loader failed', e); }
     })();
   </script>
+  <script type="importmap">
+    {
+      "imports": {
+        "@metamask/delegation-toolkit": "/js/vendor/metamask-delegation-toolkit-latest.mjs",
+        "viem": "https://esm.sh/viem@2.38.2",
+        "viem/actions": "https://esm.sh/viem@2.38.2/actions",
+        "viem/accounts": "https://esm.sh/viem@2.38.2/accounts",
+        "viem/chains": "https://esm.sh/viem@2.38.2/chains",
+        "viem/utils": "https://esm.sh/viem@2.38.2/utils",
+        "viem/account-abstraction": "https://esm.sh/viem@2.38.2/account-abstraction"
+      }
+    }
+  </script>
   <script src="../../js/provider-pin.js"></script>
+  <script type="module" src="/js/aa/init-all.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
   <script type="module">
     (async()=>{

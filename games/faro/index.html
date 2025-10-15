@@ -9,6 +9,21 @@
   <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
+  <script type="importmap">
+    {
+      "imports": {
+        "@metamask/delegation-toolkit": "/js/vendor/metamask-delegation-toolkit-latest.mjs",
+        "viem": "https://esm.sh/viem@2.38.2",
+        "viem/actions": "https://esm.sh/viem@2.38.2/actions",
+        "viem/accounts": "https://esm.sh/viem@2.38.2/accounts",
+        "viem/chains": "https://esm.sh/viem@2.38.2/chains",
+        "viem/utils": "https://esm.sh/viem@2.38.2/utils",
+        "viem/account-abstraction": "https://esm.sh/viem@2.38.2/account-abstraction"
+      }
+    }
+  </script>
+  <script src="../../js/provider-pin.js"></script>
+  <script type="module" src="/js/aa/init-all.js"></script>
   <title>Faro</title>
 
   <!-- Preload surface + room art -->

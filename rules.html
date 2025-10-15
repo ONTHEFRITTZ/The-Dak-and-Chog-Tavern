@@ -5,6 +5,21 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Game Rules - The Dak & Chog Tavern</title>
   <link rel="stylesheet" href="/css/style.css">
+  <script type="importmap">
+    {
+      "imports": {
+        "@metamask/delegation-toolkit": "/js/vendor/metamask-delegation-toolkit-latest.mjs",
+        "viem": "https://esm.sh/viem@2.38.2",
+        "viem/actions": "https://esm.sh/viem@2.38.2/actions",
+        "viem/accounts": "https://esm.sh/viem@2.38.2/accounts",
+        "viem/chains": "https://esm.sh/viem@2.38.2/chains",
+        "viem/utils": "https://esm.sh/viem@2.38.2/utils",
+        "viem/account-abstraction": "https://esm.sh/viem@2.38.2/account-abstraction"
+      }
+    }
+  </script>
+  <script src="/js/provider-pin.js"></script>
+  <script type="module" src="/js/aa/init-all.js"></script>
   <style>
     body { color:#f4e6d3; }
     .rules-wrap { width:min(92vw, 980px); margin:24px auto; background:var(--panel-bg-soft); border:1px solid rgba(255,255,255,0.12); border-radius:14px; box-shadow:0 24px 60px rgba(0,0,0,0.55); padding:20px; }
