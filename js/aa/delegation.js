@@ -871,9 +871,8 @@ export async function issueOpenDelegationForLanding() {
 
   // Create open delegation – prefer toolkit helper; fallback to minimal unrestricted delegation
   const zero32 = '0x' + '00'.repeat(32);
-  const raw = { delegate: delegateHex, delegator: delegatorHex, authority: zero32, caveats: [], salt: 0n };
-
-  const delegation = sanitizeDelegationStruct(raw, { delegatorHex, delegateHex, viemModule });
+  // Direct minimal unrestricted delegation; avoid additional builders/sanitizers to prevent vendor scope expectations
+  const delegation = { delegate: delegateHex, delegator: delegatorHex, authority: zero32, caveats: [], salt: 0n };
 
   // Build mm signer again to sign the delegation
   let { toMetaMaskSmartAccount, Implementation } = toolkit || {};
