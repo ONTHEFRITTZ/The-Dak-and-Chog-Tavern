@@ -730,6 +730,34 @@ export async function createDelegation({ address, preset, presetKey }) {
         }
       } catch (err2) {
         console.warn('[aa/delegation] mmAccount.signDelegation failed (unrestricted)', err2);
+        try {
+          // Final fallback: construct minimal zero-authority unrestricted delegation directly
+          const zero32 = '0x' + '00'.repeat(32);
+          const minimal = {
+            delegate: delegateHex,
+            delegator: delegatorHex,
+            authority: zero32,
+            caveats: [],
+            salt: 0n
+          };
+          let sigResult3 = await mm.signDelegation({
+            delegation: minimal,
+            chainId: MONAD.id,
+            delegationManager: environment.DelegationManager,
+            name: 'DelegationManager',
+            version: '1',
+            allowInsecureUnrestrictedDelegation: true
+          });
+          if (typeof sigResult3 === 'string') signature = sigResult3;
+          else if (sigResult3 && typeof sigResult3 === 'object') {
+            signature = sigResult3.signature || sigResult3.sig || sigResult3.data?.signature || null;
+          }
+          if (signature) {
+            Object.assign(delegation, minimal);
+          }
+        } catch (err3) {
+          console.warn('[aa/delegation] mmAccount.signDelegation failed (minimal)', err3);
+        }
       }
     }
   }
