@@ -362,10 +362,10 @@ async function buildFunctionCallScope(toolkitCtx, target, selectors) {
 
   const targetHex = getAddress ? getAddress(target) : target;
 
-  // v15 expects a single `target` (not `targets`) for functionCall scope
+  // Delegation Toolkit v15 expects `targets` to be an array
   return {
     type: 'functionCall',
-    target: targetHex,
+    targets: [targetHex],
     selectors: unique
   };
 }
