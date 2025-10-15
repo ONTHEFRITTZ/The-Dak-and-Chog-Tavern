@@ -73,6 +73,16 @@ export async function ensureDelegationToolkitContext() {
     let internalAccount = requestedRaw[0] || null;
 
     let accountsByType = null;
+    // Try MetaMask multi-account enumeration to distinguish owner (EOA) vs internal (smart)
+    try {
+      const listed = await provider.request({ method: 'wallet_accounts' });
+      if (Array.isArray(listed) && listed.length) {
+        accountsByType = listed;
+        walletAccountsSupported = true;
+      }
+    } catch {
+      if (walletAccountsSupported === undefined) walletAccountsSupported = false;
+    }
 
     if (walletAccountsSupported !== false && Array.isArray(accountsByType) && accountsByType.length) {
       walletAccountsSupported = true;
@@ -104,13 +114,16 @@ export async function ensureDelegationToolkitContext() {
       for (const entry of accountsByType) {
         const addr = entry?.address || entry?.account || entry?.id || entry?.address?.address;
         const type = String(entry?.type || entry?.accountType || entry?.accountTypeMetadata?.name || '').toLowerCase();
-        if (addr) {
-          const normalized = String(addr).toLowerCase();
+        if (!addr) continue;
+        const normalized = String(addr).toLowerCase();
+        // classify
+        if (type.includes('eoa') || type.includes('external')) {
+          ownerAccount = normalized;
+        } else if (type.includes('smart') || type.includes('internal')) {
           if (!internalAccount) internalAccount = normalized;
-          if (!type || type.includes('eoa') || type.includes('external')) {
-            ownerAccount = normalized;
-            break;
-          }
+        } else {
+          // Unknown type: default to external unless already set
+          if (!ownerAccount) ownerAccount = normalized;
         }
       }
     }

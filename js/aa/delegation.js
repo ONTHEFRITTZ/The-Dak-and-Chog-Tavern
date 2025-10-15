@@ -628,7 +628,8 @@ export async function createDelegation({ address, preset, presetKey }) {
     // Prefer internal smart-account signer when available; fallback to walletClient (EOA) otherwise.
   let signature;
   const mm = (smartAccountInstance && smartAccountInstance.mmAccount) || smartAccountInstance || null;
-  if (mm && typeof mm.signDelegation === 'function') {
+  // Only attempt internal MetaMask signing when smart account is clearly active.
+  if (smartAccountActive && mm && typeof mm.signDelegation === 'function') {
     try {
       // Preflight validation to surface any lingering object-shaped addresses
       const viem = ctx.viem || (await ensureViem());
