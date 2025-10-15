@@ -148,7 +148,13 @@ export async function ensureDelegationToolkitContext() {
           if (u.origin !== location.origin) return null; // only for same-origin
           const res = await fetch(u.toString(), { credentials: 'same-origin' });
           if (!res.ok) return null;
-          const code = await res.text();
+          let code = await res.text();
+          // Rewrite jsDelivr-style relative ESM sub-imports ("/npm/...") to absolute CDN URLs
+          try {
+            code = code
+              .replaceAll('"/npm/', '"https://cdn.jsdelivr.net/npm/')
+              .replaceAll("'/npm/", "'https://cdn.jsdelivr.net/npm/");
+          } catch {}
           const blobUrl = URL.createObjectURL(new Blob([code], { type: 'text/javascript' }));
           try {
             const mod = await import(blobUrl);
