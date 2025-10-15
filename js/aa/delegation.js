@@ -1051,6 +1051,11 @@ export { nowSec };
 if (typeof window !== 'undefined') {
   const autoEnsureDelegation = () => {
     try {
+      // Never auto-ensure on landing page or when explicitly disabled.
+      const path = String(location && location.pathname || '').toLowerCase();
+      const isLanding = /(^|\/)landing\.html$/.test(path);
+      if (isLanding) return;
+      try { if (sessionStorage.getItem('aa:disableAutoDelegation') === '1') return; } catch {}
       if (localStorage.getItem(SMART_ACCOUNT_OPT_IN_KEY) !== 'true') return;
     } catch {}
     if (isDelegationSuppressed()) return;
