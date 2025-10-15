@@ -75,10 +75,14 @@ async function loadToolkitV15() {
           .replaceAll('"/npm/', '"https://cdn.jsdelivr.net/npm/')
           .replaceAll("'/npm/", "'https://cdn.jsdelivr.net/npm/");
       } catch {}
-      const blobUrl = URL.createObjectURL(new Blob([code], { type: 'text/javascript' }));
+      const vendorUrl = URL.createObjectURL(new Blob([code], { type: 'text/javascript' }));
+      // Wrap the vendor as a module that attaches exports to window.__mmdt as well
+      const wrapperCode = `import * as M from "${vendorUrl}"; try { window.__mmdt = M; } catch {} export default M;`;
+      const wrapperUrl = URL.createObjectURL(new Blob([wrapperCode], { type: 'text/javascript' }));
       try {
-        const mod = await import(blobUrl);
-        URL.revokeObjectURL(blobUrl);
+        const mod = await import(wrapperUrl);
+        URL.revokeObjectURL(wrapperUrl);
+        URL.revokeObjectURL(vendorUrl);
         let tk = (mod && mod.default && !mod.toMetaMaskSmartAccount && !mod.toSmartAccount) ? mod.default : mod;
         // Shim: older builds expose toSmartAccount; normalize to toMetaMaskSmartAccount
         try { if (tk && !tk.toMetaMaskSmartAccount && typeof tk.toSmartAccount === 'function') tk.toMetaMaskSmartAccount = tk.toSmartAccount; } catch {}
