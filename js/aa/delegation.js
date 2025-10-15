@@ -15,7 +15,7 @@ async function ensureViem() {
   return viemImportPromise;
 }
 
-import { ensureDelegationToolkitContext, resetDelegationToolkitContext } from './toolkit.js';
+import { ensureDelegationToolkitContext, resetDelegationToolkitContext } from './toolkit.v15.js';
 import { AA, initAA } from '../aaClient.js';
 import { getSmartAccount } from '../tavern.js';
 
