@@ -326,8 +326,9 @@ html[data-table-mode="onchain"] #wallet-inline,
 .table-canvas {
   position: relative;
   /* Maintain intrinsic table image aspect for correct seat placement */
-  --ring-rx: 50;
-  --ring-ry: 42;
+  /* Seat ellipse radius (percent of canvas). Smaller = closer to table center */
+  --ring-rx: 46;
+  --ring-ry: 39;
   --ring-rotation: -90;
   aspect-ratio: 1000 / 680;
   width: min(80vw, 1100px);
@@ -442,8 +443,8 @@ html[data-table-mode="onchain"] #wallet-inline,
 
 @media (min-width: 1400px) {
   :root {
-    --ring-rx: 58;
-    --ring-ry: 50;
+    --ring-rx: 54;
+    --ring-ry: 46;
     --seat-w: 170px;
     --seat-h: 182px;
   }
