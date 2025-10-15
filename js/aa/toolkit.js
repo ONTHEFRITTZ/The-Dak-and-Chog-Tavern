@@ -131,6 +131,49 @@ export async function ensureDelegationToolkitContext() {
     })();
 
     async function loadToolkitV15() {
+      // If a global is already present (injected elsewhere), use it
+      try {
+        if (window.__mmdt && typeof window.__mmdt.toMetaMaskSmartAccount === 'function') {
+          const tk = window.__mmdt;
+          if (tk.Implementation && (tk.Implementation.Hybrid || tk.Implementation.EIP7702Stateless || tk.Implementation.MultiSig)) {
+            return tk;
+          }
+        }
+      } catch {}
+
+      // Helper: attempt an import() and normalize default export
+      const tryImport = async (spec) => {
+        try {
+          const mod = await import(spec);
+          const tk = (mod && mod.default && !mod.toMetaMaskSmartAccount) ? mod.default : mod;
+          if (tk && typeof tk.toMetaMaskSmartAccount === 'function' && tk.Implementation && (tk.Implementation.Hybrid || tk.Implementation.EIP7702Stateless || tk.Implementation.MultiSig)) {
+            return tk;
+          }
+        } catch {}
+        return null;
+      };
+
+      // Helper: fetch same-origin file and import via blob to bypass wrong MIME
+      const tryImportViaBlob = async (spec) => {
+        try {
+          const u = new URL(spec, location.origin);
+          if (u.origin !== location.origin) return null; // only for same-origin
+          const res = await fetch(u.toString(), { credentials: 'same-origin' });
+          if (!res.ok) return null;
+          const code = await res.text();
+          const blobUrl = URL.createObjectURL(new Blob([code], { type: 'text/javascript' }));
+          try {
+            const mod = await import(blobUrl);
+            URL.revokeObjectURL(blobUrl);
+            const tk = (mod && mod.default && !mod.toMetaMaskSmartAccount) ? mod.default : mod;
+            if (tk && typeof tk.toMetaMaskSmartAccount === 'function' && tk.Implementation && (tk.Implementation.Hybrid || tk.Implementation.EIP7702Stateless || tk.Implementation.MultiSig)) {
+              return tk;
+            }
+          } catch {}
+        } catch {}
+        return null;
+      };
+
       const candidates = [
         // Prefer same-origin vendored build first (absolute URL to avoid base path issues)
         '/js/vendor/metamask-delegation-toolkit-v15.mjs',
@@ -150,17 +193,12 @@ export async function ensureDelegationToolkitContext() {
         '@metamask/delegation-toolkit'
       ];
       for (const spec of candidates) {
-        try {
-          const mod = await import(spec);
-          // Normalize default shape
-          const tk = (mod && mod.default && !mod.toMetaMaskSmartAccount) ? mod.default : mod;
-          if (tk && typeof tk.toMetaMaskSmartAccount === 'function') {
-            // Require v15 Implementation constants to be present
-            if (tk.Implementation && (tk.Implementation.Hybrid || tk.Implementation.EIP7702Stateless || tk.Implementation.MultiSig)) {
-              return tk;
-            }
-          }
-        } catch (_) { /* try next */ }
+        // Try direct import
+        const tk1 = await tryImport(spec);
+        if (tk1) return tk1;
+        // Try blob-import for same-origin vendor files (handles wrong MIME)
+        const tk2 = await tryImportViaBlob(spec);
+        if (tk2) return tk2;
       }
       throw new Error('MetaMask Delegation Toolkit v0.15.x unavailable (all sources failed).');
     }
