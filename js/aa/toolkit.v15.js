@@ -79,8 +79,12 @@ async function loadToolkitV15() {
       try {
         const mod = await import(blobUrl);
         URL.revokeObjectURL(blobUrl);
-        const tk = (mod && mod.default && !mod.toMetaMaskSmartAccount) ? mod.default : mod;
-        if (tk && typeof tk.toMetaMaskSmartAccount === 'function' && tk.Implementation && (tk.Implementation.Hybrid || tk.Implementation.EIP7702Stateless || tk.Implementation.MultiSig)) {
+        let tk = (mod && mod.default && !mod.toMetaMaskSmartAccount && !mod.toSmartAccount) ? mod.default : mod;
+        // Shim: older builds expose toSmartAccount; normalize to toMetaMaskSmartAccount
+        try { if (tk && !tk.toMetaMaskSmartAccount && typeof tk.toSmartAccount === 'function') tk.toMetaMaskSmartAccount = tk.toSmartAccount; } catch {}
+        // Shim: provide minimal Implementation map if absent
+        try { if (tk && !tk.Implementation) tk.Implementation = { Hybrid: 'Hybrid', EIP7702Stateless: 'Stateless7702', MultiSig: 'MultiSig' }; } catch {}
+        if (tk && typeof tk.toMetaMaskSmartAccount === 'function') {
           return tk;
         }
       } catch {}
@@ -247,4 +251,3 @@ function normalizeEnvironment(source) {
   } catch {}
   return env;
 }
-
