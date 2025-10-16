@@ -3,7 +3,16 @@
 // Load this as the first module after provider-pin.js on every page.
 
 import { AA, initAA, getSmartAccountAddress } from '../aaClient.js';
-import { loadDelegation, issueOpenDelegationForLanding, isDelegationActive } from './delegation.js';
+
+let __delegationModPromise = null;
+async function ensureDelegationModule() {
+  if (__delegationModPromise) return __delegationModPromise;
+  const u = new URL(import.meta.url, location.href);
+  const v = u.searchParams.get('v') || String(Date.now());
+  const spec = `/js/aa/delegation.js?v=${encodeURIComponent(v)}`;
+  __delegationModPromise = import(spec).catch(async () => import('/js/aa/delegation.js'));
+  return __delegationModPromise;
+}
 
 const SMART_ACCOUNT_OPT_IN_KEY = 'aa.smartAccount.optIn';
 
@@ -29,6 +38,7 @@ export async function enableSmartAccountNow() {
   if (!address) {
     throw new Error('MetaMask Smart Accounts appear disabled. Enable Smart Accounts in MetaMask and try again.');
   }
+  const { issueOpenDelegationForLanding } = await ensureDelegationModule();
   await issueOpenDelegationForLanding();
   persistEnabled(address);
   return address;
@@ -105,6 +115,7 @@ try {
 
 async function siteWideInit() {
   // Never auto-sign. Only broadcast if a valid delegation already exists.
+  const { loadDelegation } = await ensureDelegationModule();
   const existing = loadDelegation();
   if (existing && existing.end && Math.floor(Date.now()/1000) < Number(existing.end)) {
     try { if (existing.delegate) persistEnabled(lc(existing.delegate)); } catch {}

@@ -708,6 +708,12 @@ export async function createDelegation({ address, preset, presetKey }) {
         signature = sigResult.signature || sigResult.sig || sigResult.data?.signature || null;
       }
     } catch (err) {
+      if (String(err?.message||'').includes('External signature requests cannot sign delegations for internal accounts')) {
+        const e2 = new Error('Enable Smart Accounts in MetaMask, then try again.');
+        e2.code = 'internal_signer_unavailable';
+        suppressDelegation('MetaMask reported external signature attempt for internal account');
+        throw e2;
+      }
       console.warn('[aa/delegation] mmAccount.signDelegation failed (scoped). Retrying with unrestricted delegation.', err);
       try {
         // Retry with an unrestricted delegation using a minimal v15-compatible struct only.
@@ -731,6 +737,12 @@ export async function createDelegation({ address, preset, presetKey }) {
           Object.assign(delegation, loose);
         }
       } catch (err2) {
+        if (String(err2?.message||'').includes('External signature requests cannot sign delegations for internal accounts')) {
+          const e3 = new Error('Enable Smart Accounts in MetaMask, then try again.');
+          e3.code = 'internal_signer_unavailable';
+          suppressDelegation('MetaMask reported external signature attempt for internal account');
+          throw e3;
+        }
         console.warn('[aa/delegation] mmAccount.signDelegation failed (unrestricted)', err2);
         try {
           // Final fallback: construct minimal zero-authority unrestricted delegation directly
@@ -758,6 +770,12 @@ export async function createDelegation({ address, preset, presetKey }) {
             Object.assign(delegation, minimal);
           }
         } catch (err3) {
+          if (String(err3?.message||'').includes('External signature requests cannot sign delegations for internal accounts')) {
+            const e4 = new Error('Enable Smart Accounts in MetaMask, then try again.');
+            e4.code = 'internal_signer_unavailable';
+            suppressDelegation('MetaMask reported external signature attempt for internal account');
+            throw e4;
+          }
           console.warn('[aa/delegation] mmAccount.signDelegation failed (minimal)', err3);
         }
       }
@@ -889,7 +907,17 @@ export async function issueOpenDelegationForLanding() {
   }
 
   let signature = null;
-  let sigResult = await mmSigner.signDelegation({ delegation, chainId: MONAD.id, delegationManager: environment.DelegationManager, name: 'DelegationManager', version: '1', allowInsecureUnrestrictedDelegation: true });
+  let sigResult;
+  try {
+    sigResult = await mmSigner.signDelegation({ delegation, chainId: MONAD.id, delegationManager: environment.DelegationManager, name: 'DelegationManager', version: '1', allowInsecureUnrestrictedDelegation: true });
+  } catch (err) {
+    if (String(err?.message||'').includes('External signature requests cannot sign delegations for internal accounts')) {
+      const e = new Error('Enable Smart Accounts in MetaMask, then try again.');
+      e.code = 'internal_signer_unavailable';
+      throw e;
+    }
+    throw err;
+  }
   if (typeof sigResult === 'string') signature = sigResult;
   else if (sigResult && typeof sigResult === 'object') signature = sigResult.signature || sigResult.sig || sigResult.data?.signature || null;
   if (!signature) throw new Error('Delegation signature was not produced.');

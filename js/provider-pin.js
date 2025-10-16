@@ -131,7 +131,7 @@
     if (!hasInit) {
       const m = document.createElement('script');
       m.type = 'module';
-      m.src = '/js/aa/init-all.js';
+      m.src = '/js/aa/init-all.js?v=' + Date.now();
       // Prefer head to load as early as possible
       (document.head || document.documentElement || document.body).appendChild(m);
     }
