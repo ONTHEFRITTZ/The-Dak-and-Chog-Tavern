@@ -11,6 +11,9 @@
     'function exchangeRate() view returns (uint256 numerator, uint256 denominator)',
     'function previewDeposit(uint256 amountUnderlying) view returns (uint256 mintedShares)',
     'function previewRedeem(uint256 shares) view returns (uint256 amountUnderlying)',
+    'function totalUnderlying() view returns (uint256)',
+    'function totalSupply() view returns (uint256)',
+    'function underlying() view returns (address)',
     'function recordRewards(uint256 amount)',
     'function balanceOf(address owner) view returns (uint256)',
     'function allowance(address owner, address spender) view returns (uint256)',
@@ -448,6 +451,7 @@
       // Update exchange rate display if element exists; degrade gracefully if unsupported
       {
         const rateEl = document.getElementById('wi-exchange-rate');
+        const rateRow = document.getElementById('wi-exchange-rate-row');
         if (rateEl && dcmonRead) {
           let rateStr = '-';
           // Attempt exchangeRate() first
@@ -475,7 +479,53 @@
               }
             } catch (_) { /* silent */ }
           }
-          rateEl.textContent = (rateStr && rateStr !== '-') ? `1 DCMon = ${rateStr} MON` : '-';
+          // Fallback: compute from totalUnderlying/totalSupply if available
+          if ((rateStr === '-' || rateStr == null)
+              && typeof dcmonRead.totalUnderlying === 'function'
+              && typeof dcmonRead.totalSupply === 'function'
+              && window.ethers?.constants?.WeiPerEther) {
+            try {
+              const tvl = await dcmonRead.totalUnderlying();
+              const supply = await dcmonRead.totalSupply();
+              if (supply && window.ethers.BigNumber.isBigNumber(supply) && supply.gt(0)) {
+                const num = tvl.mul(window.ethers.constants.WeiPerEther).div(supply);
+                const val = (window.ethers && window.ethers.utils && window.ethers.utils.formatUnits)
+                  ? window.ethers.utils.formatUnits(num, 18)
+                  : null;
+                if (val != null) rateStr = String(Number.parseFloat(val).toFixed(6));
+              }
+            } catch (_) { /* silent */ }
+          }
+
+          // Fallback: compute via underlying().balanceOf(this)/totalSupply if available
+          if ((rateStr === '-' || rateStr == null)
+              && typeof dcmonRead.underlying === 'function'
+              && typeof dcmonRead.totalSupply === 'function'
+              && window.ethers?.constants?.WeiPerEther) {
+            try {
+              const uAddr = await dcmonRead.underlying();
+              if (uAddr && /^0x[0-9a-fA-F]{40}$/.test(String(uAddr))) {
+                const ERC20_MIN_ABI = ['function balanceOf(address) view returns (uint256)'];
+                const base = rpcProvider || await getProvider();
+                if (base && window.ethers?.Contract) {
+                  const u = new window.ethers.Contract(uAddr, ERC20_MIN_ABI, base);
+                  const tvl = await u.balanceOf(dcmonAddress);
+                  const supply = await dcmonRead.totalSupply();
+                  if (supply && window.ethers.BigNumber.isBigNumber(supply) && supply.gt(0)) {
+                    const num = tvl.mul(window.ethers.constants.WeiPerEther).div(supply);
+                    const val = (window.ethers && window.ethers.utils && window.ethers.utils.formatUnits)
+                      ? window.ethers.utils.formatUnits(num, 18)
+                      : null;
+                    if (val != null) rateStr = String(Number.parseFloat(val).toFixed(6));
+                  }
+                }
+              }
+            } catch (_) { /* silent */ }
+          }
+
+          const hasRate = !!(rateStr && rateStr !== '-');
+          rateEl.textContent = hasRate ? `1 DCMon = ${rateStr} MON` : '-';
+          if (rateRow) rateRow.style.display = hasRate ? 'flex' : 'none';
         }
       }
       try {
