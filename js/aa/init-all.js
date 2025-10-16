@@ -73,11 +73,22 @@ export function openSmartAccountModal() {
   if (owned) {
     if (dismissBtn && !dismissBtn.__wired) { dismissBtn.__wired = true; dismissBtn.addEventListener('click', close); }
     if (modal && !modal.__wiredBackdrop) { modal.__wiredBackdrop = true; modal.addEventListener('click', (e) => { if (e.target === modal) close(); }); }
-    if (enableBtn && !enableBtn.__wired) {
       enableBtn.__wired = true;
-      enableBtn.addEventListener('click', async () => { try { sessionStorage.removeItem('aa:disableAutoDelegation'); } catch {} enableSmartAccountNow(); close(); } catch (e) { console.warn('Enable SA failed', e); enableBtn.disabled = false; enableBtn.textContent = prev; }
+      enableBtn.addEventListener('click', async () => {
+        if (enableBtn.disabled) return;
+        const prev = enableBtn.textContent;
+        enableBtn.disabled = true;
+        enableBtn.textContent = 'Enabling...';
+        try {
+          try { sessionStorage.removeItem('aa:disableAutoDelegation'); } catch {}
+          await enableSmartAccountNow();
+          close();
+        } catch (e) {
+          console.warn('Enable SA failed', e);
+          enableBtn.disabled = false;
+          enableBtn.textContent = prev;
+        }
       });
-    }
     if (proceedBtn && !proceedBtn.__wired) {
       proceedBtn.__wired = true;
       proceedBtn.addEventListener('click', () => { close(); /* EOA path for this visit only */ });
