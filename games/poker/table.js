@@ -1631,7 +1631,7 @@ function initializePokerTable() {
       } else if (isOnchainTable) {
         const balanceField = seatData && seatData.balance;
         const rawBalance = Number(balanceField);
-        if (Number.isFinite(rawBalance) && rawBalance > 0) {
+        if (Number.isFinite(rawBalance)) {
           const display = formatDcmonBalance(rawBalance);
           meta.stack.textContent = `Stack: ${display}`;
         } else {
@@ -2013,6 +2013,7 @@ if (document.readyState === 'loading') {
 } else {
   initializePokerTable();
 }
+
 
 
 

@@ -116,8 +116,13 @@ import { AA } from './aaClient.js';
     const active = sessionActive(sess);
     const spent = active ? parseWei(sess?.spentWei || '0x0') : 0n;
     const limit = active ? parseWei(sess?.spendLimitWei || '0x0') : 0n;
-    let cap = AA.budgetWei && AA.budgetWei > 0n ? AA.budgetWei : 0n;
-    if (cap === 0n && limit > 0n) cap = limit;
+    const userCap = AA.budgetWei && AA.budgetWei > 0n ? AA.budgetWei : 0n;
+    // Prefer the session limit if present; otherwise use user-set budget.
+    // If both present, show the stricter (min) to reflect effective cap.
+    let cap = 0n;
+    if (limit > 0n && userCap > 0n) cap = (limit < userCap) ? limit : userCap;
+    else if (limit > 0n) cap = limit;
+    else cap = userCap;
 
     const spentStr = formatDcmon(spent);
     const capStr = cap > 0n ? formatDcmon(cap) : 'Infinity';
