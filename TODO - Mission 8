@@ -1,39 +1,27 @@
-Mission 8 - Poker AA Build
+﻿Mission 8 - Poker AA Build
 
 Completed
-- AA client bootstrap in `js/aaClient.js` with Monad bundler + paymaster defaults.
-- MetaMask smart account UI (`js/aa/ui.js`) now shows SA status, delegation presets, and action controls.
-- Delegation records persisted with TTL/chain guard (`js/aa/delegation.js`) and AA ops fallback ladder.
-- Smart account send path prefers `wallet_sendCalls` before falling back to signer for full MetaMask SA support.
-- Poker table client in `games/poker/table.js`: seat layout, private hole handling, timers, action bar.
-- Realtime poker server (`server/realtime.js`): betting rounds, burn/flop/turn/river, showdown, auto-start when 2+ players seated.
-- Dealer bridge (`server/dealeronchain.js`): begin/settle hooks (safe no-op without signer).
-- On-chain widgets (`js/agent-ops.js`, `js/agent-budget.js`, sponsor indicator) broadcast state and highlight paymaster coverage.
-- NGINX config isolates `/socket.io` and `/poker.io` without SPA fallback.
-- Guest fallback: F2P seats create a deterministic guest 0x address so "Sit" works without a wallet.
-- DCmon foundation: token contract, Hardhat tests, agent scaffolding, encrypted ops log, swap queue.
-- WMON wrapper: deployed Contracts/WMON.sol with Hardhat coverage to wrap native MON for DCMon/Bankroll.
-- Admin panel: WMON/DCMon treasury card fully wired (wrap/unwrap, approvals, pool deposit/redeem, reward logging, live stats refresh).
-- Faro/Hazard/Shell games now use DCmon tokens via bankroll pool.
-- DakChog and HoldemPoker converted to DCmon (BankrollPool payouts, rake withdrawal).
-- DCmon agent automation: pool liquidity checks, paymaster top-ups, reward harvesting, queue-driven buyin/cashout flows.
-- Ops runbook for agent + admin recovery (`docs/ops/DCmon-runbook.md`).
-- Admin treasury flows validated: wrap, approve, pool deposit/redeem confirmed via /admin.
+- Gasless "Smart Account" UX via 4337: AA client bootstrap in `js/aaClient.js` using Monad bundler + paymaster; falls back to signer safely.
+- AA UI simplified: `js/aa/ui.js` shows Wallet, Gasless Mode, Network, Gas; single renderButtons (no delegation UI). 7702 readiness indicator added.
+- 7702 detector: `js/aa/init-all.js` imports vendor via Blob to avoid MIME; emits `aa:7702` + localStorage flag; defaults to Gasless Mode.
+- AA ops: `js/aa/ops.js` cleaned; robust `sendTxViaAA` (client/smartAccount/window fallback).
+- Bundler detection: `js/bundler.js` only uses `wallet_sendCalls` when capability exists; safe fallback.
+- Poker flow: AA ops imported; joinSeat/leaveSeat route through AA then signer fallback (no -32603 RPC errors).
+- Envio activity: `js/envio-activity.js` renders recent events; `getActiveScoreFor(address)` supports LST rewards.
 
 Ready To Verify / Playtest
-- Wallet flow QA: connect MetaMask smart account, issue delegation, and play a full MON-funded hand (include hazard fix).
-- Observe paymaster auto top-ups (logs + balance diffs) after intentionally draining the account on Monad testnet.
-- Demo capture: wallet connect + DCmon buy-in + full hand with reward logging + automatic reward harvest.
+- Landing: Enable Gasless Mode → Poker → Sit. Join succeeds via bundler or signer fallback (no -32603).
+- Agent indicators render; verify gasless sends under budget.
+- Envio panel shows activity when ENVIO_HYPERSYNC_URL is set (or localStorage key).
+- 7702 indicator shows `not-ready`; detector fires `aa:7702` when ready.
 
-In Progress
-- DCmon swaps: integrate actual MON/USDC routes in `processSwapQueue` once Monad DEX liquidity exists (blocked on liquidity).
-- On-chain tables: finalize poker backend + AA flow to track DCmon chips (contracts ready, awaiting UI).
-- Frontend: buy-in modal with DCmon + swap UI (Phantom / MetaMask).
-- Reward distribution: choose cadence + ranking for top players; wire to `distributePlayerReward`.
-- Envio indexer: design schema to index DCmon buy-ins, rewards, seat events for fast UI queries.
+In Progress (today)
+- Add small AA UI pills (done): `SA(7702): ready/not-ready`, and "Activity: N" (Envio).
+- Wire Envio endpoint on prod and validate activity + score.
+- Agent UX: toggles in Poker (Auto Ready/Auto Rebuy/Auto Clear Seat) with localStorage flags; route via AA.
+- README/HACKATHON: demo flow + 7702 plan.
 
-Backlog / Ideas
-- Expose DCmon stats dashboard (APY, house vs player rewards).
-- Automated alerting when paymaster top-ups fail. (Alert email from agent to thedakandchog@gmail.com)
-- Snapshot + governance hooks once DCmon supply grows.
-- DEX oracle or TWAP feed to price DCmon vs MON for dynamic betting limits.
+Next (post-demo)
+- DCmon swaps once DEX liquidity is live.
+- Buy-in modal with DCmon + swap UI; tie rewards to `getActiveScoreFor`.
+- Envio indexer schema for DCmon buy-ins/rewards/seat events; dashboards.

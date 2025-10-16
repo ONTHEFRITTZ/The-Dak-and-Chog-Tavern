@@ -64,6 +64,7 @@ window.addEventListener('load', () => { hydrate().catch(() => {}); });
 window.addEventListener('wallet:connected', () => { hydrate().catch(() => {}); });
 window.addEventListener('aa:smartaccount', () => { hydrate().catch(() => {}); });
 window.addEventListener('aa:session', () => { hydrate().catch(() => {}); });
+window.addEventListener('aa:7702', () => { hydrate().catch(() => {}); }); });
 
 function renderButtons(state) {
   const { controller, chainOk } = state;
@@ -75,4 +76,7 @@ function renderButtons(state) {
   const smartOptIn = (window.AA && AA.sponsored) ? true : (localStorage.getItem('aa.smartAccount.optIn')==='true');
   if (!smartOptIn) { const enableBtn=makeButton('Enable Gasless Mode'); safeRun(enableBtn, async()=>{ try{ localStorage.setItem('aa.smartAccount.optIn','true'); }catch{} try{ await initAA({}); AA.setSponsored(true); }catch{} }, 'Enabling...'); actions.appendChild(enableBtn); return; }
   const disableBtn=makeButton('Disable Gasless Mode'); safeRun(disableBtn, async()=>{ try{ localStorage.setItem('aa.smartAccount.optIn','false'); }catch{} try{ await initAA({}); AA.setSponsored(false); }catch{} }, 'Disabling...'); actions.appendChild(disableBtn);
+  try { const envioUrl = (typeof window.ENVIO_HYPERSYNC_URL==='string' && window.ENVIO_HYPERSYNC_URL) ? window.ENVIO_HYPERSYNC_URL : (localStorage.getItem('envio.hypersync.url')||''); if (envioUrl) { const spot=document.createElement('span'); spot.style.cssText='font-size:11px;color:rgba(255,255,255,0.9);margin-left:6px;'; spot.textContent='Activity: …'; actions.appendChild(spot); import('/js/envio-activity.js').then(m=>m.getActiveScoreFor(state.controller)).then(s=>{ spot.textContent='Activity: '+s; }).catch(()=>{ spot.textContent='Activity: n/a'; }); } } catch {}
 }
+
+
