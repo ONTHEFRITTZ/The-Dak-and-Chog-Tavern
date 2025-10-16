@@ -774,8 +774,9 @@ function initializePokerTable() {
       };
       spot.textContent = 'Activity: …';
       update();
+      // Optional auto-refresh every 30s (enable via localStorage['envio.activity.autorefresh']='1')
       try { if (spot.__timer) clearInterval(spot.__timer); } catch {}
-      spot.__timer = setInterval(update, 30000);
+      try { if (localStorage.getItem('envio.activity.autorefresh') === '1') { spot.__timer = setInterval(update, 30000); } } catch {}
     } catch {}
   })();
 
@@ -786,7 +787,7 @@ function initializePokerTable() {
       const panel = document.createElement('div');
       panel.id = 'agent-toggles';
       panel.style.cssText = [
-        'position:fixed','top:54px','right:12px','z-index:12000',
+        'position:fixed','top:64px','right:12px','z-index:12000',
         'display:flex','flex-direction:column','gap:6px','align-items:flex-start',
         'background:rgba(0,0,0,0.45)','backdrop-filter:blur(6px)',
         'border:1px solid rgba(255,255,255,0.15)','border-radius:12px','padding:8px 10px',
@@ -841,6 +842,28 @@ function initializePokerTable() {
       // Prefer near the wallet chip if present
       const host = document.getElementById('wallet-inline') || document.body || document.documentElement;
       host.appendChild(panel);
+
+      // Position panel below wallet pill and any inline AA controls (avoid overlap)
+      function positionAgentPanel() {
+        try {
+          let topPx = 64;
+          const wallet = document.getElementById('wallet-inline');
+          if (wallet) {
+            const r = wallet.getBoundingClientRect();
+            topPx = Math.max(topPx, (r.bottom + 8));
+          }
+          const aa = document.getElementById('aa-controls');
+          if (aa && aa.offsetParent !== null) {
+            const rr = aa.getBoundingClientRect();
+            topPx = Math.max(topPx, (rr.bottom + 8));
+          }
+          panel.style.top = `${Math.round(topPx)}px`;
+        } catch {}
+      }
+      positionAgentPanel();
+      try { window.addEventListener('resize', positionAgentPanel); } catch {}
+      try { window.addEventListener('wallet:connected', positionAgentPanel); } catch {}
+      try { window.addEventListener('aa:session', positionAgentPanel); } catch {}
       return panel;
     } catch {}
     return null;
