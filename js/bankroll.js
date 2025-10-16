@@ -8,6 +8,9 @@
   const FALLBACK_DCMON_ABI = [
     'function deposit(uint256 amount, address receiver) returns (uint256)',
     'function redeem(uint256 amount, address receiver) returns (uint256)',
+    'function exchangeRate() view returns (uint256 numerator, uint256 denominator)',
+    'function previewDeposit(uint256 amountUnderlying) view returns (uint256 mintedShares)',
+    'function previewRedeem(uint256 shares) view returns (uint256 amountUnderlying)',
     'function recordRewards(uint256 amount)',
     'function balanceOf(address owner) view returns (uint256)',
     'function allowance(address owner, address spender) view returns (uint256)',
@@ -441,6 +444,37 @@
         console.error('bankroll: DCMon balance failed', err);
         state.balances.dcmonWei = null;
         updateTargetSet(balanceTargets.dcmon, '-');
+      }
+      // Update exchange rate display if element exists and method available
+      try {
+        const rateEl = document.getElementById('wi-exchange-rate');
+        if (rateEl && dcmonRead) {
+          let rateStr = '-';
+          if (typeof dcmonRead.exchangeRate === 'function') {
+            const res = await dcmonRead.exchangeRate();
+            // ethers v5 returns array-like result [numerator, denominator]
+            const num = res && (res.numerator || res[0]);
+            const den = res && (res.denominator || res[1]);
+            if (num) {
+              const val = (window.ethers && window.ethers.utils && window.ethers.utils.formatUnits) ? window.ethers.utils.formatUnits(num, 18) : null;
+              if (val != null) rateStr = String(Number.parseFloat(val).toFixed(6));
+            }
+          } else if (typeof dcmonRead.previewRedeem === 'function' && window.ethers?.constants?.WeiPerEther) {
+            const out = await dcmonRead.previewRedeem(window.ethers.constants.WeiPerEther);
+            if (out) {
+              const val = (window.ethers && window.ethers.utils && window.ethers.utils.formatEther) ? window.ethers.utils.formatEther(out) : null;
+              if (val != null) rateStr = String(Number.parseFloat(val).toFixed(6));
+            }
+          }
+          if (rateStr && rateStr !== '-') {
+            rateEl.textContent = `1 DCMon = ${rateStr} MON`;
+          } else {
+            rateEl.textContent = '-';
+          }
+        }
+      } catch (rateErr) {
+        console.warn('bankroll: exchange rate read failed', rateErr);
+        try { const rateEl = document.getElementById('wi-exchange-rate'); if (rateEl) rateEl.textContent = '-'; } catch {}
       }
       try {
         const balanceProvider = rpcProvider || await getProvider();

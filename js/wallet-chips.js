@@ -14,6 +14,9 @@ const CDN_ETHERS_ESM = 'https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.es
   const FALLBACK_DCMON_ABI = [
     'function deposit(uint256 amount, address receiver) returns (uint256)',
     'function redeem(uint256 amount, address receiver) returns (uint256)',
+    'function exchangeRate() view returns (uint256 numerator, uint256 denominator)',
+    'function previewDeposit(uint256 amountUnderlying) view returns (uint256 mintedShares)',
+    'function previewRedeem(uint256 shares) view returns (uint256 amountUnderlying)',
     'function recordRewards(uint256 amount)',
     'function balanceOf(address owner) view returns (uint256)',
     'function allowance(address owner, address spender) view returns (uint256)',
@@ -204,6 +207,10 @@ const CDN_ETHERS_ESM = 'https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.es
       <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;">
         <span>DCMon Balance</span>
         <span id="wi-dcmon-balance">-</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;opacity:0.9;">
+        <span>Exchange Rate</span>
+        <span id="wi-exchange-rate">-</span>
       </div>
       <div style="display:flex;gap:10px;">
         <input id="wi-buy-input" type="number" min="0" step="0.01" placeholder="Amount" style="flex:1;padding:8px;border-radius:10px;" />
