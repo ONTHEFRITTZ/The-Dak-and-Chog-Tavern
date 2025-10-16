@@ -16,7 +16,7 @@ function ensurePanel() {
     host = document.createElement('div');
     host.id = 'envio-activity';
     host.style.cssText = [
-      'position:fixed','bottom:12px','left:12px','z-index:12000',
+      'position:fixed','bottom:12px','right:12px','z-index:12000',
       'max-width:380px','min-width:260px','color:#f4e6d3',
       'background:rgba(0,0,0,0.45)','backdrop-filter:blur(6px)',
       'border:1px solid rgba(255,255,255,0.15)','border-radius:12px','padding:8px 10px',
@@ -37,6 +37,29 @@ function ensurePanel() {
     host.appendChild(h); host.appendChild(list);
     (document.body || document.documentElement).appendChild(host);
   }
+  // Position above other bottom-right pills (budget/sponsor/last-hand)
+  try {
+    const position = () => {
+      let bottom = 12; // px
+      const ids = ['aa-budget-indicator', 'sponsor-indicator', 'last-hand'];
+      ids.forEach((id) => {
+        const el = document.getElementById(id);
+        if (el && el.offsetParent !== null && getComputedStyle(el).display !== 'none') {
+          const rect = el.getBoundingClientRect();
+          // If the element is near bottom-right, lift above it with a small gap
+          if (rect.width > 0 && rect.height > 0) bottom = Math.max(bottom, (rect.height + 20));
+        }
+      });
+      host.style.bottom = bottom + 'px';
+      host.style.right = '12px';
+      host.style.left = 'auto';
+    };
+    position();
+    window.addEventListener('resize', position);
+    window.addEventListener('aa:budget', position);
+    window.addEventListener('aa:sponsored', position);
+    try { const obs = new MutationObserver(position); obs.observe(document.body, { childList: true, subtree: true }); } catch {}
+  } catch {}
   return host;
 }
 
