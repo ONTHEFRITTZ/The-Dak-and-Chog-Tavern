@@ -436,14 +436,14 @@ async function buildToolkitSmartAccount(injected, { bundlerUrl, paymasterUrl }) 
 }
 
 export async function initAA({ bundlerUrl = MONAD_BUNDLER_RPC, paymasterUrl = ZD_PAYMASTER_RPC, provider } = {}) {
-  const injected = await resolveInjectedProvider(provider);
+  const injected = resolveInjectedProvider(provider);
   if (!injected) throw new Error('No provider available for AA');
 
   if (aaReady && aaSmartAccount && lastBundlerUrl === bundlerUrl) {
     return aaSmartAccount;
   }
 
-  let created = await buildToolkitSmartAccount(injected, { bundlerUrl, paymasterUrl });
+  let created = await (async () => { try { return await buildAA4337Account(injected, { bundlerUrl, paymasterUrl }); } catch { return null; } })();
   if (!created) {
     created = await createFallbackAccount(injected);
   }
@@ -452,11 +452,11 @@ export async function initAA({ bundlerUrl = MONAD_BUNDLER_RPC, paymasterUrl = ZD
   aaSigner = created.signer;
   aaReady = true;
   lastBundlerUrl = bundlerUrl;
-  AA.smartAccountAddress = (aaSmartAccount?.type === 'delegation-toolkit') ? (aaSmartAccount?.address || null) : null;
-  AA.smartAccountType = aaSmartAccount?.type || 'fallback';
-  AA.toolkitContext = aaSmartAccount?.context || null;
-  AA.controllerAddress = AA.toolkitContext?.ownerAccount || AA.toolkitContext?.account || AA.address || null;
-  AA.internalAddress = AA.toolkitContext?.internalAccount || AA.smartAccountAddress || null;
+  AA.smartAccountAddress = null;
+  AA.smartAccountType = aaSmartAccount?.type || 'aa4337';
+  AA.toolkitContext = null;
+  AA.controllerAddress = AA.address || null;
+  AA.internalAddress = null;
   AA.address = AA.controllerAddress || AA.address;
 
   try {
@@ -477,6 +477,58 @@ export async function initAA({ bundlerUrl = MONAD_BUNDLER_RPC, paymasterUrl = ZD
   return aaSmartAccount;
 }
 
+function resolveInjectedProvider(override){
+  if (override && typeof override.request === 'function') return override;
+  if (typeof window.__getSelectedProvider === 'function') {
+    const p = window.__getSelectedProvider();
+    if (p && typeof p.request === 'function') return p;
+  }
+  if (window.ethereum && typeof window.ethereum.request === 'function') return window.ethereum;
+  if (window.phantom && window.phantom.ethereum && typeof window.phantom.ethereum.request === 'function') return window.phantom.ethereum;
+  return null;
+}
+
+async function createFallbackAccount(injected) {
+  const web3 = new ethers.providers.Web3Provider(injected, 'any');
+  const signer = web3.getSigner();
+  const address = await signer.getAddress();
+  const fallbackAccount = {
+    address,
+    provider: web3,
+    signer,
+    type: 'fallback',
+    getAddress: async () => address,
+    sendTransaction: (tx) => signer.sendTransaction(tx)
+  };
+  return { smartAccount: fallbackAccount, signer };
+}
+
+async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
+  const web3 = new ethers.providers.Web3Provider(injected, 'any');
+  const signer = web3.getSigner();
+  const address = (await signer.getAddress()).toLowerCase();
+  async function sendViaAA(tx){
+    const to = tx.to;
+    const data = ensureHexData(tx.data);
+    const valueHex = toHex(tx.value || 0n);
+    const chainHex = '0x' + (AA.chainId || MONAD.id).toString(16);
+    try {
+      const { provider: bProvider, available } = await detectBundler(injected);
+      if (available && bProvider) {
+        const res = await walletSendCalls({ provider: bProvider, from: address, chainId: chainHex, calls: [{ to, data, value: valueHex }] });
+        const hash = extractTxHash(res);
+        if (hash) return hash;
+      }
+    } catch (err) {
+      console.warn('[aaClient] wallet_sendCalls failed; falling back to direct send', err);
+    }
+    const txReq = { to, data, value: (()=>{ try { return ethers.BigNumber.from(tx.value||0); } catch { return ethers.BigNumber.from(0); }})() };
+    const res = await signer.sendTransaction(txReq);
+    return typeof res === 'string' ? res : (res?.hash || res?.transactionHash);
+  }
+  const account = { address, type: 'aa4337', getAddress: async () => address, context: null, sendTransaction: (tx) => sendViaAA(tx) };
+  return { smartAccount: account, signer };
+}
 // Expose AA on window for debugging/inspection in the console
 try {
   if (typeof window !== 'undefined') {
@@ -499,56 +551,7 @@ export function isAAReady() {
   return aaReady;
 }
 
-export async function getSmartAccountAddress() {
-  // If already initialized and not fallback, return it
-  if (aaReady && aaSmartAccount && aaSmartAccount.type === 'delegation-toolkit' && aaSmartAccount.address) {
-    return aaSmartAccount.address;
-  }
-
-  // Attempt a lightweight v15 derivation to compute address without full wiring
-  try {
-    const toolkitCtx = await ensureDelegationToolkitContext();
-    AA.toolkitContext = toolkitCtx;
-    let { toolkit, publicClient, walletClient } = toolkitCtx || {};
-    let t = toolkit;
-    try { if (!t?.toMetaMaskSmartAccount && t?.default) t = t.default; } catch {}
-    const toMetaMaskSmartAccount = t?.toMetaMaskSmartAccount;
-    const Implementation = t?.Implementation;
-    if (typeof toMetaMaskSmartAccount !== 'function') {
-      return null;
-    }
-    const owner = toolkitCtx?.account || toolkitCtx?.ownerAccount;
-    if (!owner) return null;
-    const chainObj = (walletClient && walletClient.chain) || toolkitCtx?.walletChain || publicClient?.chain || {
-      id: MONAD.id,
-      name: 'Monad Testnet',
-      nativeCurrency: { name: 'MON', symbol: 'MON', decimals: 18 }
-    };
-    const deployParams = [owner, [], [], []];
-    const acc = await toMetaMaskSmartAccount({
-      owner,
-      chain: chainObj,
-      implementation: (Implementation?.Hybrid || Implementation?.EIP7702Stateless || Implementation?.MultiSig),
-      transport: walletClient?.transport,
-      deployParams,
-      deploySalt: '0x0',
-      signer: { walletClient },
-      client: publicClient
-    });
-    const addr = acc && (typeof acc.getAddress === 'function' ? await acc.getAddress() : acc.address);
-    if (addr && (acc?.type === 'delegation-toolkit' || acc?.mmAccount)) {
-      AA.smartAccountAddress = String(addr).toLowerCase();
-      storeSmartAccount(MONAD.id, AA.smartAccountAddress);
-      return AA.smartAccountAddress;
-    }
-  } catch {}
-
-  // Final fallback: initialize AA (may still return fallback EOA)
-  if (!aaReady || !aaSmartAccount) {
-    await initAA({});
-  }
-  return aaSmartAccount?.address || null;
-}
+export async function getSmartAccountAddress() { return null; }
 
 export const client = {
   getSigner: () => getAASigner(),
