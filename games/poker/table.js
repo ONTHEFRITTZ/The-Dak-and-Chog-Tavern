@@ -855,7 +855,8 @@ function initializePokerTable() {
       try { const v = localStorage.getItem('agent.autoRebuy.budget'); if (v) rebuyBudget.value = v; } catch {}
       rebuyBudget.style.cssText='width:86px;text-align:center;background:rgba(0,0,0,0.35);border:1px solid rgba(255,255,255,0.16);color:#f4e6d3;border-radius:8px;padding:3px 6px;';
       rebuyBudget.addEventListener('change', () => { try { localStorage.setItem('agent.autoRebuy.budget', String(rebuyBudget.value||'')); } catch {} });
-      rebuyWrap.appendChild(rebuyToggle); rebuyWrap.appendChild(rebuyBudget);
+      // Place input to the left of the checkbox as requested
+      rebuyWrap.appendChild(rebuyBudget); rebuyWrap.appendChild(rebuyToggle);
 
       panel.appendChild(title);
       panel.appendChild(mkCheck('agent.autoReady', 'Auto Ready'));
