@@ -5,7 +5,7 @@
 import { ethers } from '../tavern.js';
 import { getSmartAccount } from '../tavern.js';
 import { loadDelegation, ensureDelegationActive, nowSec, isDelegationSuppressed } from './delegation.js';
-import { ensureDelegationToolkitContext } from './toolkit.v15.js';
+import { ensureDelegationToolkitContext } from './toolkit.js';
 
 function resolveBuildTag() {
   return window.__BUILD_TAG || window.__ASSET_TAG || Date.now();

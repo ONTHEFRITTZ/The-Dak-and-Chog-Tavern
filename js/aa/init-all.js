@@ -1,48 +1,17 @@
 ﻿// js/aa/init-all.js
-// Site-wide Smart Account bootstrap for MetaMask Delegation Toolkit v15.
+// Site-wide Delegation bootstrap (v13-compatible).
 // Load this as the first module after provider-pin.js on every page.
 
-import { AA, initAA, getSmartAccountAddress } from '../aaClient.js';
+import { AA, initAA } from '../aaClient.js';
 
 let __delegationModPromise = null;
 async function ensureDelegationModule() {
   if (__delegationModPromise) return __delegationModPromise;
-  const u = new URL(import.meta.url, location.href);
-  const v = u.searchParams.get('v') || String(Date.now());
-  const spec = `/js/aa/delegation.js?v=${encodeURIComponent(v)}`;
-  __delegationModPromise = import(spec).catch(async () => import('/js/aa/delegation.js'));
+  __delegationModPromise = import('/js/aa/delegation.js');
   return __delegationModPromise;
 }
 
-async function isInternalSignerAvailable() {
-  try {
-    const tkMod = await import('/js/aa/toolkit.v15.js');
-    const { ensureDelegationToolkitContext } = tkMod;
-    const ctx = await ensureDelegationToolkitContext();
-    let t = ctx.toolkit;
-    try { if (!t?.toMetaMaskSmartAccount && t?.default) t = t.default; } catch {}
-    const toMetaMaskSmartAccount = t?.toMetaMaskSmartAccount || t?.toSmartAccount;
-    const Implementation = t?.Implementation || {};
-    if (typeof toMetaMaskSmartAccount !== 'function') return false;
-    const impl = Implementation.EIP7702Stateless || Implementation.Hybrid || Implementation.MultiSig;
-    const owner = ctx?.ownerAccount || ctx?.account;
-    if (!owner || !ctx?.walletClient?.transport) return false;
-    const acc = await toMetaMaskSmartAccount({
-      owner,
-      chain: ctx.walletClient.chain || ctx.walletChain || ctx.publicClient?.chain,
-      implementation: impl,
-      transport: ctx.walletClient.transport,
-      deployParams: [owner, [], [], []],
-      deploySalt: '0x0',
-      signer: { walletClient: ctx.walletClient },
-      client: ctx.publicClient
-    });
-    const mm = (acc && acc.mmAccount) ? acc.mmAccount : null;
-    return !!(mm && typeof mm.signDelegation === 'function');
-  } catch {
-    return false;
-  }
-}
+// No internal-signer detection in v13 mode
 
 const SMART_ACCOUNT_OPT_IN_KEY = 'aa.smartAccount.optIn';
 
@@ -54,24 +23,17 @@ function dispatchSmartEvent(address, type = 'delegation-toolkit') {
   } catch {}
 }
 
-function persistEnabled(address) {
-  try { localStorage.setItem('aa.smartAccountAddress', address || ''); } catch {}
+function persistOptInDelegationMode() {
   try { localStorage.setItem(SMART_ACCOUNT_OPT_IN_KEY, 'true'); } catch {}
-  try { if (window.AA) window.AA.smartAccountAddress = address || null; } catch {}
-  dispatchSmartEvent(address);
 }
 
 export async function enableSmartAccountNow() {
-  // Internal-only: derive SA then sign a single open delegation. No typed-data fallbacks.
-  const aa = await initAA({});
-  const address = await getSmartAccountAddress();
-  if (!address) {
-    throw new Error('MetaMask Smart Accounts appear disabled. Enable Smart Accounts in MetaMask and try again.');
-  }
-  const { issueOpenDelegationForLanding } = await ensureDelegationModule();
-  await issueOpenDelegationForLanding();
-  persistEnabled(address);
-  return address;
+  // v13-compatible: create an open delegation via typed-data (EOA), no smart account.
+  await initAA({});
+  const { enableDelegationV13Landing } = await ensureDelegationModule();
+  const record = await enableDelegationV13Landing();
+  persistOptInDelegationMode();
+  return record?.delegate || null;
 }
 
 function ensureModalElements() {
@@ -135,15 +97,6 @@ export function openSmartAccountModal() {
     }
   }
   // Proactively detect availability and disable the enable button if internal signer is not present (pre-v15 vendor).
-  try {
-    (async () => {
-      const ok = await isInternalSignerAvailable();
-      if (!ok && enableBtn) {
-        enableBtn.disabled = true;
-        enableBtn.textContent = 'Smart Account unavailable in this build';
-      }
-    })();
-  } catch {}
   return true;
 }
 
@@ -154,11 +107,12 @@ try {
 } catch {}
 
 async function siteWideInit() {
-  // Never auto-sign. Only broadcast if a valid delegation already exists.
+  // Never auto-sign. Only note delegation if valid.
   const { loadDelegation } = await ensureDelegationModule();
   const existing = loadDelegation();
   if (existing && existing.end && Math.floor(Date.now()/1000) < Number(existing.end)) {
-    try { if (existing.delegate) persistEnabled(lc(existing.delegate)); } catch {}
+    persistOptInDelegationMode();
+    try { window.dispatchEvent(new CustomEvent('aa:delegation', { detail: { mode: 'v13-typed-data', delegate: existing.delegate, controller: existing.delegator } })); } catch {}
   }
 }
 

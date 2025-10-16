@@ -15,7 +15,7 @@ async function ensureViem() {
   return viemImportPromise;
 }
 
-import { ensureDelegationToolkitContext, resetDelegationToolkitContext } from './toolkit.v15.js';
+import { ensureDelegationToolkitContext, resetDelegationToolkitContext } from './toolkit.js';
 import { AA, initAA } from '../aaClient.js';
 import { getSmartAccount } from '../tavern.js';
 
@@ -1163,5 +1163,39 @@ if (typeof window !== 'undefined') {
   window.addEventListener('aa:smartaccount', autoEnsureDelegation);
 }
 
+
+// v13-compatible landing helper: EIP-712 typed-data delegation signed by EOA
+export async function enableDelegationV13Landing() {
+  const ctx = await ensureDelegationToolkitContext();
+  const { toolkit, environment, walletClient } = ctx || {};
+  if (!ctx?.ownerAccount || !walletClient) {
+    throw new Error('MetaMask connection required before enabling delegation.');
+  }
+  const viemModule = ctx.viem || (await ensureViem());
+  const normalizeHex = (v) => viemModule.getAddress(v);
+  const delegatorHex = normalizeHex(ctx.ownerAccount);
+  const zero32 = '0x' + '00'.repeat(32);
+  const tdDelegation = { delegate: delegatorHex, delegator: delegatorHex, authority: zero32, caveats: [], salt: 0n };
+  const toStruct = typeof toolkit?.toDelegationStruct === 'function'
+    ? toolkit.toDelegationStruct.bind(toolkit)
+    : (input) => ({
+        delegate: input.delegate,
+        delegator: input.delegator || input.from,
+        authority: input.authority,
+        caveats: Array.isArray(input.caveats) ? input.caveats : [],
+        salt: 0n
+      });
+  const types = (toolkit && toolkit.SIGNABLE_DELEGATION_TYPED_DATA) || SIGNABLE_DELEGATION_TYPED_DATA_FALLBACK;
+  const typedData = typeof toolkit?.prepareSignDelegationTypedData === 'function'
+    ? toolkit.prepareSignDelegationTypedData({ delegation: tdDelegation, delegationManager: environment.DelegationManager, chainId: MONAD.id, allowInsecureUnrestrictedDelegation: true })
+    : { domain: { chainId: MONAD.id, name: 'DelegationManager', version: '1', verifyingContract: environment.DelegationManager }, types, primaryType: 'Delegation', message: toStruct({ ...tdDelegation, signature: '0x' }) };
+  const sig = await walletClient.signTypedData({ account: walletClient.account, domain: typedData.domain, types: typedData.types, primaryType: typedData.primaryType, message: typedData.message });
+  const signedDelegation = { ...tdDelegation, signature: sig };
+  const record = { preset: 'open', scope: { type: 'open' }, delegation: signedDelegation, permissionContext: [[signedDelegation]], from: signedDelegation.delegator, to: signedDelegation.delegate, delegate: signedDelegation.delegate, controller: signedDelegation.delegator, createdAt: nowSec(), end: nowSec() + DEFAULT_TTL, chainId: MONAD.id };
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(record)); } catch {}
+  try { localStorage.setItem('aa.smartAccount.optIn', 'true'); } catch {}
+  try { window.dispatchEvent(new CustomEvent('aa:delegation', { detail: { mode: 'v13-typed-data', from: signedDelegation.delegator, to: signedDelegation.delegate } })); } catch {}
+  return record;
+}
 
 

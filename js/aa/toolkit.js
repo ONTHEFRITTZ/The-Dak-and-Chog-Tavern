@@ -1,5 +1,6 @@
 // js/aa/toolkit.js
-// Thin loader around the MetaMask Delegation Toolkit + viem helpers.
+// Minimal v13-compatible context: builds viem clients and exposes walletClient/publicClient
+// Does not require or import the MetaMask Delegation Toolkit vendor.
 
 import { MONAD } from './config.js';
 import { MONAD_DELEGATION_ENV, MONAD_DELEGATION_VERSION } from './delegation-config.js';
@@ -18,37 +19,27 @@ const MONAD_CHAIN = {
 };
 
 let contextPromise = null;
-let walletAccountsSupported = undefined;
 
 async function requestAccounts(provider) {
   const accounts = await provider.request({ method: 'eth_requestAccounts' });
-  if (!accounts || !accounts.length) {
-    throw new Error('Wallet connection required');
-  }
+  if (!accounts || !accounts.length) throw new Error('Wallet connection required');
   return accounts.map(a => a.toLowerCase());
 }
 
 async function switchToMonad(provider) {
   try {
     const chainIdHex = '0x' + MONAD.id.toString(16);
-    await provider.request({
-      method: 'wallet_switchEthereumChain',
-      params: [{ chainId: chainIdHex }]
-    });
+    await provider.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: chainIdHex }] });
   } catch (err) {
-    // If the chain isn't added yet, fall back silently; MetaMask will prompt the user.
     if (err?.code === 4902) {
       try {
-        await provider.request({
-          method: 'wallet_addEthereumChain',
-          params: [{
-            chainId: '0x' + MONAD.id.toString(16),
-            chainName: MONAD.name || 'Monad Testnet',
-            rpcUrls: [MONAD.rpcHttp],
-            nativeCurrency: { name: 'MON', symbol: 'MON', decimals: 18 },
-            blockExplorerUrls: MONAD.explorer ? [MONAD.explorer] : undefined
-          }]
-        });
+        await provider.request({ method: 'wallet_addEthereumChain', params: [{
+          chainId: '0x' + MONAD.id.toString(16),
+          chainName: MONAD.name || 'Monad Testnet',
+          rpcUrls: [MONAD.rpcHttp],
+          nativeCurrency: { name: 'MON', symbol: 'MON', decimals: 18 },
+          blockExplorerUrls: MONAD.explorer ? [MONAD.explorer] : undefined
+        }] });
       } catch (_) {}
     }
   }
@@ -56,219 +47,51 @@ async function switchToMonad(provider) {
 
 export async function ensureDelegationToolkitContext() {
   if (contextPromise) return contextPromise;
-
   contextPromise = (async () => {
-    function pickMetaMaskProvider() {
-      try {
-        const winEth = window.ethereum;
-        if (winEth && Array.isArray(winEth.providers)) {
-          const mm = winEth.providers.find(p => p && p.isMetaMask && typeof p.request === 'function');
-          if (mm) return mm;
-        }
-        if (winEth && winEth.isMetaMask && typeof winEth.request === 'function') return winEth;
-      } catch {}
+    function pickProvider() {
+      try { if (typeof window.__getSelectedProvider === 'function') return window.__getSelectedProvider('metamask'); } catch {}
+      try { if (window.ethereum && typeof window.ethereum.request === 'function') return window.ethereum; } catch {}
+      try { if (window.phantom?.ethereum?.request) return window.phantom.ethereum; } catch {}
       return null;
     }
-    const provider = (typeof window.__getSelectedProvider === 'function'
-      ? window.__getSelectedProvider('metamask')
-      : null) || pickMetaMaskProvider() || window.ethereum || null;
-
-    if (!provider || typeof provider.request !== 'function') {
-      throw new Error('MetaMask provider not detected');
-    }
-
+    const provider = pickProvider();
+    if (!provider) throw new Error('EVM provider not detected');
     await switchToMonad(provider);
-    const requestedRaw = await requestAccounts(provider);
-    const requestedSet = new Set(requestedRaw.filter(Boolean));
-    let ownerAccount = requestedRaw[0] || null;
-    // Do NOT assume internal smart account equals the EOA; leave null until built via toolkit
-    let internalAccount = null;
+    const [ownerAccount] = await requestAccounts(provider);
 
-    let accountsByType = null;
-    // Avoid wallet_accounts on providers that don't implement it to prevent RPC error noise
-    walletAccountsSupported = false;
-
-    if (walletAccountsSupported !== false && Array.isArray(accountsByType) && accountsByType.length) {
-      walletAccountsSupported = true;
-    } else if (walletAccountsSupported === undefined) {
-      walletAccountsSupported = false;
-    }
-
-    // Skip provider._metamask introspection when wallet_accounts is unsupported to avoid RPC noise.
-
-    if ((!accountsByType || !accountsByType.length) && ownerAccount === internalAccount) {
-      try {
-        await provider.request({
-          method: 'wallet_requestPermissions',
-          params: [{ eth_accounts: {} }]
-        });
-        const extra = await provider.request({ method: 'eth_accounts' });
-        if (Array.isArray(extra)) {
-          extra.forEach((addr) => {
-            const normalized = String(addr || '').toLowerCase();
-            if (normalized) requestedSet.add(normalized);
-          });
-        }
-      } catch (permErr) {
-        console.warn('[aa/toolkit] permission prompt declined', permErr);
-      }
-    }
-
-    // If a future provider returns wallet_accounts, we can classify here.
-
-    if (!ownerAccount) ownerAccount = requestedRaw[0] || null;
-    if (!internalAccount) internalAccount = requestedRaw[0] || null;
-
-    const account = ownerAccount;
-    const accounts = Array.from(new Set([ownerAccount, internalAccount, ...Array.from(requestedSet)].filter(Boolean)));
-
-    // Load viem + MetaMask Delegation Toolkit with CDN fallbacks for browser environments
     const viem = await (async () => {
       try { return await import('viem'); } catch (_) {}
       try { return await import('https://esm.sh/viem@2.38.2'); } catch (_) {}
-      // Last resort (should not happen): throw to surface clear error
-      throw new Error('Unable to load viem (both local and CDN failed).');
+      throw new Error('Unable to load viem');
     })();
-
-    async function loadToolkitV15() {
-      // If a global is already present (injected elsewhere), use it
-      try {
-        if (window.__mmdt && typeof window.__mmdt.toMetaMaskSmartAccount === 'function') {
-          const tk = window.__mmdt;
-          if (tk.Implementation && (tk.Implementation.Hybrid || tk.Implementation.EIP7702Stateless || tk.Implementation.MultiSig)) {
-            return tk;
-          }
-        }
-      } catch {}
-
-      // Helper: fetch same-origin file and import via blob to bypass wrong MIME
-      const tryImportViaBlob = async (spec) => {
-        try {
-          const u = new URL(spec, location.origin);
-          if (u.origin !== location.origin) return null; // only for same-origin
-          const res = await fetch(u.toString(), { credentials: 'same-origin' });
-          if (!res.ok) return null;
-          let code = await res.text();
-          // Rewrite jsDelivr-style relative ESM sub-imports ("/npm/...") to absolute CDN URLs
-          try {
-            code = code
-              .replaceAll('"/npm/', '"https://cdn.jsdelivr.net/npm/')
-              .replaceAll("'/npm/", "'https://cdn.jsdelivr.net/npm/");
-          } catch {}
-          const blobUrl = URL.createObjectURL(new Blob([code], { type: 'text/javascript' }));
-          try {
-            const mod = await import(blobUrl);
-            URL.revokeObjectURL(blobUrl);
-            const tk = (mod && mod.default && !mod.toMetaMaskSmartAccount) ? mod.default : mod;
-            if (tk && typeof tk.toMetaMaskSmartAccount === 'function' && tk.Implementation && (tk.Implementation.Hybrid || tk.Implementation.EIP7702Stateless || tk.Implementation.MultiSig)) {
-              return tk;
-            }
-          } catch {}
-        } catch {}
-        return null;
-      };
-
-      // Only use same-origin vendor files to avoid CDN/CORS and noisy logs
-      const vendors = [
-        // Only use the known-present vendor file to avoid 404 noise
-        '/js/vendor/metamask-delegation-toolkit-latest.mjs',
-        '../vendor/metamask-delegation-toolkit-latest.mjs'
-      ];
-      for (const spec of vendors) {
-        const tk = await tryImportViaBlob(spec);
-        if (tk) return tk;
-      }
-      throw new Error('MetaMask Delegation Toolkit v0.15.x vendor file not found or unreadable. Ensure /js/vendor/metamask-delegation-toolkit-latest.mjs exists.');
-    }
-
-    let toolkit = await loadToolkitV15();
-
-    // Normalize module shape: some CDN builds expose exports under `default`
-    // already normalized above
-
     const { createPublicClient, createWalletClient, http, custom } = viem;
 
-    try {
-      const overrideDeployedEnvironment = toolkit?.overrideDeployedEnvironment;
-      if (typeof overrideDeployedEnvironment === 'function') {
-        overrideDeployedEnvironment(
-          MONAD.id,
-          toolkit?.PREFERRED_VERSION || MONAD_DELEGATION_VERSION,
-          MONAD_DELEGATION_ENV
-        );
-      }
-    } catch (err) {
-      console.warn('Delegation toolkit override failed', err);
-    }
-
-    const publicClient = createPublicClient({
-      chain: MONAD_CHAIN,
-      transport: http(MONAD.rpcHttp)
-    });
-
-    const walletClient = createWalletClient({
-      account: account,
-      chain: MONAD_CHAIN,
-      transport: custom(provider)
-    });
-
-    const walletChain = walletClient?.chain || MONAD_CHAIN;
-    if (walletClient && !walletClient.chain) {
-      try {
-        Object.defineProperty(walletClient, 'chain', {
-          configurable: true,
-          enumerable: true,
-          value: walletChain,
-          writable: false
-        });
-      } catch (_) {
-        // Ignore inability to define the property; we fall back to returning walletChain separately.
-      }
-    }
-
-    const environment = normalizeEnvironment(MONAD_DELEGATION_ENV);
-
-    try {
-      if (ownerAccount) {
-        localStorage.setItem('aa.controllerAddress', ownerAccount);
-      }
-      if (internalAccount) {
-        localStorage.setItem('aa.smartAccountAddress', internalAccount);
-      }
-    } catch {}
-
-    const walletAccountsList = Array.isArray(accountsByType) ? accountsByType : null;
+    const publicClient = createPublicClient({ chain: MONAD_CHAIN, transport: http(MONAD.rpcHttp) });
+    const walletClient = createWalletClient({ account: ownerAccount, chain: MONAD_CHAIN, transport: custom(provider) });
 
     const ctx = {
       provider,
-      accounts,
-      account,
+      accounts: [ownerAccount],
+      account: ownerAccount,
       ownerAccount,
-      internalAccount,
-      walletAccounts: walletAccountsList,
-      walletAccountsSupported,
+      internalAccount: null,
+      walletAccounts: null,
+      walletAccountsSupported: false,
       viem,
-      toolkit,
+      toolkit: {}, // no vendor in v13 path
       publicClient,
       walletClient,
-      walletChain,
-      environment
+      walletChain: MONAD_CHAIN,
+      environment: normalizeEnvironment(MONAD_DELEGATION_ENV)
     };
-
-    try { window.__mmdt = toolkit; } catch {}
     try { window.__aaToolkitContext = ctx; } catch {}
     return ctx;
-  })().catch(err => {
-    contextPromise = null;
-    throw err;
-  });
-
+  })().catch(err => { contextPromise = null; throw err; });
   return contextPromise;
 }
 
-export function resetDelegationToolkitContext() {
-  contextPromise = null;
-}
+export function resetDelegationToolkitContext() { contextPromise = null; }
+
 function normalizeEnvironment(source) {
   const env = JSON.parse(JSON.stringify(source || {}));
   try {
@@ -281,5 +104,4 @@ function normalizeEnvironment(source) {
   } catch {}
   return env;
 }
-
 
