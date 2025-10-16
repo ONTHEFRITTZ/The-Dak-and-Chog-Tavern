@@ -63,33 +63,7 @@ async function loadToolkitV15() {
     }
   } catch {}
 
-  // Try known-good CDN ESM builds (v0.15.x) before touching the local vendor file.
-  const tryImportFromCdn = async (urls) => {
-    for (const url of urls) {
-      try {
-        const mod = await import(url);
-        const tk = (mod && mod.default && !mod.toMetaMaskSmartAccount && !mod.toSmartAccount) ? mod.default : mod;
-        // Shims to normalize API surface
-        try { if (tk && !tk.toMetaMaskSmartAccount && typeof tk.toSmartAccount === 'function') tk.toMetaMaskSmartAccount = tk.toSmartAccount; } catch {}
-        try { if (tk && !tk.Implementation) tk.Implementation = { Hybrid: 'Hybrid', EIP7702Stateless: 'Stateless7702', MultiSig: 'MultiSig' }; } catch {}
-        if (tk && typeof tk.toMetaMaskSmartAccount === 'function') {
-          try { window.__mmdt = tk; } catch {}
-          return tk;
-        }
-      } catch (_) {}
-    }
-    return null;
-  };
-  const cdnCandidates = [
-    'https://cdn.jsdelivr.net/npm/@metamask/delegation-toolkit@0.15.3/+esm',
-    'https://cdn.jsdelivr.net/npm/@metamask/delegation-toolkit@0.15.2/+esm',
-    'https://cdn.jsdelivr.net/npm/@metamask/delegation-toolkit@0.15.1/+esm',
-    'https://unpkg.com/@metamask/delegation-toolkit@0.15.3?module',
-    'https://unpkg.com/@metamask/delegation-toolkit@0.15.2?module',
-    'https://unpkg.com/@metamask/delegation-toolkit@0.15.1?module'
-  ];
-  const cdnTk = await tryImportFromCdn(cdnCandidates);
-  if (cdnTk) return cdnTk;
+  // Do not attempt CDN loads in production to avoid noisy 404/CORS errors.
 
   const tryImportViaBlob = async (spec) => {
     try {
@@ -98,7 +72,12 @@ async function loadToolkitV15() {
       const res = await fetch(u.toString(), { credentials: 'same-origin' });
       if (!res.ok) return null;
       let code = await res.text();
-      // Do not rewrite vendor sub-imports; allow the vendor to use absolute CDN URLs if present.
+      // Rewrite jsDelivr-style "/npm/.../+esm" sub-imports to esm.sh which is already allowed for viem.
+      try {
+        code = code
+          .replace(/"\/npm\/(.*?)\/\+esm"/g, '"https://esm.sh/$1"')
+          .replace(/'\/npm\/(.*?)\/\+esm'/g, '\'https://esm.sh/$1\'');
+      } catch {}
       const vendorUrl = URL.createObjectURL(new Blob([code], { type: 'text/javascript' }));
       // Wrap the vendor as a module that attaches exports to window.__mmdt as well
       const wrapperCode = `import * as M from "${vendorUrl}"; try { window.__mmdt = M; } catch {} export default M;`;
@@ -108,11 +87,18 @@ async function loadToolkitV15() {
         URL.revokeObjectURL(wrapperUrl);
         URL.revokeObjectURL(vendorUrl);
         let tk = (mod && mod.default && !mod.toMetaMaskSmartAccount && !mod.toSmartAccount) ? mod.default : mod;
-        // Shim: older builds expose toSmartAccount; normalize to toMetaMaskSmartAccount
+        // Shim: older builds expose toSmartAccount; normalize for address derivation only
         try { if (tk && !tk.toMetaMaskSmartAccount && typeof tk.toSmartAccount === 'function') tk.toMetaMaskSmartAccount = tk.toSmartAccount; } catch {}
         // Shim: provide minimal Implementation map if absent
         try { if (tk && !tk.Implementation) tk.Implementation = { Hybrid: 'Hybrid', EIP7702Stateless: 'Stateless7702', MultiSig: 'MultiSig' }; } catch {}
         if (tk && typeof tk.toMetaMaskSmartAccount === 'function') {
+          // Warn if the module appears to be a pre-v15 build that lacks internal signer support
+          try {
+            const txt = String(code||'');
+            if (/delegation-toolkit@0\.13\./.test(txt)) {
+              console.warn('[aa/toolkit.v15] Delegation Toolkit vendor appears to be 0.13.x; internal signer may be unavailable. Replace /js/vendor/metamask-delegation-toolkit-latest.mjs with a v0.15.x build to enable mmAccount.signDelegation.');
+            }
+          } catch {}
           return tk;
         }
       } catch {}

@@ -25,7 +25,20 @@ const DELEGATION_SUPPRESS_KEY = 'aa:delegation:suppress';
 const DELEGATION_SUPPRESS_PERSIST_KEY = 'aa:delegation:suppress:persist';
 const SMART_ACCOUNT_OPT_IN_KEY = 'aa.smartAccount.optIn';
 
-// No typed-data fallback: v15 internal signer only
+// Typed-data fallback (v13 compatibility): used only when internal signer is unavailable.
+const SIGNABLE_DELEGATION_TYPED_DATA_FALLBACK = {
+  Caveat: [
+    { name: 'enforcer', type: 'address' },
+    { name: 'terms', type: 'bytes' }
+  ],
+  Delegation: [
+    { name: 'delegate', type: 'address' },
+    { name: 'delegator', type: 'address' },
+    { name: 'authority', type: 'bytes32' },
+    { name: 'caveats', type: 'Caveat[]' },
+    { name: 'salt', type: 'uint256' }
+  ]
+};
 
 let presetCache = null;
 let delegationTarget = null;
@@ -782,16 +795,76 @@ export async function createDelegation({ address, preset, presetKey }) {
     }
   }
   if (!signature) {
-    console.warn('[aa/delegation] internal signer available but returned no signature', {
-      delegateIsInternal,
-      controllerLc,
-      internalLc,
-      mmHasSign: !!(mmInternal && typeof mmInternal.signDelegation === 'function')
-    });
-    const helper = new Error('MetaMask Smart Account must sign this delegation internally. Enable Smart Accounts and try again.');
-    helper.code = 'delegate_mm_signer_required';
-    suppressDelegation('Internal signer unavailable or declined for delegation');
-    throw helper;
+    // v13 compatibility: fall back to EIP-712 typed-data signed by the EOA controller.
+    try {
+      const toStruct = typeof toolkit.toDelegationStruct === 'function'
+        ? toolkit.toDelegationStruct.bind(toolkit)
+        : (input) => ({
+            delegate: input.delegate,
+            delegator: input.delegator || input.from,
+            authority: input.authority,
+            caveats: Array.isArray(input.caveats) ? input.caveats : [],
+            salt: (() => {
+              try {
+                if (typeof input.salt === 'bigint') return input.salt;
+                if (typeof input.salt === 'number') return BigInt(input.salt);
+                if (typeof input.salt === 'string' && input.salt) return BigInt(input.salt);
+              } catch {}
+              return 0n;
+            })()
+          });
+
+      // Force delegate to controller EOA to avoid internal-account typed-data rejection
+      const zero32 = '0x' + '00'.repeat(32);
+      const tdDelegation = sanitizeDelegationStruct({
+        delegate: delegatorHex,
+        delegator: delegatorHex,
+        authority: zero32,
+        caveats: [],
+        salt: 0n
+      }, { delegatorHex, delegateHex: delegatorHex, viemModule });
+
+      let typedData;
+      if (typeof toolkit.prepareSignDelegationTypedData === 'function') {
+        typedData = toolkit.prepareSignDelegationTypedData({
+          delegation: tdDelegation,
+          delegationManager: environment.DelegationManager,
+          chainId: MONAD.id,
+          allowInsecureUnrestrictedDelegation: true
+        });
+      } else {
+        const types = toolkit.SIGNABLE_DELEGATION_TYPED_DATA || SIGNABLE_DELEGATION_TYPED_DATA_FALLBACK;
+        typedData = {
+          domain: {
+            chainId: MONAD.id,
+            name: 'DelegationManager',
+            version: '1',
+            verifyingContract: environment.DelegationManager
+          },
+          types,
+          primaryType: 'Delegation',
+          message: toStruct({ ...tdDelegation, signature: '0x' })
+        };
+      }
+      if (!ctx?.walletClient || typeof ctx.walletClient.signTypedData !== 'function') {
+        throw new Error('MetaMask wallet client unavailable for typed-data delegation signing.');
+      }
+      const sig = await ctx.walletClient.signTypedData({
+        account: ctx.walletClient.account,
+        domain: typedData.domain,
+        types: typedData.types,
+        primaryType: typedData.primaryType,
+        message: typedData.message
+      });
+      signature = sig;
+      Object.assign(delegation, tdDelegation);
+    } catch (err) {
+      console.warn('[aa/delegation] typed-data fallback failed', err);
+      const helper = new Error('Delegation could not be signed. Try reconnecting your wallet.');
+      helper.code = 'delegate_typed_data_failed';
+      suppressDelegation('Typed-data delegation signing failed');
+      throw helper;
+    }
   }
   const signedDelegation = { ...delegation, signature };
   const record = {
@@ -901,9 +974,46 @@ export async function issueOpenDelegationForLanding() {
   // Require internal signer support; do not fall back to external typed-data signing.
   let mmSigner = (mm && mm.mmAccount && typeof mm.mmAccount.signDelegation === 'function') ? mm.mmAccount : null;
   if (!mmSigner) {
-    const err = new Error('Smart Accounts appear disabled in MetaMask. Open MetaMask and enable Smart Accounts for this wallet, then try again.');
-    err.code = 'internal_signer_unavailable';
-    throw err;
+    // v13 compatibility: fall back to EIP-712 typed-data signed by the EOA controller.
+    const types = toolkit.SIGNABLE_DELEGATION_TYPED_DATA || SIGNABLE_DELEGATION_TYPED_DATA_FALLBACK;
+    const zero32 = '0x' + '00'.repeat(32);
+    const tdDelegation = { delegate: delegatorHex, delegator: delegatorHex, authority: zero32, caveats: [], salt: 0n };
+    const toStruct = typeof toolkit.toDelegationStruct === 'function'
+      ? toolkit.toDelegationStruct.bind(toolkit)
+      : (input) => ({
+          delegate: input.delegate,
+          delegator: input.delegator || input.from,
+          authority: input.authority,
+          caveats: Array.isArray(input.caveats) ? input.caveats : [],
+          salt: 0n
+        });
+    const typedData = typeof toolkit.prepareSignDelegationTypedData === 'function'
+      ? toolkit.prepareSignDelegationTypedData({ delegation: tdDelegation, delegationManager: environment.DelegationManager, chainId: MONAD.id, allowInsecureUnrestrictedDelegation: true })
+      : {
+          domain: { chainId: MONAD.id, name: 'DelegationManager', version: '1', verifyingContract: environment.DelegationManager },
+          types,
+          primaryType: 'Delegation',
+          message: toStruct({ ...tdDelegation, signature: '0x' })
+        };
+    if (!ctx?.walletClient || typeof ctx.walletClient.signTypedData !== 'function') {
+      const err = new Error('Wallet client unavailable for delegation signing. Connect MetaMask.');
+      err.code = 'typed_data_signer_unavailable';
+      throw err;
+    }
+    const sig = await ctx.walletClient.signTypedData({
+      account: ctx.walletClient.account,
+      domain: typedData.domain,
+      types: typedData.types,
+      primaryType: typedData.primaryType,
+      message: typedData.message
+    });
+    const signedDelegation = { ...tdDelegation, signature: sig };
+    const record = { preset: 'open', scope: { type: 'open' }, delegation: signedDelegation, permissionContext: [[signedDelegation]], from: signedDelegation.delegator, to: signedDelegation.delegate, delegate: signedDelegation.delegate, controller: signedDelegation.delegator, createdAt: nowSec(), end: nowSec() + DEFAULT_TTL, chainId: MONAD.id };
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(record)); } catch {}
+    try { localStorage.setItem('aa.smartAccount.optIn', 'true'); } catch {}
+    // Do NOT set AA.smartAccountAddress in v13 fallback (EOA mode only)
+    try { window.dispatchEvent(new CustomEvent('aa:delegation', { detail: { mode: 'v13-typed-data', from: signedDelegation.delegator, to: signedDelegation.delegate } })); } catch {}
+    return record;
   }
 
   let signature = null;

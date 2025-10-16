@@ -14,6 +14,36 @@ async function ensureDelegationModule() {
   return __delegationModPromise;
 }
 
+async function isInternalSignerAvailable() {
+  try {
+    const tkMod = await import('/js/aa/toolkit.v15.js');
+    const { ensureDelegationToolkitContext } = tkMod;
+    const ctx = await ensureDelegationToolkitContext();
+    let t = ctx.toolkit;
+    try { if (!t?.toMetaMaskSmartAccount && t?.default) t = t.default; } catch {}
+    const toMetaMaskSmartAccount = t?.toMetaMaskSmartAccount || t?.toSmartAccount;
+    const Implementation = t?.Implementation || {};
+    if (typeof toMetaMaskSmartAccount !== 'function') return false;
+    const impl = Implementation.EIP7702Stateless || Implementation.Hybrid || Implementation.MultiSig;
+    const owner = ctx?.ownerAccount || ctx?.account;
+    if (!owner || !ctx?.walletClient?.transport) return false;
+    const acc = await toMetaMaskSmartAccount({
+      owner,
+      chain: ctx.walletClient.chain || ctx.walletChain || ctx.publicClient?.chain,
+      implementation: impl,
+      transport: ctx.walletClient.transport,
+      deployParams: [owner, [], [], []],
+      deploySalt: '0x0',
+      signer: { walletClient: ctx.walletClient },
+      client: ctx.publicClient
+    });
+    const mm = (acc && acc.mmAccount) ? acc.mmAccount : null;
+    return !!(mm && typeof mm.signDelegation === 'function');
+  } catch {
+    return false;
+  }
+}
+
 const SMART_ACCOUNT_OPT_IN_KEY = 'aa.smartAccount.optIn';
 
 function lc(s) { return (s || '').toLowerCase(); }
@@ -104,6 +134,16 @@ export function openSmartAccountModal() {
       proceedBtn.addEventListener('click', () => { close(); /* EOA path for this visit only */ });
     }
   }
+  // Proactively detect availability and disable the enable button if internal signer is not present (pre-v15 vendor).
+  try {
+    (async () => {
+      const ok = await isInternalSignerAvailable();
+      if (!ok && enableBtn) {
+        enableBtn.disabled = true;
+        enableBtn.textContent = 'Smart Account unavailable in this build';
+      }
+    })();
+  } catch {}
   return true;
 }
 
