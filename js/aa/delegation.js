@@ -25,19 +25,7 @@ const DELEGATION_SUPPRESS_KEY = 'aa:delegation:suppress';
 const DELEGATION_SUPPRESS_PERSIST_KEY = 'aa:delegation:suppress:persist';
 const SMART_ACCOUNT_OPT_IN_KEY = 'aa.smartAccount.optIn';
 
-const SIGNABLE_DELEGATION_TYPED_DATA_FALLBACK = {
-  Caveat: [
-    { name: 'enforcer', type: 'address' },
-    { name: 'terms', type: 'bytes' }
-  ],
-  Delegation: [
-    { name: 'delegate', type: 'address' },
-    { name: 'delegator', type: 'address' },
-    { name: 'authority', type: 'bytes32' },
-    { name: 'caveats', type: 'Caveat[]' },
-    { name: 'salt', type: 'uint256' }
-  ]
-};
+// No typed-data fallback: v15 internal signer only
 
 let presetCache = null;
 let delegationTarget = null;
@@ -497,9 +485,7 @@ export async function createDelegation({ address, preset, presetKey }) {
   if (!ctx?.ownerAccount) {
     throw new Error('Connect MetaMask before enabling Smart Accounts.');
   }
-  if (!ctx?.walletClient || typeof ctx.walletClient.signTypedData !== 'function') {
-    throw new Error('MetaMask wallet client unavailable for delegation signing.');
-  }
+  // Do not require external typed-data signing capabilities; we only use the internal signer.
   const presetsMap = await ensurePresetMap();
 
   let smartAccountInstance = null;
@@ -639,31 +625,7 @@ export async function createDelegation({ address, preset, presetKey }) {
         })()
       });
 
-  // Prepare typedData only for diagnostics; we no longer attempt external signTypedData for delegations.
-  let typedData;
-  try {
-    if (typeof toolkit.prepareSignDelegationTypedData === 'function') {
-      typedData = toolkit.prepareSignDelegationTypedData({
-        delegation,
-        delegationManager: environment.DelegationManager,
-        chainId: MONAD.id,
-        allowInsecureUnrestrictedDelegation: !delegation.caveats || delegation.caveats.length === 0
-      });
-    } else {
-      const types = toolkit.SIGNABLE_DELEGATION_TYPED_DATA || SIGNABLE_DELEGATION_TYPED_DATA_FALLBACK;
-      typedData = {
-        domain: {
-          chainId: MONAD.id,
-          name: 'DelegationManager',
-          version: '1',
-          verifyingContract: environment.DelegationManager
-        },
-        types,
-        primaryType: 'Delegation',
-        message: toStruct({ ...delegation, delegator: delegatorHex, signature: '0x' })
-      };
-    }
-  } catch {}
+  // Strictly avoid preparing or using typed-data; internal signer only.
 
     // Prefer internal smart-account signer when available; fallback to walletClient (EOA) otherwise.
   let signature;

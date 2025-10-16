@@ -111,3 +111,10 @@ async function siteWideInit() {
   }
 }
 
+// Run immediately and also on DOM ready to ensure early broadcast without signing
+try { siteWideInit(); } catch {}
+try {
+  if (document && document.addEventListener) {
+    document.addEventListener('DOMContentLoaded', () => { try { siteWideInit(); } catch {} }, { once: true });
+  }
+} catch {}
