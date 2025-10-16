@@ -577,6 +577,19 @@ function initializePokerTable() {
       }
       const aaOk = await callViaAA('joinSeat(uint8)', [seatId]);
       if (!aaOk) {
+        // Try direct AA client send before falling back to signer
+        try {
+          const ops = await ensureAAOps();
+          if (ops && typeof ops.encodeFromSignature === 'function' && typeof ops.sendTxViaAA === 'function') {
+            const data = ops.encodeFromSignature('joinSeat(uint8)', [seatId]);
+            const txHash = await ops.sendTxViaAA({ to: tableAddress, data });
+            if (txHash) {
+              try { if (provider?.waitForTransaction) await provider.waitForTransaction(txHash); } catch {}
+              cachedAddr = await ownerAddress();
+              return true;
+            }
+          }
+        } catch {}
         const signerAddr = typeof signer.getAddress === 'function'
           ? (await signer.getAddress()).toLowerCase()
           : '';
@@ -609,6 +622,18 @@ function initializePokerTable() {
       const smartAddr = (await ownerAddress())?.toLowerCase?.() || '';
       const aaOk = await callViaAA(signature, [seatId]);
       if (!aaOk) {
+        // Try direct AA client send before falling back to signer
+        try {
+          const ops = await ensureAAOps();
+          if (ops && typeof ops.encodeFromSignature === 'function' && typeof ops.sendTxViaAA === 'function') {
+            const data = ops.encodeFromSignature(signature, [seatId]);
+            const txHash = await ops.sendTxViaAA({ to: tableAddress, data });
+            if (txHash) {
+              try { if (provider?.waitForTransaction) await provider.waitForTransaction(txHash); } catch {}
+              return true;
+            }
+          }
+        } catch {}
         const signerAddr = typeof signer.getAddress === 'function'
           ? (await signer.getAddress()).toLowerCase()
           : '';
