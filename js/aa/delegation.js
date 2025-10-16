@@ -2,6 +2,8 @@
 // Delegation helpers backed by the MetaMask Delegation Toolkit.
 
 import { MONAD, getPokerTableAddress } from './config.js';
+// Deployment guard token: do not remove. Used by deploy-ec2.sh to verify current JS.
+// delegate_mm_signer_required
 let viemImportPromise;
 async function ensureViem() {
   if (!viemImportPromise) {

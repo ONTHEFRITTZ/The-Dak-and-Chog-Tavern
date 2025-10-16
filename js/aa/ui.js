@@ -1,4 +1,4 @@
-// at the very top of aa/ui.js
+﻿// at the very top of aa/ui.js
 const __MODE = (document.documentElement.getAttribute('data-table-mode') || '').toLowerCase();
 const __IS_F2P = __MODE === 'f2p';
 
@@ -93,25 +93,7 @@ function ensureStatusBox() {
   return box;
 }
 
-function ensureDelegationBox() {
-  const c = ensureContainer();
-  let box = c.querySelector('#aa-delegation-info');
-  if (!box) {
-    box = document.createElement('div');
-    box.id = 'aa-delegation-info';
-    box.style.cssText = [
-      'display:flex',
-      'flex-direction:column',
-      'gap:2px',
-      'padding:6px 8px',
-      'border-radius:8px',
-      'background:rgba(0,0,0,0.35)',
-      'color:#f5f5f5'
-    ].join(';');
-    c.appendChild(box);
-  }
-  return box;
-}
+function ensureDelegationBox(){ const c=ensureContainer(); let box=c.querySelector('#aa-delegation-info'); if(!box){ box=document.createElement('div'); box.id='aa-delegation-info'; box.style.display='none'; c.appendChild(box);} return box;}
 
 function ensureActionsBox() {
   const c = ensureContainer();
@@ -167,14 +149,14 @@ function renderStatus(state) {
     statusBits.push(`Wallet: ${short(controller)}`);
   }
 
-  if (smartType === 'delegation-toolkit') {
-    statusBits.push(`Smart Account: ${short(smartAddress)}`);
+  if (smartType === 'aa4337') {
+    statusBits.push(`Gasless Mode: ${short(smartAddress)}`);
   } else if (smartType === 'fallback') {
-    statusBits.push('Smart Account: fallback (EOA)');
+    statusBits.push('Gasless Mode: fallback (EOA)');
   } else if (smartType === 'legacy-smart') {
-    statusBits.push(`Smart Account: legacy (${short(smartAddress)})`);
+    statusBits.push(`Gasless Mode: legacy (${short(smartAddress)})`);
   } else {
-    statusBits.push(`Smart Account: ${short(smartAddress || addr || '-')}`);
+    statusBits.push(`Gasless Mode: ${short(smartAddress || addr || '-')}`);
   }
 
   const netLabel = chainOk ? `Network: ${MONAD.name || 'Monad Testnet'}` : 'Network: switch to Monad';
@@ -200,74 +182,7 @@ function renderStatus(state) {
   box.textContent = statusBits.join(' | ');
 }
 
-function renderDelegationInfo(state) {
-  const {
-    delegation,
-    delegationActive,
-    smartAddress,
-    delegationError,
-    smartOptIn,
-    delegationSuppressed
-  } = state;
-  const box = ensureDelegationBox();
-  box.innerHTML = '';
-  if (!delegation) {
-    if (!smartOptIn) {
-      box.textContent = 'Smart account disabled. Enable it to sign a delegation.';
-    } else if (delegationSuppressed) {
-      box.textContent = 'Delegation blocked by MetaMask. Disable Smart Accounts in MetaMask, then click "Enable Smart Account" again.';
-    } else {
-      box.textContent = 'Delegation: none configured';
-    }
-    return;
-  }
-
-  const header = document.createElement('div');
-  header.textContent = delegationActive ? 'Delegation is active' : 'Delegation saved (inactive)';
-  header.style.cssText = 'font-weight:700;';
-  box.appendChild(header);
-
-  if (delegationError) {
-    const warn = document.createElement('div');
-    warn.textContent = delegationError.message || String(delegationError);
-    warn.style.cssText = 'margin-top:4px;color:#ff9a9a;font-size:11px;';
-    box.appendChild(warn);
-  }
-
-  const rows = [];
-  rows.push(['Preset', delegation.preset || 'custom']);
-  rows.push(['Delegator', short(delegation.from || smartAddress || '')]);
-  rows.push(['Delegate', short(delegation.to || '')]);
-  if (delegation.chainId) {
-    rows.push(['Chain', String(delegation.chainId)]);
-  }
-  if (delegation.scope?.type) {
-    rows.push(['Scope', delegation.scope.type]);
-  }
-  if (delegation.scope?.selectors?.length) {
-    rows.push(['Selectors', String(delegation.scope.selectors.length)]);
-  }
-  if (delegation.permissionContext) {
-    try {
-      const grants = delegation.permissionContext.length;
-      rows.push(['Permission sets', String(grants)]);
-    } catch {}
-  }
-  if (delegation.delegation?.caveats?.length) {
-    rows.push(['Caveats', String(delegation.delegation.caveats.length)]);
-  }
-  if (delegation.end) {
-    const readable = new Date(delegation.end * 1000).toLocaleString();
-    const rel = formatRelativeExpiry(delegation.end);
-    rows.push(['Expires', `${readable}${rel ? ` (${rel})` : ''}`]);
-  }
-
-  rows.forEach(([label, value]) => {
-    const line = document.createElement('div');
-    line.innerHTML = `<strong>${label}:</strong> ${value}`;
-    box.appendChild(line);
-  });
-}
+function renderDelegationInfo(){ try{ const box=ensureDelegationBox(); box.style.display='none'; box.innerHTML=''; } catch{} }
 
 async function renderButtons(state, presetMap) {
   const {
@@ -287,7 +202,7 @@ async function renderButtons(state, presetMap) {
   if (!controller) {
     const note = document.createElement('span');
     note.style.cssText = 'font-size:11px;color:rgba(255,255,255,0.8);';
-    note.textContent = 'Connect MetaMask to enable smart account controls.';
+    note.textContent = 'Connect MetaMask to Enable Gasless Mode controls.';
     actions.appendChild(note);
     return;
   }
@@ -301,7 +216,7 @@ async function renderButtons(state, presetMap) {
   if (delegationSuppressed) {
     const warn = document.createElement('div');
     warn.style.cssText = 'font-size:11px;color:#ff9a9a;margin-bottom:6px;max-width:320px;';
-    warn.textContent = 'Delegation signing was previously rejected. Disable MetaMask Smart Accounts, then click "Enable Smart Account" to try again.';
+    warn.textContent = 'Delegation signing was previously rejected. Disable MetaMask Gasless Mode, then click "Enable Gasless Mode" to try again.';
     actions.appendChild(warn);
   }
 
@@ -351,7 +266,7 @@ async function renderButtons(state, presetMap) {
   }
 
   if (!smartOptIn) {
-    const enableBtn = makeButton('Enable Smart Account');
+    const enableBtn = makeButton('Enable Gasless Mode');
     if (!chainOk) {
       enableBtn.disabled = true;
       enableBtn.style.background = 'rgba(0,0,0,0.45)';
@@ -360,12 +275,12 @@ async function renderButtons(state, presetMap) {
       safeRun(enableBtn, async () => {
         clearDelegationSuppression();
         try { const m = await import('../aaClient.js'); m.enableToolkitSmartAccount?.(); } catch {}
-        // Derive the smart account address first so the delegation targets the internal account.
+        // Derive the Gasless Mode address first so the delegation targets the internal account.
         await initAA({});
         const mmAddr = (await getSmartAccountAddress()) || null;
-        // If Smart Accounts are not active in MetaMask, block and show guidance.
+        // If Gasless Mode are not active in MetaMask, block and show guidance.
         if (!mmAddr) {
-          throw new Error('Smart Accounts appear disabled in MetaMask. Click "Open MetaMask" below and enable Smart Accounts for this wallet, then try again.');
+          throw new Error('Gasless Mode appear disabled in MetaMask. Click "Open MetaMask" below and Enable Gasless Modes for this wallet, then try again.');
         }
         const targetDelegate = mmAddr;
         let existing = loadDelegation();
@@ -384,7 +299,7 @@ async function renderButtons(state, presetMap) {
       }, 'Enabling...');
     }
     actions.appendChild(enableBtn);
-    // Provide a helper to open MetaMask so user can enable Smart Accounts
+    // Provide a helper to open MetaMask so user can Enable Gasless Modes
     const openMM = makeButton('Open MetaMask');
     if (!chainOk) {
       openMM.disabled = true;
@@ -399,7 +314,7 @@ async function renderButtons(state, presetMap) {
         try {
           const provider = (typeof window.__getSelectedProvider === 'function' ? window.__getSelectedProvider() : window.ethereum) || null;
           if (provider && typeof provider.request === 'function') {
-            // Permissions request reliably opens MetaMask; user can enable Smart Accounts in the UI
+            // Permissions request reliably opens MetaMask; user can Enable Gasless Modes in the UI
             await provider.request({ method: 'wallet_requestPermissions', params: [{ eth_accounts: {} }] });
           }
         } catch (_) {}
@@ -409,7 +324,7 @@ async function renderButtons(state, presetMap) {
 
     const note = document.createElement('div');
     note.style.cssText = 'font-size:11px;color:rgba(255,255,255,0.75);margin-top:6px;max-width:340px;';
-    note.innerHTML = 'If Smart Accounts are disabled in MetaMask, click <strong>Open MetaMask</strong> and enable Smart Accounts for this wallet. Then click <strong>Enable Smart Account</strong> again.';
+    note.innerHTML = 'If Gasless Mode are disabled in MetaMask, click <strong>Open MetaMask</strong> and Enable Gasless Modes for this wallet. Then click <strong>Enable Gasless Mode</strong> again.';
     actions.appendChild(note);
     return;
   }
@@ -436,9 +351,9 @@ async function renderButtons(state, presetMap) {
   actions.appendChild(disableBtn);
 
   const upgradeBtn = makeButton(
-    smartType === 'delegation-toolkit' ? 'Smart Account Ready' : 'Initialize Smart Account'
+    smartType === 'aa4337' ? 'Gasless Mode Ready' : 'Initialize Gasless Mode'
   );
-  if (smartType === 'delegation-toolkit') {
+  if (smartType === 'aa4337') {
     upgradeBtn.disabled = true;
     upgradeBtn.style.background = 'rgba(0,0,0,0.45)';
     upgradeBtn.style.color = disabledColor;
@@ -447,14 +362,14 @@ async function renderButtons(state, presetMap) {
       try { const m = await import('../aaClient.js'); m.enableToolkitSmartAccount?.(); } catch {}
       const ok = await upgradeToSmartAccount();
       if (!ok) {
-        throw new Error('Unable to initialize MetaMask smart account.');
+        throw new Error('Unable to initialize MetaMask Gasless Mode.');
       }
     }, 'Initializing...');
   }
   actions.appendChild(upgradeBtn);
 
   let presets = presetMap;
-  if (!presets && smartType === 'delegation-toolkit' && chainOk) {
+  if (!presets && smartType === 'aa4337' && chainOk) {
     try {
       presets = await buildPresets();
     } catch (err) {
@@ -462,7 +377,7 @@ async function renderButtons(state, presetMap) {
     }
   }
 
-  const delegationAvailable = smartType === 'delegation-toolkit' && chainOk && !!presets;
+  const delegationAvailable = smartType === 'aa4337' && chainOk && !!presets;
 
   const select = document.createElement('select');
   select.className = 'aa-btn';
@@ -575,12 +490,12 @@ async function hydrate() {
       await initAA({});
       smartAccountAddress = (await getSmartAccountAddress()) || addr;
       smartType = AA.smartAccountType || 'fallback';
-      bundlerReady = smartType === 'delegation-toolkit' && !!AA.toolkitContext;
+      bundlerReady = smartType === 'aa4337' && !!AA.toolkitContext;
     } catch (err) {
       console.warn('[aa/ui] initAA failed', err);
       smartAccountAddress = AA.smartAccountAddress || addr;
       smartType = AA.smartAccountType || 'fallback';
-      bundlerReady = smartType === 'delegation-toolkit' && !!AA.toolkitContext;
+      bundlerReady = smartType === 'aa4337' && !!AA.toolkitContext;
     }
   } else {
     try {
@@ -605,7 +520,7 @@ async function hydrate() {
   const sponsored = typeof AA.sponsored === 'boolean' ? AA.sponsored : null;
 
   let presetsMap = null;
-  if (smartOptIn && smartType === 'delegation-toolkit' && chainOk) {
+  if (smartOptIn && smartType === 'aa4337' && chainOk) {
     try {
       presetsMap = await buildPresets();
     } catch (err) {
@@ -649,5 +564,25 @@ window.addEventListener('load', () => { hydrate().catch(() => {}); });
 window.addEventListener('wallet:connected', () => { hydrate().catch(() => {}); });
 window.addEventListener('aa:smartaccount', () => { hydrate().catch(() => {}); });
 window.addEventListener('aa:session', () => { hydrate().catch(() => {}); });
+
+
+// Override buttons with Gasless Mode controls only (no delegation UI)
+function renderButtons(state) {
+  const { controller, chainOk } = state;
+  const actions = ensureActionsBox();
+  actions.innerHTML = '';
+  const disabledColor = 'rgba(255,255,255,0.35)';
+  const makeButton = (label) => { const b=document.createElement('button'); b.className='aa-btn'; b.style.cssText=['padding:6px 10px','border-radius:8px','border:none','background:#2d6aee','color:#fff','font-weight:600','cursor:pointer'].join(';'); b.textContent=label; b.addEventListener('mouseenter',()=>{ if(!b.disabled) b.style.background='#2f7bff';}); b.addEventListener('mouseleave',()=>{ b.style.background='#2d6aee';}); return b; };
+  const safeRun = (btn, fn, labelBusy) => { btn.addEventListener('click', async ()=>{ if(btn.disabled) return; const prev=btn.textContent; btn.disabled=true; if(labelBusy) btn.textContent=labelBusy; try{ await fn(); } catch(e){ console.error('[aa/ui] action failed', e); alert(e?.message||'Operation failed.'); } finally { btn.disabled=false; btn.textContent=prev; hydrate().catch(()=>{}); } }); };
+  if (!controller) { const note=document.createElement('span'); note.style.cssText='font-size:11px;color:rgba(255,255,255,0.8)'; note.textContent='Connect MetaMask to Enable Gasless Mode controls.'; actions.appendChild(note); return; }
+  if (!chainOk) { const switchBtn=makeButton('Switch to Monad'); safeRun(switchBtn, async()=>{ const ok = await ensureMonadSelected({ requestSwitch:true }); if(!ok) throw new Error('Wallet did not switch to Monad.'); }, 'Switching...'); actions.appendChild(switchBtn); return; }
+  const smartOptIn = (window.AA && AA.sponsored) ? true : (localStorage.getItem('aa.smartAccount.optIn')==='true');
+  if (!smartOptIn) { const enableBtn=makeButton('Enable Gasless Mode'); safeRun(enableBtn, async()=>{ try{ localStorage.setItem('aa.smartAccount.optIn','true'); }catch{} try{ await initAA({}); AA.setSponsored(true); }catch{} }, 'Enabling...'); actions.appendChild(enableBtn); return; }
+  const disableBtn=makeButton('Disable Gasless Mode'); safeRun(disableBtn, async()=>{ try{ localStorage.setItem('aa.smartAccount.optIn','false'); }catch{} try{ await initAA({}); AA.setSponsored(false); }catch{} }, 'Disabling...'); actions.appendChild(disableBtn);
+}
+
+
+
+
 
 

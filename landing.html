@@ -88,8 +88,8 @@
   <div id="sa-modal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="sa-title">
     <div class="sa-dialog">
       <button type="button" class="sa-close" id="sa-dismiss" aria-label="Dismiss smart account notice">&times;</button>
-      <h2 id="sa-title" style="margin:0;">MetaMask Smart Account Recommended</h2>
-      <p id="sa-message" style="margin:4px 0 2px; font-size:15px; line-height:1.4;">We noticed you don't have a MetaMask Smart Account yet. Enable it to unlock the full Tavern experience.</p>
+      <h2 id="sa-title" style="margin:0;">Enable Gasless Mode</h2>
+      <p id="sa-message" style="margin:4px 0 2px; font-size:15px; line-height:1.4;">Turn on gasless transactions (bundler/paymaster) for a smoother experience.</p>
       <ul class="sa-benefits">
         <li>Sponsored gas for table ops and delegated gameplay</li>
         <li>Safer, session-scoped permissions when you sit</li>
@@ -97,7 +97,7 @@
         <li>Priority access to new AA-only features</li>
       </ul>
       <div class="sa-actions">
-        <button type="button" class="sa-primary" id="sa-enable-here">Enable MetaMask Smart Account</button>
+        <button type="button" class="sa-primary" id="sa-enable-here">Enable Gasless Mode</button>
         <button type="button" class="sa-secondary" id="sa-proceed">Enter with fewer features</button>
       </div>
     </div>
@@ -122,18 +122,20 @@
     function getPhantomEvmProvider() { const ph = window?.phantom?.ethereum; return (ph && typeof ph.request === 'function') ? ph : null; }
     async function ensureAccount(provider, walletName) { try { const pre = await provider.request({ method:'eth_accounts' }); if (Array.isArray(pre) && pre[0]) return pre[0]; } catch {} try { const accs = await provider.request({ method:'eth_requestAccounts' }); return (accs && accs[0]) || null; } catch (err) { const msg = String(err?.message||'').toLowerCase(); if (err && (err.code === -32002 || msg.includes('request already pending'))) { setStatus(`${walletName} request already pending.`); if (pendingHint) pendingHint.style.display = 'block'; return null; } if (err && err.code === 4001) { setStatus(`${walletName} request canceled.`); return null; } setStatus(err?.message ? `${walletName} error: ${err.message}` : `${walletName} error.`); console.error(`${walletName} connect error:`, err); return null; } }
       async function hasMetaMaskSmartAccount(address) { return false; }
-    async function connectMetaMask() { if (window.top !== window.self) { setStatus('Open this page in a tab (not an iframe).'); return; } const mm = getMetaMaskProvider(); if (!mm) { setStatus('MetaMask not detected. Please install the extension.'); return; } lock(btnMM,true); setStatus('Connecting to MetaMask...'); const addr = await ensureAccount(mm,'MetaMask'); lock(btnMM,false); if (!addr) return; if (await hasMetaMaskSmartAccount(addr)) { try { setStatus('Preparing Smart Account...'); await window.enableSmartAccountNow?.(); setStatus('Smart Account enabled. Entering...'); markSigned(addr,'metamask'); redirectHome(); return; } catch(e) { console.warn('Auto-enable failed; showing modal', e); } } pendingEntry = { mode:'metamask', address: addr, onProceed() { markSigned(addr,'metamask'); redirectHome(); } }; if (window.openSmartAccountModal?.()) { setStatus('MetaMask connected. Enable Smart Accounts to unlock all features.'); return; } finalizePendingEntry(); }
-    async function connectPhantom() { if (window.top !== window.self) { setStatus('Open this page in a tab (not an iframe).'); return; } const ph = getPhantomEvmProvider(); if (!ph) { setStatus('Phantom (EVM) not detected.'); if (phMissing) phMissing.style.display = 'block'; return; } lock(btnPH,true); setStatus('Connecting to Phantom...'); const addr = await ensureAccount(ph,'Phantom'); lock(btnPH,false); if (!addr) return; pendingEntry = { mode:'phantom', address: addr, onProceed() { markSigned(addr,'phantom'); redirectHome(); } }; if (window.openSmartAccountModal?.()) { setStatus('Phantom connected. MetaMask Smart Accounts unlock the full Tavern.'); return; } finalizePendingEntry(); }
+    async function connectMetaMask() { if (window.top !== window.self) { setStatus('Open this page in a tab (not an iframe).'); return; } const mm = getMetaMaskProvider(); if (!mm) { setStatus('MetaMask not detected. Please install the extension.'); return; } lock(btnMM,true); setStatus('Connecting to MetaMask...'); const addr = await ensureAccount(mm,'MetaMask'); lock(btnMM,false); if (!addr) return; if (await hasMetaMaskSmartAccount(addr)) { try { setStatus('Enabling gasless...'); await window.enableSmartAccountNow?.(); setStatus('Gasless enabled. Entering...'); markSigned(addr,'metamask'); redirectHome(); return; } catch(e) { console.warn('Auto-enable failed; showing modal', e); } } pendingEntry = { mode:'metamask', address: addr, onProceed() { markSigned(addr,'metamask'); redirectHome(); } }; if (window.openSmartAccountModal?.()) { setStatus('MetaMask connected. Enable Gasless Mode to unlock all features.'); return; } finalizePendingEntry(); }
+    async function connectPhantom() { if (window.top !== window.self) { setStatus('Open this page in a tab (not an iframe).'); return; } const ph = getPhantomEvmProvider(); if (!ph) { setStatus('Phantom (EVM) not detected.'); if (phMissing) phMissing.style.display = 'block'; return; } lock(btnPH,true); setStatus('Connecting to Phantom...'); const addr = await ensureAccount(ph,'Phantom'); lock(btnPH,false); if (!addr) return; pendingEntry = { mode:'phantom', address: addr, onProceed() { markSigned(addr,'phantom'); redirectHome(); } }; if (window.openSmartAccountModal?.()) { setStatus('Phantom connected. Gasless mode unlocks the full Tavern.'); return; } finalizePendingEntry(); }
     document.getElementById('enter-tavern')?.addEventListener('click', () => { setStatus(''); const choice = document.getElementById('wallet-choice'); if (choice) choice.style.display = 'block'; try { sessionStorage.setItem('ageConfirmed','true'); } catch {} const hasPh = !!getPhantomEvmProvider(); if (!hasPh && phMissing) phMissing.style.display = 'block'; });
     function wireAccountsChanged(provider, name, tag) { if (!provider || typeof provider.on !== 'function') return; provider.on('accountsChanged', (accs) => { if (Array.isArray(accs) && accs[0]) { markSigned(accs[0], tag); redirectHome(); } }); }
     wireAccountsChanged(getMetaMaskProvider(),'MetaMask','metamask');
     wireAccountsChanged(getPhantomEvmProvider(),'Phantom','phantom');
     document.getElementById('btn-metamask')?.addEventListener('click', connectMetaMask);
     document.getElementById('btn-phantom')?.addEventListener('click', connectPhantom);
-    document.getElementById('sa-enable-here')?.addEventListener('click', async () => { try { setStatus('Preparing Smart Account...'); await window.enableSmartAccountNow?.(); setStatus('Smart Account enabled. Entering...'); finalizePendingEntry(); } catch (e) { console.warn('Enable SA failed', e); setStatus('Open MetaMask to enable Smart Accounts, then return.'); } });
+    document.getElementById('sa-enable-here')?.addEventListener('click', async () => { try { setStatus('Enabling gasless...'); await window.enableSmartAccountNow?.(); setStatus('Gasless enabled. Entering...'); finalizePendingEntry(); } catch (e) { console.warn('Enable SA failed', e); setStatus('Open MetaMask to Enable Gasless Mode, then return.'); } });
     document.getElementById('sa-proceed')?.addEventListener('click', () => { try { const m = document.getElementById('sa-modal'); if (m) { m.setAttribute('aria-hidden','true'); m.style.display='none'; } } catch {}; finalizePendingEntry(); });
-    document.getElementById('sa-dismiss')?.addEventListener('click', () => { try { const m = document.getElementById('sa-modal'); if (m) { m.setAttribute('aria-hidden','true'); m.style.display='none'; } } catch {}; setStatus('Smart Account prompt dismissed.'); });
+    document.getElementById('sa-dismiss')?.addEventListener('click', () => { try { const m = document.getElementById('sa-modal'); if (m) { m.setAttribute('aria-hidden','true'); m.style.display='none'; } } catch {}; setStatus('Gasless prompt dismissed.'); });
   </script>
 </body>
 </html>
+
+
 

@@ -1,19 +1,12 @@
 ﻿// js/aa/init-all.js
-// Site-wide Delegation bootstrap (v13-compatible).
+// Site-wide AA bootstrap (4337/bundler). No delegation.
 // Load this as the first module after provider-pin.js on every page.
 
 import { AA, initAA } from '../aaClient.js';
 
-let __delegationModPromise = null;
-async function ensureDelegationModule() {
-  if (__delegationModPromise) return __delegationModPromise;
-  __delegationModPromise = import('/js/aa/delegation.js');
-  return __delegationModPromise;
-}
-
 // No internal-signer detection in v13 mode
 
-const SMART_ACCOUNT_OPT_IN_KEY = 'aa.smartAccount.optIn';
+const SMART_ACCOUNT_OPT_IN_KEY = 'aa.smartAccount.optIn'; // repurposed as gasless opt-in
 
 function lc(s) { return (s || '').toLowerCase(); }
 
@@ -28,12 +21,12 @@ function persistOptInDelegationMode() {
 }
 
 export async function enableSmartAccountNow() {
-  // v13-compatible: create an open delegation via typed-data (EOA), no smart account.
+  // Enable gasless/AA across site. No signing, no delegation.
   await initAA({});
-  const { enableDelegationV13Landing } = await ensureDelegationModule();
-  const record = await enableDelegationV13Landing();
+  try { AA.setSponsored(true); } catch {}
   persistOptInDelegationMode();
-  return record?.delegate || null;
+  try { window.dispatchEvent(new CustomEvent('aa:sponsored', { detail: { active: true } })); } catch {}
+  return null;
 }
 
 function ensureModalElements() {
@@ -51,10 +44,10 @@ function ensureModalElements() {
     const dialog = document.createElement('div');
     dialog.className = 'sa-dialog';
     dialog.style.cssText = 'background:var(--panel-bg-soft);border:1px solid rgba(255,255,255,0.16);border-radius:16px;box-shadow:0 28px 70px rgba(0,0,0,0.6);padding:24px 26px;width:min(92vw,460px);color:#f4e6d3;display:flex;flex-direction:column;gap:12px;position:relative;';
-    const title = document.createElement('h2'); title.textContent = 'MetaMask Smart Account Recommended'; title.style.margin = '0';
-    const msg = document.createElement('p'); msg.textContent = 'Enable a Smart Account to unlock sponsored gas and AA-only features.'; msg.style.margin = '4px 0 2px'; msg.style.fontSize = '15px'; msg.style.lineHeight = '1.4';
+    const title = document.createElement('h2'); title.textContent = 'Enable Gasless Mode'; title.style.margin = '0';
+    const msg = document.createElement('p'); msg.textContent = 'Turn on gasless transactions (bundler/paymaster) for a smoother experience.'; msg.style.margin = '4px 0 2px'; msg.style.fontSize = '15px'; msg.style.lineHeight = '1.4';
     const actions = document.createElement('div'); actions.className = 'sa-actions'; actions.style.cssText = 'display:flex;flex-direction:column;gap:12px;margin-top:10px;align-items:stretch;';
-    enableBtn = document.createElement('button'); enableBtn.id = 'sa-enable-here'; enableBtn.className = 'sa-primary'; enableBtn.textContent = 'Enable MetaMask Smart Account'; enableBtn.style.cssText = 'height:48px;border-radius:10px;border:none;background:linear-gradient(135deg,#9200fa,#5f00a8);color:#fff;font-weight:600;cursor:pointer;';
+    enableBtn = document.createElement('button'); enableBtn.id = 'sa-enable-here'; enableBtn.className = 'sa-primary'; enableBtn.textContent = 'Enable Gasless Mode'; enableBtn.style.cssText = 'height:48px;border-radius:10px;border:none;background:linear-gradient(135deg,#9200fa,#5f00a8);color:#fff;font-weight:600;cursor:pointer;';
     proceedBtn = document.createElement('button'); proceedBtn.id = 'sa-proceed'; proceedBtn.className = 'sa-secondary'; proceedBtn.textContent = 'Enter with fewer features'; proceedBtn.style.cssText = 'height:48px;border-radius:10px;border:none;background:rgba(255,255,255,0.06);color:#f4e6d3;font-weight:600;cursor:pointer;';
     dismissBtn = document.createElement('button'); dismissBtn.id = 'sa-dismiss'; dismissBtn.className = 'sa-close'; dismissBtn.textContent = 'Ã—'; dismissBtn.setAttribute('aria-label', 'Dismiss'); dismissBtn.style.cssText = 'position:absolute;top:10px;right:12px;background:transparent;border:none;color:#f4e6d3;font-size:26px;cursor:pointer;';
     actions.appendChild(enableBtn); actions.appendChild(proceedBtn);
@@ -80,7 +73,7 @@ export function openSmartAccountModal() {
         if (enableBtn.disabled) return;
         const prev = enableBtn.textContent;
         enableBtn.disabled = true;
-        enableBtn.textContent = 'Enabling...';
+        enableBtn.textContent = 'Enabling gasless...';
         try {
           try { sessionStorage.removeItem('aa:disableAutoDelegation'); } catch {}
           await enableSmartAccountNow();
@@ -107,12 +100,11 @@ try {
 } catch {}
 
 async function siteWideInit() {
-  // Never auto-sign. Only note delegation if valid.
-  const { loadDelegation } = await ensureDelegationModule();
-  const existing = loadDelegation();
-  if (existing && existing.end && Math.floor(Date.now()/1000) < Number(existing.end)) {
-    persistOptInDelegationMode();
-    try { window.dispatchEvent(new CustomEvent('aa:delegation', { detail: { mode: 'v13-typed-data', delegate: existing.delegate, controller: existing.delegator } })); } catch {}
+  // Broadcast current sponsored (gasless) preference. Never auto-sign.
+  const optIn = (() => { try { return localStorage.getItem(SMART_ACCOUNT_OPT_IN_KEY) === 'true'; } catch { return false; } })();
+  if (optIn) {
+    try { await initAA({}); AA.setSponsored(true); } catch {}
+    try { window.dispatchEvent(new CustomEvent('aa:sponsored', { detail: { active: true } })); } catch {}
   }
 }
 
