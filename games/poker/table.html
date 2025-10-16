@@ -260,7 +260,6 @@
       import('../../js/agent-ops.js').catch(() => { });
       import('../../js/agent-sponsor-indicator.js').catch(() => { });
       import('../../js/agent-budget.js').catch(() => { });
-      import(`/js/envio-activity.js?v=${encodeURIComponent(tag)}`).catch(() => { });
       import(`/js/aa/ui.js?v=${encodeURIComponent(tag)}`).catch((err) => {
         console.warn('AA UI failed to load', err);
       });

@@ -282,6 +282,66 @@ const CDN_ETHERS_ESM = 'https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.es
       aaPanel.style.width = '100%';
       aaHost.appendChild(aaPanel);
     }
+
+    // Append Envio Activity section at the very bottom of the modal
+    let activity = document.getElementById('wi-activity');
+    if (!activity) {
+      activity = document.createElement('div');
+      activity.id = 'wi-activity';
+      activity.style.cssText = 'margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.12);display:flex;flex-direction:column;gap:6px;';
+      const heading = document.createElement('div');
+      heading.textContent = 'Table Activity';
+      heading.style.cssText = 'font-weight:600;font-size:13px;opacity:0.85;';
+      const list = document.createElement('div');
+      list.id = 'wi-activity-list';
+      list.style.cssText = 'display:flex;flex-direction:column;gap:4px;max-height:140px;overflow:auto;font-size:12px;';
+      const status = document.createElement('div');
+      status.id = 'wi-activity-status';
+      status.style.cssText = 'font-size:12px;opacity:0.85;';
+      status.textContent = 'Loading…';
+      activity.appendChild(heading);
+      activity.appendChild(status);
+      activity.appendChild(list);
+    }
+    if (activity.parentElement !== dialog) dialog.appendChild(activity);
+    // Populate activity
+    (async () => {
+      try {
+        const envio = await import('/js/envio-activity.js');
+        // Resolve table address
+        let tableAddress = '';
+        try { if (window.HoldemPokerAddress) tableAddress = window.HoldemPokerAddress; } catch {}
+        if (!tableAddress) {
+          try { const cfg = await import('/js/config.js'); tableAddress = (cfg && cfg.CONTRACTS && cfg.CONTRACTS.pokerTable) || ''; } catch {}
+        }
+        if (!tableAddress) {
+          const s = document.getElementById('wi-activity-status'); if (s) s.textContent = 'No table configured.'; return;
+        }
+        const endpoint = (typeof window.ENVIO_HYPERSYNC_URL==='string' && window.ENVIO_HYPERSYNC_URL) ? window.ENVIO_HYPERSYNC_URL : (localStorage.getItem('envio.hypersync.url') || (location && location.origin) || '');
+        if (!endpoint) { const s = document.getElementById('wi-activity-status'); if (s) s.textContent = 'Activity endpoint not set.'; return; }
+        const items = await envio.fetchRecentEvents({ endpoint, tableAddress, limit: 20 });
+        const list = document.getElementById('wi-activity-list');
+        const status = document.getElementById('wi-activity-status');
+        if (!Array.isArray(items) || !items.length) { if (status) status.textContent = 'No recent events'; return; }
+        if (status) status.textContent = `${items.length} events`;
+        list.innerHTML='';
+        items.slice(0,20).forEach((ev) => {
+          const row = document.createElement('div');
+          row.style.cssText = 'display:flex;gap:6px;align-items:center;background:rgba(0,0,0,0.25);padding:4px 6px;border-radius:8px;';
+          const when = document.createElement('span'); when.style.opacity = '0.85';
+          let ts = ev.blockTimestamp || ev.timestamp || ev.time || 0; try { if (typeof ts === 'string') ts = Date.parse(ts)/1000; } catch {}
+          const dt = ts ? new Date(ts*1000) : new Date(); when.textContent = dt.toLocaleTimeString();
+          const what = document.createElement('span'); what.style.fontWeight = '600'; what.textContent = ev.event || ev.name || ev.type || 'event';
+          const from = (ev.args?.player || ev.args?.from || ev.from || '').toString();
+          const to = (ev.args?.to || ev.to || '').toString();
+          const who = document.createElement('span'); who.style.opacity = '0.9'; who.textContent = [from||'', to?('→ '+to):''].filter(Boolean).join(' ');
+          row.appendChild(when); row.appendChild(document.createTextNode(' ')); row.appendChild(what); row.appendChild(document.createTextNode(' ')); row.appendChild(who);
+          list.appendChild(row);
+        });
+      } catch (e) {
+        const s = document.getElementById('wi-activity-status'); if (s) s.textContent = 'Failed to load activity.';
+      }
+    })();
   }
 
   function createModal() {

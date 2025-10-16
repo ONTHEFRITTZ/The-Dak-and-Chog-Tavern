@@ -10,73 +10,10 @@ function getEnvioUrl() {
   try { return location.origin; } catch { return ''; }
 }
 
-function ensurePanel() {
-  let host = document.getElementById('envio-activity');
-  if (!host) {
-    host = document.createElement('div');
-    host.id = 'envio-activity';
-    host.style.cssText = [
-      'position:fixed','bottom:12px','right:12px','z-index:13000',
-      'max-width:380px','min-width:260px','color:#f4e6d3',
-      'background:rgba(0,0,0,0.45)','backdrop-filter:blur(6px)',
-      'border:1px solid rgba(255,255,255,0.15)','border-radius:12px','padding:8px 10px',
-      'font-size:12px','box-shadow:0 10px 24px rgba(0,0,0,0.35)'
-    ].join(';');
-    const h = document.createElement('div');
-    h.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:8px';
-    const title = document.createElement('strong');
-    title.textContent = 'Table Activity';
-    title.style.cssText = 'font-size:12px;letter-spacing:0.03em';
-    const right = document.createElement('div'); right.style.cssText = 'display:flex;gap:6px;align-items:center;';
-    const status = document.createElement('span'); status.id = 'envio-status'; status.textContent = 'loading…'; status.style.opacity = '0.85';
-    const close = document.createElement('button'); close.textContent = '×'; close.style.cssText = 'cursor:pointer;background:transparent;border:none;color:#f4e6d3;font-size:16px;';
-    close.addEventListener('click', ()=> host.style.display = 'none');
-    right.appendChild(status); right.appendChild(close);
-    h.appendChild(title); h.appendChild(right);
-    const list = document.createElement('div'); list.id = 'envio-list'; list.style.cssText = 'display:flex;flex-direction:column;gap:4px;max-height:180px;overflow:auto;';
-    host.appendChild(h); host.appendChild(list);
-    (document.body || document.documentElement).appendChild(host);
-  }
-  // Position above other bottom-right pills (budget/sponsor/last-hand)
-  try {
-    const position = () => {
-      const vw = window.innerWidth || document.documentElement.clientWidth || 0;
-      const vh = window.innerHeight || document.documentElement.clientHeight || 0;
-      let minTop = vh; // topmost y of any bottom-right pill
-      const ids = ['aa-budget-indicator', 'sponsor-indicator', 'last-hand'];
-      for (const id of ids) {
-        const el = document.getElementById(id);
-        if (!el || el.offsetParent === null) continue;
-        const cs = getComputedStyle(el);
-        if (cs.display === 'none' || cs.visibility === 'hidden') continue;
-        const rect = el.getBoundingClientRect();
-        // Consider only elements near bottom-right quadrant
-        const nearRight = (vw - rect.right) <= 140;
-        const nearBottom = (vh - rect.bottom) <= 220;
-        if (nearRight && nearBottom && rect.width > 0 && rect.height > 0) {
-          if (rect.top < minTop) minTop = rect.top;
-        }
-      }
-      let bottom = 12; // default
-      if (minTop < vh) {
-        bottom = Math.max(12, Math.ceil(vh - minTop + 12));
-      }
-      host.style.bottom = bottom + 'px';
-      host.style.right = '12px';
-      host.style.left = 'auto';
-    };
-    position();
-    window.addEventListener('resize', position);
-    window.addEventListener('aa:budget', position);
-    window.addEventListener('aa:sponsored', position);
-    try { const obs = new MutationObserver(position); obs.observe(document.body, { childList: true, subtree: true }); } catch {}
-  } catch {}
-  return host;
-}
-
+function function ensurePanel() { return document.createElement('div'); }\n
 function short(addr){ try { return addr && addr.length>10 ? addr.slice(0,6)+'…'+addr.slice(-4) : (addr||''); } catch { return addr||''; } }
 
-async function fetchRecentEvents({ endpoint, tableAddress, limit = 10 }) {
+export async function fetchRecentEvents({ endpoint, tableAddress, limit = 10 }) {
   // Try a few shapes so we can demo regardless of specific indexer mapping.
   const urls = [
     `${endpoint}/events?address=${encodeURIComponent(tableAddress)}&limit=${limit}`,
@@ -97,16 +34,7 @@ async function fetchRecentEvents({ endpoint, tableAddress, limit = 10 }) {
   return [];
 }
 
-function render(items) {
-  const host = ensurePanel();
-  const list = host.querySelector('#envio-list');
-  const status = host.querySelector('#envio-status');
-  list.innerHTML = '';
-  if (!Array.isArray(items) || !items.length) {
-    status.textContent = 'no recent events';
-    return;
-  }
-  status.textContent = `${items.length} events`;
+function render() { /* no-op */ }\n  status.textContent = `${items.length} events`;
   items.slice(0, 10).forEach((ev) => {
     const row = document.createElement('div');
     row.style.cssText = 'display:flex;gap:6px;align-items:center;background:rgba(0,0,0,0.25);padding:4px 6px;border-radius:8px;';
@@ -126,11 +54,6 @@ function render(items) {
   });
 }
 
-async function main() {
-  const endpoint = getEnvioUrl();
-  if (!endpoint) return; // quietly no-op if not configured
-  let tableAddress = '';
-  try { if (window.HoldemPokerAddress) tableAddress = window.HoldemPokerAddress; } catch {}
   if (!tableAddress) {
     try {
       // Best-effort: derive from config
@@ -139,7 +62,6 @@ async function main() {
     } catch {}
   }
   if (!tableAddress) return;
-  ensurePanel();
   try {
     const items = await fetchRecentEvents({ endpoint, tableAddress, limit: 10 });
     render(items);
@@ -148,7 +70,6 @@ async function main() {
   }
 }
 
-try { main().catch(()=>{}); } catch {}
 
 // Expose simple helpers for reward/active scoring demo
 export async function getActiveScoreFor(address) {
@@ -166,3 +87,6 @@ export async function getActiveScoreFor(address) {
   }
   return score;
 }
+
+
+
