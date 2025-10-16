@@ -101,8 +101,12 @@ import { AA, defaultAllowlist } from './aaClient.js';
       });
 
       grantBtn.addEventListener('click', async () => {
+        // Read the current input value directly (avoid relying on 'change' firing)
         const allow = await defaultAllowlist();
-        const cap = Number(localStorage.getItem('aa:budget') || '0') || 0.05;
+        const cap = Number(budgetField.value || localStorage.getItem('aa:budget') || '0') || 0.05;
+        // Persist + broadcast budget immediately so downstream UI (pill) updates synchronously
+        AA.setBudget(cap);
+        try { localStorage.setItem('aa:budget', String(cap)); } catch {}
         const sess = await AA.grantSessionKey({ minutes: 120, monCap: cap, allowlist: allow });
         stateLine.textContent = `Session granted (cap ${cap} DCMon, expires in ~2h)`;
         updatePill();

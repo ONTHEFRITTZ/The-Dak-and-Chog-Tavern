@@ -12,7 +12,8 @@ import { AA } from './aaClient.js';
       'position:fixed','right:12px','bottom:92px','z-index:12050',
       'display:none','align-items:center','gap:6px',
       'padding:6px 12px','border-radius:12px','font-size:12px',
-      'background:rgba(26,14,8,0.92)','color:#f4e6d3',
+      'background:var(--panel-bg-strong)','color:#f4e6d3',
+      'border:1px solid var(--panel-border)',
       'box-shadow:0 12px 28px rgba(0,0,0,0.45)','font-weight:700'
     ].join(';');
     document.body.appendChild(pill);
