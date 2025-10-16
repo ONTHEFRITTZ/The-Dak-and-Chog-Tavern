@@ -638,7 +638,7 @@ export async function createDelegation({ address, preset, presetKey }) {
     try { if (!Implementation && toolkit && toolkit.default) Implementation = toolkit.default.Implementation; } catch {}
     // Prefer EIP7702Stateless to ensure internal signing path on v15 builds
     const impl = (Implementation?.EIP7702Stateless || Implementation?.Hybrid || Implementation?.MultiSig || undefined);
-    const hasInternalSigner = !!(mm && typeof mm.signDelegation === 'function');
+    const hasInternalSigner = !!(mm && mm.mmAccount && typeof mm.mmAccount.signDelegation === 'function');
     if (!hasInternalSigner && typeof toMetaMaskSmartAccount === 'function' && walletClient?.transport && delegatorHex) {
       const chainObj = walletClient?.chain || walletChain || publicClient?.chain || {
         id: MONAD.id,
@@ -676,8 +676,9 @@ export async function createDelegation({ address, preset, presetKey }) {
     } catch {}
   }
 
-  // Only attempt signing when delegating to the smart account and the mm signer is available.
-  if (delegateIsInternal && mm && typeof mm.signDelegation === 'function') {
+  // Only attempt signing when delegating to the smart account and the INTERNAL mmAccount signer is available.
+  const mmInternal = (mm && mm.mmAccount) ? mm.mmAccount : null;
+  if (delegateIsInternal && mmInternal && typeof mmInternal.signDelegation === 'function') {
     try {
       // Preflight validation to surface any lingering object-shaped addresses
       const viem = ctx.viem || (await ensureViem());
@@ -693,7 +694,7 @@ export async function createDelegation({ address, preset, presetKey }) {
       }
     } catch {}
     try {
-      let sigResult = await mm.signDelegation({
+      let sigResult = await mmInternal.signDelegation({
         delegation,
         chainId: MONAD.id,
         delegationManager: environment.DelegationManager,
@@ -713,7 +714,7 @@ export async function createDelegation({ address, preset, presetKey }) {
         const zero32 = '0x' + '00'.repeat(32);
         const rawLoose = { delegate: delegateHex, delegator: delegatorHex, authority: zero32, caveats: [], salt: 0n };
         const loose = sanitizeDelegationStruct(rawLoose, { delegatorHex, delegateHex, viemModule });
-        let sigResult2 = await mm.signDelegation({
+        let sigResult2 = await mmInternal.signDelegation({
           delegation: loose,
           chainId: MONAD.id,
           delegationManager: environment.DelegationManager,
@@ -741,7 +742,7 @@ export async function createDelegation({ address, preset, presetKey }) {
             caveats: [],
             salt: 0n
           };
-          let sigResult3 = await mm.signDelegation({
+          let sigResult3 = await mmInternal.signDelegation({
             delegation: minimal,
             chainId: MONAD.id,
             delegationManager: environment.DelegationManager,
@@ -767,7 +768,7 @@ export async function createDelegation({ address, preset, presetKey }) {
       delegateIsInternal,
       controllerLc,
       internalLc,
-      mmHasSign: !!(mm && typeof mm.signDelegation === 'function')
+      mmHasSign: !!(mmInternal && typeof mmInternal.signDelegation === 'function')
     });
     const helper = new Error('MetaMask Smart Account must sign this delegation internally. Enable Smart Accounts and try again.');
     helper.code = 'delegate_mm_signer_required';
@@ -880,12 +881,7 @@ export async function issueOpenDelegationForLanding() {
   }
 
   // Require internal signer support; do not fall back to external typed-data signing.
-  let mmSigner = null;
-  if (mm && mm.mmAccount && typeof mm.mmAccount.signDelegation === 'function') {
-    mmSigner = mm.mmAccount;
-  } else if (mm && typeof mm.signDelegation === 'function') {
-    mmSigner = mm;
-  }
+  let mmSigner = (mm && mm.mmAccount && typeof mm.mmAccount.signDelegation === 'function') ? mm.mmAccount : null;
   if (!mmSigner) {
     const err = new Error('Smart Accounts appear disabled in MetaMask. Open MetaMask and enable Smart Accounts for this wallet, then try again.');
     err.code = 'internal_signer_unavailable';
