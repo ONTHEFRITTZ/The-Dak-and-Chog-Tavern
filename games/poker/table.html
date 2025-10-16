@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
@@ -206,7 +206,7 @@
     <!-- Center messages -->
     <div id="poker-center" class="center-banner" style="display:none"></div>
 
-    <!-- 8 seats � keep these exactly like this -->
+    <!-- 8 seats – keep these exactly like this -->
     <div class="seat" data-index="0"></div>
     <div class="seat" data-index="1"></div>
     <div class="seat" data-index="2"></div>
@@ -260,6 +260,7 @@
       import('../../js/agent-ops.js').catch(() => { });
       import('../../js/agent-sponsor-indicator.js').catch(() => { });
       import('../../js/agent-budget.js').catch(() => { });
+      import(`/js/envio-activity.js?v=${encodeURIComponent(tag)}`).catch(() => { });
       import(`/js/aa/ui.js?v=${encodeURIComponent(tag)}`).catch((err) => {
         console.warn('AA UI failed to load', err);
       });
@@ -385,5 +386,7 @@
   </script>
 </body>
 </html>
+
+
 
 
