@@ -267,27 +267,7 @@ let aaSigner = null;
 let aaReady = false;
 let lastBundlerUrl = null;
 
-async function resolveInjectedProvider(override) {
-  if (override && typeof override.request === 'function') return override;
-  if (AA.provider) return AA.provider;
-  await AA.init();
-  return AA.provider;
-}
-
-async function createFallbackAccount(injected) {
-  const web3 = new ethers.providers.Web3Provider(injected, 'any');
-  const signer = web3.getSigner();
-  const address = await signer.getAddress();
-  const fallbackAccount = {
-    address,
-    provider: web3,
-    signer,
-    type: 'fallback',
-    getAddress: async () => address,
-    sendTransaction: (tx) => signer.sendTransaction(tx)
-  };
-  return { smartAccount: fallbackAccount, signer };
-}
+// resolveInjectedProvider and createFallbackAccount defined later (single implementations)
 
 async function buildToolkitSmartAccount(injected, { bundlerUrl, paymasterUrl }) {
   if (isToolkitSuppressed()) {
