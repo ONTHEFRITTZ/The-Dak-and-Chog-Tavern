@@ -63,6 +63,34 @@ async function loadToolkitV15() {
     }
   } catch {}
 
+  // Try known-good CDN ESM builds (v0.15.x) before touching the local vendor file.
+  const tryImportFromCdn = async (urls) => {
+    for (const url of urls) {
+      try {
+        const mod = await import(url);
+        const tk = (mod && mod.default && !mod.toMetaMaskSmartAccount && !mod.toSmartAccount) ? mod.default : mod;
+        // Shims to normalize API surface
+        try { if (tk && !tk.toMetaMaskSmartAccount && typeof tk.toSmartAccount === 'function') tk.toMetaMaskSmartAccount = tk.toSmartAccount; } catch {}
+        try { if (tk && !tk.Implementation) tk.Implementation = { Hybrid: 'Hybrid', EIP7702Stateless: 'Stateless7702', MultiSig: 'MultiSig' }; } catch {}
+        if (tk && typeof tk.toMetaMaskSmartAccount === 'function') {
+          try { window.__mmdt = tk; } catch {}
+          return tk;
+        }
+      } catch (_) {}
+    }
+    return null;
+  };
+  const cdnCandidates = [
+    'https://cdn.jsdelivr.net/npm/@metamask/delegation-toolkit@0.15.3/+esm',
+    'https://cdn.jsdelivr.net/npm/@metamask/delegation-toolkit@0.15.2/+esm',
+    'https://cdn.jsdelivr.net/npm/@metamask/delegation-toolkit@0.15.1/+esm',
+    'https://unpkg.com/@metamask/delegation-toolkit@0.15.3?module',
+    'https://unpkg.com/@metamask/delegation-toolkit@0.15.2?module',
+    'https://unpkg.com/@metamask/delegation-toolkit@0.15.1?module'
+  ];
+  const cdnTk = await tryImportFromCdn(cdnCandidates);
+  if (cdnTk) return cdnTk;
+
   const tryImportViaBlob = async (spec) => {
     try {
       const u = new URL(spec, location.origin);
@@ -70,14 +98,7 @@ async function loadToolkitV15() {
       const res = await fetch(u.toString(), { credentials: 'same-origin' });
       if (!res.ok) return null;
       let code = await res.text();
-      try {
-        // Normalize jsDelivr-style ESM sub-imports to esm.sh (more reliable)
-        code = code
-          // Double-quoted imports
-          .replace(/"\/npm\/(.*?)\/\+esm"/g, '"https://esm.sh/$1"')
-          // Single-quoted imports
-          .replace(/'\/npm\/(.*?)\/\+esm'/g, '\'https://esm.sh/$1\'');
-      } catch {}
+      // Do not rewrite vendor sub-imports; allow the vendor to use absolute CDN URLs if present.
       const vendorUrl = URL.createObjectURL(new Blob([code], { type: 'text/javascript' }));
       // Wrap the vendor as a module that attaches exports to window.__mmdt as well
       const wrapperCode = `import * as M from "${vendorUrl}"; try { window.__mmdt = M; } catch {} export default M;`;
