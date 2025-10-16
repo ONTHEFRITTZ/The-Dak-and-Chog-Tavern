@@ -31,8 +31,9 @@ module.exports = {
         // Comma-separated, LOWERCASE wallet addresses with admin rights:
         ADMIN_ADDR: '0xyouradminwalletlowercase',
         RT_RAKE_BPS: 100,
-        // RPC used by realtime indexer (/events). Keep overridable via process env.
-        MONAD_RPC_URL: process.env.MONAD_RPC_URL || 'https://monad-testnet.drpc.org'
+        // RPC used by realtime indexer (/events).
+        // Prefer MONAD_BUNDLER_RPC; fallback to MONAD_RPC_URL; both overridable at runtime.
+        MONAD_BUNDLER_RPC: process.env.MONAD_BUNDLER_RPC || process.env.MONAD_RPC_URL || 'https://monad-testnet.drpc.org'
       },
 
       env_production: {
