@@ -36,6 +36,11 @@ function httpAllow(ip) {
   return arr.length <= HTTP_RL_LIMIT;
 }
 
+// ----------------------- In-memory cache for indexer -----------------------
+const INDEXER_CACHE_MS = Number(process.env.INDEXER_CACHE_MS || 15_000);
+const INDEXER_CACHE_EVENTS = Number(process.env.INDEXER_CACHE_EVENTS || 50);
+const indexerCache = new Map(); // key: addressLower -> { at:number, events:Array }
+
 const server = http.createServer(async (req, res) => {
   try {
     const u = new URL(req.url, 'http://local');
@@ -73,25 +78,48 @@ const server = http.createServer(async (req, res) => {
         'event HandSettled(uint256 indexed handId, address[] winners, uint256[] payouts, uint256 rake)'
       ];
       const iface = new ethers.Interface(ABI_EVENTS);
-      const latest = await provider.getBlockNumber();
-      const fromBlock = Math.max(0, latest - 20_000);
-      const logs = await provider.getLogs({ address: addr, fromBlock, toBlock: latest }).catch(() => []);
-      const tail = logs.slice(-Math.max(1, limit)).reverse();
-      const out = [];
-      for (const lg of tail) {
-        let decoded = null;
-        try { decoded = iface.parseLog(lg); } catch {}
-        let ts = null;
-        try { const blk = await provider.getBlock(lg.blockNumber); ts = blk?.timestamp || null; } catch {}
-        out.push({
-          event: decoded?.name || 'event',
-          args: decoded?.args ? Object.fromEntries(decoded.fragment.inputs.map((inp, i) => [inp.name || String(i), decoded.args[i]])) : {},
-          blockNumber: lg.blockNumber,
-          blockTimestamp: ts,
-          txHash: lg.transactionHash
-        });
+
+      // Serve from cache if fresh
+      const now = Date.now();
+      const cached = indexerCache.get(addr);
+      if (cached && (now - cached.at) < INDEXER_CACHE_MS) {
+        const out = cached.events.slice(0, limit);
+        res.statusCode = 200; res.end(JSON.stringify(out)); return;
       }
-      res.statusCode = 200; res.end(JSON.stringify(out)); return;
+
+      // Fetch fresh logs and build a cached window of recent events
+      let events = [];
+      try {
+        const latest = await provider.getBlockNumber();
+        const fromBlock = Math.max(0, latest - 20_000);
+        const logs = await provider.getLogs({ address: addr, fromBlock, toBlock: latest }).catch(() => []);
+        const cap = Math.max(1, Math.min(INDEXER_CACHE_EVENTS, logs.length));
+        const tailLogs = logs.slice(-cap).reverse();
+        // Fetch block timestamps for the logs we cache
+        const blocks = await Promise.allSettled(tailLogs.map(lg => provider.getBlock(lg.blockNumber)));
+        events = tailLogs.map((lg, i) => {
+          let decoded = null;
+          try { decoded = iface.parseLog(lg); } catch {}
+          const blk = blocks[i]?.value || null;
+          const ts = blk ? (blk.timestamp || null) : null;
+          return {
+            event: decoded?.name || 'event',
+            args: decoded?.args ? Object.fromEntries(decoded.fragment.inputs.map((inp, j) => [inp.name || String(j), decoded.args[j]])) : {},
+            blockNumber: lg.blockNumber,
+            blockTimestamp: ts,
+            txHash: lg.transactionHash
+          };
+        });
+      } catch (e) {
+        if (cached && Array.isArray(cached.events) && cached.events.length) {
+          // Serve stale cache if RPC fails
+          res.statusCode = 200; res.end(JSON.stringify(cached.events.slice(0, limit))); return;
+        }
+        res.statusCode = 500; res.end(JSON.stringify({ error: 'indexer_fetch_failed', message: String(e?.message||e) })); return;
+      }
+
+      indexerCache.set(addr, { at: now, events });
+      res.statusCode = 200; res.end(JSON.stringify(events.slice(0, limit))); return;
     }
   } catch (err) {
     try { res.statusCode = 500; res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify({ error: String(err?.message||err) })); return; } catch {}
