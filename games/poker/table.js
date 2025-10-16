@@ -754,6 +754,104 @@ function initializePokerTable() {
   const betBtn = document.createElement('button');
   betBtn.textContent = 'Bet';
   actionBar.append(infoText, foldBtn, callBtn, betInput, betBtn);
+
+  // Optional: "Your Activity Score" near the wallet chip when Envio is configured
+  (function attachActivityScore() {
+    try {
+      if (!isOnchainTable) return;
+      const envioUrl = (typeof window.ENVIO_HYPERSYNC_URL === 'string' && window.ENVIO_HYPERSYNC_URL) ? window.ENVIO_HYPERSYNC_URL : (localStorage.getItem('envio.hypersync.url')||'');
+      if (!envioUrl) return;
+      const host = document.getElementById('wallet-inline') || document.body || document.documentElement;
+      let spot = document.getElementById('wi-activity-score');
+      if (!spot) { spot = document.createElement('span'); spot.id = 'wi-activity-score'; spot.style.cssText = 'margin-left:6px;font-size:12px;opacity:.95;'; host.appendChild(spot); }
+      const update = async () => {
+        try {
+          const mod = await import('/js/envio-activity.js');
+          const addr = (window.userAddress || localStorage.getItem('walletAddress') || '').toLowerCase();
+          const s = addr ? await mod.getActiveScoreFor(addr) : 0;
+          spot.textContent = 'Activity: ' + s;
+        } catch { spot.textContent = 'Activity: n/a'; }
+      };
+      spot.textContent = 'Activity: …';
+      update();
+      try { if (spot.__timer) clearInterval(spot.__timer); } catch {}
+      spot.__timer = setInterval(update, 30000);
+    } catch {}
+  })();
+
+  // Agent toggles (Auto Ready / Auto Rebuy / Auto Clear Seat)
+  // Small floating panel near the wallet chip (top-right)
+  const agentPanel = (() => {
+    try {
+      const panel = document.createElement('div');
+      panel.id = 'agent-toggles';
+      panel.style.cssText = [
+        'position:fixed','top:54px','right:12px','z-index:12000',
+        'display:flex','flex-direction:column','gap:6px','align-items:flex-start',
+        'background:rgba(0,0,0,0.45)','backdrop-filter:blur(6px)',
+        'border:1px solid rgba(255,255,255,0.15)','border-radius:12px','padding:8px 10px',
+        'color:#f4e6d3','font-size:12px','max-width:280px'
+      ].join(';');
+      const title = document.createElement('div');
+      title.textContent = 'Agent';
+      title.style.cssText = 'font-weight:800;margin-bottom:2px;letter-spacing:.02em;opacity:.95';
+
+      const row = (labelEl, inputEl) => {
+        const wrap = document.createElement('div');
+        wrap.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%';
+        wrap.appendChild(labelEl); wrap.appendChild(inputEl);
+        return wrap;
+      };
+
+      const mkCheck = (key, labelText) => {
+        const lab = document.createElement('label');
+        lab.textContent = labelText;
+        lab.style.fontWeight = '700';
+        const box = document.createElement('input');
+        box.type = 'checkbox';
+        try { box.checked = (localStorage.getItem(key) === '1'); } catch {}
+        box.addEventListener('change', () => { try { localStorage.setItem(key, box.checked ? '1' : '0'); } catch {} });
+        return row(lab, box);
+      };
+
+      const rebuyLab = document.createElement('label');
+      rebuyLab.textContent = 'Auto Rebuy (budget MON)';
+      rebuyLab.style.fontWeight = '700';
+      const rebuyWrap = document.createElement('div');
+      rebuyWrap.style.cssText = 'display:flex;align-items:center;gap:6px';
+      const rebuyToggle = document.createElement('input'); rebuyToggle.type='checkbox';
+      try { rebuyToggle.checked = (localStorage.getItem('agent.autoRebuy') === '1'); } catch {}
+      rebuyToggle.addEventListener('change', () => { try { localStorage.setItem('agent.autoRebuy', rebuyToggle.checked ? '1' : '0'); } catch {} });
+      const rebuyBudget = document.createElement('input');
+      rebuyBudget.type='number'; rebuyBudget.min='0'; rebuyBudget.step='0.001';
+      rebuyBudget.placeholder = '0.50';
+      try { const v = localStorage.getItem('agent.autoRebuy.budget'); if (v) rebuyBudget.value = v; } catch {}
+      rebuyBudget.style.cssText='width:86px;text-align:center;background:rgba(0,0,0,0.35);border:1px solid rgba(255,255,255,0.16);color:#f4e6d3;border-radius:8px;padding:3px 6px;';
+      rebuyBudget.addEventListener('change', () => { try { localStorage.setItem('agent.autoRebuy.budget', String(rebuyBudget.value||'')); } catch {} });
+      rebuyWrap.appendChild(rebuyToggle); rebuyWrap.appendChild(rebuyBudget);
+
+      panel.appendChild(title);
+      panel.appendChild(mkCheck('agent.autoReady', 'Auto Ready'));
+      panel.appendChild(row(rebuyLab, rebuyWrap));
+      panel.appendChild(mkCheck('agent.autoClear', 'Auto Clear Seat'));
+
+      // Only visible on on-chain tables
+      panel.style.display = isOnchainTable ? '' : 'none';
+
+      // Prefer near the wallet chip if present
+      const host = document.getElementById('wallet-inline') || document.body || document.documentElement;
+      host.appendChild(panel);
+      return panel;
+    } catch {}
+    return null;
+  })();
+
+  function readAgentFlag(key) {
+    try { return localStorage.getItem(key) === '1'; } catch { return false; }
+  }
+  function readAgentBudgetMON() {
+    try { const v = Number(localStorage.getItem('agent.autoRebuy.budget') || '0'); return Number.isFinite(v) && v > 0 ? v : 0; } catch { return 0; }
+  }
   canvas.appendChild(actionBar);
   // Purge any non-address labels from seats immediately
   try {
@@ -1345,6 +1443,77 @@ function initializePokerTable() {
     currentTurnSeat = turnSeat;
     anchorActionBar();
   }
+
+  // Throttle helpers for agent auto-ops
+  let lastAutoReadyAt = 0;
+  let lastAutoRebuyAt = 0;
+  const AUTO_READY_COOLDOWN_MS = 5000;
+  const AUTO_REBUY_COOLDOWN_MS = 15000;
+
+  async function maybeRunAgent(state) {
+    if (!isOnchainTable) return;
+    const nowMs = Date.now();
+    const myIdx = mySeat;
+    if (!Number.isInteger(myIdx) || myIdx < 0) return;
+
+    // Auto Ready: if contract supports a ready() method and it’s our turn
+    try {
+      if (readAgentFlag('agent.autoReady') && currentTurnSeat === myIdx && nowMs - lastAutoReadyAt > AUTO_READY_COOLDOWN_MS) {
+        lastAutoReadyAt = nowMs;
+        try {
+          const adapter = await getOnchainAdapter();
+          if (adapter && adapter.contract && adapter.contract.interface && adapter.contract.interface.functions) {
+            const hasReady = !!adapter.contract.interface.functions['ready()'];
+            if (hasReady) {
+              // Use AA call for readiness if available
+              const ops = await (async () => { try { return await ensureAAOps(); } catch { return null; } })();
+              if (ops && typeof ops.callWithDelegation === 'function') {
+                try { await ops.callWithDelegation({ to: adapter.address, signature: 'ready()', args: [] }); } catch {}
+              }
+            }
+          }
+        } catch {}
+      }
+    } catch {}
+
+    // Auto Rebuy: top up to budget if below
+    try {
+      if (readAgentFlag('agent.autoRebuy') && nowMs - lastAutoRebuyAt > AUTO_REBUY_COOLDOWN_MS) {
+        const budgetMon = readAgentBudgetMON();
+        if (budgetMon > 0) {
+          const me = actorForSeat(state, myIdx) || {};
+          const stackMon = Number(me.stack || 0);
+          if (Number.isFinite(stackMon) && stackMon < budgetMon) {
+            const needMon = Math.max(0, budgetMon - stackMon);
+            const chips = dcmonToChips(needMon);
+            if (Number.isFinite(chips) && chips > 0) {
+              try {
+                const adapter = await getOnchainAdapter();
+                if (adapter && typeof adapter.contribute === 'function') {
+                  await adapter.contribute(myIdx, chips);
+                  lastAutoRebuyAt = Date.now();
+                }
+              } catch (e) { console.warn('Auto Rebuy failed', e); }
+            }
+          }
+        }
+      }
+    } catch {}
+
+    // Auto Clear Seat: if seat is blocked, try to clear
+    try {
+      if (readAgentFlag('agent.autoClear')) {
+        const adapter = await getOnchainAdapter();
+        if (adapter && typeof adapter.readSeatOwnerLower === 'function' && typeof adapter.ownerAddress === 'function') {
+          const smartAddr = (await adapter.ownerAddress())?.toLowerCase?.() || '';
+          const holder = await adapter.readSeatOwnerLower(myIdx).catch(() => '');
+          if (holder && smartAddr && holder === smartAddr) {
+            try { await autoClearSeat(myIdx); } catch {}
+          }
+        }
+      }
+    } catch {}
+  }
   function updateSeatStates(state) {
     seatMeta.forEach(meta => {
       meta.seat.classList.remove('folded', 'acted', 'winner');
@@ -1707,6 +1876,8 @@ function initializePokerTable() {
     currentTurnSeat = turnSeat;
     startTurnTimer(turnSeat);
     updateActionBar(turnSeat, state);
+    // Agent automations (non-blocking)
+    try { maybeRunAgent(state); } catch {}
   }
   function handlePokerPrivate(msg) {
     const seatId = Number.isFinite(msg?.seatId) ? msg.seatId : seatIndexForAddr(msg?.addr);
