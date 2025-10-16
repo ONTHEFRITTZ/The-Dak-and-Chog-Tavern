@@ -852,18 +852,14 @@ function initializePokerTable() {
             const r = wallet.getBoundingClientRect();
             topPx = Math.max(topPx, (r.bottom + 8));
           }
-          const aa = document.getElementById('aa-controls');
-          if (aa && aa.offsetParent !== null) {
-            const rr = aa.getBoundingClientRect();
-            topPx = Math.max(topPx, (rr.bottom + 8));
-          }
+          // Do not consider AA controls; anchor strictly to wallet pill to avoid jumps on session changes
           panel.style.top = `${Math.round(topPx)}px`;
         } catch {}
       }
       positionAgentPanel();
       try { window.addEventListener('resize', positionAgentPanel); } catch {}
       try { window.addEventListener('wallet:connected', positionAgentPanel); } catch {}
-      try { window.addEventListener('aa:session', positionAgentPanel); } catch {}
+      try {  } catch {}
       return panel;
     } catch {}
     return null;
@@ -1992,3 +1988,5 @@ if (document.readyState === 'loading') {
 } else {
   initializePokerTable();
 }
+
+
