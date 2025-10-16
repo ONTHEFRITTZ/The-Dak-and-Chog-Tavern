@@ -1,4 +1,4 @@
-// js/aa/init-all.js
+﻿// js/aa/init-all.js
 // Site-wide Smart Account bootstrap for MetaMask Delegation Toolkit v15.
 // Load this as the first module after provider-pin.js on every page.
 
@@ -54,7 +54,7 @@ function ensureModalElements() {
     const actions = document.createElement('div'); actions.className = 'sa-actions'; actions.style.cssText = 'display:flex;flex-direction:column;gap:12px;margin-top:10px;align-items:stretch;';
     enableBtn = document.createElement('button'); enableBtn.id = 'sa-enable-here'; enableBtn.className = 'sa-primary'; enableBtn.textContent = 'Enable MetaMask Smart Account'; enableBtn.style.cssText = 'height:48px;border-radius:10px;border:none;background:linear-gradient(135deg,#9200fa,#5f00a8);color:#fff;font-weight:600;cursor:pointer;';
     proceedBtn = document.createElement('button'); proceedBtn.id = 'sa-proceed'; proceedBtn.className = 'sa-secondary'; proceedBtn.textContent = 'Enter with fewer features'; proceedBtn.style.cssText = 'height:48px;border-radius:10px;border:none;background:rgba(255,255,255,0.06);color:#f4e6d3;font-weight:600;cursor:pointer;';
-    dismissBtn = document.createElement('button'); dismissBtn.id = 'sa-dismiss'; dismissBtn.className = 'sa-close'; dismissBtn.textContent = '×'; dismissBtn.setAttribute('aria-label', 'Dismiss'); dismissBtn.style.cssText = 'position:absolute;top:10px;right:12px;background:transparent;border:none;color:#f4e6d3;font-size:26px;cursor:pointer;';
+    dismissBtn = document.createElement('button'); dismissBtn.id = 'sa-dismiss'; dismissBtn.className = 'sa-close'; dismissBtn.textContent = 'Ã—'; dismissBtn.setAttribute('aria-label', 'Dismiss'); dismissBtn.style.cssText = 'position:absolute;top:10px;right:12px;background:transparent;border:none;color:#f4e6d3;font-size:26px;cursor:pointer;';
     actions.appendChild(enableBtn); actions.appendChild(proceedBtn);
     dialog.appendChild(dismissBtn); dialog.appendChild(title); dialog.appendChild(msg); dialog.appendChild(actions);
     modal.appendChild(dialog);
@@ -75,9 +75,7 @@ export function openSmartAccountModal() {
     if (modal && !modal.__wiredBackdrop) { modal.__wiredBackdrop = true; modal.addEventListener('click', (e) => { if (e.target === modal) close(); }); }
     if (enableBtn && !enableBtn.__wired) {
       enableBtn.__wired = true;
-      enableBtn.addEventListener('click', async () => {
-        enableBtn.disabled = true; const prev = enableBtn.textContent; enableBtn.textContent = 'Enabling...';
-        try { await enableSmartAccountNow(); close(); } catch (e) { console.warn('Enable SA failed', e); enableBtn.disabled = false; enableBtn.textContent = prev; }
+      enableBtn.addEventListener('click', async () => { try { sessionStorage.removeItem('aa:disableAutoDelegation'); } catch {} enableSmartAccountNow(); close(); } catch (e) { console.warn('Enable SA failed', e); enableBtn.disabled = false; enableBtn.textContent = prev; }
       });
     }
     if (proceedBtn && !proceedBtn.__wired) {
@@ -94,12 +92,7 @@ try {
   window.enableSmartAccountNow = enableSmartAccountNow;
 } catch {}
 
-async function siteWideInit() {
-  // If a valid delegation already exists, consider SA enabled and broadcast.
-  const existing = loadDelegation();
-  if (existing && existing.end && Math.floor(Date.now()/1000) < Number(existing.end)) {
-    try { if (existing.delegate) persistEnabled(lc(existing.delegate)); } catch {}
-    return;
+async function siteWideInit() {\n  // Never auto-sign. Only broadcast if a valid delegation already exists.\n  const existing = loadDelegation();\n  if (existing && existing.end && Math.floor(Date.now()/1000) < Number(existing.end)) {\n    try { if (existing.delegate) persistEnabled(lc(existing.delegate)); } catch {}\n  }\n}\n    return;
   }
 
   // On landing page, do not auto-enable; wait for explicit user choice.
@@ -123,5 +116,6 @@ async function siteWideInit() {
   }
 }
 
-// Kick off initialization but don’t block page rendering.
+// Kick off initialization but donâ€™t block page rendering.
 siteWideInit().catch(() => {});
+
