@@ -1572,7 +1572,7 @@ function initializePokerTable() {
       const stackValue = Number(actor?.stack);
       if (Number.isFinite(stackValue)) {
         if (isOnchainTable) {
-          meta.stack.textContent = `Stack: `;
+          meta.stack.textContent = `Stack: ${formatDcmonBalance(stackValue)}`;
         } else {
           meta.stack.textContent = `Stack: ${formatChips(stackValue)} chips`;
         }
@@ -1633,7 +1633,7 @@ function initializePokerTable() {
         const rawBalance = Number(balanceField);
         if (Number.isFinite(rawBalance) && rawBalance > 0) {
           const display = formatDcmonBalance(rawBalance);
-          meta.stack.textContent = `Stack: `;
+          meta.stack.textContent = `Stack: ${display}`;
         } else {
           meta.stack.textContent = 'Stack: --';
         }
@@ -2013,6 +2013,7 @@ if (document.readyState === 'loading') {
 } else {
   initializePokerTable();
 }
+
 
 
 

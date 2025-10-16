@@ -9,7 +9,7 @@ export async function detectBundler(explicitProvider) {
   const provider = explicitProvider || resolveInjected();
   if (!provider || typeof provider.request !== 'function') return { provider: null, available: false };
   try {
-    const caps = await provider.request({ method: 'wallet_getCapabilities', params: [] }).catch(() => null);
+    let caps = null; try { const accs = await provider.request({ method: 'eth_accounts' }).catch(() => []); const who = (Array.isArray(accs) && accs[0]) ? String(accs[0]) : null; if (who) { caps = await provider.request({ method: 'wallet_getCapabilities', params: [who] }).catch(() => null); } } catch {} if (!caps) { try { caps = await provider.request({ method: 'wallet_getCapabilities', params: [] }); } catch { try { caps = await provider.request({ method: 'wallet_getCapabilities' }); } catch { caps = null; } } }
     const hasSendCalls = !!(caps && (caps['wallet_sendCalls'] || caps['wallet_sendCalls:1']));
     const supports = !!hasSendCalls;
     return { provider, available: supports };
@@ -71,5 +71,6 @@ export async function waitForTransactionReceipt(providerLike, hash, timeoutMs = 
     try { return await provider.getTransactionReceipt(hash); } catch { return null; }
   }
 }
+
 
 
