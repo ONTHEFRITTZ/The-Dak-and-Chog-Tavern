@@ -11,8 +11,8 @@ export async function detectBundler(explicitProvider) {
   try {
     const caps = await provider.request({ method: 'wallet_getCapabilities' }).catch(() => null);
     const hasSendCalls = !!(caps && (caps['wallet_sendCalls'] || caps['wallet_sendCalls:1']));
-    const supports = hasSendCalls || true; // optimistic; we'll catch on actual call
-    return { provider, available: !!supports };
+    const supports = !!hasSendCalls;
+    return { provider, available: supports };
   } catch {
     return { provider, available: false };
   }
