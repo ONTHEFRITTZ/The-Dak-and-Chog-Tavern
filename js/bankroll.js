@@ -445,36 +445,38 @@
         state.balances.dcmonWei = null;
         updateTargetSet(balanceTargets.dcmon, '-');
       }
-      // Update exchange rate display if element exists and method available
-      try {
+      // Update exchange rate display if element exists; degrade gracefully if unsupported
+      {
         const rateEl = document.getElementById('wi-exchange-rate');
         if (rateEl && dcmonRead) {
           let rateStr = '-';
+          // Attempt exchangeRate() first
           if (typeof dcmonRead.exchangeRate === 'function') {
-            const res = await dcmonRead.exchangeRate();
-            // ethers v5 returns array-like result [numerator, denominator]
-            const num = res && (res.numerator || res[0]);
-            const den = res && (res.denominator || res[1]);
-            if (num) {
-              const val = (window.ethers && window.ethers.utils && window.ethers.utils.formatUnits) ? window.ethers.utils.formatUnits(num, 18) : null;
-              if (val != null) rateStr = String(Number.parseFloat(val).toFixed(6));
-            }
-          } else if (typeof dcmonRead.previewRedeem === 'function' && window.ethers?.constants?.WeiPerEther) {
-            const out = await dcmonRead.previewRedeem(window.ethers.constants.WeiPerEther);
-            if (out) {
-              const val = (window.ethers && window.ethers.utils && window.ethers.utils.formatEther) ? window.ethers.utils.formatEther(out) : null;
-              if (val != null) rateStr = String(Number.parseFloat(val).toFixed(6));
-            }
+            try {
+              const res = await dcmonRead.exchangeRate();
+              const num = res && (res.numerator || res[0]);
+              if (num) {
+                const val = (window.ethers && window.ethers.utils && window.ethers.utils.formatUnits)
+                  ? window.ethers.utils.formatUnits(num, 18)
+                  : null;
+                if (val != null) rateStr = String(Number.parseFloat(val).toFixed(6));
+              }
+            } catch (_) { /* silent: not all deployments expose exchangeRate */ }
           }
-          if (rateStr && rateStr !== '-') {
-            rateEl.textContent = `1 DCMon = ${rateStr} MON`;
-          } else {
-            rateEl.textContent = '-';
+          // Fallback: previewRedeem(1e18) -> MON per 1 DCMon
+          if ((rateStr === '-' || rateStr == null) && typeof dcmonRead.previewRedeem === 'function' && window.ethers?.constants?.WeiPerEther) {
+            try {
+              const out = await dcmonRead.previewRedeem(window.ethers.constants.WeiPerEther);
+              if (out) {
+                const val = (window.ethers && window.ethers.utils && window.ethers.utils.formatEther)
+                  ? window.ethers.utils.formatEther(out)
+                  : null;
+                if (val != null) rateStr = String(Number.parseFloat(val).toFixed(6));
+              }
+            } catch (_) { /* silent */ }
           }
+          rateEl.textContent = (rateStr && rateStr !== '-') ? `1 DCMon = ${rateStr} MON` : '-';
         }
-      } catch (rateErr) {
-        console.warn('bankroll: exchange rate read failed', rateErr);
-        try { const rateEl = document.getElementById('wi-exchange-rate'); if (rateEl) rateEl.textContent = '-'; } catch {}
       }
       try {
         const balanceProvider = rpcProvider || await getProvider();
