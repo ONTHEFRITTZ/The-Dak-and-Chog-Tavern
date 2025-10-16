@@ -7,12 +7,61 @@ const { Server } = require('socket.io');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const { ethers } = require('ethers');
 
 // Onchain dealer integration (safe no-ops if file exports stubs)
 const { onBeginHand, onSettleHand, dealerSignerConfigured } = require('./dealeronchain');
 
 /* ----------------------------- HTTP + Socket.IO ---------------------------- */
-const server = http.createServer((req, res) => {
+const server = http.createServer(async (req, res) => {
+  try {
+    const u = new URL(req.url, 'http://local');
+    const p = u.pathname || '/';
+    if (p === '/events' || p === '/api/events' || p === '/api/v1/events') {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Content-Type', 'application/json');
+      const addr = String(u.searchParams.get('address') || u.searchParams.get('contract') || '').toLowerCase();
+      const limit = Math.min(100, Math.max(1, Number(u.searchParams.get('limit') || 10)));
+      if (!addr || !/^0x[0-9a-f]{40}$/.test(addr)) {
+        res.statusCode = 400; res.end(JSON.stringify({ error: 'address missing/invalid' })); return;
+      }
+      const RPC = process.env.MONAD_BUNDLER_RPC || process.env.MONAD_RPC_URL || process.env.RPC_URL || '';
+      if (!RPC) { res.statusCode = 500; res.end(JSON.stringify({ error: 'RPC not configured (MONAD_BUNDLER_RPC or MONAD_RPC_URL)' })); return; }
+      const provider = new ethers.JsonRpcProvider(RPC);
+      // Minimal ABI: we only need events to decode
+      const ABI_EVENTS = [
+        'event SeatTaken(address indexed player, uint8 indexed seat, uint256 amount)',
+        'event SeatLeft(address indexed player, uint8 indexed seat, uint256 returnedAmount)',
+        'event Joined(address indexed player, uint8 indexed seat)',
+        'event LeftDuringHand(address indexed player, uint8 indexed seat)',
+        'event HandStarted(uint256 indexed handId, uint8 dealer, uint8 sb, uint8 bb)',
+        'event Contributed(uint256 indexed handId, uint8 indexed seat, uint256 amount)',
+        'event HandSettled(uint256 indexed handId, address[] winners, uint256[] payouts, uint256 rake)'
+      ];
+      const iface = new ethers.Interface(ABI_EVENTS);
+      const latest = await provider.getBlockNumber();
+      const fromBlock = Math.max(0, latest - 20_000);
+      const logs = await provider.getLogs({ address: addr, fromBlock, toBlock: latest }).catch(() => []);
+      const tail = logs.slice(-Math.max(1, limit)).reverse();
+      const out = [];
+      for (const lg of tail) {
+        let decoded = null;
+        try { decoded = iface.parseLog(lg); } catch {}
+        let ts = null;
+        try { const blk = await provider.getBlock(lg.blockNumber); ts = blk?.timestamp || null; } catch {}
+        out.push({
+          event: decoded?.name || 'event',
+          args: decoded?.args ? Object.fromEntries(decoded.fragment.inputs.map((inp, i) => [inp.name || String(i), decoded.args[i]])) : {},
+          blockNumber: lg.blockNumber,
+          blockTimestamp: ts,
+          txHash: lg.transactionHash
+        });
+      }
+      res.statusCode = 200; res.end(JSON.stringify(out)); return;
+    }
+  } catch (err) {
+    try { res.statusCode = 500; res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify({ error: String(err?.message||err) })); return; } catch {}
+  }
   res.writeHead(200, { 'Content-Type': 'text/plain' });
   res.end('Tavern realtime OK');
 });
