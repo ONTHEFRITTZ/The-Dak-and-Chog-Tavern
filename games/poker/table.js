@@ -348,7 +348,7 @@ function initializePokerTable() {
     let cachedAddr = null;
     let aaOpsModule = null;
     let lastAAError = null;
-    let seatProbeSupported = true;
+    let seatProbeSupported = false;
     let seatProbeWarned = false;
     async function ownerAddress() {
       try {
@@ -1572,7 +1572,7 @@ function initializePokerTable() {
       const stackValue = Number(actor?.stack);
       if (Number.isFinite(stackValue)) {
         if (isOnchainTable) {
-          meta.stack.textContent = `Stack: ${formatChips(stackValue)} DCMon`;
+          meta.stack.textContent = `Stack: `;
         } else {
           meta.stack.textContent = `Stack: ${formatChips(stackValue)} chips`;
         }
@@ -1633,9 +1633,9 @@ function initializePokerTable() {
         const rawBalance = Number(balanceField);
         if (Number.isFinite(rawBalance) && rawBalance > 0) {
           const display = formatDcmonBalance(rawBalance);
-          meta.stack.textContent = `Stack: ${display} DCMon`;
+          meta.stack.textContent = `Stack: `;
         } else {
-          meta.stack.textContent = 'Stack: -- DCMon';
+          meta.stack.textContent = 'Stack: --';
         }
       } else {
         const chips = Number(seatData && seatData.chips != null ? seatData.chips : 0);
@@ -2013,5 +2013,7 @@ if (document.readyState === 'loading') {
 } else {
   initializePokerTable();
 }
+
+
 
 

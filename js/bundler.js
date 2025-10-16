@@ -1,4 +1,4 @@
-﻿// Minimal EIP-5792 bundler utilities
+// Minimal EIP-5792 bundler utilities
 // Works with EIP-1193 providers (MetaMask Smart Accounts, etc.)
 
 function resolveInjected() {
@@ -9,7 +9,7 @@ export async function detectBundler(explicitProvider) {
   const provider = explicitProvider || resolveInjected();
   if (!provider || typeof provider.request !== 'function') return { provider: null, available: false };
   try {
-    const caps = await provider.request({ method: 'wallet_getCapabilities' }).catch(() => null);
+    const caps = await provider.request({ method: 'wallet_getCapabilities', params: [] }).catch(() => null);
     const hasSendCalls = !!(caps && (caps['wallet_sendCalls'] || caps['wallet_sendCalls:1']));
     const supports = !!hasSendCalls;
     return { provider, available: supports };
@@ -71,4 +71,5 @@ export async function waitForTransactionReceipt(providerLike, hash, timeoutMs = 
     try { return await provider.getTransactionReceipt(hash); } catch { return null; }
   }
 }
+
 
