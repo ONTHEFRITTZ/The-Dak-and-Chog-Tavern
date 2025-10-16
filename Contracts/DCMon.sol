@@ -89,33 +89,48 @@ contract DCMon is ERC20, AccessControl, ReentrancyGuard {
     }
 
     // ------------------------------------------------------------------------
-    // Core LST functionality
+    // Core LST functionality (share-based)
     // ------------------------------------------------------------------------
 
     /**
-     * @notice Deposit underlying MON and mint DCmon 1:1 (adjust later for staking APY).
+     * @notice Deposit underlying MON and mint DCmon shares at the current exchange rate.
+     *         r = totalUnderlying / totalSupply. If no supply, 1:1.
      */
     function deposit(uint256 amount, address receiver) external nonReentrant returns (uint256 minted) {
         require(amount > 0, "DCmon: amount=0");
         require(receiver != address(0), "DCmon: receiver=0");
 
+        uint256 _supply = totalSupply();
+        uint256 tvl = totalUnderlying();
+
+        // Pull funds first
         underlying.safeTransferFrom(msg.sender, address(this), amount);
-        _mint(receiver, amount);
+
+        if (_supply == 0 || tvl == 0) {
+            minted = amount;
+        } else {
+            minted = (amount * _supply) / tvl;
+        }
+        require(minted > 0, "DCmon: minted=0");
+        _mint(receiver, minted);
         emit Deposited(receiver, amount);
-        return amount;
     }
 
     /**
-     * @notice Redeem DCmon for underlying MON at a 1:1 ratio (minus any future fee logic).
+     * @notice Redeem DCmon shares for underlying MON at current exchange rate.
      */
     function redeem(uint256 dcAmount, address receiver) external nonReentrant returns (uint256 underlyingAmount) {
         require(dcAmount > 0, "DCmon: burn=0");
         require(receiver != address(0), "DCmon: receiver=0");
 
+        uint256 _supply = totalSupply();
+        require(_supply > 0, "DCmon: no_supply");
+        uint256 tvl = totalUnderlying();
+        underlyingAmount = (dcAmount * tvl) / _supply;
+
         _burn(msg.sender, dcAmount);
-        underlying.safeTransfer(receiver, dcAmount);
-        emit Withdrawn(receiver, dcAmount, dcAmount);
-        return dcAmount;
+        underlying.safeTransfer(receiver, underlyingAmount);
+        emit Withdrawn(receiver, underlyingAmount, dcAmount);
     }
 
     // ------------------------------------------------------------------------
@@ -160,7 +175,33 @@ contract DCMon is ERC20, AccessControl, ReentrancyGuard {
     // ------------------------------------------------------------------------
 
     function totalUnderlying() public view returns (uint256) {
+        // For v1: all underlying sits in this contract. Extend if integrating native staking.
         return underlying.balanceOf(address(this));
+    }
+
+    /**
+     * @notice Returns exchange rate as (numerator, denominator) = (underlying * 1e18 / shares, 1e18)
+     */
+    function exchangeRate() external view returns (uint256 numerator, uint256 denominator) {
+        uint256 supply = totalSupply();
+        if (supply == 0) return (1e18, 1e18);
+        return ((totalUnderlying() * 1e18) / supply, 1e18);
+    }
+
+    function previewDeposit(uint256 amountUnderlying) external view returns (uint256 mintedShares) {
+        if (amountUnderlying == 0) return 0;
+        uint256 _supply = totalSupply();
+        uint256 tvl = totalUnderlying();
+        if (_supply == 0 || tvl == 0) return amountUnderlying;
+        return (amountUnderlying * _supply) / tvl;
+    }
+
+    function previewRedeem(uint256 shares) external view returns (uint256 amountUnderlying) {
+        if (shares == 0) return 0;
+        uint256 _supply = totalSupply();
+        if (_supply == 0) return 0;
+        uint256 tvl = totalUnderlying();
+        return (shares * tvl) / _supply;
     }
 
     function houseShareBps() external pure returns (uint256) {
