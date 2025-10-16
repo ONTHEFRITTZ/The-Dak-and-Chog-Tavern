@@ -3,6 +3,7 @@
 // Load this as the first module after provider-pin.js on every page.
 
 import { AA, initAA } from '../aaClient.js';
+import { ensureDelegationToolkitContext } from './toolkit.js';
 
 // No internal-signer detection in v13 mode
 
@@ -22,6 +23,8 @@ function persistOptInDelegationMode() {
 
 export async function enableSmartAccountNow() {
   // Enable gasless/AA across site. No signing, no delegation.
+  // Detect EIP-7702 readiness (non-blocking; defaults to gasless)
+  try { await detectEip7702Ready(); } catch {}
   await initAA({});
   try { AA.setSponsored(true); } catch {}
   persistOptInDelegationMode();
@@ -106,6 +109,8 @@ async function siteWideInit() {
     try { await initAA({}); AA.setSponsored(true); } catch {}
     try { window.dispatchEvent(new CustomEvent('aa:sponsored', { detail: { active: true } })); } catch {}
   }
+  // Probe EIP-7702 readiness in the background
+  try { await detectEip7702Ready(); } catch {}
 }
 
 // Run immediately and also on DOM ready to ensure early broadcast without signing
@@ -115,3 +120,45 @@ try {
     document.addEventListener('DOMContentLoaded', () => { try { siteWideInit(); } catch {} }, { once: true });
   }
 } catch {}
+
+// Detect whether EIP-7702 Smart Account path is available (toolkit + internal signer)
+async function detectEip7702Ready() {
+  try {
+    // 1) Try to import a local vendor if present
+    let mod = null;
+    try { mod = await import('/js/vendor/metamask-delegation-toolkit-latest.mjs'); } catch {}
+    if (!mod) { mark7702(false, 'no_vendor'); return false; }
+    let tk = mod && mod.default ? mod.default : mod;
+    try { if (tk && !tk.toMetaMaskSmartAccount && typeof tk.toSmartAccount === 'function') tk.toMetaMaskSmartAccount = tk.toSmartAccount; } catch {}
+    const toMetaMaskSmartAccount = tk?.toMetaMaskSmartAccount;
+    const Impl = tk?.Implementation || {};
+    if (typeof toMetaMaskSmartAccount !== 'function') { mark7702(false, 'no_api'); return false; }
+    // 2) Build context and attempt a lightweight account derivation
+    const ctx = await ensureDelegationToolkitContext();
+    const owner = ctx?.ownerAccount || ctx?.account;
+    if (!owner || !ctx?.walletClient?.transport) { mark7702(false, 'no_owner_or_transport'); return false; }
+    const impl = Impl.EIP7702Stateless || Impl.Hybrid || Impl.MultiSig;
+    const acc = await toMetaMaskSmartAccount({
+      owner,
+      chain: ctx.walletClient.chain || ctx.walletChain || ctx.publicClient?.chain,
+      implementation: impl,
+      transport: ctx.walletClient.transport,
+      deployParams: [owner, [], [], []],
+      deploySalt: '0x0',
+      signer: { walletClient: ctx.walletClient },
+      client: ctx.publicClient
+    });
+    const mm = acc && (acc.mmAccount || null);
+    const ready = !!(mm && typeof mm.signDelegation === 'function');
+    mark7702(ready, ready ? 'ok' : 'no_internal_signer');
+    return ready;
+  } catch (err) {
+    mark7702(false, 'error');
+    return false;
+  }
+}
+
+function mark7702(ready, reason) {
+  try { localStorage.setItem('aa.7702.ready', ready ? 'true' : 'false'); } catch {}
+  try { window.dispatchEvent(new CustomEvent('aa:7702', { detail: { ready, reason } })); } catch {}
+}
