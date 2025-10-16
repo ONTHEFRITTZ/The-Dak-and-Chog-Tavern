@@ -781,30 +781,7 @@ function initializePokerTable() {
   actionBar.append(infoText, foldBtn, callBtn, betInput, betBtn);
 
   // Optional: "Your Activity Score" near the wallet chip when Envio is configured
-  (function attachActivityScore() {
-    try {
-      if (!isOnchainTable) return;
-      const envioUrl = (typeof window.ENVIO_HYPERSYNC_URL === 'string' && window.ENVIO_HYPERSYNC_URL)
-        ? window.ENVIO_HYPERSYNC_URL
-        : (localStorage.getItem('envio.hypersync.url')|| (location && location.origin) || '');
-      if (!envioUrl) return;
-      const host = document.getElementById('wallet-inline') || document.body || document.documentElement;
-      let spot = document.getElementById('wi-activity-score');
-      if (!spot) { spot = document.createElement('span'); spot.id = 'wi-activity-score'; spot.style.cssText = 'margin-left:6px;font-size:12px;opacity:.95;'; host.appendChild(spot); }
-      const update = async () => {
-        try {
-          const mod = await import('/js/envio-activity.js');
-          const addr = (window.userAddress || localStorage.getItem('walletAddress') || '').toLowerCase();
-          const s = addr ? await mod.getActiveScoreFor(addr) : 0;
-          spot.textContent = 'Activity: ' + s;
-        } catch { spot.textContent = 'Activity: n/a'; }
-      };
-      spot.textContent = 'Activity: …';
-      update();
-      try { if (spot.__timer) clearInterval(spot.__timer); } catch {}
-      spot.__timer = setInterval(update, 30000);
-    } catch {}
-  })();
+  // Removed wallet pill activity badge per request; activity now lives only in wallet modal.
 
   // Agent toggles (Auto Ready / Auto Rebuy / Auto Clear Seat)
   // Small floating panel near the wallet chip (top-right)
