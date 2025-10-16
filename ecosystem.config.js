@@ -30,7 +30,9 @@ module.exports = {
         GAME_TYPES: 'FARO,POKER',
         // Comma-separated, LOWERCASE wallet addresses with admin rights:
         ADMIN_ADDR: '0xyouradminwalletlowercase',
-        RT_RAKE_BPS: 100
+        RT_RAKE_BPS: 100,
+        // RPC used by realtime indexer (/events). Keep overridable via process env.
+        MONAD_RPC_URL: process.env.MONAD_RPC_URL || 'https://monad-testnet.drpc.org'
       },
 
       env_production: {
