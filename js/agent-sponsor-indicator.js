@@ -6,8 +6,8 @@
       sponsorEl = document.createElement('div');
       sponsorEl.id = 'sponsor-indicator';
       sponsorEl.style.cssText = [
-        'position:fixed','right:12px','bottom:62px','z-index:12050',
-        'display:none','padding:4px 10px','border-radius:12px',
+        'position:fixed','left:50%','transform:translateX(-50%)','bottom:12px','z-index:12050',
+        'display:none','padding:6px 12px','border-radius:12px',
         'background:#2b1e12','color:#fff','font-size:12px','font-weight:700',
         'box-shadow:0 6px 16px rgba(0,0,0,0.35)'
       ].join(';');
