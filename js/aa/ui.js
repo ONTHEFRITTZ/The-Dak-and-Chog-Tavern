@@ -198,16 +198,23 @@ async function renderButtons(state) {
   try {
     const envioUrl = (typeof window.ENVIO_HYPERSYNC_URL === 'string' && window.ENVIO_HYPERSYNC_URL)
       ? window.ENVIO_HYPERSYNC_URL
-      : (localStorage.getItem('envio.hypersync.url') || '');
+      : (localStorage.getItem('envio.hypersync.url') || location.origin || '');
     if (envioUrl) {
-      const spot = document.createElement('span');
-      spot.style.cssText = 'font-size:11px;color:rgba(255,255,255,0.9);margin-left:6px;';
+      let spot = actions.querySelector('.aa-activity');
+      if (!spot) {
+        spot = document.createElement('span');
+        spot.className = 'aa-activity';
+        spot.style.cssText = 'font-size:11px;color:rgba(255,255,255,0.9);margin-left:6px;';
+        actions.appendChild(spot);
+      }
+      const update = async () => {
+        try { const mod = await import('/js/envio-activity.js'); const s = await mod.getActiveScoreFor(state.controller); spot.textContent = 'Activity: ' + s; }
+        catch { spot.textContent = 'Activity: n/a'; }
+      };
       spot.textContent = 'Activity: …';
-      actions.appendChild(spot);
-      import('/js/envio-activity.js')
-        .then(m => m.getActiveScoreFor(state.controller))
-        .then(s => { spot.textContent = 'Activity: ' + s; })
-        .catch(() => { spot.textContent = 'Activity: n/a'; });
+      update();
+      try { if (spot.__timer) clearInterval(spot.__timer); } catch {}
+      spot.__timer = setInterval(update, 30000);
     }
   } catch {}
 }

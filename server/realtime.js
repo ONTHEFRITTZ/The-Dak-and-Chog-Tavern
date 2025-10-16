@@ -13,13 +13,47 @@ const { ethers } = require('ethers');
 const { onBeginHand, onSettleHand, dealerSignerConfigured } = require('./dealeronchain');
 
 /* ----------------------------- HTTP + Socket.IO ---------------------------- */
+// --------------------- Simple HTTP rate limiting for indexer ---------------------
+const HTTP_RL_WINDOW_MS = Number(process.env.INDEXER_RL_WINDOW_MS || 60_000);
+const HTTP_RL_LIMIT = Number(process.env.INDEXER_RL_LIMIT || 60);
+const httpBuckets = new Map(); // ip -> [timestamps]
+function getClientIp(req) {
+  try {
+    const xf = req.headers['x-forwarded-for'];
+    if (xf) {
+      const ip = String(xf).split(',')[0].trim();
+      if (ip) return ip;
+    }
+  } catch {}
+  try { return req.socket.remoteAddress || ''; } catch { return ''; }
+}
+function httpAllow(ip) {
+  const now = Date.now();
+  let arr = httpBuckets.get(ip) || [];
+  arr = arr.filter((t) => (now - t) < HTTP_RL_WINDOW_MS);
+  arr.push(now);
+  httpBuckets.set(ip, arr);
+  return arr.length <= HTTP_RL_LIMIT;
+}
+
 const server = http.createServer(async (req, res) => {
   try {
     const u = new URL(req.url, 'http://local');
     const p = u.pathname || '/';
     if (p === '/events' || p === '/api/events' || p === '/api/v1/events') {
+      // Rate limit per client IP
+      const ip = getClientIp(req);
+      if (!httpAllow(ip)) {
+        res.statusCode = 429;
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Content-Type', 'application/json');
+        res.setHeader('Retry-After', String(Math.ceil(HTTP_RL_WINDOW_MS / 1000)));
+        res.end(JSON.stringify({ error: 'rate_limited', windowMs: HTTP_RL_WINDOW_MS, limit: HTTP_RL_LIMIT }));
+        return;
+      }
       res.setHeader('Access-Control-Allow-Origin', '*');
       res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Cache-Control', 'no-store');
       const addr = String(u.searchParams.get('address') || u.searchParams.get('contract') || '').toLowerCase();
       const limit = Math.min(100, Math.max(1, Number(u.searchParams.get('limit') || 10)));
       if (!addr || !/^0x[0-9a-f]{40}$/.test(addr)) {

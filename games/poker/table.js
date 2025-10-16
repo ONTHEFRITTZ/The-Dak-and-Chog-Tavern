@@ -784,7 +784,9 @@ function initializePokerTable() {
   (function attachActivityScore() {
     try {
       if (!isOnchainTable) return;
-      const envioUrl = (typeof window.ENVIO_HYPERSYNC_URL === 'string' && window.ENVIO_HYPERSYNC_URL) ? window.ENVIO_HYPERSYNC_URL : (localStorage.getItem('envio.hypersync.url')||'');
+      const envioUrl = (typeof window.ENVIO_HYPERSYNC_URL === 'string' && window.ENVIO_HYPERSYNC_URL)
+        ? window.ENVIO_HYPERSYNC_URL
+        : (localStorage.getItem('envio.hypersync.url')|| (location && location.origin) || '');
       if (!envioUrl) return;
       const host = document.getElementById('wallet-inline') || document.body || document.documentElement;
       let spot = document.getElementById('wi-activity-score');
@@ -799,9 +801,8 @@ function initializePokerTable() {
       };
       spot.textContent = 'Activity: …';
       update();
-      // Optional auto-refresh every 30s (enable via localStorage['envio.activity.autorefresh']='1')
       try { if (spot.__timer) clearInterval(spot.__timer); } catch {}
-      try { if (localStorage.getItem('envio.activity.autorefresh') === '1') { spot.__timer = setInterval(update, 30000); } } catch {}
+      spot.__timer = setInterval(update, 30000);
     } catch {}
   })();
 

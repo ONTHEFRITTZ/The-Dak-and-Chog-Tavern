@@ -6,7 +6,8 @@
 function getEnvioUrl() {
   try { if (typeof window.ENVIO_HYPERSYNC_URL === 'string' && window.ENVIO_HYPERSYNC_URL) return window.ENVIO_HYPERSYNC_URL; } catch {}
   try { const u = localStorage.getItem('envio.hypersync.url'); if (u) return u; } catch {}
-  return '';
+  // Safe default: same-origin server route added in server/realtime.js
+  try { return location.origin; } catch { return ''; }
 }
 
 function ensurePanel() {
@@ -131,4 +132,3 @@ export async function getActiveScoreFor(address) {
   }
   return score;
 }
-
