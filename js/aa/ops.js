@@ -1,4 +1,4 @@
-// /js/aa/ops.js
+﻿// /js/aa/ops.js
 // Helpers to run delegated executions through the MetaMask Delegation Toolkit smart account,
 // and fall back to direct EOA transactions when delegation/toolkit is unavailable.
 
@@ -77,9 +77,20 @@ export function encodeFromSignature(signature, args = []) {
  * @returns {Promise<string>} txHash
  */
 export async function sendTxViaAA({ to, data, valueMON }) {
-  await ensureAAClientModule();
-  const smart = await getSmartAccount();
-  if (!smart || typeof smart.sendTransaction !== 'function') return null;
+  const mod = await ensureAAClientModule();
+  let sendFn = null;
+  if (mod && mod.client && typeof mod.client.sendTransaction === 'function') {
+    sendFn = (tx) => mod.client.sendTransaction(tx);
+  } else {
+    const smart = await getSmartAccount();
+    if (smart && typeof smart.sendTransaction === 'function') {
+      sendFn = (tx) => smart.sendTransaction(tx);
+    } else if (typeof window !== 'undefined' && window.smartAccount && typeof window.smartAccount.sendTransaction === 'function') {
+      sendFn = (tx) => window.smartAccount.sendTransaction(tx);
+    }
+  }
+  if (!sendFn) return null;
+
   if (!to) throw new Error('Missing "to" address');
 
   const tx = {
@@ -89,7 +100,7 @@ export async function sendTxViaAA({ to, data, valueMON }) {
   };
 
   try {
-    const res = await smart.sendTransaction(tx);
+    const res = await sendFn(tx);
     const txHash = typeof res === 'string' ? res : (res?.hash || res?.transactionHash);
     if (!txHash) {
       console.warn('sendTransaction result:', res);
@@ -101,6 +112,7 @@ export async function sendTxViaAA({ to, data, valueMON }) {
     return null;
   }
 }
+export\ async\ function\ sendTxViaAA\(\{\ to,\ data,\ valueMON\ }\)\ \{\n\ \ const\ mod\ =\ await\ ensureAAClientModule\(\);\n\ \ let\ sendFn\ =\ null;\n\ \ if\ \(mod\ &&\ mod\.client\ &&\ typeof\ mod\.client\.sendTransaction\ ===\ 'function'\)\ \{\n\ \ \ \ sendFn\ =\ \(tx\)\ =>\ mod\.client\.sendTransaction\(tx\);\n\ \ }\ else\ \{\n\ \ \ \ const\ smart\ =\ await\ getSmartAccount\(\);\n\ \ \ \ if\ \(smart\ &&\ typeof\ smart\.sendTransaction\ ===\ 'function'\)\ \{\n\ \ \ \ \ \ sendFn\ =\ \(tx\)\ =>\ smart\.sendTransaction\(tx\);\n\ \ \ \ }\ else\ if\ \(typeof\ window\ !==\ 'undefined'\ &&\ window\.smartAccount\ &&\ typeof\ window\.smartAccount\.sendTransaction\ ===\ 'function'\)\ \{\n\ \ \ \ \ \ sendFn\ =\ \(tx\)\ =>\ window\.smartAccount\.sendTransaction\(tx\);\n\ \ \ \ }\n\ \ }\n\ \ if\ \(!sendFn\)\ return\ null;\n\n\ \ if\ \(!to\)\ throw\ new\ Error\('Missing\ "to"\ address'\);\n\n\ \ const\ tx\ =\ \{\n\ \ \ \ to,\n\ \ \ \ data:\ ensureHexBytes\(data\),\n\ \ \ \ value:\ valueMON\ !=\ null\ \?\ toWeiMON\(valueMON\)\ :\ 0n,\n\ \ };\n\n\ \ try\ \{\n\ \ \ \ const\ res\ =\ await\ sendFn\(tx\);\n\ \ \ \ const\ txHash\ =\ typeof\ res\ ===\ 'string'\ \?\ res\ :\ \(res\?\.hash\ \|\|\ res\?\.transactionHash\);\n\ \ \ \ if\ \(!txHash\)\ \{\n\ \ \ \ \ \ console\.warn\('sendTransaction\ result:',\ res\);\n\ \ \ \ \ \ return\ null;\n\ \ \ \ }\n\ \ \ \ return\ txHash;\n\ \ }\ catch\ \(err\)\ \{\n\ \ \ \ console\.warn\('\[aa/ops]\ sendTxViaAA\ failed',\ err\);\n\ \ \ \ return\ null;\n\ \ }\n}
 
 /**
  * callWithDelegation
@@ -221,3 +233,6 @@ const SMART_ACCOUNT_OPT_IN_KEY = 'aa.smartAccount.optIn';
 function isSmartAccountOptedIn() {
   try { return localStorage.getItem(SMART_ACCOUNT_OPT_IN_KEY) === 'true'; } catch { return false; }
 }
+
+
+

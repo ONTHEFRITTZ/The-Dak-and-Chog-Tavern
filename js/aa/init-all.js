@@ -124,9 +124,16 @@ try {
 // Detect whether EIP-7702 Smart Account path is available (toolkit + internal signer)
 async function detectEip7702Ready() {
   try {
-    // 1) Try to import a local vendor if present
+    // 1) Try to import a local vendor via fetch+Blob to avoid wrong MIME types
     let mod = null;
-    try { mod = await import('/js/vendor/metamask-delegation-toolkit-latest.mjs'); } catch {}
+    try {
+      const res = await fetch('/js/vendor/metamask-delegation-toolkit-latest.mjs', { cache: 'no-store' });
+      if (res && res.ok) {
+        const code = await res.text();
+        const url = URL.createObjectURL(new Blob([code], { type: 'text/javascript' }));
+        try { mod = await import(/* @vite-ignore */ url); } finally { URL.revokeObjectURL(url); }
+      }
+    } catch {}
     if (!mod) { mark7702(false, 'no_vendor'); return false; }
     let tk = mod && mod.default ? mod.default : mod;
     try { if (tk && !tk.toMetaMaskSmartAccount && typeof tk.toSmartAccount === 'function') tk.toMetaMaskSmartAccount = tk.toSmartAccount; } catch {}
