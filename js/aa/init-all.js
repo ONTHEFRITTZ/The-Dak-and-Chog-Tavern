@@ -103,30 +103,11 @@ try {
   window.enableSmartAccountNow = enableSmartAccountNow;
 } catch {}
 
-async function siteWideInit() {\n  // Never auto-sign. Only broadcast if a valid delegation already exists.\n  const existing = loadDelegation();\n  if (existing && existing.end && Math.floor(Date.now()/1000) < Number(existing.end)) {\n    try { if (existing.delegate) persistEnabled(lc(existing.delegate)); } catch {}\n  }\n}\n    return;
-  }
-
-  // On landing page, do not auto-enable; wait for explicit user choice.
-  const path = (typeof location !== 'undefined' ? String(location.pathname || '') : '');
-  const isLanding = /(^|\/)landing\.html$/i.test(path);
-  if (isLanding) return;
-
-  // If no delegation, but SA address can be derived and differs from EOA, auto-enable by issuing an open delegation once (content pages only).
-  try {
-    const smartAddr = await getSmartAccountAddress();
-    const controller = AA?.controllerAddress || AA?.address || null;
-    const smartIsDistinct = !!(smartAddr && controller && lc(smartAddr) !== lc(controller));
-    if (smartIsDistinct) {
-      await issueOpenDelegationForLanding();
-      persistEnabled(lc(smartAddr));
-      return;
-    }
-  } catch (err) {
-    // Non-fatal; pages can call openSmartAccountModal() when needed.
-    console.warn('[init-all] smart account auto-enable skipped', err);
+async function siteWideInit() {
+  // Never auto-sign. Only broadcast if a valid delegation already exists.
+  const existing = loadDelegation();
+  if (existing && existing.end && Math.floor(Date.now()/1000) < Number(existing.end)) {
+    try { if (existing.delegate) persistEnabled(lc(existing.delegate)); } catch {}
   }
 }
-
-// Kick off initialization but donâ€™t block page rendering.
-siteWideInit().catch(() => {});
 
