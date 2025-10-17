@@ -1,0 +1,12 @@
+{
+  "name": "tavern-hyperindex",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Envio HyperIndex for The Dak & Chog Tavern (Monad Testnet)",
+  "scripts": {
+    "build": "echo 'build handled by Envio'",
+    "start": "echo 'runtime handled by Envio'"
+  }
+}
+
