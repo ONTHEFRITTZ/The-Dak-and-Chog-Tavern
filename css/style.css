@@ -195,3 +195,6 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
 .table-canvas .action-bar .bet-input { width: clamp(96px, 12vw, 130px) !important; padding: 4px 6px !important; }
 .table-canvas .action-bar button { padding: 6px 10px !important; }
 
+/* Ensure hidden class actually hides even with inline-flex override */
+.table-canvas .action-bar.hidden { display: none !important; visibility: hidden !important; }
+
