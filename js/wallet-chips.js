@@ -322,7 +322,11 @@ const CDN_ETHERS_ESM = 'https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.es
         let tableAddress = '';
         try { if (window.HoldemPokerAddress) tableAddress = window.HoldemPokerAddress; } catch {}
         if (!tableAddress) {
-          try { const cfg = await import('/js/config.js'); tableAddress = (cfg && cfg.CONTRACTS && cfg.CONTRACTS.pokerTable) || ''; } catch {}
+          try {
+            const tag = (typeof window !== 'undefined' && (window.__BUILD_TAG || Date.now())) || Date.now();
+            const cfg = await import(`/js/config.js?v=${encodeURIComponent(tag)}`);
+            tableAddress = (cfg && cfg.CONTRACTS && cfg.CONTRACTS.pokerTable) || '';
+          } catch {}
         }
         if (!tableAddress) {
           const s = document.getElementById('wi-activity-status'); if (s) s.textContent = 'No table configured.'; return;

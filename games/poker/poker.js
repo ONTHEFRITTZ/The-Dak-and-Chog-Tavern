@@ -166,7 +166,8 @@ try { window.__getSelectedProvider = getSelectedProvider; } catch {}
 async function updateContractLabels(){
   try {
     const provider = getSelectedProvider();
-    const mod = await import('../../js/config.js').catch(()=>null);
+    const tag = (typeof window !== 'undefined' && (window.__BUILD_TAG || Date.now())) || Date.now();
+    const mod = await import(`../../js/config.js?v=${encodeURIComponent(tag)}`).catch(()=>null);
     if (!mod || !mod.getAddressFor) return;
     let ethersProvider = null;
     if (window.ethers && provider) {
@@ -251,7 +252,10 @@ async function ensureDcmonReadContract(provider) {
     try {
       await loadScriptOnce('../../js/DCMonABI.js');
       let configMod = null;
-      try { configMod = await import('../../js/config.js'); } catch (err) { console.warn('config import failed', err); }
+      try {
+        const tag = (typeof window !== 'undefined' && (window.__BUILD_TAG || Date.now())) || Date.now();
+        configMod = await import(`../../js/config.js?v=${encodeURIComponent(tag)}`);
+      } catch (err) { console.warn('config import failed', err); }
       const web3 = new window.ethers.providers.Web3Provider(provider, 'any');
       let address = null;
       if (configMod?.getAddressFor) {

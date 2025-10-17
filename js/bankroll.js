@@ -245,9 +245,9 @@
   const IS_ONCHAIN_MODE = TABLE_MODE !== 'f2p';
 
     async function loadConfigModule() {
-      
       if (!configModulePromise) {
-        configModulePromise = import('/js/config.js').catch((err) => {
+        const tag = (typeof window !== 'undefined' && (window.__BUILD_TAG || Date.now())) || Date.now();
+        configModulePromise = import(`/js/config.js?v=${encodeURIComponent(tag)}`).catch((err) => {
           console.error('bankroll: config import failed', err);
           return null;
         });
