@@ -1241,17 +1241,20 @@ function initializePokerTable() {
     }
   }
   function flashBurn() {
-    burnPile.innerHTML = '';
+  try {
+    const count = burnPile.children.length;
     const el = document.createElement('img');
     el.className = 'card';
     el.alt = '';
     el.src = CARD_BACK;
+    el.style.position = 'absolute';
+    el.style.left = (count * 12) + 'px';
+    el.style.top = (count * 4) + 'px';
+    el.style.transform = 'rotate(' + (-10 + count * 5) + 'deg)';
     burnPile.appendChild(el);
     requestAnimationFrame(() => el.classList.add('show'));
-    setTimeout(() => {
-      el.classList.remove('show');
-      setTimeout(() => el.remove(), 180);
-    }, 220);
+  } catch {}
+}, 220);
   }
   function updateCenter(st) {
     if (!centerBanner) return;
@@ -1974,7 +1977,7 @@ function initializePokerTable() {
         if (meta.timerFill) meta.timerFill.style.width = '0%';
       });
       updateCenter(null);
-    }, 1800);
+    }, 10000);
   }
   window.addEventListener('resize', () => {
     positionSeats();
@@ -2005,6 +2008,8 @@ if (document.readyState === 'loading') {
 } else {
   initializePokerTable();
 }
+
+
 
 
 
