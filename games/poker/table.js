@@ -247,6 +247,12 @@ function initializePokerTable() {
           nameContinue?.addEventListener('click', onContinue);
         });
       }
+      if (!name && (!nameModal || !nameInput)) {
+        // Fallback prompt if modal missing
+        try { name = String(prompt('What is your name?','')||'').trim().slice(0,12); } catch {}
+        name = sanitizeName(name);
+        try { if (name) localStorage.setItem('poker.username', name); } catch {}
+      }
       if (!name) {
         // Default fallback
         name = 'Player';
@@ -260,6 +266,10 @@ function initializePokerTable() {
         // Inform server for UI sync and set optimistic local seat state
         emitSocket('seat', { index: seatIdx });
         mySeat = seatIdx;
+        try { if (seatMeta[seatIdx]?.nameEl) {
+          const uname = String(localStorage.getItem('poker.username')||'').trim().slice(0,12);
+          seatMeta[seatIdx].nameEl.textContent = uname; }
+        } catch {}
       } else {
         emitSocket('seat', { index: seatIdx });
       }
