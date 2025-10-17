@@ -1885,11 +1885,12 @@ function initializePokerTable() {
       // Address line shows short address for all seats (hidden by CSS for your seat)
       meta.addr.textContent = shortAddr || '';
       // Name line precedence:
-      // - Your seat: use local name if set
+      // - Your seat: use local name (fallback to "Player")
       // - Off-chain others: use server-provided `x` profile if available
       // - Otherwise: blank
       try {
-        const localName = String(localStorage.getItem('poker.username') || '').trim() || 'Player';
+        const localNameStored = String(localStorage.getItem('poker.username') || '').trim();
+        const localName = localNameStored || 'Player';
         if (isMe) {
           meta.nameEl.textContent = localName;
         } else if (!isOnchainTable && seatData && typeof seatData.x === 'string' && seatData.x.trim()) {
@@ -1897,8 +1898,15 @@ function initializePokerTable() {
         } else {
           meta.nameEl.textContent = '';
         }
+        // Ensure visibility
+        meta.nameEl.style.display = meta.nameEl.textContent ? '' : 'none';
       } catch {
-        meta.nameEl.textContent = isMe ? (localStorage.getItem('poker.username')||'') : '';
+        try {
+          if (isMe) {
+            const nm = String(localStorage.getItem('poker.username') || 'Player').trim() || 'Player';
+            meta.nameEl.textContent = nm; meta.nameEl.style.display = '';
+          } else { meta.nameEl.textContent = ''; meta.nameEl.style.display = 'none'; }
+        } catch {}
       }
       if (!valid) {
         meta.stack.textContent = '';

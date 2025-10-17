@@ -235,6 +235,7 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
 
 /* Per-seat info lines */
 .seat .name { font-size: 13px; font-weight: 800; max-width: 180px; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.seat .stack { margin-top: 2px; }
 .seat .status { font-size: 12px; opacity:.9; min-height:14px; }
 .seat .marker { position:absolute; top:-10px; right:-10px; background: rgba(0,0,0,0.65); color:#ffe7a8; font-weight:800; font-size:11px; border:1px solid rgba(255,255,255,0.15); border-radius:999px; padding:2px 6px; z-index:4; }
 .seat .marker.sb { background: rgba(70,110,200,0.65); }
