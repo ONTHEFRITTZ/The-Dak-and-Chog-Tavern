@@ -10,12 +10,23 @@ let rt = { type: null, conn: null }; // { type: 'io'|'ws', conn }
 
 async function ensureIoLoaded() {
   if (window.io) return true;
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     try {
+      const fallback = () => {
+        if (window.io) { resolve(true); return; }
+        try {
+          const c = document.createElement('script');
+          c.src = 'https://cdn.socket.io/4.7.5/socket.io.min.js';
+          c.crossOrigin = 'anonymous';
+          c.onload = () => resolve(true);
+          c.onerror = () => resolve(false);
+          document.head.appendChild(c);
+        } catch { resolve(false); }
+      };
       const s = document.createElement('script');
       s.src = '/socket.io/socket.io.js';
       s.onload = () => resolve(true);
-      s.onerror = () => resolve(false);
+      s.onerror = fallback;
       document.head.appendChild(s);
     } catch { resolve(false); }
   });

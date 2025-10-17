@@ -8,7 +8,6 @@
 <link rel="icon" type="image/png" href="/assets/images/dakandchog-logo.png">
   <!-- Preload key backgrounds to avoid cold-paint stalls -->
   <link rel="preload" as="image" href="assets/images/tavern-bg.webp" type="image/webp">
-  <link rel="preload" as="image" href="assets/images/shell-bg.webp" type="image/webp">
   <!-- Load base CSS before any JS to prevent white flash (FOUC) -->
   <link id="base-css" rel="stylesheet" href="css/style.css">
   <script type="importmap">
@@ -192,8 +191,8 @@
       }catch(e){}
     })();
   </script>
-  <!-- Realtime: auto-connect to Socket.IO and join faro-lobby -->
-  <script src="/socket.io/socket.io.js"></script>
+  <!-- Realtime: Socket.IO with CDN fallback -->
+  <script src="/socket.io/socket.io.js" onerror="(function(){var s=document.createElement('script');s.src='https://cdn.socket.io/4.7.5/socket.io.min.js';s.crossOrigin='anonymous';document.head.appendChild(s);})();"></script>
   <script>
     (function(){
       try {
