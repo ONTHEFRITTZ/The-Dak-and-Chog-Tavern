@@ -824,6 +824,14 @@ function initializePokerTable() {
       addr.textContent = '';
       seat.appendChild(addr);
     }
+    // Player display name (shown for your seat)
+    let nameEl = seat.querySelector('.name');
+    if (!nameEl) {
+      nameEl = document.createElement('div');
+      nameEl.className = 'name';
+      nameEl.textContent = '';
+      seat.appendChild(nameEl);
+    }
     let stack = seat.querySelector('.stack');
     if (!stack) {
       stack = document.createElement('div');
@@ -856,6 +864,7 @@ function initializePokerTable() {
       addr,
       stack,
       btns,
+      nameEl,
       status,
       marker,
       timerFill: seat.querySelector('.timer .fill')
@@ -1801,12 +1810,13 @@ function initializePokerTable() {
       meta.seat.classList.toggle('me', isMe);
       meta.seat.classList.toggle('empty-seat', !valid);
       const shortAddr = valid ? short(seatData.addr) : '';
-      let label = shortAddr || '';
+      // Address line shows short address for all seats
+      meta.addr.textContent = shortAddr || '';
+      // Name line: only show the locally-entered name for my seat
       try {
         const uname = String(localStorage.getItem('poker.username') || '').trim();
-        if (valid && uname) label = `${uname} (${shortAddr})`;
-      } catch {}
-      meta.addr.textContent = label;
+        meta.nameEl.textContent = (isMe && uname) ? uname : '';
+      } catch { meta.nameEl.textContent = isMe ? '' : ''; }
       if (!valid) {
         meta.stack.textContent = '';
       } else if (isOnchainTable) {
@@ -1945,12 +1955,14 @@ function initializePokerTable() {
       renderBoard(state.community);
       lastCommunity = state.community.slice();
     }
-    const turnActor = Array.isArray(state?.actors) && Number.isFinite(state.turnIndex)
-      ? state.actors[state.turnIndex] : null;
+    const actorsArr = Array.isArray(state?.actors) ? state.actors : [];
+    const seatedCount = actorsArr.filter(a => isValidAddr(a?.addr)).length;
+    const isLive = !!state?.stage && seatedCount >= 2 && Number.isFinite(state?.turnIndex);
+    const turnActor = isLive ? actorsArr[state.turnIndex] : null;
     const turnSeat = seatIndexForActor(turnActor);
-    currentTurnSeat = turnSeat;
-    startTurnTimer(turnSeat);
-    updateActionBar(turnSeat, state);
+    currentTurnSeat = isLive ? turnSeat : -1;
+    if (isLive) startTurnTimer(turnSeat); else clearTimers();
+    updateActionBar(isLive ? turnSeat : -1, state);
     // Agent automations (non-blocking)
     try { maybeRunAgent(state); } catch {}
   }
