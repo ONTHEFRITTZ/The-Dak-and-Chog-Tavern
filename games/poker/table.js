@@ -1872,15 +1872,27 @@ function initializePokerTable() {
       meta.seat.classList.toggle('me', isMe);
       meta.seat.classList.toggle('empty-seat', !valid);
       const shortAddr = valid ? short(seatData.addr) : '';
-      // Address line shows short address for all seats
+      // Address line shows short address for all seats (hidden by CSS for your seat)
       meta.addr.textContent = shortAddr || '';
-      // Name line: only show the locally-entered name for my seat
+      // Name line precedence:
+      // - Your seat: use local name if set
+      // - Off-chain others: use server-provided `x` profile if available
+      // - Otherwise: blank
       try {
-        const uname = String(localStorage.getItem('poker.username') || '').trim();
-        meta.nameEl.textContent = (isMe && uname) ? uname : '';
-      } catch { meta.nameEl.textContent = isMe ? '' : ''; }
+        const localName = String(localStorage.getItem('poker.username') || '').trim();
+        if (isMe && localName) {
+          meta.nameEl.textContent = localName;
+        } else if (!isOnchainTable && seatData && typeof seatData.x === 'string' && seatData.x.trim()) {
+          meta.nameEl.textContent = seatData.x.trim().slice(0, 24);
+        } else {
+          meta.nameEl.textContent = '';
+        }
+      } catch {
+        meta.nameEl.textContent = isMe ? (localStorage.getItem('poker.username')||'') : '';
+      }
       if (!valid) {
         meta.stack.textContent = '';
+        meta.nameEl.textContent = '';
       } else if (isOnchainTable) {
         // On-chain tables: show wallet DCMon for the connected player
         if (isMe) {
