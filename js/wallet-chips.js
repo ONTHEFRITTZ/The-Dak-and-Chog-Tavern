@@ -910,7 +910,6 @@ const CDN_ETHERS_ESM = 'https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.es
     document.addEventListener('DOMContentLoaded', init);
   } else {
     init();
-  
+  }
 }
 })();
-
