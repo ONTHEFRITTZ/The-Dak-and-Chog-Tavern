@@ -1387,13 +1387,7 @@ function initializePokerTable() {
           alert('Enter a valid DCMon amount.');
           return;
         }
-        const chipsTarget = dcmonToChips(dcmonValue);
-        if (!Number.isFinite(chipsTarget) || chipsTarget <= already) {
-          alert('Bet must exceed your current contribution.');
-          return;
-        }
-        payload.amount = chipsTarget;
-        deltaChips = Math.max(0, chipsTarget - already);
+        // Use DCMon directly (no chip conversion)\n        const amountTotal = dcmonValue;\n        if (!Number.isFinite(amountTotal) || amountTotal <= already) {\n          alert('Bet must exceed your current contribution.');\n          return;\n        }\n        payload.amount = amountTotal;\n        deltaChips = Math.max(0, amountTotal - already);
       }
       let restoreControls = null;
       if (deltaChips > 0) {
@@ -1477,14 +1471,31 @@ function initializePokerTable() {
     betBtn.dataset.action = raiseAction;
     betBtn.textContent = raiseAction === 'raise' ? 'Raise' : 'Bet';
     betInput.style.display = 'inline-block';
-    betInput.value = '';
+    // Prefill min amount in DCMon for the current state
+    const minAmount = (() => {
+      const limit = (tableSnapshot && tableSnapshot.limit) || 'NL';
+      const sb = Number.isFinite(Number(chipValueDcmon)) && Number(chipValueDcmon) > 0 ? Number(chipValueDcmon) : 0.001;
+      const bb = sb * 2;
+      if (limit === 'FL') {
+        const smallStreet = (state?.stage === 'preflop' || state?.stage === 'flop');
+        const step = smallStreet ? sb : (2 * sb);
+        if (toCall <= 0) return step; // opening bet
+        const minTotal = toCall + step; // raise by one step
+        return Math.max(0, minTotal);
+      }
+      // NL logic
+      if (toCall <= 0) return bb; // open to at least big blind
+      const minTotal = toCall + Math.max(0, toCall - already); // min raise total
+      return Math.max(minTotal, toCall);
+    })();
+    betInput.value = String(Number.isFinite(minAmount) ? minAmount.toFixed(3) : '');
     betInput.placeholder = isOnchainTable ? 'Bet amount (DCMon)' : 'Bet amount';
     const needText = toCall > 0 ? `To call: ${formatChips(toCall)}${isOnchainTable ? ' DCMon' : ''}` : 'Check or bet';
     infoText.textContent = `Your turn - ${needText}`;
     actionBar.classList.remove('hidden');
     // Enhance placeholder/min suggestions and button enablement
     try {
-      const min = raiseAction === 'raise' ? Math.max(target * 2, 2) : 1;
+      const min = Number(betInput.value) || 0;
       betInput.min = String(min);
       betInput.step = '1';
       betInput.placeholder = raiseAction === 'raise' ? ('Raise to ' + formatChips(min) + (isOnchainTable ? ' DCMon' : '')) : (isOnchainTable ? 'Bet amount (DCMon)' : 'Bet amount');
@@ -2039,6 +2050,9 @@ if (document.readyState === 'loading') {
 } else {
   initializePokerTable();
 }
+
+
+
 
 
 
