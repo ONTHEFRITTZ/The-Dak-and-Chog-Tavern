@@ -208,6 +208,14 @@
     <!-- Center Sit CTA -->
     <div id="sit-cta" class="sit-cta" aria-hidden="true">
       <button id="sit-center">Sit</button>
+      <div id="name-modal" class="name-modal" role="dialog" aria-modal="true" aria-labelledby="nm-title" aria-hidden="true">
+        <h3 id="nm-title">What is your name?</h3>
+        <input id="nm-input" type="text" maxlength="12" autocomplete="off" placeholder="Name (12 chars max)" />
+        <div class="row">
+          <button id="nm-cancel" type="button">Cancel</button>
+          <button id="nm-continue" type="button">Continue</button>
+        </div>
+      </div>
     </div>
 
     <!-- 6 seats (matches contract MAX_SEATS=6) -->

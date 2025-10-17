@@ -161,6 +161,10 @@ function initializePokerTable() {
   try { canvas.classList.add('pre-seat'); } catch {}
   const sitCta = document.getElementById('sit-cta');
   const sitCenterBtn = document.getElementById('sit-center');
+  const nameModal = document.getElementById('name-modal');
+  const nameInput = document.getElementById('nm-input');
+  const nameCancel = document.getElementById('nm-cancel');
+  const nameContinue = document.getElementById('nm-continue');
   const showSitCta = (show) => {
     try {
       if (!sitCta) return;
@@ -189,6 +193,20 @@ function initializePokerTable() {
   };
   showSitCta(true);
 
+  function showNameModal(show) {
+    try {
+      if (!nameModal) return;
+      nameModal.classList.toggle('show', !!show);
+      nameModal.setAttribute('aria-hidden', show ? 'false' : 'true');
+      if (show) {
+        if (!sitCta.classList.contains('show')) showSitCta(true);
+        if (nameInput) { nameInput.value = (localStorage.getItem('poker.username')||'').slice(0,12); nameInput.focus(); }
+      } else {
+        try { if (document.activeElement && nameModal.contains(document.activeElement)) document.activeElement.blur(); } catch {}
+      }
+    } catch {}
+  }
+
   // Seat selection + center sit handler (scoped here to access locals)
   async function pickPreferredSeatIndex() {
     const total = seats.length || 6;
@@ -207,9 +225,33 @@ function initializePokerTable() {
     try {
       const ok = await ensureIdentify();
       if (!ok) { alert('Connect your wallet first.'); return; }
+      // Collect or reuse display name via modal
       let name = '';
-      try { name = String(prompt('Enter a display name (max 12 chars):','')||'').trim().slice(0,12); } catch {}
-      if (name) { try { localStorage.setItem('poker.username', name); } catch {} }
+      try { name = String(localStorage.getItem('poker.username')||'').trim().slice(0,12); } catch {}
+      if (!name && nameModal && nameInput) {
+        showNameModal(true);
+        await new Promise((resolve) => {
+          const onCancel = () => { name = ''; cleanup(); resolve(); };
+          const onContinue = () => {
+            const raw = String(nameInput.value||'').trim().slice(0,12);
+            name = sanitizeName(raw);
+            try { if (name) localStorage.setItem('poker.username', name); } catch {}
+            cleanup(); resolve();
+          };
+          function cleanup() {
+            try { nameCancel?.removeEventListener('click', onCancel); } catch {}
+            try { nameContinue?.removeEventListener('click', onContinue); } catch {}
+            showNameModal(false);
+          }
+          nameCancel?.addEventListener('click', onCancel);
+          nameContinue?.addEventListener('click', onContinue);
+        });
+      }
+      if (!name) {
+        // Default fallback
+        name = 'Player';
+        try { localStorage.setItem('poker.username', name); } catch {}
+      }
       const seatIdx = await pickPreferredSeatIndex();
       if (isOnchainTable) {
         const adapter = await getOnchainAdapter();
@@ -224,6 +266,16 @@ function initializePokerTable() {
       showSitCta(false);
       try { canvas.classList.remove('pre-seat'); } catch {}
     } catch (e) { console.warn('Center sit failed', e); showSitCta(true); }
+  }
+  function sanitizeName(raw) {
+    try {
+      let s = String(raw||'').trim().slice(0,12);
+      // Disallow obvious URLs
+      if (/https?:\/\//i.test(s) || /\.[a-z]{2,}$/i.test(s)) s = '';
+      // Collapse to alphanum + space + basic punctuation
+      s = s.replace(/[^\w \-'.]/g, '');
+      return s;
+    } catch { return ''; }
   }
   if (sitCenterBtn) sitCenterBtn.addEventListener('click', handleCenterSit);
 

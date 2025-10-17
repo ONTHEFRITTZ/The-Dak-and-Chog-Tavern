@@ -83,6 +83,13 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
 .table-canvas #sit-cta { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); z-index:6; display:none; align-items:center; gap:10px; }
 .table-canvas #sit-cta.show { display:flex; }
 .table-canvas #sit-cta button { padding:10px 18px; border-radius:12px; font-weight:800; background:#9200fa; color:#fff; border:none; box-shadow:0 8px 30px rgba(0,0,0,.45); }
+/* Name modal */
+.table-canvas #sit-cta .name-modal { display:none; flex-direction:column; gap:10px; padding:14px; border-radius:12px; background:rgba(0,0,0,0.55); border:1px solid rgba(255,255,255,.15); box-shadow:0 18px 40px rgba(0,0,0,.45); min-width:260px; }
+.table-canvas #sit-cta .name-modal.show { display:flex; }
+.table-canvas #sit-cta .name-modal h3 { margin:0; font-size:18px; }
+.table-canvas #sit-cta .name-modal input { width:100%; padding:8px 10px; border-radius:10px; border:1px solid var(--panel-border, rgba(255,255,255,.2)); background:rgba(0,0,0,0.35); color:#f4e6d3; font-family:inherit; }
+.table-canvas #sit-cta .name-modal .row { display:flex; gap:8px; align-items:center; justify-content:flex-end; }
+.seat.me .addr { display:none; }
 
 /* Hide game UI until seated */
 .table-canvas.pre-seat .seat .btns { display:none !important; }
