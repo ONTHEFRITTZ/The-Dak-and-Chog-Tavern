@@ -164,8 +164,27 @@ function initializePokerTable() {
   const showSitCta = (show) => {
     try {
       if (!sitCta) return;
+      const hiding = !show;
+      if (hiding) {
+        // If focus is inside the overlay, move it before hiding for a11y
+        try {
+          if (sitCta.contains(document.activeElement)) {
+            if (canvas && typeof canvas.setAttribute === 'function') {
+              if (!canvas.hasAttribute('tabindex')) canvas.setAttribute('tabindex', '-1');
+              try { canvas.focus(); } catch {}
+            }
+            try { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); } catch {}
+          }
+        } catch {}
+        try { sitCta.setAttribute('inert', ''); } catch {}
+      } else {
+        try { sitCta.removeAttribute('inert'); } catch {}
+      }
       sitCta.classList.toggle('show', !!show);
       sitCta.setAttribute('aria-hidden', show ? 'false' : 'true');
+      if (show) {
+        try { sitCenterBtn && sitCenterBtn.focus && sitCenterBtn.focus(); } catch {}
+      }
     } catch {}
   };
   showSitCta(true);
