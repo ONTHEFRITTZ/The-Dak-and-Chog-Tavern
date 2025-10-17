@@ -348,7 +348,7 @@ const CDN_ETHERS_ESM = 'https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.es
           const what = document.createElement('span'); what.style.fontWeight = '600'; what.textContent = ev.event || ev.name || ev.type || 'event';
           const from = (ev.args?.player || ev.args?.from || ev.from || '').toString();
           const to = (ev.args?.to || ev.to || '').toString();
-          const who = document.createElement('span'); who.style.opacity = '0.9'; try { who.textContent = [from||'', to?('→ '+to):''].filter(Boolean).join(' '); } catch { who.textContent = from||''; }
+          const who = document.createElement('span'); who.style.opacity = '0.9'; try { who.textContent = [from||'', to?('-> '+to):''].filter(Boolean).join(' '); } catch { who.textContent = from||''; }
           row.appendChild(when); row.appendChild(document.createTextNode(' ')); row.appendChild(what); row.appendChild(document.createTextNode(' ')); row.appendChild(who);
           list.appendChild(row);
         });
@@ -722,7 +722,7 @@ const CDN_ETHERS_ESM = 'https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.es
           const what = document.createElement('span'); what.style.fontWeight = '600'; what.textContent = ev.event || ev.name || ev.type || 'event';
           const from = (ev.args?.player || ev.args?.from || ev.from || '').toString();
           const to = (ev.args?.to || ev.to || '').toString();
-          const who = document.createElement('span'); who.style.opacity = '0.9'; who.textContent = [from||'', to?('→ '+to):''].filter(Boolean).join(' ');
+          const who = document.createElement('span'); who.style.opacity = '0.9'; who.textContent = [from||'', to?('-> '+to):''].filter(Boolean).join(' ');
           row.appendChild(when); row.appendChild(document.createTextNode(' ')); row.appendChild(what); row.appendChild(document.createTextNode(' ')); row.appendChild(who);
           list.appendChild(row);
         });
@@ -912,4 +912,5 @@ const CDN_ETHERS_ESM = 'https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.es
     init();
   }
 })();
+
 
