@@ -1617,7 +1617,7 @@ function initializePokerTable() {
             const br = bankroll || getBankrollHelper();
             let dcWei = br?.getLastBalances?.()?.dcmonWei || null;
             if (!dcWei && typeof br?.refreshBalance === 'function') {
-              try { await br.refreshBalance(); dcWei = br?.getLastBalances?.()?.dcmonWei || null; } catch {}
+              try { br.refreshBalance(); dcWei = br?.getLastBalances?.()?.dcmonWei || null; } catch {}
             }
             if (dcWei && window.ethers?.utils?.formatEther) {
               const val = Number.parseFloat(window.ethers.utils.formatEther(dcWei));
