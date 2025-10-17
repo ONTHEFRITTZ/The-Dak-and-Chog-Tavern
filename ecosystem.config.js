@@ -29,7 +29,11 @@ module.exports = {
         PORT: 3100,
         GAME_TYPES: 'FARO,POKER',
         // Comma-separated, LOWERCASE wallet addresses with admin rights:
-        ADMIN_ADDR: '0xyouradminwalletlowercase',
+        ADMIN_ADDR: '0x8BA35Eca0fe68787b275C6ed065675829843Adf5',
+        POKER_DEALER_PK='ed38c5cf958df74332edad1f147e767e14594e549f262722481ff05178f7e34d'
+        HOLDEM_POKER_ADDR='0x424F89FE230331df8f656B683812b6394c323f17'
+        MONAD_BUNDLER_RPC='https://monad-testnet.drpc.org'
+        pm2 restart "$APP" --update-env && pm2 save
         RT_RAKE_BPS: 100,
         // RPC used by realtime indexer (/events).
         // Prefer MONAD_BUNDLER_RPC; fallback to MONAD_RPC_URL; both overridable at runtime.
