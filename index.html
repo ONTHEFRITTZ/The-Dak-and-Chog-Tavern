@@ -30,7 +30,7 @@
   <script>
     (async()=>{
     try{
-      const b = await fetch('/assets/build.json', { cache:'no-store' }).then(r=>r.ok?r.json():null).catch(()=>null);
+      const b = await fetch('/assets/build.json?now=' + Date.now(), { cache:'no-store' }).then(r=>r.ok?r.json():null).catch(()=>null);
       const tag = (b && b.commit) ? String(b.commit).slice(0,12) : Date.now();
       const addHead = (el)=> document.head.appendChild(el);
       window.__BUILD_TAG = tag;
