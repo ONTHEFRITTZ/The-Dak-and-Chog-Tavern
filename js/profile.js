@@ -46,7 +46,7 @@ async function rtEnsure() {
   const ok = await ensureIoLoaded();
   if (!ok || !window.io) throw new Error('Realtime disabled');
   if (rt.type === 'io' && rt.conn && rt.conn.connected) return rt.conn;
-  rt.conn = window.io({ path: '/socket.io' });
+  rt.conn = window.io({ path: '/socket.io/' });
   await new Promise((resolve) => { rt.conn.once('connect', resolve); });
   rt.type = 'io';
   return rt.conn;

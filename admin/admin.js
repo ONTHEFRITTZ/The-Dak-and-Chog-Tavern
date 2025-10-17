@@ -553,7 +553,7 @@ tavSetPoolBtn?.addEventListener('click', async () => {
 function ensureIo() {
   try {
     if (ioSocket) return;
-    ioSocket = io({ path: '/socket.io' });
+    ioSocket = io({ path: '/socket.io/' });
     const connEl = document.getElementById('rt-conn');
     const healthEl = document.getElementById('rt-health');
     let lastHealthAt = 0;
