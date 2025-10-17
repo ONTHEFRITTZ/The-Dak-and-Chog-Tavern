@@ -228,8 +228,9 @@ function initializePokerTable() {
       // Collect or reuse display name via modal
       let name = '';
       try { name = String(localStorage.getItem('poker.username')||'').trim().slice(0,12); } catch {}
+      const isPlaceholder = !name || /^player$/i.test(name);
       // Treat default placeholder as missing so we always ask nicely
-      if ((!name || name === 'Player') && nameModal && nameInput) {
+      if (isPlaceholder && nameModal && nameInput) {
         showNameModal(true);
         await new Promise((resolve) => {
           const onCancel = () => { name = ''; cleanup(); resolve(); };
@@ -248,7 +249,7 @@ function initializePokerTable() {
           nameContinue?.addEventListener('click', onContinue);
         });
       }
-      if ((!name || name === 'Player') && (!nameModal || !nameInput)) {
+      if (isPlaceholder && (!nameModal || !nameInput)) {
         // Fallback prompt if modal missing
         try { name = String(prompt('What is your name?','')||'').trim().slice(0,12); } catch {}
         name = sanitizeName(name);
@@ -2044,6 +2045,14 @@ function initializePokerTable() {
     if (seatId !== mySeat) return;
     const cards = (msg.cards || []).slice(0, 2);
     setSeatCards(seatId, cards, { faceDown: false });
+    // Ensure our seat shows our display name immediately
+    try {
+      const meta = seatMeta[seatId];
+      if (meta && meta.nameEl) {
+        const nm = String(localStorage.getItem('poker.username') || 'Player').trim() || 'Player';
+        meta.nameEl.textContent = nm;
+      }
+    } catch {}
   }
   function handlePokerHand(msg) {
     clearTimers();
