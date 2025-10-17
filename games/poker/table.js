@@ -165,6 +165,15 @@ function initializePokerTable() {
   const nameInput = document.getElementById('nm-input');
   const nameCancel = document.getElementById('nm-cancel');
   const nameContinue = document.getElementById('nm-continue');
+  // Ephemeral name helpers (clear on reload/leave)
+  function nameGet() { try { return String(sessionStorage.getItem('poker.username') || '').trim(); } catch { return ''; } }
+  function nameSet(v) { try { if (v) sessionStorage.setItem('poker.username', String(v).trim().slice(0,12)); else sessionStorage.removeItem('poker.username'); } catch {} }
+  function nameClear() { try { sessionStorage.removeItem('poker.username'); } catch {} }
+  try {
+    const nav = (performance && performance.getEntriesByType) ? performance.getEntriesByType('navigation')[0] : null;
+    if (nav && (nav.type === 'reload' || nav.type === 'back_forward')) nameClear();
+  } catch {}
+  try { window.addEventListener('pagehide', nameClear); window.addEventListener('beforeunload', nameClear); } catch {}
   const showSitCta = (show) => {
     try {
       if (!sitCta) return;
@@ -203,7 +212,7 @@ function initializePokerTable() {
         // Hide the Sit button while modal is active
         try { if (sitCenterBtn) sitCenterBtn.style.display = 'none'; } catch {}
         if (nameInput) {
-          nameInput.value = (localStorage.getItem('poker.username')||'').slice(0,12);
+          nameInput.value = (nameGet()||'').slice(0,12);
           nameInput.focus();
         }
       } else {
@@ -233,8 +242,7 @@ function initializePokerTable() {
       const ok = await ensureIdentify();
       if (!ok) { alert('Connect your wallet first.'); return; }
       // Collect or reuse display name via modal
-      let name = '';
-      try { name = String(localStorage.getItem('poker.username')||'').trim().slice(0,12); } catch {}
+      let name = nameGet();
       const isPlaceholder = !name || /^player$/i.test(name);
       // Treat default placeholder as missing so we always ask nicely
       if (isPlaceholder && nameModal && nameInput) {
@@ -244,7 +252,7 @@ function initializePokerTable() {
           const onContinue = () => {
             const raw = String(nameInput.value||'').trim().slice(0,12);
             name = sanitizeName(raw);
-            try { if (name) localStorage.setItem('poker.username', name); } catch {}
+            try { if (name) nameSet(name); } catch {}
             cleanup(); resolve();
           };
           function cleanup() {
@@ -265,9 +273,9 @@ function initializePokerTable() {
         // Fallback prompt if modal missing
         try { name = String(prompt('What is your name?','')||'').trim().slice(0,12); } catch {}
         name = sanitizeName(name);
-        try { localStorage.setItem('poker.username', name || 'Player'); } catch {}
+        try { nameSet(name || 'Player'); } catch {}
       }
-      if (!name) { name = 'Player'; try { localStorage.setItem('poker.username', name); } catch {} }
+      if (!name) { name = 'Player'; try { nameSet(name); } catch {} }
       const seatIdx = await pickPreferredSeatIndex();
       if (isOnchainTable) {
         const adapter = await getOnchainAdapter();
@@ -276,9 +284,10 @@ function initializePokerTable() {
         // Inform server for UI sync and set optimistic local seat state
         emitSocket('seat', { index: seatIdx });
         mySeat = seatIdx;
-        try { if (seatMeta[seatIdx]?.nameEl) {
-          const uname = String(localStorage.getItem('poker.username')||'').trim().slice(0,12);
-          seatMeta[seatIdx].nameEl.textContent = uname; }
+        try { if (seatMeta[seatIdx]?.nameEl || seatMeta[seatIdx]?.addr) {
+          const uname = nameGet().slice(0,12);
+          if (seatMeta[seatIdx].addr) seatMeta[seatIdx].addr.textContent = uname || 'Player';
+          if (seatMeta[seatIdx].nameEl) seatMeta[seatIdx].nameEl.textContent = ''; }
         } catch {}
       } else {
         emitSocket('seat', { index: seatIdx });
@@ -1889,7 +1898,7 @@ function initializePokerTable() {
       // - Off-chain others: use server-provided `x` profile if available
       // - Otherwise: blank
       try {
-        const localNameStored = String(localStorage.getItem('poker.username') || '').trim();
+        const localNameStored = (function(){ try { return String(nameGet()||'').trim(); } catch { return ''; } })();
         const localName = localNameStored || 'Player';
         if (isMe) {
           // Use the addr line to display the name for our seat so it sits where users expect
@@ -1920,7 +1929,7 @@ function initializePokerTable() {
       } catch {
         try {
           if (isMe) {
-            const nm = String(localStorage.getItem('poker.username') || 'Player').trim() || 'Player';
+            const nm = (function(){ try { return nameGet() || 'Player'; } catch { return 'Player'; } })();
             meta.nameEl.textContent = nm; meta.nameEl.style.display = '';
           } else { meta.nameEl.textContent = ''; meta.nameEl.style.display = 'none'; }
         } catch {}
@@ -2086,8 +2095,9 @@ function initializePokerTable() {
     try {
       const meta = seatMeta[seatId];
       if (meta && meta.nameEl) {
-        const nm = String(localStorage.getItem('poker.username') || 'Player').trim() || 'Player';
-        meta.nameEl.textContent = nm;
+        const nm = (function(){ try { return nameGet() || 'Player'; } catch { return 'Player'; } })();
+        if (meta.addr) meta.addr.textContent = nm;
+        meta.nameEl.textContent = '';
       }
     } catch {}
   }
