@@ -905,15 +905,12 @@ const CDN_ETHERS_ESM = 'https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.es
     createModal();
     ensureReady().then(() => document.dispatchEvent(new CustomEvent('bankroll:ui-ready')));
   }
-    createModal();
-    ensureReady().then(() => document.dispatchEvent(new CustomEvent('bankroll:ui-ready')));
-  }
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
   } else {
     init();
-  }
+  
 }
 })();
 
