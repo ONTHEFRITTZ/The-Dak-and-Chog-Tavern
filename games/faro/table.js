@@ -430,7 +430,7 @@ async function ensureIo(){
 async function connect() {
   await ensureIo();
   // Prefer websocket but allow polling fallback through proxies/CDNs
-  socket = io(window.location.origin, { path: '/socket.io/', transports: ['websocket', 'polling'], reconnection: true, reconnectionAttempts: 10, reconnectionDelay: 800 });
+  socket = io(window.location.origin, { path: '/socket.io/', transports: ['websocket'], upgrade: false, reconnection: true, reconnectionAttempts: 10, reconnectionDelay: 800 });
   const showLobby = () => { try { lobbyPanel.style.display = 'none'; } catch {} };
 
   socket.on('connect', () => {

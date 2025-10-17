@@ -40,7 +40,7 @@ async function ensureIo(){
 
 async function connect() {
   await ensureIo();
-  const socket = io(window.location.origin, { path: '/socket.io/', transports: ['websocket','polling'], reconnection:true, reconnectionAttempts:10, reconnectionDelay:800 });
+  const socket = io(window.location.origin, { path: '/socket.io/', transports: ['websocket'], upgrade: false, reconnection:true, reconnectionAttempts:10, reconnectionDelay:800 });
   const status = (msg)=>{
     try { lobbyList.innerHTML = `<div style="opacity:.7; font-size:13px;">${msg}</div>`; } catch {}
     try { if (bannerStatus) bannerStatus.textContent = msg; } catch {}
