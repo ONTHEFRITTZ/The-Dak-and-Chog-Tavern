@@ -30,7 +30,7 @@ module.exports = {
         GAME_TYPES: 'FARO,POKER',
         // Comma-separated, LOWERCASE wallet addresses with admin rights:
         ADMIN_ADDR: '0x8BA35Eca0fe68787b275C6ed065675829843Adf5',
-        POKER_DEALER_PK=''
+        POKER_DEALER_PK: process.env.POKER_DEALER_PK || ''
         HOLDEM_POKER_ADDR='0x424F89FE230331df8f656B683812b6394c323f17'
         MONAD_BUNDLER_RPC='https://monad-testnet.drpc.org'
         RT_RAKE_BPS: 100,
