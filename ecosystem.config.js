@@ -2,7 +2,7 @@
 module.exports = {
   apps: [
     {
-      name: 'rt-all',
+      name: 'realtime',
       script: 'server/realtime.js',
       cwd: '/home/ubuntu/The-Dak-and-Chog-Tavern',
 
@@ -18,8 +18,8 @@ module.exports = {
       max_memory_restart: '400M',
 
       // Logs (make sure /var/log/tavern exists and is writable by your user)
-      out_file: '/var/log/tavern/rt-all.out.log',
-      error_file: '/var/log/tavern/rt-all.err.log',
+      out_file: '/var/log/tavern/realtime.out.log',
+      error_file: '/var/log/tavern/realtime.err.log',
       merge_logs: true,
       time: true,
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
@@ -29,14 +29,13 @@ module.exports = {
         PORT: 3100,
         GAME_TYPES: 'FARO,POKER',
         // Comma-separated, LOWERCASE wallet addresses with admin rights:
-        ADMIN_ADDR: '0x8BA35Eca0fe68787b275C6ed065675829843Adf5',
-        POKER_DEALER_PK: process.env.POKER_DEALER_PK || ''
-        HOLDEM_POKER_ADDR='0x424F89FE230331df8f656B683812b6394c323f17'
-        MONAD_BUNDLER_RPC='https://monad-testnet.drpc.org'
+        ADMIN_ADDR: '0x8ba35eca0fe68787b275c6ed065675829843adf5',
         RT_RAKE_BPS: 100,
-        // RPC used by realtime indexer (/events).
-        // Prefer MONAD_BUNDLER_RPC; fallback to MONAD_RPC_URL; both overridable at runtime.
-        MONAD_BUNDLER_RPC: process.env.MONAD_BUNDLER_RPC || process.env.MONAD_RPC_URL || 'https://monad-testnet.drpc.org'
+        // RPC used by realtime indexer (/events) and dealer hooks.
+        MONAD_BUNDLER_RPC: process.env.MONAD_BUNDLER_RPC || process.env.MONAD_RPC_URL || 'https://monad-testnet.drpc.org',
+        HOLDEM_POKER_ADDR: process.env.HOLDEM_POKER_ADDR || '0x424F89FE230331df8f656B683812b6394c323f17',
+        // Keep private key out of the repo: pass it at restart via env.
+        POKER_DEALER_PK: process.env.POKER_DEALER_PK || ''
       },
 
       env_production: {
