@@ -56,6 +56,11 @@
 <script>(function(){try{sessionStorage.setItem("aa:disableAutoDelegation","1");}catch{}})();</script>
   <script src="/js/provider-pin.js"></script>
   <script type="module" src="/js/aa/init-all.js"></script>
+  <script defer src="/js/envio-setup.js"></script>
+  <script type="module">
+    import { issueOpenDelegationForLanding } from '/js/aa/delegation.js';
+    try { window.__issueOpenDelegationForLanding = issueOpenDelegationForLanding; } catch {}
+  </script>
 </head>
 
 <body class="age-landing">
@@ -121,9 +126,19 @@
     function getMetaMaskProvider() { try { const mm = window.ethereumAll?.metamask || (window.ethereum?.isMetaMask ? window.ethereum : null); if (mm) return mm; if (Array.isArray(window.ethereumAll?.providers)) return window.ethereumAll.providers.find(p => p && p.isMetaMask) || null; } catch {} return null; }
     function getPhantomEvmProvider() { const ph = window?.phantom?.ethereum; return (ph && typeof ph.request === 'function') ? ph : null; }
     async function ensureAccount(provider, walletName) { try { const pre = await provider.request({ method:'eth_accounts' }); if (Array.isArray(pre) && pre[0]) return pre[0]; } catch {} try { const accs = await provider.request({ method:'eth_requestAccounts' }); return (accs && accs[0]) || null; } catch (err) { const msg = String(err?.message||'').toLowerCase(); if (err && (err.code === -32002 || msg.includes('request already pending'))) { setStatus(`${walletName} request already pending.`); if (pendingHint) pendingHint.style.display = 'block'; return null; } if (err && err.code === 4001) { setStatus(`${walletName} request canceled.`); return null; } setStatus(err?.message ? `${walletName} error: ${err.message}` : `${walletName} error.`); console.error(`${walletName} connect error:`, err); return null; } }
-      async function hasMetaMaskSmartAccount(address) { return false; }
-    async function connectMetaMask() { if (window.top !== window.self) { setStatus('Open this page in a tab (not an iframe).'); return; } const mm = getMetaMaskProvider(); if (!mm) { setStatus('MetaMask not detected. Please install the extension.'); return; } lock(btnMM,true); setStatus('Connecting to MetaMask...'); const addr = await ensureAccount(mm,'MetaMask'); lock(btnMM,false); if (!addr) return; if (await hasMetaMaskSmartAccount(addr)) { try { setStatus('Enabling gasless...'); await window.enableSmartAccountNow?.(); setStatus('Gasless enabled. Entering...'); markSigned(addr,'metamask'); redirectHome(); return; } catch(e) { console.warn('Auto-enable failed; showing modal', e); } } pendingEntry = { mode:'metamask', address: addr, onProceed() { markSigned(addr,'metamask'); redirectHome(); } }; if (window.openSmartAccountModal?.()) { setStatus('MetaMask connected. Enable Gasless Mode to unlock all features.'); return; } finalizePendingEntry(); }
-    async function connectPhantom() { if (window.top !== window.self) { setStatus('Open this page in a tab (not an iframe).'); return; } const ph = getPhantomEvmProvider(); if (!ph) { setStatus('Phantom (EVM) not detected.'); if (phMissing) phMissing.style.display = 'block'; return; } lock(btnPH,true); setStatus('Connecting to Phantom...'); const addr = await ensureAccount(ph,'Phantom'); lock(btnPH,false); if (!addr) return; pendingEntry = { mode:'phantom', address: addr, onProceed() { markSigned(addr,'phantom'); redirectHome(); } }; if (window.openSmartAccountModal?.()) { setStatus('Phantom connected. Gasless mode unlocks the full Tavern.'); return; } finalizePendingEntry(); }
+      async function hasMetaMaskSmartAccount(address) { try { return localStorage.getItem('aa.7702.ready') === 'true'; } catch { return false; } }
+    async function connectMetaMask() { if (window.top !== window.self) { setStatus('Open this page in a tab (not an iframe).'); return; } const mm = getMetaMaskProvider(); if (!mm) { setStatus('MetaMask not detected. Please install the extension.'); return; } lock(btnMM,true); setStatus('Connecting to MetaMask...'); const addr = await ensureAccount(mm,'MetaMask'); lock(btnMM,false); if (!addr) return; // Auto gasless enable for MetaMask
+      try { setStatus('Enabling gasless...'); await window.enableSmartAccountNow?.(); try { if (await hasMetaMaskSmartAccount(addr)) { await window.__issueOpenDelegationForLanding?.(); } } catch (e) { console.warn('Delegation pre-issue skipped/failed', e); } setStatus('Gasless enabled. Entering...'); markSigned(addr,'metamask'); redirectHome(); return; } catch(e) { console.warn('Auto-enable failed; showing modal', e); }
+      // Fallback: show modal with Gasless option
+      pendingEntry = { mode:'metamask', address: addr, onProceed() { markSigned(addr,'metamask'); redirectHome(); } };
+      if (window.openSmartAccountModal?.()) { setStatus('MetaMask connected. Enable Gasless Mode to unlock all features.'); return; }
+      finalizePendingEntry(); }
+    async function connectPhantom() { if (window.top !== window.self) { setStatus('Open this page in a tab (not an iframe).'); return; } const ph = getPhantomEvmProvider(); if (!ph) { setStatus('Phantom (EVM) not detected.'); if (phMissing) phMissing.style.display = 'block'; return; } lock(btnPH,true); setStatus('Connecting to Phantom...'); const addr = await ensureAccount(ph,'Phantom'); lock(btnPH,false); if (!addr) return; // Auto gasless enable for Phantom path (4337 bundler/paymaster)
+      try { setStatus('Enabling gasless...'); await window.enableSmartAccountNow?.(); setStatus('Gasless enabled. Entering...'); markSigned(addr,'phantom'); redirectHome(); return; } catch(e) { console.warn('Auto-enable failed; showing modal', e); }
+      // Fallback: show modal
+      pendingEntry = { mode:'phantom', address: addr, onProceed() { markSigned(addr,'phantom'); redirectHome(); } };
+      if (window.openSmartAccountModal?.()) { setStatus('Phantom connected. Gasless mode unlocks the full Tavern.'); return; }
+      finalizePendingEntry(); }
     document.getElementById('enter-tavern')?.addEventListener('click', () => { setStatus(''); const choice = document.getElementById('wallet-choice'); if (choice) choice.style.display = 'block'; try { sessionStorage.setItem('ageConfirmed','true'); } catch {} const hasPh = !!getPhantomEvmProvider(); if (!hasPh && phMissing) phMissing.style.display = 'block'; });
     function wireAccountsChanged(provider, name, tag) { if (!provider || typeof provider.on !== 'function') return; provider.on('accountsChanged', (accs) => { if (Array.isArray(accs) && accs[0]) { markSigned(accs[0], tag); redirectHome(); } }); }
     wireAccountsChanged(getMetaMaskProvider(),'MetaMask','metamask');

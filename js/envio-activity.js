@@ -7,6 +7,17 @@ export function getEnvioUrl() {
   try { return location.origin; } catch { return ''; }
 }
 
+// Allow UI to set the HyperSync/HyperIndex endpoint at runtime
+export function setEnvioUrl(url) {
+  try {
+    const v = String(url || '').trim();
+    if (v) {
+      try { localStorage.setItem('envio.hypersync.url', v); } catch {}
+      try { window.ENVIO_HYPERSYNC_URL = v; } catch {}
+    }
+  } catch {}
+}
+
 export async function fetchRecentEvents({ endpoint, tableAddress, limit = 10 }) {
   const urls = [
     `${endpoint}/events?address=${encodeURIComponent(tableAddress)}&limit=${limit}`,
