@@ -1254,7 +1254,6 @@ function initializePokerTable() {
     burnPile.appendChild(el);
     requestAnimationFrame(() => el.classList.add('show'));
   } catch {}
-}, 220);
   }
   function updateCenter(st) {
     if (!centerBanner) return;
