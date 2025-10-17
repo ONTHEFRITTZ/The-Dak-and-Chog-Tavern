@@ -1892,7 +1892,9 @@ function initializePokerTable() {
         const localNameStored = String(localStorage.getItem('poker.username') || '').trim();
         const localName = localNameStored || 'Player';
         if (isMe) {
-          meta.nameEl.textContent = localName;
+          // Use the addr line to display the name for our seat so it sits where users expect
+          meta.addr.textContent = localName;
+          meta.nameEl.textContent = '';
         } else if (!isOnchainTable && seatData && typeof seatData.x === 'string' && seatData.x.trim()) {
           meta.nameEl.textContent = seatData.x.trim().slice(0, 24);
         } else {
