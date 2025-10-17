@@ -198,3 +198,8 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
 /* Ensure hidden class actually hides even with inline-flex override */
 .table-canvas .action-bar.hidden { display: none !important; visibility: hidden !important; }
 
+
+/* Winning five-card highlight */
+.card.best { outline: 2px solid rgba(255,215,120,0.9); box-shadow: 0 0 18px rgba(255,215,120,0.55); animation: bestPulse 1.2s ease-in-out 2; }
+@keyframes bestPulse { 0% { transform: scale(1); } 50% { transform: scale(1.04); } 100% { transform: scale(1); } }
+

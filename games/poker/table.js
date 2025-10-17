@@ -1991,6 +1991,22 @@ function initializePokerTable() {
       msg.winners.forEach(w => {
         const idx = Number.isFinite(w?.seatId) ? w.seatId : seatIndexForAddr(w?.addr);
         if (idx >= 0) seatMeta[idx].seat.classList.add('winner');
+        const combo = Array.isArray(w?.combo) ? w.combo.slice() : [];
+        if (combo.length) {
+          try {
+            // Highlight board cards
+            Array.from(board.children).forEach(el => {
+              if (combo.includes(el.dataset.code)) el.classList.add('best');
+            });
+            // Highlight seat hole cards
+            const meta = seatMeta[idx];
+            if (meta && meta.cards) {
+              Array.from(meta.cards.children).forEach(el => {
+                if (combo.includes(el.dataset.code)) el.classList.add('best');
+              });
+            }
+          } catch {}
+        }
       });
     }
     if (lastHandEl) {
@@ -2016,8 +2032,10 @@ function initializePokerTable() {
           meta.cards.innerHTML = '';
         }
         meta.seat.classList.remove('winner', 'folded', 'acted', 'turn');
+        try { Array.from(meta.cards.children).forEach(el => el.classList.remove('best')); } catch {}
         if (meta.timerFill) meta.timerFill.style.width = '0%';
       });
+      try { Array.from(board.children).forEach(el => el.classList.remove('best')); } catch {}
       updateCenter(null);
     }, 10000);
   }

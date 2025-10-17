@@ -494,6 +494,41 @@ function cmpRank(a,b){
   return 0;
 }
 
+// Evaluate best 5-card hand from 7-card list and return { score, combo }
+function eval5(cardsCodes){
+  const valMap = { '2':2,'3':3,'4':4,'5':5,'6':6,'7':7,'8':8,'9':9,'T':10,'J':11,'Q':12,'K':13,'A':14 };
+  const byRank = new Map(); const bySuit = new Map(); const ranksArr = [];
+  for (const c of cardsCodes){ const r=c[0], s=c[1], v=valMap[r]; ranksArr.push(v); byRank.set(r,(byRank.get(r)||0)+1); if(!bySuit.has(s)) bySuit.set(s,[]); bySuit.get(s).push(v); }
+  const ranksDesc = Array.from(new Set(ranksArr)).sort((a,b)=>b-a);
+  function bestStraight(vals){ const set=new Set(vals); if(set.has(14)) set.add(1); for(let hi=14;hi>=5;hi--){ const need=[hi,hi-1,hi-2,hi-3,hi-4]; if(need.every(x=>set.has(x))) return hi===5?5:hi; } return 0; }
+  // Straight flush
+  for (const [s, vals] of bySuit){ if (vals.length>=5){ const hi=bestStraight(vals); if(hi) return [8,hi]; }}
+  const groups = Array.from(byRank.entries()).map(([r,c])=>({r,c,v:valMap[r]})).sort((a,b)=> (b.c-a.c)||(b.v-a.v));
+  const counts = groups.map(g=>g.c);
+  if (counts[0]===4){ const quadV=groups[0].v; const kick=ranksDesc.filter(v=>v!==quadV)[0]||0; return [7,quadV,kick]; }
+  const trips = groups.filter(g=>g.c===3).map(g=>g.v).sort((a,b)=>b-a);
+  const pairs = groups.filter(g=>g.c===2).map(g=>g.v).sort((a,b)=>b-a);
+  if (trips.length>=1 && (pairs.length>=1 || trips.length>=2)){ const three=trips[0]; const two=(pairs.length>=1)?pairs[0]:trips[1]; return [6,three,two]; }
+  for (const [s, vals] of bySuit){ if (vals.length>=5){ const top5=vals.sort((a,b)=>b-a).slice(0,5); return [5,...top5]; }}
+  const straightHi = bestStraight(ranksDesc); if (straightHi) return [4, straightHi];
+  if (trips.length>=1){ const three=trips[0]; const kick=ranksDesc.filter(v=>v!==three).slice(0,2); return [3,three,...kick]; }
+  if (pairs.length>=2){ const p1=pairs[0], p2=pairs[1]; const kick=ranksDesc.filter(v=>v!==p1&&v!==p2)[0]||0; return [2,p1,p2,kick]; }
+  if (pairs.length===1){ const p=pairs[0]; const kicks=ranksDesc.filter(v=>v!==p).slice(0,3); return [1,p,...kicks]; }
+  return [0, ...ranksDesc.slice(0,5)];
+}
+
+function bestFiveFromSeven(cards7){
+  // Enumerate 21 combos of 5 from 7
+  const idx = [0,1,2,3,4,5,6];
+  let bestScore=null, bestCombo=null;
+  for (let a=0;a<3;a++) for (let b=a+1;b<4;b++) for (let c=b+1;c<5;c++) for (let d=c+1; d<6; d++) for (let e=d+1; e<7; e++){
+    const combo=[cards7[a],cards7[b],cards7[c],cards7[d],cards7[e]];
+    const score=eval5(combo);
+    if (!bestScore || cmpRank(score,bestScore)>0){ bestScore=score; bestCombo=combo; }
+  }
+  return { score: bestScore, combo: bestCombo||cards7.slice(0,5) };
+}
+
 /* ------------------------ Private hole cards helpers ----------------------- */
 function sendPrivateHoleToSeat(t, seatIndex, cardsCodes){
   try{
@@ -746,14 +781,17 @@ async function advancePokerStage(tableId,t){
       const alive = st.actors.filter(a=>!a.folded);
       let bestScore = null, winners = [];
 
+      const winnerCombos = new Map();
       for (const a of alive){
         const seven = [...a.cards, ...board];
-        const score = eval7(seven);
+        const bf = bestFiveFromSeven(seven);
+        const score = bf.score;
         if (!bestScore || cmpRank(score, bestScore)>0){
           bestScore = score; winners = [a];
         } else if (cmpRank(score, bestScore)===0){
           winners.push(a);
         }
+        winnerCombos.set(a.seatId, bf.combo);
       }
 
       // Split pot across winners (equal split, remainder to first)
@@ -772,7 +810,8 @@ async function advancePokerStage(tableId,t){
       const winnerPayouts = winners.map((a,idx)=>({
         addr: a.addr,
         seatId: a.seatId,
-        amount: split + (idx===0?remainder:0)
+        amount: split + (idx===0?remainder:0),
+        combo: (winnerCombos.get(a.seatId) || []).map(code => String(code))
       }));
       const exposures = alive.map(a=>({ addr:a.addr, seatId:a.seatId, cards: Array.from(a.cards) }));
       io.to(tableId).emit('poker:hand',{
