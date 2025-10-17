@@ -31,7 +31,7 @@ Admin Panel (WMON/DCMon) Post-Deploy Checklist
 - Optional: run a 0.01 MON wrap -> approve -> pool deposit -> pool redeem smoke test to ensure signer permissions.
 Monad Testnet Addresses (Oct 2025)
 - WMON: 0x7b4E8B2a3E934701D8bF6cFB31C3f3BDaC5e30Ff
-- DCMon: 0xF81592Eb0B6811eF655676Ba77625bD3Db7c6C92
+- DCMon: 0x1B64c3347906A38c60F46f340D68462D80BD9c55
 - BankrollPool: 0x31574064907cbE75C61Fea28C545264817A9AA4a
 - Player reward wallet: 0xCe1C5bb15041361D6Ab22aAFb3887dD28D05a16E
 - Faro: 0x953f1Bba2eeEa57482037377BD5103cEbA85C987
