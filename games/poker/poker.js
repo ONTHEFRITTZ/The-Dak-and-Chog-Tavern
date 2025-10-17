@@ -516,7 +516,7 @@ function cardFor(row){
 
   const btn = document.createElement('button');
   btn.type = 'button';
-  btn.textContent = meta.tableMode === 'onchain' ? 'Launch On-Chain Table' : 'Play Table';
+  btn.textContent = 'Play Table';
 
   btn.addEventListener('click', async () => {
     const original = btn.textContent;
