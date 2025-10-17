@@ -1,4 +1,5 @@
 // js/wallet-chips.js
+// bump: ensure latest fixed file is deployed (v2)
 // Adds a Chips trigger to the wallet pill and shares bankroll UI across pages.
 (function () {
   if (window.__WalletChipsMounted) return;
