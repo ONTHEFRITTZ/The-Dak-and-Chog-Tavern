@@ -144,15 +144,33 @@ function initializePokerTable() {
     return { left, top };
   }
   function positionSeats() {
-    const total = seats.length || 8;
-    seats.forEach((seat, idx) => {
-      const { left, top } = seatPosition(idx, total);
+  const total = seats.length || 8;
+  const offset = (typeof mySeat === 'number' && mySeat >= 0)
+    ? (((total >= 6 ? 3 : Math.floor(total/2)) - mySeat + total) % total)
+    : 0;
+  seats.forEach((seat, idx) => {
+    const visual = (idx + offset) % total;
+    const { left, top } = seatPosition(visual, total);
+    seat.style.left = `${left}%`;
+    seat.style.top = `${top}%`;
+  });
+} = seatPosition(idx, total);
       seat.style.left = `${left}%`;
       seat.style.top = `${top}%`;
     });
   }
-  const canvas = document.querySelector('.table-canvas');
-  if (!canvas) return;
+  const canvas = document.querySelector('.table-canvas');\n  if (!canvas) return;\n  // Pre-seat: hide action UI until the user sits
+  try { canvas.classList.add('pre-seat'); } catch {}
+  const sitCta = document.getElementById('sit-cta');
+  const sitCenterBtn = document.getElementById('sit-center');
+  const showSitCta = (show) => {
+    try {
+      if (!sitCta) return;
+      sitCta.classList.toggle('show', !!show);
+      sitCta.setAttribute('aria-hidden', show ? 'false' : 'true');
+    } catch {}
+  };
+  showSitCta(true);
   const MAX_ONCHAIN_SEATS = 6;
   const seatNodes = Array.from(document.querySelectorAll('.seat'));
   const seats = isOnchainTable ? seatNodes.slice(0, MAX_ONCHAIN_SEATS) : seatNodes;
@@ -1980,7 +1998,7 @@ function initializePokerTable() {
         if (idx >= 0) setSeatCards(idx, ex.cards || [], { faceDown: false });
     });
     // If not seated, ensure the action bar is hidden
-    if (mySeat < 0) hideActionBar();
+    if (mySeat < 0) { hideActionBar(); showSitCta(true); try { canvas.classList.add('pre-seat'); } catch {} } else { showSitCta(false); try { canvas.classList.remove('pre-seat'); } catch {} }
   }
     if (Array.isArray(msg?.winners) && msg.winners.length) {
       const names = msg.winners.map(w => short(w.addr)).join(', ');
@@ -2080,3 +2098,39 @@ if (document.readyState === 'loading') {
 
 
 
+
+
+
+
+  async function pickPreferredSeatIndex() {
+    const total = seats.length || 6;
+    const order = (total >= 6) ? [3,2,4,1,5,0].slice(0,total) : Array.from({length: total}, (_,i)=>i);
+    if (!isOnchainTable) return order[0] || 0;
+    try {
+      const adapter = await getOnchainAdapter();
+      if (!adapter || typeof adapter.readSeatOwnerLower !== 'function') return order[0] || 0;
+      for (const idx of order) {
+        try { const owner = await adapter.readSeatOwnerLower(idx); if (!owner || owner === ZERO_ADDR) return idx; } catch {}
+      }
+    } catch {}
+    return order[0] || 0;
+  }
+  async function handleCenterSit() {
+    try {
+      const ok = await ensureIdentify();
+      if (!ok) { alert('Connect your wallet first.'); return; }
+      let name = '';
+      try { name = String(prompt('Enter a display name (max 12 chars):','')||'').trim().slice(0,12); } catch {}
+      if (name) { try { localStorage.setItem('poker.username', name); } catch {} }
+      const seatIdx = await pickPreferredSeatIndex();
+      if (isOnchainTable) {
+        const adapter = await getOnchainAdapter();
+        if (!adapter) { alert(describeAdapterError()); return; }
+        await adapter.joinSeat(seatIdx);
+      } else {
+        emitSocket('seat', { index: seatIdx });
+      }
+      showSitCta(false);
+    } catch (e) { console.warn('Center sit failed', e); showSitCta(true); }
+  }
+  if (sitCenterBtn) sitCenterBtn.addEventListener('click', handleCenterSit);
