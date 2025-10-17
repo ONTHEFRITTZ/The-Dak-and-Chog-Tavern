@@ -292,7 +292,7 @@ const CDN_ETHERS_ESM = 'https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.es
       aaPanel.style.width = '100%';
       aaHost.appendChild(aaPanel);
     }
-
+  }
   function createModal() {
     let overlay = document.getElementById('wi-chips-modal');
     let dialog;
