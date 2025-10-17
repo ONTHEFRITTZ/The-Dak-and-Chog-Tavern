@@ -200,9 +200,16 @@ function initializePokerTable() {
       nameModal.setAttribute('aria-hidden', show ? 'false' : 'true');
       if (show) {
         if (!sitCta.classList.contains('show')) showSitCta(true);
-        if (nameInput) { nameInput.value = (localStorage.getItem('poker.username')||'').slice(0,12); nameInput.focus(); }
+        // Hide the Sit button while modal is active
+        try { if (sitCenterBtn) sitCenterBtn.style.display = 'none'; } catch {}
+        if (nameInput) {
+          nameInput.value = (localStorage.getItem('poker.username')||'').slice(0,12);
+          nameInput.focus();
+        }
       } else {
         try { if (document.activeElement && nameModal.contains(document.activeElement)) document.activeElement.blur(); } catch {}
+        // Restore Sit button only if CTA still visible (i.e., user canceled)
+        try { if (sitCenterBtn && sitCta.classList.contains('show')) sitCenterBtn.style.display = ''; } catch {}
       }
     } catch {}
   }
@@ -247,6 +254,11 @@ function initializePokerTable() {
           }
           nameCancel?.addEventListener('click', onCancel);
           nameContinue?.addEventListener('click', onContinue);
+          // Allow Enter key to submit
+          try {
+            const onKey = (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); onContinue(); } };
+            nameInput?.addEventListener('keydown', onKey, { once: true });
+          } catch {}
         });
       }
       if (isPlaceholder && (!nameModal || !nameInput)) {
