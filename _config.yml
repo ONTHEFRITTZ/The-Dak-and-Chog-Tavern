@@ -1,0 +1,4 @@
+exclude:
+  - CHANGELOG.md
+markdown: GFM
+encoding: "utf-8"
