@@ -966,6 +966,22 @@ io.on('connection',(socket)=>{
 
   socket.on('identify',(m)=>{ try{ addrLower=String(m.addr||'').toLowerCase(); isAdmin=admins.has(addrLower);}catch{} socket.emit('rt:state',{paused,rakeBps,feesAccrued}); });
 
+  // Public profile broadcast (e.g., seat display name). Kept very small and unsanitized content is rejected.
+  socket.on('profile_public', (m)=>{ try{
+    if (!addrLower) return; // must be identified
+    const raw = (m && (m.x||m.name||'')) || '';
+    let x = String(raw).trim();
+    // Basic guardrails: strip obvious URLs and cap length
+    if (/https?:\/\//i.test(x)) x = '';
+    x = x.replace(/\s+/g,' ').slice(0, 24);
+    publicProfiles.set(addrLower, { x });
+    // If the user is seated at a table, push an update so others see it
+    if (currentTableId && tables.has(currentTableId)) {
+      const t = tables.get(currentTableId);
+      emitUpdate(t);
+    }
+  }catch{}});
+
   socket.on('join_table',(m)=>{ try{
     const req=String(m.table||m.tableId||'');
     let wanted=req || (gameEnabled('FARO')?'faro-1':'poker-nl-1');

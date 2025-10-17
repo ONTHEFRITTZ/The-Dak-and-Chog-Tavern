@@ -276,6 +276,8 @@ function initializePokerTable() {
         try { nameSet(name || 'Player'); } catch {}
       }
       if (!name) { name = 'Player'; try { nameSet(name); } catch {} }
+      // Broadcast public name to server so others can see it
+      try { emitSocket('profile_public', { x: name }); } catch {}
       const seatIdx = await pickPreferredSeatIndex();
       if (isOnchainTable) {
         const adapter = await getOnchainAdapter();
