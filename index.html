@@ -191,8 +191,8 @@
       }catch(e){}
     })();
   </script>
-  <!-- Realtime: Socket.IO with CDN fallback and safe init -->
-  <script src="/socket.io/socket.io.js" onerror="(function(){var s=document.createElement('script');s.src='https://cdn.socket.io/4.7.5/socket.io.min.js';s.crossOrigin='anonymous';document.head.appendChild(s);})();"></script>
+  <!-- Realtime: Socket.IO via CDN (avoid 502 on local asset) -->
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" crossorigin="anonymous"></script>
   <script>
     (function(){
       function startIo(){

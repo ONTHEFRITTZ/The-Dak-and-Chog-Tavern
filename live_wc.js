@@ -293,6 +293,85 @@ const CDN_ETHERS_ESM = 'https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.es
       aaHost.appendChild(aaPanel);
     }
 
+    // Append Envio Activity section at the very bottom of the modal
+    let activity = document.getElementById('wi-activity');
+    if (!activity) {
+      activity = document.createElement('div');
+      activity.id = 'wi-activity';
+      activity.style.cssText = 'margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.12);display:flex;flex-direction:column;gap:6px;';
+      const heading = document.createElement('div');
+      heading.textContent = 'Table Activity';
+      heading.style.cssText = 'font-weight:600;font-size:13px;opacity:0.85;';
+      const list = document.createElement('div');
+      list.id = 'wi-activity-list';
+      list.style.cssText = 'display:flex;flex-direction:column;gap:4px;max-height:140px;overflow:auto;font-size:12px;';
+      const status = document.createElement('div');
+      status.id = 'wi-activity-status';
+      status.style.cssText = 'font-size:12px;opacity:0.85;';
+      status.textContent = 'LoadingÃ¢â?¬Â¦';
+      activity.appendChild(heading);
+      activity.appendChild(status);
+      activity.appendChild(list);
+    }
+    if (activity.parentElement !== dialog) dialog.appendChild(activity);
+    // Populate activity
+    async function renderActivity() {
+      try {
+        const envio = await import('/js/envio-activity.js');
+        // Resolve table address
+        let tableAddress = '';
+        try { if (window.HoldemPokerAddress) tableAddress = window.HoldemPokerAddress; } catch {}
+        if (!tableAddress) {
+          try {
+            const tag = (typeof window !== 'undefined' && (window.__BUILD_TAG || Date.now())) || Date.now();
+            const cfg = await import(`/js/config.js?v=${encodeURIComponent(tag)}`);
+            tableAddress = (cfg && cfg.CONTRACTS && cfg.CONTRACTS.pokerTable) || '';
+          } catch {}
+        }
+        if (!tableAddress) {
+          const s = document.getElementById('wi-activity-status'); if (s) s.textContent = 'No table configured.'; return;
+        }
+        const endpoint = (typeof window.ENVIO_HYPERSYNC_URL==='string' && window.ENVIO_HYPERSYNC_URL) ? window.ENVIO_HYPERSYNC_URL : (localStorage.getItem('envio.hypersync.url') || (location && location.origin) || '');
+        if (!endpoint) { const s = document.getElementById('wi-activity-status'); if (s) s.textContent = 'Activity endpoint not set.'; return; }
+        const items = await envio.fetchRecentEvents({ endpoint, tableAddress, limit: 20 });
+        const list = document.getElementById('wi-activity-list');
+        const status = document.getElementById('wi-activity-status');
+        if (!Array.isArray(items) || !items.length) { if (status) status.textContent = 'No recent events'; return; }
+        if (status) status.textContent = `${items.length} events`;
+        list.innerHTML='';
+        items.slice(0,20).forEach((ev) => {
+          const row = document.createElement('div');
+          row.style.cssText = 'display:flex;gap:6px;align-items:center;background:rgba(0,0,0,0.25);padding:4px 6px;border-radius:8px;';
+          const when = document.createElement('span'); when.style.opacity = '0.85';
+          let ts = ev.blockTimestamp || ev.timestamp || ev.time || 0; try { if (typeof ts === 'string') ts = Date.parse(ts)/1000; } catch {}
+          const dt = ts ? new Date(ts*1000) : new Date(); when.textContent = dt.toLocaleTimeString();
+          const what = document.createElement('span'); what.style.fontWeight = '600'; what.textContent = ev.event || ev.name || ev.type || 'event';
+          const from = (ev.args?.player || ev.args?.from || ev.from || '').toString();
+          const to = (ev.args?.to || ev.to || '').toString();
+          const who = document.createElement('span'); who.style.opacity = '0.9'; try { who.textContent = (from ? String(from) : '') + (to ? (' -> ' + String(to)) : ''); } catch { who.textContent = from||''; }
+          row.appendChild(when); row.appendChild(document.createTextNode(' ')); row.appendChild(what); row.appendChild(document.createTextNode(' ')); row.appendChild(who);
+          list.appendChild(row);
+        });
+      } catch (e) {
+        const s = document.getElementById('wi-activity-status'); if (s) s.textContent = 'Failed to load activity.';
+      }
+    }
+    (function(){
+      const input = document.getElementById('wi-envio-url');
+      const saveBtn = document.getElementById('wi-envio-save');
+      const localBtn = document.getElementById('wi-envio-local');
+      function currentLocal() { try { return (location && location.origin) || ''; } catch { return ''; } }
+      try { if (input && !input.value) input.value = (localStorage.getItem('envio.hypersync.url') || currentLocal()); } catch {}
+      saveBtn?.addEventListener('click', async () => {
+        try { const mod = await import('/js/envio-activity.js'); mod.setEnvioUrl(input.value); } catch {}
+        renderActivity();
+      });
+      localBtn?.addEventListener('click', async () => {
+        const v = currentLocal(); if (input) input.value = v; try { const mod = await import('/js/envio-activity.js'); mod.setEnvioUrl(v); } catch {}
+        renderActivity();
+      });
+    })();
+    renderActivity();
   function createModal() {
     let overlay = document.getElementById('wi-chips-modal');
     let dialog;
@@ -474,3 +553,4 @@ const CDN_ETHERS_ESM = 'https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.es
   }
 }
 })();
+

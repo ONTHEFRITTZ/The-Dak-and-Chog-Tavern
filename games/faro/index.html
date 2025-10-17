@@ -290,16 +290,7 @@
 
   <!-- Socket.IO: CDN first, then (optional) local fallback -->
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" crossorigin="anonymous"></script>
-  <script>
-    (function(){
-      if (!window.io) {
-        var s=document.createElement('script');
-        s.src='/socket.io/socket.io.js';
-        s.onerror=function(){ console.warn('Socket.IO client unavailable'); };
-        document.head.appendChild(s);
-      }
-    })();
-  </script>
+  <!-- Removed local fallback to avoid 502 spam -->
 
   <!-- Bet modal -->
   <div id="bet-modal" style="position:fixed; inset:0; background:rgba(0,0,0,0.55); display:none; align-items:center; justify-content:center; z-index:21000;">
