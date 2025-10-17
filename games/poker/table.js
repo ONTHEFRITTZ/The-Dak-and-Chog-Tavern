@@ -779,7 +779,10 @@ function initializePokerTable() {
   betInput.className = 'bet-input';
   const betBtn = document.createElement('button');
   betBtn.textContent = 'Bet';
-  actionBar.append(infoText, foldBtn, callBtn, betInput, betBtn);
+  const allInBtn = document.createElement('button');
+  allInBtn.textContent = 'All‑in';
+  allInBtn.title = 'Bet your full DCMon balance';
+  actionBar.append(infoText, foldBtn, callBtn, betInput, betBtn, allInBtn);
 
   // Optional: "Your Activity Score" near the wallet chip when Envio is configured
   // Removed wallet pill activity badge per request; activity now lives only in wallet modal.
@@ -1291,16 +1294,16 @@ function initializePokerTable() {
     const desiredTop = (boardRect.bottom - canvasRect.top) + 20;
     const canvasHeight = canvasRect.height;
     const actionHeight = actionBar.offsetHeight || 0;
-    let maxTop = canvasHeight - actionHeight - 24;
+    let maxTop = canvasHeight - actionHeight - 48; // keep clear of bottom seat
     const bottomMost = seatMeta.reduce((max, meta) => {
       if (!meta || !meta.seat) return max;
       const rect = meta.seat.getBoundingClientRect();
       return Math.max(max, rect.bottom - canvasRect.top);
     }, 0);
     if (bottomMost > 0) {
-      maxTop = Math.min(maxTop, bottomMost - actionHeight - 24);
+      maxTop = Math.min(maxTop, bottomMost - actionHeight - 56);
     }
-    const minTop = Math.max((boardRect.bottom - canvasRect.top) + 12, 12);
+    const minTop = Math.max((boardRect.bottom - canvasRect.top) + 16, 12);
     const top = Math.min(Math.max(minTop, desiredTop), maxTop);
     actionBar.style.top = `${top}px`;
   }
@@ -1426,6 +1429,28 @@ function initializePokerTable() {
   betBtn.addEventListener('click', () => {
     const action = betBtn.dataset.action || 'bet';
     sendAction(action, betInput.value);
+  });
+  allInBtn.addEventListener('click', async () => {
+    try {
+      // Determine raise/bet action
+      const state = currentState || tableSnapshot || null;
+      const target = Number(state?.toCall || 0);
+      const raiseAction = target > 0 ? 'raise' : 'bet';
+      // Resolve wallet DCMon balance
+      const br = getBankrollHelper();
+      let dcWei = br?.getLastBalances?.()?.dcmonWei || null;
+      if (!dcWei && typeof br?.refreshBalance === 'function') { try { br.refreshBalance(); dcWei = br?.getLastBalances?.()?.dcmonWei || null; } catch {} }
+      let dcmonAmt = 0;
+      if (dcWei && window.ethers?.utils?.formatEther) {
+        dcmonAmt = Number.parseFloat(window.ethers.utils.formatEther(dcWei));
+      }
+      if (!Number.isFinite(dcmonAmt) || dcmonAmt <= 0) {
+        alert('Insufficient DCMon to go all‑in.');
+        return;
+      }
+      betInput.value = String(dcmonAmt);
+      sendAction(raiseAction, betInput.value);
+    } catch (e) { console.warn('All‑in failed', e); }
   });
   function actorForSeat(state, seatIdx) {
     if (!Number.isInteger(seatIdx)) return null;
