@@ -1900,6 +1900,21 @@ function initializePokerTable() {
         }
         // Ensure visibility
         meta.nameEl.style.display = meta.nameEl.textContent ? '' : 'none';
+        // Optional debug
+        try {
+          const u = new URL(window.location.href);
+          if (u.searchParams.get('debugNames') === '1') {
+            const meAddr = (currentAddr() || '').toLowerCase();
+            console.log('[poker][names]', {
+              idx,
+              isMe,
+              seatAddr,
+              meAddr,
+              localNameStored,
+              finalText: meta.nameEl.textContent
+            });
+          }
+        } catch {}
       } catch {
         try {
           if (isMe) {
