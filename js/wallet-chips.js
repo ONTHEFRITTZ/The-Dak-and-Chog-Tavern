@@ -1,4 +1,4 @@
-// js/wallet-chips.js
+﻿// js/wallet-chips.js
 // Adds a Chips trigger to the wallet pill and shares bankroll UI across pages.
 (function () {
   if (window.__WalletChipsMounted) return;
@@ -308,7 +308,7 @@ const CDN_ETHERS_ESM = 'https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.es
       const status = document.createElement('div');
       status.id = 'wi-activity-status';
       status.style.cssText = 'font-size:12px;opacity:0.85;';
-      status.textContent = 'Loading�';
+      status.textContent = 'Loading…';
       activity.appendChild(heading);
       activity.appendChild(status);
       activity.appendChild(list);
@@ -324,7 +324,7 @@ const CDN_ETHERS_ESM = 'https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.es
         if (!tableAddress) {
           try {
             const tag = (typeof window !== 'undefined' && (window.__BUILD_TAG || Date.now())) || Date.now();
-            const cfg = await import(/js/config.js?v=);
+            const cfg = await import(`/js/config.js?v=${encodeURIComponent(tag)}`);
             tableAddress = (cfg && cfg.CONTRACTS && cfg.CONTRACTS.pokerTable) || '';
           } catch {}
         }
@@ -337,7 +337,7 @@ const CDN_ETHERS_ESM = 'https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.es
         const list = document.getElementById('wi-activity-list');
         const status = document.getElementById('wi-activity-status');
         if (!Array.isArray(items) || !items.length) { if (status) status.textContent = 'No recent events'; return; }
-        if (status) status.textContent = ${items.length} events;
+        if (status) status.textContent = `${items.length} events`;
         list.innerHTML='';
         items.slice(0,20).forEach((ev) => {
           const row = document.createElement('div');
@@ -348,7 +348,7 @@ const CDN_ETHERS_ESM = 'https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.es
           const what = document.createElement('span'); what.style.fontWeight = '600'; what.textContent = ev.event || ev.name || ev.type || 'event';
           const from = (ev.args?.player || ev.args?.from || ev.from || '').toString();
           const to = (ev.args?.to || ev.to || '').toString();
-          const who = document.createElement('span'); who.style.opacity = '0.9'; try { who.textContent = [from||'', to?('? '+to):''].filter(Boolean).join(' '); } catch { who.textContent = from||''; }
+          const who = document.createElement('span'); who.style.opacity = '0.9'; try { who.textContent = [from||'', to?('→ '+to):''].filter(Boolean).join(' '); } catch { who.textContent = from||''; }
           row.appendChild(when); row.appendChild(document.createTextNode(' ')); row.appendChild(what); row.appendChild(document.createTextNode(' ')); row.appendChild(who);
           list.appendChild(row);
         });
@@ -682,7 +682,7 @@ const CDN_ETHERS_ESM = 'https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.es
       const status = document.createElement('div');
       status.id = 'wi-activity-status';
       status.style.cssText = 'font-size:12px;opacity:0.85;';
-      status.textContent = 'Loading�';
+      status.textContent = 'Loading…';
       activity.appendChild(heading);
       activity.appendChild(status);
       activity.appendChild(list);
@@ -722,7 +722,7 @@ const CDN_ETHERS_ESM = 'https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.es
           const what = document.createElement('span'); what.style.fontWeight = '600'; what.textContent = ev.event || ev.name || ev.type || 'event';
           const from = (ev.args?.player || ev.args?.from || ev.from || '').toString();
           const to = (ev.args?.to || ev.to || '').toString();
-          const who = document.createElement('span'); who.style.opacity = '0.9'; who.textContent = [from||'', to?('? '+to):''].filter(Boolean).join(' ');
+          const who = document.createElement('span'); who.style.opacity = '0.9'; who.textContent = [from||'', to?('→ '+to):''].filter(Boolean).join(' ');
           row.appendChild(when); row.appendChild(document.createTextNode(' ')); row.appendChild(what); row.appendChild(document.createTextNode(' ')); row.appendChild(who);
           list.appendChild(row);
         });
@@ -912,3 +912,4 @@ const CDN_ETHERS_ESM = 'https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.es
     init();
   }
 })();
+
