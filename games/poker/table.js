@@ -228,7 +228,8 @@ function initializePokerTable() {
       // Collect or reuse display name via modal
       let name = '';
       try { name = String(localStorage.getItem('poker.username')||'').trim().slice(0,12); } catch {}
-      if (!name && nameModal && nameInput) {
+      // Treat default placeholder as missing so we always ask nicely
+      if ((!name || name === 'Player') && nameModal && nameInput) {
         showNameModal(true);
         await new Promise((resolve) => {
           const onCancel = () => { name = ''; cleanup(); resolve(); };
@@ -247,17 +248,13 @@ function initializePokerTable() {
           nameContinue?.addEventListener('click', onContinue);
         });
       }
-      if (!name && (!nameModal || !nameInput)) {
+      if ((!name || name === 'Player') && (!nameModal || !nameInput)) {
         // Fallback prompt if modal missing
         try { name = String(prompt('What is your name?','')||'').trim().slice(0,12); } catch {}
         name = sanitizeName(name);
-        try { if (name) localStorage.setItem('poker.username', name); } catch {}
+        try { localStorage.setItem('poker.username', name || 'Player'); } catch {}
       }
-      if (!name) {
-        // Default fallback
-        name = 'Player';
-        try { localStorage.setItem('poker.username', name); } catch {}
-      }
+      if (!name) { name = 'Player'; try { localStorage.setItem('poker.username', name); } catch {} }
       const seatIdx = await pickPreferredSeatIndex();
       if (isOnchainTable) {
         const adapter = await getOnchainAdapter();
@@ -1879,8 +1876,8 @@ function initializePokerTable() {
       // - Off-chain others: use server-provided `x` profile if available
       // - Otherwise: blank
       try {
-        const localName = String(localStorage.getItem('poker.username') || '').trim();
-        if (isMe && localName) {
+        const localName = String(localStorage.getItem('poker.username') || '').trim() || 'Player';
+        if (isMe) {
           meta.nameEl.textContent = localName;
         } else if (!isOnchainTable && seatData && typeof seatData.x === 'string' && seatData.x.trim()) {
           meta.nameEl.textContent = seatData.x.trim().slice(0, 24);
