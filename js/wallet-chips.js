@@ -1,4 +1,4 @@
-// js/wallet-chips.js
+ï»¿// js/wallet-chips.js
 // Adds a Chips trigger to the wallet pill and shares bankroll UI across pages.
 (function () {
   if (window.__WalletChipsMounted) return;
@@ -308,7 +308,7 @@ const CDN_ETHERS_ESM = 'https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.es
       const status = document.createElement('div');
       status.id = 'wi-activity-status';
       status.style.cssText = 'font-size:12px;opacity:0.85;';
-      status.textContent = 'Loading…';
+      status.textContent = 'Loadingâ€¦';
       activity.appendChild(heading);
       activity.appendChild(status);
       activity.appendChild(list);
@@ -682,7 +682,7 @@ const CDN_ETHERS_ESM = 'https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.es
       const status = document.createElement('div');
       status.id = 'wi-activity-status';
       status.style.cssText = 'font-size:12px;opacity:0.85;';
-      status.textContent = 'Loading…';
+      status.textContent = 'Loadingâ€¦';
       activity.appendChild(heading);
       activity.appendChild(status);
       activity.appendChild(list);
@@ -907,11 +907,12 @@ const CDN_ETHERS_ESM = 'https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.es
   }
 
   if (document.readyState === 'loading') {
+    ensureReady().then(() => document.dispatchEvent(new CustomEvent('bankroll:ui-ready')));
+  
+  if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
   } else {
     init();
   }
-})();
-
 }
 })();
