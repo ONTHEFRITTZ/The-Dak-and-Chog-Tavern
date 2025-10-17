@@ -215,10 +215,14 @@ function initializePokerTable() {
         const adapter = await getOnchainAdapter();
         if (!adapter) { alert(describeAdapterError()); return; }
         await adapter.joinSeat(seatIdx);
+        // Inform server for UI sync and set optimistic local seat state
+        emitSocket('seat', { index: seatIdx });
+        mySeat = seatIdx;
       } else {
         emitSocket('seat', { index: seatIdx });
       }
       showSitCta(false);
+      try { canvas.classList.remove('pre-seat'); } catch {}
     } catch (e) { console.warn('Center sit failed', e); showSitCta(true); }
   }
   if (sitCenterBtn) sitCenterBtn.addEventListener('click', handleCenterSit);
