@@ -191,22 +191,24 @@
       }catch(e){}
     })();
   </script>
-  <!-- Realtime: Socket.IO with CDN fallback -->
+  <!-- Realtime: Socket.IO with CDN fallback and safe init -->
   <script src="/socket.io/socket.io.js" onerror="(function(){var s=document.createElement('script');s.src='https://cdn.socket.io/4.7.5/socket.io.min.js';s.crossOrigin='anonymous';document.head.appendChild(s);})();"></script>
   <script>
     (function(){
-      try {
-        const socket = io({ path: '/socket.io' });
-        socket.on('connect', function(){
-          try { socket.emit('user:location', { path: location.pathname }); } catch(e) {}
-          try { socket.emit('join_table', 'faro-lobby'); } catch(e) {}
-          try { console.log('connected', socket.id); } catch(e) {}
-        });
-        socket.on('system', function(m){ try { console.log('[system]', m); } catch(e) {} });
-        window.tavernSocket = socket;
-      } catch (e) {
-        // ignore if socket client not available
+      function startIo(){
+        if (!window.io) { setTimeout(startIo, 150); return; }
+        try {
+          const socket = io({ path: '/socket.io' });
+          socket.on('connect', function(){
+            try { socket.emit('user:location', { path: location.pathname }); } catch(e) {}
+            try { socket.emit('join_table', 'faro-lobby'); } catch(e) {}
+            try { console.log('connected', socket.id); } catch(e) {}
+          });
+          socket.on('system', function(m){ try { console.log('[system]', m); } catch(e) {} });
+          window.tavernSocket = socket;
+        } catch (e) { /* ignore */ }
       }
+      startIo();
     })();
   </script>
   <!-- Inline wallet sync for Tavern page -->
