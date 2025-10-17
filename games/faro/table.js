@@ -607,11 +607,30 @@ async function placeOnchainBet(rankNum, ethAmount, copper) {
   let abi = window.FaroV3ABI || window.FaroABI; // prefer V3 with copper
   const c = new ethersRef.Contract(faroAddr, abi, onchainSigner);
   log(`Submitting on-chain bet ${ethAmount} DCMon on ${rankNum}${copper ? ' (copper)' : ''}…`);
-  const tx = window.FaroV3ABI
-    ? await c.playFaro(rankNum, copper, { value: ethersRef.utils.parseEther(String(ethAmount)) })
-    : await c.playFaro(rankNum, { value: ethersRef.utils.parseEther(String(ethAmount)) });
-  log(`Tx sent: ${tx.hash.slice(0,10)}… waiting…`);
-  const rc = await tx.wait();
+  // Try AA path first (gasless)
+  let rc = null;
+  let sentViaAA = false;
+  try {
+    const ops = await ensureAAOps();
+    if (ops && typeof ops.encodeFromSignature === 'function' && typeof ops.sendTxViaAA === 'function') {
+      const sig = window.FaroV3ABI ? 'playFaro(uint8,bool)' : 'playFaro(uint8)';
+      const args = window.FaroV3ABI ? [rankNum, !!copper] : [rankNum];
+      const data = ops.encodeFromSignature(sig, args);
+      const txHash = await ops.sendTxViaAA({ to: faroAddr, data, valueMON: String(ethAmount) });
+      if (txHash) {
+        sentViaAA = true;
+        log(`Tx sent: ${txHash.slice(0,10)}… waiting…`);
+        try { if (walletProvider?.waitForTransaction) rc = await walletProvider.waitForTransaction(txHash); } catch {}
+      }
+    }
+  } catch {}
+  if (!sentViaAA) {
+    const tx = window.FaroV3ABI
+      ? await c.playFaro(rankNum, copper, { value: ethersRef.utils.parseEther(String(ethAmount)) })
+      : await c.playFaro(rankNum, { value: ethersRef.utils.parseEther(String(ethAmount)) });
+    log(`Tx sent: ${tx.hash.slice(0,10)}… waiting…`);
+    rc = await tx.wait();
+  }
   try {
     const ev = rc.events?.find(e => e.event === 'FaroPlayed');
     if (ev && ev.args) {
@@ -625,3 +644,12 @@ async function placeOnchainBet(rankNum, ethAmount, copper) {
 }
 
 
+async function ensureAAOps() {
+  try {
+    const tag = encodeURIComponent(window.__BUILD_TAG || Date.now());
+    const mod = await import(/* @vite-ignore */ `../../js/aa/ops.js?v=${tag}`);
+    return mod;
+  } catch (e) {
+    return null;
+  }
+}

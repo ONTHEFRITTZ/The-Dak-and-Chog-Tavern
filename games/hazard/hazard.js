@@ -4,6 +4,16 @@ import { getAddressFor, detectChainId, renderTavernBanner, showToast } from '../
 import '../../js/DCMonABI.js';
 import { attachProvider } from '../../js/contract-utils.js';
 
+async function ensureAAOps() {
+  try {
+    const tag = encodeURIComponent(window.__BUILD_TAG || Date.now());
+    const mod = await import(/* @vite-ignore */ `../../js/aa/ops.js?v=${tag}`);
+    return mod;
+  } catch (e) {
+    return null;
+  }
+}
+
 let tavernAddress; // unified contract address
 let activeHazardAbi = null;   // ABI used for parsing logs consistently
 const diceImages = [
@@ -481,8 +491,23 @@ renderTavernBanner({ contractKey: bannerKey, address: tavernAddress, chainId, wa
     if (allowance.lt(wager)) {
       statusEl.textContent = 'Approving DCMon for Hazard...';
       try { showToast('Approving DCMon...', 'info'); } catch {}
-      const approveTx = await dcmonToken.approve(tavernAddress, ethers.constants.MaxUint256);
-      await approveTx.wait();
+      // Try AA path first (gasless)
+      let approvedViaAA = false;
+      try {
+        const ops = await ensureAAOps();
+        if (ops && typeof ops.encodeFromSignature === 'function' && typeof ops.sendTxViaAA === 'function') {
+          const data = ops.encodeFromSignature('approve(address,uint256)', [tavernAddress, ethers.constants.MaxUint256]);
+          const txHash = await ops.sendTxViaAA({ to: dcmonAddress, data });
+          if (txHash) {
+            try { if (provider?.waitForTransaction) await provider.waitForTransaction(txHash); } catch {}
+            approvedViaAA = true;
+          }
+        }
+      } catch {}
+      if (!approvedViaAA) {
+        const approveTx = await dcmonToken.approve(tavernAddress, ethers.constants.MaxUint256);
+        await approveTx.wait();
+      }
     }
   } catch (approveErr) {
     const msg = approveErr?.error?.message || approveErr?.data?.message || approveErr?.reason || approveErr?.message || 'Approval failed';
@@ -577,9 +602,26 @@ renderTavernBanner({ contractKey: bannerKey, address: tavernAddress, chainId, wa
       }
     }
 
-    const tx = await contract.playHazard(selectedMain, wager, overrides);
-    statusEl.textContent = 'Dice rolling on-chain...';
-    const receipt = await tx.wait();
+    // Try AA path first (gasless)
+    let receipt = null;
+    let sentViaAA = false;
+    try {
+      const ops = await ensureAAOps();
+      if (ops && typeof ops.encodeFromSignature === 'function' && typeof ops.sendTxViaAA === 'function') {
+        const data = ops.encodeFromSignature('playHazard(uint8,uint256)', [selectedMain, wager]);
+        const txHash = await ops.sendTxViaAA({ to: tavernAddress, data });
+        if (txHash) {
+          sentViaAA = true;
+          statusEl.textContent = 'Dice rolling on-chain...';
+          try { if (provider?.waitForTransaction) receipt = await provider.waitForTransaction(txHash); } catch {}
+        }
+      }
+    } catch {}
+    if (!sentViaAA) {
+      const tx = await contract.playHazard(selectedMain, wager, overrides);
+      statusEl.textContent = 'Dice rolling on-chain...';
+      receipt = await tx.wait();
+    }
     statusEl.textContent = 'Waiting for result...';
 
     // Fallback: parse receipt for HazardPlayed to update UI even if socket event is delayed or missed

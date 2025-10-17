@@ -4,6 +4,16 @@ import { getAddressFor, detectChainId, renderTavernBanner, showToast, CONTRACTS 
 import '../../js/DCMonABI.js';
 import { attachProvider } from '../../js/contract-utils.js';
 
+async function ensureAAOps() {
+  try {
+    const tag = encodeURIComponent(window.__BUILD_TAG || Date.now());
+    const mod = await import(/* @vite-ignore */ `../../js/aa/ops.js?v=${tag}`);
+    return mod;
+  } catch (e) {
+    return null;
+  }
+}
+
 const MIN_BET = 0.001; // DCMon units
 
 const formatDcmon = (value) => {
@@ -211,8 +221,23 @@ shellElements.forEach((shell) => {
         if (allowance.lt(betWei)) {
           statusEl.innerText = 'Approving DCMon...';
           try { showToast('Approving DCMon...', 'info'); } catch {}
-          const approval = await dcmonToken.approve(tavernAddress, ethers.constants.MaxUint256);
-          await approval.wait();
+          // Try AA path first (gasless)
+          let approvedViaAA = false;
+          try {
+            const ops = await ensureAAOps();
+            if (ops && typeof ops.encodeFromSignature === 'function' && typeof ops.sendTxViaAA === 'function') {
+              const data = ops.encodeFromSignature('approve(address,uint256)', [tavernAddress, ethers.constants.MaxUint256]);
+              const txHash = await ops.sendTxViaAA({ to: dcmonAddress, data });
+              if (txHash) {
+                try { if (provider?.waitForTransaction) await provider.waitForTransaction(txHash); } catch {}
+                approvedViaAA = true;
+              }
+            }
+          } catch {}
+          if (!approvedViaAA) {
+            const approval = await dcmonToken.approve(tavernAddress, ethers.constants.MaxUint256);
+            await approval.wait();
+          }
         }
       } catch (approveErr) {
         const msg = approveErr?.error?.message || approveErr?.data?.message || approveErr?.reason || approveErr?.message || 'Approval failed';
@@ -269,11 +294,24 @@ shellElements.forEach((shell) => {
       statusEl.innerText = 'Submitting DCMon wager...';
       try { showToast('Submitting wager...', 'info'); } catch {}
 
-      const tx = await contract.playShell(guess, betWei, {
-        gasLimit: 200000,
-      });
-
-      const receipt = await tx.wait();
+      // Try AA path first (gasless)
+      let receipt = null;
+      let sentViaAA = false;
+      try {
+        const ops = await ensureAAOps();
+        if (ops && typeof ops.encodeFromSignature === 'function' && typeof ops.sendTxViaAA === 'function') {
+          const data = ops.encodeFromSignature('playShell(uint8,uint256)', [guess, betWei]);
+          const txHash = await ops.sendTxViaAA({ to: tavernAddress, data });
+          if (txHash) {
+            sentViaAA = true;
+            try { if (provider?.waitForTransaction) receipt = await provider.waitForTransaction(txHash); } catch {}
+          }
+        }
+      } catch {}
+      if (!sentViaAA) {
+        const tx = await contract.playShell(guess, betWei, { gasLimit: 200000 });
+        receipt = await tx.wait();
+      }
 
       const iface = new ethers.utils.Interface(activeShellAbi || window.ShellABI || window.TavernABI);
       let playedEvent;
