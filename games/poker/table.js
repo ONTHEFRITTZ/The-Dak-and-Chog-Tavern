@@ -172,6 +172,8 @@ function initializePokerTable() {
   const MAX_ONCHAIN_SEATS = 6;
   const seatNodes = Array.from(document.querySelectorAll('.seat'));
   const seats = isOnchainTable ? seatNodes.slice(0, MAX_ONCHAIN_SEATS) : seatNodes;
+  // Ensure mySeat is defined before any function references it
+  let mySeat = -1;
   if (isOnchainTable && seatNodes.length > seats.length) {
     seatNodes.slice(seats.length).forEach((seat) => {
       try {
@@ -1046,7 +1048,7 @@ function initializePokerTable() {
     return false;
   }
   let lastTable = null;
-  let mySeat = -1;
+  mySeat = -1;
   let lastStage = null;
   let lastCommunity = [];
   let currentState = null;
