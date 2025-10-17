@@ -162,17 +162,11 @@
       }
     } catch {}
 
-    // First-visit profile prompt (once)
+    // First-visit profile prompt disabled (no Profiles tab for now)
     try {
-      const seen = localStorage.getItem('firstVisit.profilePrompt') === 'true';
-      if (!seen) {
-        const ov = document.getElementById('first-visit-overlay');
-        const open = document.getElementById('fv-open-profile');
-        const later = document.getElementById('fv-later');
-        ov.style.display = 'flex';
-        open?.addEventListener('click', () => { ov.style.display='none'; openBtn?.click(); localStorage.setItem('firstVisit.profilePrompt','true'); });
-        later?.addEventListener('click', () => { ov.style.display='none'; localStorage.setItem('firstVisit.profilePrompt','true'); });
-      }
+      localStorage.setItem('firstVisit.profilePrompt','true');
+      const ov = document.getElementById('first-visit-overlay');
+      if (ov) ov.style.display = 'none';
     } catch {}
 
     // Avoid auto-signature prompts: only load profile on explicit user action
