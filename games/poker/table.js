@@ -169,6 +169,48 @@ function initializePokerTable() {
     } catch {}
   };
   showSitCta(true);
+
+  // Seat selection + center sit handler (scoped here to access locals)
+  async function pickPreferredSeatIndex() {
+    const total = seats.length || 6;
+    const order = (total >= 6) ? [3,2,4,1,5,0].slice(0,total) : Array.from({length: total}, (_,i)=>i);
+    if (!isOnchainTable) return order[0] || 0;
+    try {
+      const adapter = await getOnchainAdapter();
+      if (!adapter || typeof adapter.readSeatOwnerLower !== 'function') return order[0] || 0;
+      for (const idx of order) {
+        try { const owner = await adapter.readSeatOwnerLower(idx); if (!owner || owner === ZERO_ADDR) return idx; } catch {}
+      }
+    } catch {}
+    return order[0] || 0;
+  }
+  async function handleCenterSit() {
+    try {
+      const ok = await ensureIdentify();
+      if (!ok) { alert('Connect your wallet first.'); return; }
+      let name = '';
+      try { name = String(prompt('Enter a display name (max 12 chars):','')||'').trim().slice(0,12); } catch {}
+      if (name) { try { localStorage.setItem('poker.username', name); } catch {} }
+      const seatIdx = await pickPreferredSeatIndex();
+      if (isOnchainTable) {
+        const adapter = await getOnchainAdapter();
+        if (!adapter) { alert(describeAdapterError()); return; }
+        await adapter.joinSeat(seatIdx);
+      } else {
+        emitSocket('seat', { index: seatIdx });
+      }
+      showSitCta(false);
+    } catch (e) { console.warn('Center sit failed', e); showSitCta(true); }
+  }
+  if (sitCenterBtn) sitCenterBtn.addEventListener('click', handleCenterSit);
+
+  function seatIndexForSeatId(seatId){
+    try{
+      if (!Array.isArray(currentState?.actors)) return -1;
+      const a = currentState.actors.find(z=> Number(z?.seatId)===Number(seatId));
+      return a ? seatIndexForActor(a) : -1;
+    } catch (e) { return -1; }
+  }
   const MAX_ONCHAIN_SEATS = 6;
   const seatNodes = Array.from(document.querySelectorAll('.seat'));
   const seats = isOnchainTable ? seatNodes.slice(0, MAX_ONCHAIN_SEATS) : seatNodes;
@@ -2191,36 +2233,6 @@ if (document.readyState === 'loading') {
     } catch {}
     return order[0] || 0;
   }
-  async function handleCenterSit() {
-    try {
-      const ok = await ensureIdentify();
-      if (!ok) { alert('Connect your wallet first.'); return; }
-      let name = '';
-      try { name = String(prompt('Enter a display name (max 12 chars):','')||'').trim().slice(0,12); } catch {}
-      if (name) { try { localStorage.setItem('poker.username', name); } catch {} }
-      const seatIdx = await pickPreferredSeatIndex();
-      if (isOnchainTable) {
-        const adapter = await getOnchainAdapter();
-        if (!adapter) { alert(describeAdapterError()); return; }
-        await adapter.joinSeat(seatIdx);
-      } else {
-        emitSocket('seat', { index: seatIdx });
-      }
-      showSitCta(false);
-    } catch (e) { console.warn('Center sit failed', e); showSitCta(true); }
-  }
-  if (sitCenterBtn) sitCenterBtn.addEventListener('click', handleCenterSit);
-
-
-
-
-
-  function seatIndexForSeatId(seatId){
-    try{
-      if (!Array.isArray(currentState?.actors)) return -1;
-      const a = currentState.actors.find(z=> Number(z?.seatId)===Number(seatId));
-      return a ? seatIndexForActor(a) : -1;
-    } catch (e) { return -1; }
-  }
+  
 
 
