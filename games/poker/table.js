@@ -1549,11 +1549,10 @@ function initializePokerTable() {
       const meta = seatMeta[idx];
       if (actor.folded) meta.seat.classList.add('folded');
       if (actor.acted) meta.seat.classList.add('acted');
-      const stackValue = Number(actor?.stack);
-      if (Number.isFinite(stackValue)) {
-        if (isOnchainTable) {
-          meta.stack.textContent = `Stack: ${formatDcmonBalance(stackValue)}`;
-        } else {
+      // For on-chain tables, we display wallet DCMon elsewhere; avoid overriding here
+      if (!isOnchainTable) {
+        const stackValue = Number(actor?.stack);
+        if (Number.isFinite(stackValue)) {
           meta.stack.textContent = `Stack: ${formatChips(stackValue)} chips`;
         }
       }
@@ -1609,13 +1608,26 @@ function initializePokerTable() {
       if (!valid) {
         meta.stack.textContent = '';
       } else if (isOnchainTable) {
-        const balanceField = seatData && seatData.balance;
-        const rawBalance = Number(balanceField);
-        if (Number.isFinite(rawBalance)) {
-          const display = formatDcmonBalance(rawBalance);
-          meta.stack.textContent = `Stack: ${display}`;
+        // On-chain tables: show wallet DCMon for the connected player
+        if (isMe) {
+          try {
+            const br = bankroll || getBankrollHelper();
+            let dcWei = br?.getLastBalances?.()?.dcmonWei || null;
+            if (!dcWei && typeof br?.refreshBalance === 'function') {
+              try { await br.refreshBalance(); dcWei = br?.getLastBalances?.()?.dcmonWei || null; } catch {}
+            }
+            if (dcWei && window.ethers?.utils?.formatEther) {
+              const val = Number.parseFloat(window.ethers.utils.formatEther(dcWei));
+              const display = Number.isFinite(val) ? formatDcmonBalance(val) : '--';
+              meta.stack.textContent = `DCMon: ${display}`;
+            } else {
+              meta.stack.textContent = 'DCMon: --';
+            }
+          } catch {
+            meta.stack.textContent = 'DCMon: --';
+          }
         } else {
-          meta.stack.textContent = 'Stack: --';
+          meta.stack.textContent = '';
         }
       } else {
         const chips = Number(seatData && seatData.chips != null ? seatData.chips : 0);
