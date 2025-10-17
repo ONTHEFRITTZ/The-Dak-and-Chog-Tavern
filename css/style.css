@@ -201,6 +201,8 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
 #board .card { width: 72px !important; height: 100px !important; }
 .seat .cards .card { width: 64px !important; height: 92px !important; }
 .burn-pile { width: 140px !important; height: 110px !important; }
+.center-banner { opacity: 0; transition: opacity .2s ease, transform .2s ease; }
+.center-banner.show { opacity: 1; }
 .center-banner { top: 8% !important; transform: translate(-50%, 0) !important; background: rgba(0,0,0,0.55) !important; padding: 8px 10px !important; border-radius: 10px !important; z-index: 2 !important; pointer-events: none !important; }
 .table-canvas .action-bar { bottom: clamp(2%, 6vh, 10%) !important; display: inline-flex !important; flex-wrap: nowrap !important; gap: 6px !important; padding: 6px 8px !important; border-radius: 10px !important; box-shadow: 0 18px 36px rgba(0,0,0,.45) !important; }
 .table-canvas .action-bar .info { flex: 0 0 auto !important; font-size: 0.9rem !important; margin-right: 4px !important; }
@@ -223,4 +225,19 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
 .seat:hover { filter: none !important; }
 /* Sit button slightly outside edge */
 .seat.empty-seat .btns { margin-top: 0; }
+
+/* Per-seat info lines */
+.seat .name { font-size: 13px; font-weight: 800; max-width: 180px; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.seat .status { font-size: 12px; opacity:.9; min-height:14px; }
+.seat .marker { position:absolute; top:-10px; right:-10px; background: rgba(0,0,0,0.65); color:#ffe7a8; font-weight:800; font-size:11px; border:1px solid rgba(255,255,255,0.15); border-radius:999px; padding:2px 6px; z-index:4; }
+.seat .marker.sb { background: rgba(70,110,200,0.65); }
+.seat .marker.bb { background: rgba(120,80,200,0.65); }
+
+
+/* Marker/status subtle animations */
+.seat .marker { transition: transform .2s ease, opacity .2s ease; opacity: 0; }
+.seat .marker.show { opacity: .95; }
+.seat .marker.pop { transform: scale(1.06); }
+.seat .status.flash { animation: statusFlash .35s ease-in-out 1; }
+@keyframes statusFlash { 0% { opacity:.5 } 50% { opacity:1 } 100% { opacity:.9 } }
 

@@ -144,22 +144,20 @@ function initializePokerTable() {
     return { left, top };
   }
   function positionSeats() {
-  const total = seats.length || 8;
-  const offset = (typeof mySeat === 'number' && mySeat >= 0)
-    ? (((total >= 6 ? 3 : Math.floor(total/2)) - mySeat + total) % total)
-    : 0;
-  seats.forEach((seat, idx) => {
-    const visual = (idx + offset) % total;
-    const { left, top } = seatPosition(visual, total);
-    seat.style.left = `${left}%`;
-    seat.style.top = `${top}%`;
-  });
-} = seatPosition(idx, total);
+    const total = seats.length || 8;
+    const offset = (typeof mySeat === 'number' && mySeat >= 0)
+      ? (((total >= 6 ? 3 : Math.floor(total/2)) - mySeat + total) % total)
+      : 0;
+    seats.forEach((seat, idx) => {
+      const visual = (idx + offset) % total;
+      const { left, top } = seatPosition(visual, total);
       seat.style.left = `${left}%`;
       seat.style.top = `${top}%`;
     });
   }
-  const canvas = document.querySelector('.table-canvas');\n  if (!canvas) return;\n  // Pre-seat: hide action UI until the user sits
+  const canvas = document.querySelector('.table-canvas');
+  if (!canvas) return;
+  // Pre-seat: hide action UI until the user sits
   try { canvas.classList.add('pre-seat'); } catch {}
   const sitCta = document.getElementById('sit-cta');
   const sitCenterBtn = document.getElementById('sit-center');
@@ -772,12 +770,27 @@ function initializePokerTable() {
       btns.className = 'btns';
       seat.appendChild(btns);
     }
+    let status = seat.querySelector('.status');
+    if (!status) {
+      status = document.createElement('div');
+      status.className = 'status';
+      seat.appendChild(status);
+    }
+    let marker = seat.querySelector('.marker');
+    if (!marker) {
+      marker = document.createElement('div');
+      marker.className = 'marker';
+      marker.style.display = 'none';
+      seat.appendChild(marker);
+    }
     return {
       seat,
       cards,
       addr,
       stack,
       btns,
+      status,
+      marker,
       timerFill: seat.querySelector('.timer .fill')
     };
   });
@@ -1280,18 +1293,38 @@ function initializePokerTable() {
     if (!centerBanner) return;
     if (!st) {
       if (centerBanner.dataset.mode === 'connection') return;
+      centerBanner.classList.remove('show');
       centerBanner.style.display = 'none';
       centerBanner.dataset.mode = '';
       centerBanner.style.color = '';
       return;
     }
-    const parts = [];
-    const stage = STAGE_LABEL[st.stage] || st.stage;
-    if (stage) parts.push(stage.toUpperCase());
-    if (Number.isFinite(st.pot)) parts.push(`Pot ${formatChips(st.pot)}${isOnchainTable ? ' DCMon' : ''}`);
-    if (Number.isFinite(st.toCall) && st.toCall > 0) parts.push(`To Call ${formatChips(st.toCall)}${isOnchainTable ? ' DCMon' : ''}`);
-    if (!parts.length) {
+    const turnActor = Array.isArray(st.actors) && Number.isFinite(st.turnIndex)
+      ? st.actors[st.turnIndex] : null;
+    const turnSeat = seatIndexForActor(turnActor);
+    let text = '';
+    if (Number.isInteger(turnSeat) && turnSeat >= 0) {
+      if (turnSeat === mySeat) {
+        const toCall = Math.max(0, Number(st.toCall || 0));
+        text = toCall > 0
+          ? `Your turn — To call ${formatChips(toCall)}${isOnchainTable ? ' DCMon' : ''}`
+          : 'Your turn — Check or bet';
+      } else {
+        const label = seatMeta[turnSeat]?.addr?.textContent || short(turnActor?.addr || '');
+        text = label ? `Waiting on ${label}` : 'Waiting on player...';
+      }
+    }
+    if (!text) {
+      const parts = [];
+      const stage = STAGE_LABEL[st.stage] || st.stage;
+      if (stage) parts.push(stage.toUpperCase());
+      if (Number.isFinite(st.pot)) parts.push(`Pot ${formatChips(st.pot)}${isOnchainTable ? ' DCMon' : ''}`);
+      if (Number.isFinite(st.toCall) && st.toCall > 0) parts.push(`To Call ${formatChips(st.toCall)}${isOnchainTable ? ' DCMon' : ''}`);
+      text = parts.join(' - ');
+    }
+    if (!text) {
       if (centerBanner.dataset.mode === 'connection') return;
+      centerBanner.classList.remove('show');
       centerBanner.style.display = 'none';
       centerBanner.dataset.mode = '';
       centerBanner.style.color = '';
@@ -1299,8 +1332,9 @@ function initializePokerTable() {
     }
     centerBanner.dataset.mode = 'game';
     centerBanner.style.color = '';
-    centerBanner.textContent = parts.join(' - ');
+    centerBanner.textContent = text;
     centerBanner.style.display = 'block';
+    requestAnimationFrame(() => centerBanner.classList.add('show'));
   }
   function hideActionBar() {
     actionBar.classList.add('hidden');
@@ -1405,7 +1439,14 @@ function initializePokerTable() {
           alert('Enter a valid DCMon amount.');
           return;
         }
-        // Use DCMon directly (no chip conversion)\n        const amountTotal = dcmonValue;\n        if (!Number.isFinite(amountTotal) || amountTotal <= already) {\n          alert('Bet must exceed your current contribution.');\n          return;\n        }\n        payload.amount = amountTotal;\n        deltaChips = Math.max(0, amountTotal - already);
+        // Use DCMon directly (no chip conversion)
+        const amountTotal = dcmonValue;
+        if (!Number.isFinite(amountTotal) || amountTotal <= already) {
+          alert('Bet must exceed your current contribution.');
+          return;
+        }
+        payload.amount = amountTotal;
+        deltaChips = Math.max(0, amountTotal - already);
       }
       let restoreControls = null;
       if (deltaChips > 0) {
@@ -1600,17 +1641,46 @@ function initializePokerTable() {
     } catch {}
   }
   function updateSeatStates(state) {
+    // reset
     seatMeta.forEach(meta => {
-      meta.seat.classList.remove('folded', 'acted', 'winner');
+      meta.seat.classList.remove('folded','acted','winner');
+      if (meta.marker) { meta.marker.style.display = 'none'; meta.marker.className = 'marker'; }
+      if (meta.status) meta.status.textContent = '';
     });
     const actors = Array.isArray(state?.actors) ? state.actors : [];
+    // markers
+    try {
+      const dIdx = Number.isFinite(state?.dealerSeatId) ? seatIndexForSeatId(state.dealerSeatId) : -1;
+      const sbIdx = Number.isFinite(state?.sbIndex) && actors[state.sbIndex] ? seatIndexForActor(actors[state.sbIndex]) : -1;
+      const bbIdx = Number.isFinite(state?.bbIndex) && actors[state.bbIndex] ? seatIndexForActor(actors[state.bbIndex]) : -1;
+      if (dIdx >= 0 && seatMeta[dIdx]?.marker) { const m = seatMeta[dIdx].marker; m.textContent = 'D'; m.style.display = ''; requestAnimationFrame(() => { m.classList.add('show'); m.classList.add('pop'); }); }
+      if (sbIdx >= 0 && seatMeta[sbIdx]?.marker) { const m = seatMeta[sbIdx].marker; m.textContent = 'SB'; m.classList.add('sb'); m.style.display = ''; requestAnimationFrame(() => { m.classList.add('show'); m.classList.add('pop'); }); }
+      if (bbIdx >= 0 && seatMeta[bbIdx]?.marker) { const m = seatMeta[bbIdx].marker; m.textContent = 'BB'; m.classList.add('bb'); m.style.display = ''; requestAnimationFrame(() => { m.classList.add('show'); m.classList.add('pop'); }); }
+    } catch {}
+    // per-actor state
     actors.forEach(actor => {
       const idx = seatIndexForActor(actor);
       if (idx < 0) return;
       const meta = seatMeta[idx];
       if (actor.folded) meta.seat.classList.add('folded');
       if (actor.acted) meta.seat.classList.add('acted');
-      // For on-chain tables, we display wallet DCMon elsewhere; avoid overriding here
+      // status line for last contrib vs toCall
+      try {
+        const already = Number(actor?.contrib || 0);
+        const target = Number(state?.toCall || 0);
+        if (meta.status) {
+          let next = '';
+          if (actor.folded) next = 'Fold';
+          else if (already > 0 && target === 0) next = `Bet ${formatChips(already)}`;
+          else if (already === target && target > 0 && actor.acted) next = `Call ${formatChips(target)}`;
+          else if (already > target) next = `Raise to ${formatChips(already)}`;
+          if (meta.status.textContent !== next) {
+            meta.status.textContent = next;
+            if (next) { meta.status.classList.remove('flash'); requestAnimationFrame(() => meta.status.classList.add('flash')); }
+          }
+        }
+      } catch {}
+      // For off-chain tables show chips in stack line
       if (!isOnchainTable) {
         const stackValue = Number(actor?.stack);
         if (Number.isFinite(stackValue)) {
@@ -1663,9 +1733,13 @@ function initializePokerTable() {
       meta.seat.classList.toggle('ready', !!(valid && seatData.ready));
       meta.seat.classList.toggle('me', isMe);
       meta.seat.classList.toggle('empty-seat', !valid);
-      meta.addr.textContent = valid
-        ? `${short(seatData.addr)}${seatData.ready ? ' [ready]' : ''}`
-        : '';
+      const shortAddr = valid ? short(seatData.addr) : '';
+      let label = shortAddr || '';
+      try {
+        const uname = String(localStorage.getItem('poker.username') || '').trim();
+        if (valid && uname) label = `${uname} (${shortAddr})`;
+      } catch {}
+      meta.addr.textContent = label;
       if (!valid) {
         meta.stack.textContent = '';
       } else if (isOnchainTable) {
@@ -2134,3 +2208,17 @@ if (document.readyState === 'loading') {
     } catch (e) { console.warn('Center sit failed', e); showSitCta(true); }
   }
   if (sitCenterBtn) sitCenterBtn.addEventListener('click', handleCenterSit);
+
+
+
+
+
+  function seatIndexForSeatId(seatId){
+    try{
+      if (!Array.isArray(currentState?.actors)) return -1;
+      const a = currentState.actors.find(z=> Number(z?.seatId)===Number(seatId));
+      return a ? seatIndexForActor(a) : -1;
+    } catch (e) { return -1; }
+  }
+
+
