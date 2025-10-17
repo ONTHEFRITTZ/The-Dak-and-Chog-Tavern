@@ -3,22 +3,16 @@
 
 export function getEnvioUrl() {
   try { if (typeof window.ENVIO_HYPERSYNC_URL === 'string' && window.ENVIO_HYPERSYNC_URL) return window.ENVIO_HYPERSYNC_URL; } catch {}
-  try { const u = localStorage.getItem('envio.hypersync.url'); if (u) return u; } catch {}
+  // Per-user overrides are disabled; default to this server
   try { return location.origin; } catch { return ''; }
 }
 
 // Allow UI to set the HyperSync/HyperIndex endpoint at runtime
-export function setEnvioUrl(url) {
-  try {
-    const v = String(url || '').trim();
-    if (v) {
-      try { localStorage.setItem('envio.hypersync.url', v); } catch {}
-      try { window.ENVIO_HYPERSYNC_URL = v; } catch {}
-    }
-  } catch {}
-}
+export function setEnvioUrl(url) { try { /* disabled (policy) */ } catch {} }
 
 export async function fetchRecentEvents({ endpoint, tableAddress, limit = 10 }) {
+  // Enforce configured endpoint
+  try { endpoint = getEnvioUrl(); } catch {}
   const urls = [
     `${endpoint}/events?address=${encodeURIComponent(tableAddress)}&limit=${limit}`,
     `${endpoint}/api/events?address=${encodeURIComponent(tableAddress)}&limit=${limit}`,
