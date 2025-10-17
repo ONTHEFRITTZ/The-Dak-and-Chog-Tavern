@@ -66,7 +66,7 @@ button:hover { background: #7800cd; }
 #wallet-inline #wi-disconnect {  display: inline-flex;  align-items: center;  justify-content: center;}
 #wallet-inline .wi-balance-badge {  padding: 0 6px;  min-height: 26px;}
 html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] #wallet-inline {  background: rgba(12, 24, 38, 0.85);  border-color: rgba(120,200,255,0.22);}
-/* ==========================================================================   POKER TABLE � MINIMAL, IMAGE-ONLY SURFACE, NO ORANGE TOKENS   ========================================================================== *//* Canvas holds the table art + absolutely positioned seats */.table-canvas {  position: relative;  /* Maintain intrinsic table image aspect for correct seat placement */  /* Seat ellipse radius (percent of canvas). Smaller = closer to table center */  --ring-rx: 46;  --ring-ry: 39;  --ring-rotation: -90;  aspect-ratio: 1000 / 680;  width: min(80vw, 1100px);  max-height: 80vh; height: auto;  margin: 0 auto;}
+/* ==========================================================================   POKER TABLE � MINIMAL, IMAGE-ONLY SURFACE, NO ORANGE TOKENS   ========================================================================== *//* Canvas holds the table art + absolutely positioned seats */.table-canvas {  position: relative;  /* Maintain intrinsic table image aspect for correct seat placement */  /* Seat ellipse radius (percent of canvas). Smaller = closer to table center */  --ring-rx: 58;  --ring-ry: 48;  --ring-rotation: -90;  aspect-ratio: 1000 / 680;  width: min(80vw, 1100px);  max-height: 80vh; height: auto;  margin: 0 auto;}
 /* Table art: restore the single PNG */.table-surface {  position: absolute;  inset: 0;  z-index: 1;}
 .table-surface img {  width: 100%;  height: 100%;  object-fit: contain;  display: block;}
 /* Remove any previous felt/glow/overlays */.table-glow { display: none !important; }
@@ -77,14 +77,26 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
 .seat.empty-seat {  justify-content: center;  gap: 0;}
 .seat.empty-seat .timer,.seat.empty-seat .cards,.seat.empty-seat .addr,.seat.empty-seat .stack {  display: none;}
 .seat.empty-seat .btns {  margin-top: 0;  flex: 1;  align-items: center;  justify-content: center;  width: 100%;}
+.seat .addr { max-width: 160px; }
+
+/* Center sit-CTA overlay */
+.table-canvas #sit-cta { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); z-index:6; display:none; align-items:center; gap:10px; }
+.table-canvas #sit-cta.show { display:flex; }
+.table-canvas #sit-cta button { padding:10px 18px; border-radius:12px; font-weight:800; background:#9200fa; color:#fff; border:none; box-shadow:0 8px 30px rgba(0,0,0,.45); }
+
+/* Hide game UI until seated */
+.table-canvas.pre-seat .seat .btns { display:none !important; }
+.table-canvas.pre-seat #board { display:none !important; }
+.table-canvas.pre-seat .action-bar { display:none !important; }
+.table-canvas.pre-seat .cards { opacity:0.2; }
 .seat.empty-seat .btns button {  padding: 6px 12px;  border-radius: 12px;  font-size: 13px;}
 .seat .cards { display: flex; gap:6px; align-items:center; justify-content:center; min-height: 88px; }
 .seat .timer {  position: relative;  width: 88px;  height: 6px;  border-radius: 999px;  overflow: hidden;  margin: 2px auto 0;}
 .seat .timer .fill {  display: block;  width: 0%;  height: 100%;  transition: width .2s linear;}
 .seat.turn .timer .fill {  box-shadow: 0 0 6px rgba(255, 210, 120, 0.85);}
 .seat.turn {  filter: drop-shadow(0 0 12px rgba(255, 215, 120, 0.6));  transform: translate(-50%, -50%) scale(1.03);  transition: transform .18s ease, filter .18s ease;}
-/* Emphasize the player's own seat */.seat.me {  outline: 2px solid var(--panel-border);  border-radius: 10px;  filter: drop-shadow(0 0 10px rgba(140,180,255,0.35));}
-.seat:hover { filter: drop-shadow(0 2px 10px rgba(0,0,0,0.35)); }
+/* Emphasize the player's own seat */.seat.me { outline: 0; border-radius: 10px; filter: none; }
+.seat:hover { filter: none; }
 @media (min-width: 1400px) {  :root {    --ring-rx: 54;    --ring-ry: 46;    --seat-w: 170px;    --seat-h: 182px;  }
   .table-canvas {    width: min(80vw, 1280px);  }
 }
@@ -202,4 +214,13 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
 /* Winning five-card highlight */
 .card.best { outline: 2px solid rgba(255,215,120,0.9); box-shadow: 0 0 18px rgba(255,215,120,0.55); animation: bestPulse 1.2s ease-in-out 2; }
 @keyframes bestPulse { 0% { transform: scale(1); } 50% { transform: scale(1.04); } 100% { transform: scale(1); } }
+
+
+
+/* Seat cleanliness overrides */
+.seat { border: 0 !important; box-shadow: none !important; }
+.seat.me { outline: 0 !important; filter: none !important; }
+.seat:hover { filter: none !important; }
+/* Sit button slightly outside edge */
+.seat.empty-seat .btns { margin-top: 0; }
 
