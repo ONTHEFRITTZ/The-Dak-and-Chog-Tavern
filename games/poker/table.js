@@ -1294,14 +1294,19 @@ function initializePokerTable() {
     const desiredTop = (boardRect.bottom - canvasRect.top) + 20;
     const canvasHeight = canvasRect.height;
     const actionHeight = actionBar.offsetHeight || 0;
-    let maxTop = canvasHeight - actionHeight - 48; // keep clear of bottom seat
+    let maxTop = canvasHeight - actionHeight - 48; // base clearance from canvas bottom
     const bottomMost = seatMeta.reduce((max, meta) => {
       if (!meta || !meta.seat) return max;
       const rect = meta.seat.getBoundingClientRect();
       return Math.max(max, rect.bottom - canvasRect.top);
     }, 0);
+    // Derive seat height for dynamic clearance
+    const sampleSeat = seatMeta.find(m => m && m.seat);
+    let seatH = 140;
+    try { seatH = Math.max(100, Math.round(sampleSeat.seat.getBoundingClientRect().height)); } catch {}
+    const seatClear = Math.max(56, Math.round(seatH * 0.7));
     if (bottomMost > 0) {
-      maxTop = Math.min(maxTop, bottomMost - actionHeight - 56);
+      maxTop = Math.min(maxTop, bottomMost - actionHeight - seatClear);
     }
     const minTop = Math.max((boardRect.bottom - canvasRect.top) + 16, 12);
     const top = Math.min(Math.max(minTop, desiredTop), maxTop);
@@ -1660,9 +1665,9 @@ function initializePokerTable() {
         const chips = Number(seatData && seatData.chips != null ? seatData.chips : 0);
         meta.stack.textContent = `Stack: ${formatChips(chips)} chips`;
       }
-      if (!valid || seatAddr !== prevAddr) {
-        meta.cards.innerHTML = '';
-      }
+    if (!valid || seatAddr !== prevAddr) {
+      meta.cards.innerHTML = '';
+    }
       meta.btns.innerHTML = '';
       if (!valid) {
         const sit = document.createElement('button');
@@ -1962,8 +1967,10 @@ function initializePokerTable() {
       msg.exposures.forEach(ex => {
         const idx = Number.isFinite(ex?.seatId) ? ex.seatId : seatIndexForAddr(ex?.addr);
         if (idx >= 0) setSeatCards(idx, ex.cards || [], { faceDown: false });
-      });
-    }
+    });
+    // If not seated, ensure the action bar is hidden
+    if (mySeat < 0) hideActionBar();
+  }
     if (Array.isArray(msg?.winners) && msg.winners.length) {
       const names = msg.winners.map(w => short(w.addr)).join(', ');
       if (centerBanner) {
