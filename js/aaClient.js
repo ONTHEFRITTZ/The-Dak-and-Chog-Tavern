@@ -558,22 +558,48 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
       // Build execution (single call)
       const value = (()=>{ try { return BigInt(tx.value || 0); } catch { return 0n; } })();
       const exec = await vendor.createExecution({ account, calls: [{ to: tx.to, data: ensureHexData(tx.data), value }] });
-      // Sign user operation
-      const uo = await vendor.signUserOperation({ account, client: ctx.publicClient, execution: exec });
-      // Submit to bundler
-      const entryPoint = ctx?.environment?.EntryPoint || '0x0000000071727De22E5E9d8BAf0edAc6f37da032';
-      const body = { jsonrpc: '2.0', id: Date.now(), method: 'eth_sendUserOperation', params: [uo, entryPoint] };
-      const httpRes = await fetch(MONAD_BUNDLER_RPC, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }).catch((e)=>({ __err:e }));
-      if (!httpRes || httpRes.__err) { console.warn('[aaClient] bundler HTTP error', httpRes && httpRes.__err); return null; }
-      let payload = null; try { payload = await httpRes.json(); } catch { try { payload = { raw: await httpRes.text() }; } catch {} }
-      const result = (payload && payload.result) || null;
-      const hash = extractTxHash(result) || (typeof result === 'string' ? result : null);
-      if (!hash) {
-        try { console.warn('[aaClient] bundler response without hash', payload && (payload.error || payload.raw || payload)); } catch {}
-        return null;
+      // Sign user operation (initial draft)
+      let uo = await vendor.signUserOperation({ account, client: ctx.publicClient, execution: exec });
+      // Helper for bundler RPC
+      async function rpcCall(method, params){
+        const body = { jsonrpc: '2.0', id: Date.now(), method, params };
+        const res = await fetch(MONAD_BUNDLER_RPC, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }).catch((e)=>({ __err:e }));
+        if (!res || res.__err) throw res && res.__err || new Error('bundler_http_error');
+        let payload = null; try { payload = await res.json(); } catch { payload = null; }
+        if (!payload) throw new Error('bundler_bad_json');
+        if (payload.error) { const err = new Error(payload.error.message||'bundler_error'); err.data = payload.error; throw err; }
+        return payload.result;
       }
-      try { window.dispatchEvent(new CustomEvent('aa:gasless', { detail: { mode: '4337', hash } })); } catch {}
-      return hash;
+      // Estimate gas for the UO (fill required limits)
+      const entryPoint = ctx?.environment?.EntryPoint || '0x0000000071727De22E5E9d8BAf0edAc6f37da032';
+      try {
+        const est = await rpcCall('eth_estimateUserOperationGas', [uo, entryPoint]);
+        if (est) {
+          // Merge estimated limits if present
+          uo.callGasLimit = uo.callGasLimit || est.callGasLimit || est.callGasLimitHex || undefined;
+          uo.verificationGasLimit = uo.verificationGasLimit || est.verificationGasLimit || est.verificationGas || est.verificationGasLimitHex || undefined;
+          uo.preVerificationGas = uo.preVerificationGas || est.preVerificationGas || est.preVerificationGasHex || undefined;
+        }
+      } catch (estErr) {
+        try { console.warn('[aaClient] eth_estimateUserOperationGas failed', estErr); } catch {}
+      }
+      // Submit to bundler
+      let opHash = null;
+      try { opHash = await rpcCall('eth_sendUserOperation', [uo, entryPoint]); }
+      catch (sendErr) { try { console.warn('[aaClient] eth_sendUserOperation failed', sendErr); } catch {}; return null; }
+      // Poll for receipt to get tx hash
+      let txHash = null; const deadline = Date.now() + 20000;
+      while (!txHash && Date.now() < deadline) {
+        try {
+          const rec = await rpcCall('eth_getUserOperationReceipt', [opHash]);
+          txHash = (rec && rec.receipt && rec.receipt.transactionHash) || null;
+          if (txHash) break;
+        } catch (pollErr) { /* keep polling */ }
+        await new Promise(r => setTimeout(r, 800));
+      }
+      if (!txHash) { try { console.warn('[aaClient] no txHash after sendUserOperation', opHash); } catch {} return null; }
+      try { window.dispatchEvent(new CustomEvent('aa:gasless', { detail: { mode: '4337', hash: txHash } })); } catch {}
+      return txHash;
     } catch (err) {
       console.warn('[aaClient] sendViaZeroDevUO error', err);
       return null;
