@@ -520,6 +520,7 @@ function cardFor(row){
 
   const btn = document.createElement('button');
   btn.type = 'button';
+  btn.className = 'lobby-cta';
   btn.textContent = 'Play Table';
 
   btn.addEventListener('click', async () => {

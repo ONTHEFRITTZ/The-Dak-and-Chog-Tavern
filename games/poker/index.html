@@ -95,7 +95,7 @@
       border: 1px solid rgba(255,255,255,0.12);
       border-radius: 12px;
       padding: 12px;
-      display:flex; align-items:center; justify-content:space-between; gap:10px;
+      display:flex; justify-content:space-between;
     }
     .lobby-item strong { display:block; margin-bottom:4px; }
     .pill { background: rgba(0,0,0,0.6); color:#fff; padding: 4px 8px; border-radius:999px; font-weight:700; font-size:12px; }
@@ -104,6 +104,36 @@
 
     /* Hide any legacy top-banner if a cached CSS tries to show it */
     .top-banner { display: none !important; }
+    .lobby-item {
+      align-items: stretch;
+      gap: 12px;
+    }
+    .lobby-item .lobby-cta {
+      flex: 0 0 148px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 16px;
+      border: none;
+      border-radius: 12px;
+      background: linear-gradient(135deg, rgba(225,170,90,0.92), rgba(200,120,50,0.92));
+      color: #1c1208;
+      font-weight: 700;
+      font-size: 14px;
+      cursor: pointer;
+      min-height: 52px;
+      text-align: center;
+      transition: transform 0.12s ease, box-shadow 0.12s ease, opacity 0.12s ease;
+    }
+    .lobby-item .lobby-cta:not(:disabled):hover {
+      transform: translateY(-1px);
+      box-shadow: 0 12px 30px rgba(0,0,0,0.25);
+    }
+    .lobby-item .lobby-cta:disabled {
+      opacity: 0.65;
+      cursor: progress;
+      box-shadow: none;
+    }
   </style>
 </head>
 
