@@ -510,9 +510,51 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
         console.warn('[aaClient] wallet_sendCalls failed; falling back to direct send', err2);
       }
     }
+    // Fallback: build and submit a 4337 UserOperation directly to ZeroDev bundler
+    try {
+      const hashUo = await sendViaZeroDevUO(tx);
+      if (hashUo) return hashUo;
+    } catch (err4337) {
+      console.warn('[aaClient] direct 4337 path failed; falling back to signer', err4337);
+    }
     const txReq = { to, data, value: (()=>{ try { return ethers.BigNumber.from(tx.value||0); } catch { return ethers.BigNumber.from(0); }})() };
     const res = await signer.sendTransaction(txReq);
     return typeof res === 'string' ? res : (res?.hash || res?.transactionHash);
+  }
+
+  // Direct 4337 using MetaMask Delegation Toolkit + viem/account-abstraction
+  async function sendViaZeroDevUO(tx){
+    try {
+      const ctx = await ensureDelegationToolkitContext();
+      if (!ctx || !ctx.walletClient || !ctx.publicClient) return null;
+      const vendor = await (async () => {
+        try { return await import('/js/vendor/metamask-delegation-toolkit-latest.mjs'); } catch { return null; }
+      })();
+      if (!vendor) return null;
+      const Impl = (vendor.Implementation && (vendor.Implementation.EIP7702Stateless || vendor.Implementation.Hybrid || vendor.Implementation.MultiSig)) || undefined;
+      // Derive a smart account bound to the controller wallet
+      const account = await vendor.toMetaMaskSmartAccount({
+        client: ctx.publicClient,
+        signer: { walletClient: ctx.walletClient },
+        implementation: Impl,
+        environment: ctx.environment
+      });
+      // Build execution (single call)
+      const value = (()=>{ try { return BigInt(tx.value || 0); } catch { return 0n; } })();
+      const exec = await vendor.createExecution({ account, calls: [{ to: tx.to, data: ensureHexData(tx.data), value }] });
+      // Sign user operation
+      const uo = await vendor.signUserOperation({ account, client: ctx.publicClient, execution: exec });
+      // Submit to bundler
+      const entryPoint = ctx?.environment?.EntryPoint || '0x0000000071727De22E5E9d8BAf0edAc6f37da032';
+      const body = { jsonrpc: '2.0', id: Date.now(), method: 'eth_sendUserOperation', params: [uo, entryPoint] };
+      const res = await fetch(MONAD_BUNDLER_RPC, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }).then(r=>r.json()).catch(()=>null);
+      const result = (res && res.result) || null;
+      const hash = extractTxHash(result) || (typeof result === 'string' ? result : null);
+      return hash || null;
+    } catch (err) {
+      console.warn('[aaClient] sendViaZeroDevUO error', err);
+      return null;
+    }
   }
   const account = { address, type: 'aa4337', getAddress: async () => address, context: null, sendTransaction: (tx) => sendViaAA(tx) };
   return { smartAccount: account, signer };
