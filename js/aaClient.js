@@ -492,31 +492,22 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
     const data = ensureHexData(tx.data);
     const valueHex = toHex(tx.value || 0n);
     const chainHex = '0x' + (AA.chainId || MONAD.id).toString(16);
-    // Try wallet_sendCalls unconditionally (some wallets don't advertise capabilities but support it)
-    try {
-      const res = await walletSendCalls({ provider: injected, from: address, chainId: chainHex, calls: [{ to, data, value: valueHex }] });
-      const hash = extractTxHash(res);
-      if (hash) return hash;
-    } catch (err) {
-      // As a secondary try, probe detectBundler and repeat
-      try {
-        const { provider: bProvider, available } = await detectBundler(injected);
-        if (available && bProvider) {
-          const res2 = await walletSendCalls({ provider: bProvider, from: address, chainId: chainHex, calls: [{ to, data, value: valueHex }] });
-          const hash2 = extractTxHash(res2);
-          if (hash2) return hash2;
-        }
-      } catch (err2) {
-        console.warn('[aaClient] wallet_sendCalls failed; falling back to direct send', err2);
-      }
-    }
-    // Fallback: build and submit a 4337 UserOperation directly to ZeroDev bundler
+    // 1) Direct 4337 to ZeroDev bundler first (silent)
     try {
       const hashUo = await sendViaZeroDevUO(tx);
       if (hashUo) return hashUo;
     } catch (err4337) {
-      console.warn('[aaClient] direct 4337 path failed; falling back to signer', err4337);
+      // keep silent; we will try other paths
     }
+    // 2) If wallet advertises 5792 capabilities, try wallet_sendCalls
+    try {
+      const { provider: bProvider, available } = await detectBundler(injected);
+      if (available && bProvider) {
+        const res2 = await walletSendCalls({ provider: bProvider, from: address, chainId: chainHex, calls: [{ to, data, value: valueHex }] });
+        const hash2 = extractTxHash(res2);
+        if (hash2) return hash2;
+      }
+    } catch (_) { /* ignore */ }
     const txReq = { to, data, value: (()=>{ try { return ethers.BigNumber.from(tx.value||0); } catch { return ethers.BigNumber.from(0); }})() };
     const res = await signer.sendTransaction(txReq);
     return typeof res === 'string' ? res : (res?.hash || res?.transactionHash);
