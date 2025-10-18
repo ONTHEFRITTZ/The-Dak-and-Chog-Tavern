@@ -291,7 +291,8 @@ async function buildToolkitSmartAccount(injected, { bundlerUrl, paymasterUrl }) 
     const chainId = MONAD.id;
     const stored = loadStoredSmartAccount(chainId);
 
-    const deployParams = [[ownerAddress], 1n];
+    const multiSigDeployParams = [[ownerAddress], 1n];
+    const hybridDeployParams = [ownerAddress, [], [], []];
     let mmAccount;
     try {
       // Build strictly with v0.15+ signature only
@@ -300,15 +301,27 @@ async function buildToolkitSmartAccount(injected, { bundlerUrl, paymasterUrl }) 
         name: 'Monad Testnet',
         nativeCurrency: { name: 'MON', symbol: 'MON', decimals: 18 }
       };
+      const implementation =
+        Implementation?.MultiSig ?? Implementation?.Stateless7702 ?? Implementation?.Hybrid;
+      const signerConfig = implementation === Implementation?.MultiSig
+        ? [{ walletClient }]
+        : { walletClient };
+      const accountOpts = stored
+        ? { address: stored }
+        : (implementation === Implementation?.MultiSig
+            ? { deployParams: multiSigDeployParams, deploySalt: '0x0' }
+            : implementation === Implementation?.Hybrid
+              ? { deployParams: hybridDeployParams, deploySalt: '0x0' }
+              : {});
       mmAccount = await toMetaMaskSmartAccount({
         owner: ownerAddress,
         chain: chainObj,
-        implementation: (Implementation?.MultiSig || Implementation?.Stateless7702 || Implementation?.Hybrid),
+        implementation,
         transport: walletClient?.transport,
         // Include signer/client for libs that still read them
-        signer: { walletClient },
+        signer: signerConfig,
         client: publicClient,
-        ...(stored ? { address: stored } : { deployParams, deploySalt: '0x0' })
+        ...accountOpts
       });
     } catch (err) {
       if (err?.code === 4001 || /User rejected/i.test(err?.message || '')) {
@@ -556,14 +569,17 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
       const chainId = (ctx.walletChain && ctx.walletChain.id) || MONAD.id;
       const cachedAddress = loadStoredSmartAccount(chainId);
       const ownerAddress = ctx.ownerAccount || (ctx.accounts && ctx.accounts[0]) || (ctx.walletClient?.account && ctx.walletClient.account.address);
-      let implementation = implementations.MultiSig || implementations.Stateless7702 || implementations.Hybrid || undefined;
+      let implementation = implementations.MultiSig ?? implementations.Stateless7702 ?? implementations.Hybrid ?? undefined;
       if (!implementation) {
         console.warn('[aaClient] delegation toolkit implementation unavailable');
         return null;
       }
+      const signer = implementation === implementations.MultiSig
+        ? [{ walletClient: ctx.walletClient }]
+        : { walletClient: ctx.walletClient };
       const accountArgs = {
         client: ctx.publicClient,
-        signer: { walletClient: ctx.walletClient },
+        signer,
         implementation,
         environment: ctx.environment,
         delegations: []
