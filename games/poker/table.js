@@ -744,6 +744,14 @@ function initializePokerTable() {
       }
       const aaOk = await callViaAA('joinSeat(uint8)', [seatId]);
       if (!aaOk) {
+        // If AA path failed due to explicit user cancellation, do not fall back
+        try {
+          const code = lastAAError && (lastAAError.code || lastAAError?.data?.code);
+          const msg = String(lastAAError?.message || '').toLowerCase();
+          if (code === 4001 || code === 'ACTION_REJECTED' || msg.includes('user denied') || msg.includes('user rejected')) {
+            return false;
+          }
+        } catch {}
         // Try direct AA client send before falling back to signer
         try {
           const ops = await ensureAAOps();

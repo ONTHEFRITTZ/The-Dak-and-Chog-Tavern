@@ -108,7 +108,42 @@ export async function sendTxViaAA({ to, data, valueMON }) {
     }
     return txHash;
   } catch (err) {
+    try {
+      const code = (err && (err.code || err?.data?.code)) || null;
+      const msg = String(err?.message || '').toLowerCase();
+      // 4001 / ACTION_REJECTED: user cancelled in wallet — suppress noisy logs
+      if (code === 4001 || code === 'ACTION_REJECTED' || msg.includes('user denied') || msg.includes('user rejected')) {
+        return null;
+      }
+    } catch {}
     console.warn('[aa/ops] sendTxViaAA failed', err);
+    return null;
+  }
+}
+
+// ---------- Delegation-aware helper ----------
+// Ensures an active delegation session, then encodes and sends a tx via AA.
+// Returns txHash or null. Suppresses user-cancel noise.
+export async function callWithDelegation({ to, signature, args = [], valueMON }) {
+  try {
+    // Ensure delegation is active (best-effort; do not block if unavailable)
+    try {
+      const mod = await import('./delegation.js');
+      if (mod && typeof mod.ensureDelegationActive === 'function') {
+        await mod.ensureDelegationActive({});
+      }
+    } catch {}
+    const data = encodeFromSignature(signature, args);
+    return await sendTxViaAA({ to, data, valueMON });
+  } catch (err) {
+    try {
+      const code = (err && (err.code || err?.data?.code)) || null;
+      const msg = String(err?.message || '').toLowerCase();
+      if (code === 4001 || code === 'ACTION_REJECTED' || msg.includes('user denied') || msg.includes('user rejected')) {
+        return null;
+      }
+    } catch {}
+    console.warn('[aa/ops] callWithDelegation failed', err);
     return null;
   }
 }
