@@ -632,11 +632,57 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
           storeSmartAccount(chainId, lc(derived));
         }
       } catch {}
-      // Build execution (single call)
       const value = (()=>{ try { return BigInt(tx.value || 0); } catch { return 0n; } })();
-      const exec = await vendor.createExecution({ account, calls: [{ to: tx.to, data: ensureHexData(tx.data), value }] });
-      // Sign user operation (initial draft)
-      let uo = await vendor.signUserOperation({ account, client: ctx.publicClient, execution: exec });
+      const sender = await (account?.getAddress ? account.getAddress() : Promise.resolve(account?.address || null));
+      if (!sender) { console.warn('[aaClient] unable to resolve smart account address'); return null; }
+      const callList = [{ to: tx.to, value, data: ensureHexData(tx.data) }];
+      let callData = null;
+      try { callData = await vendor.encodeCallsForCaller(sender, callList); }
+      catch (encodeErr) { console.warn('[aaClient] encodeCallsForCaller failed', encodeErr); return null; }
+      const implementationName = String(implementation || '');
+      const contractName = (() => {
+        if (implementationName === 'Hybrid') return 'HybridDeleGator';
+        if (implementationName === 'Stateless7702' || implementationName === 'EIP7702Stateless') return 'EIP7702StatelessDeleGator';
+        return 'MultiSigDeleGator';
+      })();
+      let nonce = 0n;
+      try { nonce = (typeof account.getNonce === 'function') ? await account.getNonce() : 0n; } catch {}
+      let factoryArgs = null;
+      try { factoryArgs = (typeof account.getFactoryArgs === 'function') ? await account.getFactoryArgs() : null; }
+      catch {}
+      const unsignedOp = {
+        sender,
+        nonce,
+        factory: factoryArgs?.factory,
+        factoryData: factoryArgs?.factoryData,
+        callData,
+        callGasLimit: 0n,
+        verificationGasLimit: 0n,
+        preVerificationGas: 0n,
+        maxFeePerGas: 0n,
+        maxPriorityFeePerGas: 0n,
+        paymaster: undefined,
+        paymasterData: '0x',
+        paymasterVerificationGasLimit: 0n,
+        paymasterPostOpGasLimit: 0n
+      };
+      const chainNumeric = Number(chainId || MONAD.id);
+      let signedOpSignature = null;
+      try {
+        signedOpSignature = await vendor.signUserOperation(ctx.walletClient, {
+          account: ctx.walletClient?.account,
+          userOperation: unsignedOp,
+          entryPoint: { address: environment.EntryPoint },
+          chainId: chainNumeric,
+          address: sender,
+          name: contractName,
+          version: '1'
+        });
+      } catch (signErr) {
+        console.warn('[aaClient] signUserOperation failed', signErr);
+        return null;
+      }
+      let uo = { ...unsignedOp, signature: signedOpSignature };
       const toHex = (v) => {
         try {
           if (typeof v === 'string' && /^0x[0-9a-fA-F]+$/.test(v)) return v;
@@ -644,6 +690,33 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
           if (typeof v === 'bigint') return '0x' + v.toString(16);
           if (v && typeof v.toHexString === 'function') return v.toHexString();
         } catch {}
+        return undefined;
+      };
+      const toRpcUserOp = (op) => ({
+        sender: op.sender,
+        nonce: toHex(op.nonce) || '0x0',
+        factory: op.factory,
+        factoryData: op.factoryData,
+        callData: op.callData,
+        callGasLimit: toHex(op.callGasLimit) || '0x0',
+        verificationGasLimit: toHex(op.verificationGasLimit) || '0x0',
+        preVerificationGas: toHex(op.preVerificationGas) || '0x0',
+        maxFeePerGas: toHex(op.maxFeePerGas) || '0x0',
+        maxPriorityFeePerGas: toHex(op.maxPriorityFeePerGas) || '0x0',
+        paymaster: op.paymaster,
+        paymasterData: op.paymasterData || '0x',
+        paymasterVerificationGasLimit: op.paymasterVerificationGasLimit != null ? toHex(op.paymasterVerificationGasLimit) : undefined,
+        paymasterPostOpGasLimit: op.paymasterPostOpGasLimit != null ? toHex(op.paymasterPostOpGasLimit) : undefined,
+        signature: op.signature
+      });
+      let rpcUserOp = toRpcUserOp(uo);
+      const toBig = (val) => {
+        if (val == null) return undefined;
+        if (typeof val === 'bigint') return val;
+        if (typeof val === 'number') return BigInt(val);
+        if (typeof val === 'string') {
+          try { return BigInt(val); } catch { return undefined; }
+        }
         return undefined;
       };
       // Helper for bundler RPC
@@ -659,14 +732,18 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
       // Estimate gas for the UO (fill required limits)
       const entryPoint = ctx?.environment?.EntryPoint || '0x0000000071727De22E5E9d8BAf0edAc6f37da032';
       try {
-        const est = await rpcCall('eth_estimateUserOperationGas', [uo, entryPoint]);
+        const est = await rpcCall('eth_estimateUserOperationGas', [rpcUserOp, entryPoint]);
         if (est) {
           const cg = est.callGasLimitHex || est.callGasLimit || est.callGas || est.callGasHex;
           const vg = est.verificationGasLimitHex || est.verificationGasLimit || est.verificationGas;
           const pg = est.preVerificationGasHex || est.preVerificationGas;
-          uo.callGasLimit = toHex(uo.callGasLimit) || toHex(cg);
-          uo.verificationGasLimit = toHex(uo.verificationGasLimit) || toHex(vg);
-          uo.preVerificationGas = toHex(uo.preVerificationGas) || toHex(pg);
+          const cgBig = toBig(cg);
+          const vgBig = toBig(vg);
+          const pgBig = toBig(pg);
+          if (cgBig != null) uo.callGasLimit = cgBig;
+          if (vgBig != null) uo.verificationGasLimit = vgBig;
+          if (pgBig != null) uo.preVerificationGas = pgBig;
+          rpcUserOp = toRpcUserOp(uo);
         }
       } catch (estErr) {
         try { console.warn('[aaClient] eth_estimateUserOperationGas failed', estErr); } catch {}
@@ -674,22 +751,24 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
       try {
         const feeData = ctx.publicClient.getFeeData ? await ctx.publicClient.getFeeData() : null;
         if (feeData) {
-          const maxFee = feeData.maxFeePerGas || feeData.gasPrice;
-          const maxPriority = feeData.maxPriorityFeePerGas || feeData.maxFeePerGas || feeData.gasPrice;
-          uo.maxFeePerGas = toHex(uo.maxFeePerGas) || toHex(maxFee) || '0x0';
-          uo.maxPriorityFeePerGas = toHex(uo.maxPriorityFeePerGas) || toHex(maxPriority) || '0x0';
+          const maxFee = toBig(feeData.maxFeePerGas || feeData.gasPrice);
+          const maxPriority = toBig(feeData.maxPriorityFeePerGas || feeData.maxFeePerGas || feeData.gasPrice);
+          if (maxFee != null) uo.maxFeePerGas = maxFee;
+          if (maxPriority != null) uo.maxPriorityFeePerGas = maxPriority;
+          rpcUserOp = toRpcUserOp(uo);
         }
       } catch (feeErr) {
         try { console.warn('[aaClient] fee data fetch failed', feeErr); } catch {}
       }
-      uo.callGasLimit = toHex(uo.callGasLimit) || '0x1';
-      uo.verificationGasLimit = toHex(uo.verificationGasLimit) || '0x186a0';
-      uo.preVerificationGas = toHex(uo.preVerificationGas) || '0x186a0';
-      uo.maxFeePerGas = toHex(uo.maxFeePerGas) || '0x3b9aca00';
-      uo.maxPriorityFeePerGas = toHex(uo.maxPriorityFeePerGas) || '0x3b9aca00';
+      uo.callGasLimit = uo.callGasLimit || 1n;
+      uo.verificationGasLimit = uo.verificationGasLimit || 0x186a0n;
+      uo.preVerificationGas = uo.preVerificationGas || 0x186a0n;
+      uo.maxFeePerGas = uo.maxFeePerGas || 0x3b9aca00n;
+      uo.maxPriorityFeePerGas = uo.maxPriorityFeePerGas || 0x3b9aca00n;
+      rpcUserOp = toRpcUserOp(uo);
       // Submit to bundler
       let opHash = null;
-      try { opHash = await rpcCall('eth_sendUserOperation', [uo, entryPoint]); }
+      try { opHash = await rpcCall('eth_sendUserOperation', [rpcUserOp, entryPoint]); }
       catch (sendErr) { try { console.warn('[aaClient] eth_sendUserOperation failed', sendErr); } catch {}; return null; }
       // Poll for receipt to get tx hash
       let txHash = null; const deadline = Date.now() + 20000;
