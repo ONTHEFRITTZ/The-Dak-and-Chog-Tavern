@@ -4,7 +4,7 @@
 # full config from the Envio dashboard UI if they generate one for you.
 
 name: the-dak-and-chog-tavern
-description: Tavern activity indexer for staking rewards
+description: Tavern activity indexer for staking rewards (hosted build)
 
 networks:
   - id: 10143
