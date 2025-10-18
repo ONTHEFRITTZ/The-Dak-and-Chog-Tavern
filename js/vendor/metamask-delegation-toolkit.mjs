@@ -422,4 +422,3 @@ export {
   toMetaMaskSmartAccount
 };
 //# sourceMappingURL=index.mjs.map
-
