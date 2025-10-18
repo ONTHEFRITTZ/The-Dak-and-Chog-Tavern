@@ -66,10 +66,7 @@
         s1.src = `../../js/tavern.js?v=${tag}`;
         document.head.appendChild(s1);
 
-        const s2 = document.createElement('script');
-        s2.type = 'module';
-        s2.src = `../../js/state.js?v=${tag}`;
-        document.head.appendChild(s2);
+        // removed resume banner helper (state.js)
       } catch (e) { console.error('head loader failed', e); }
     })();
   </script>
