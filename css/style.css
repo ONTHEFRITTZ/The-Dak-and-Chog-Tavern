@@ -66,6 +66,8 @@ button:hover { background: #7800cd; }
 #wallet-inline #wi-disconnect {  display: inline-flex;  align-items: center;  justify-content: center;}
 #wallet-inline .wi-balance-badge {  padding: 0 6px;  min-height: 26px;}
 html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] #wallet-inline {  background: rgba(12, 24, 38, 0.85);  border-color: rgba(120,200,255,0.22);}
+/* Gasless indicator styling for wallet pill address */
+#wallet-inline.gasless-on #wi-address { background: linear-gradient(135deg, #ffd166, #ffc04d); color: #2b1e12; padding: 2px 8px; border-radius: 10px; box-shadow: 0 0 14px rgba(255, 209, 102, 0.35); font-weight: 700; }
 /* ==========================================================================   POKER TABLE � MINIMAL, IMAGE-ONLY SURFACE, NO ORANGE TOKENS   ========================================================================== *//* Canvas holds the table art + absolutely positioned seats */.table-canvas {  position: relative;  /* Maintain intrinsic table image aspect for correct seat placement */  /* Seat ellipse radius (percent of canvas). Smaller = closer to table center */  --ring-rx: 58;  --ring-ry: 48;  --ring-rotation: -90;  aspect-ratio: 1000 / 680;  width: min(80vw, 1100px);  max-height: 80vh; height: auto;  margin: 0 auto;}
 /* Table art: restore the single PNG */.table-surface {  position: absolute;  inset: 0;  z-index: 1;}
 .table-surface img {  width: 100%;  height: 100%;  object-fit: contain;  display: block;}

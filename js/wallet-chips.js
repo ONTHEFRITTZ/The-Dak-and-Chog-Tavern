@@ -155,6 +155,17 @@
     }
     document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && document.body.dataset.chipsModalOpen) closeModal(); });
     createModal();
+
+    // Gasless indicator: flip the pill address background when gasless is active
+    try {
+      const addrEl = document.getElementById('wi-address');
+      function mark(on) {
+        try { (pill||document.getElementById('wallet-inline'))?.classList.toggle('gasless-on', !!on); } catch {}
+      }
+      window.addEventListener('aa:sponsored', (e) => { try { mark(!!(e && e.detail && e.detail.active)); } catch {} });
+      window.addEventListener('aa:gasless',  () => { try { mark(true); } catch {} });
+      try { if (localStorage.getItem('aa.smartAccount.optIn') === 'true') mark(true); } catch {}
+    } catch {}
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
