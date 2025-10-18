@@ -527,10 +527,31 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
     try {
       const ctx = await ensureDelegationToolkitContext();
       if (!ctx || !ctx.walletClient || !ctx.publicClient) return null;
-      const vendor = await (async () => {
-        try { return await import('/js/vendor/metamask-delegation-toolkit-latest.mjs'); } catch { return null; }
-      })();
-      if (!vendor) return null;
+      async function loadDelegationVendor() {
+        // Try local file via fetch+Blob to avoid MIME issues
+        try {
+          const res = await fetch('/js/vendor/metamask-delegation-toolkit-latest.mjs', { cache: 'no-store' });
+          if (res && res.ok) {
+            const code = await res.text();
+            const url = URL.createObjectURL(new Blob([code], { type: 'text/javascript' }));
+            try { return await import(/* @vite-ignore */ url); } finally { URL.revokeObjectURL(url); }
+          }
+        } catch {}
+        // Fallback to CDN
+        try {
+          const cdn = 'https://cdn.jsdelivr.net/npm/@metamask/delegation-toolkit@0.13.0/dist/index.mjs';
+          const res2 = await fetch(cdn, { cache: 'no-store' });
+          if (res2 && res2.ok) {
+            const code2 = await res2.text();
+            const url2 = URL.createObjectURL(new Blob([code2], { type: 'text/javascript' }));
+            try { return await import(/* @vite-ignore */ url2); } finally { URL.revokeObjectURL(url2); }
+          }
+        } catch {}
+        return null;
+      }
+      const rawVendor = await loadDelegationVendor();
+      if (!rawVendor) return null;
+      const vendor = rawVendor.default ? rawVendor.default : rawVendor;
       const Impl = (vendor.Implementation && (vendor.Implementation.EIP7702Stateless || vendor.Implementation.Hybrid || vendor.Implementation.MultiSig)) || undefined;
       // Derive a smart account bound to the controller wallet
       const account = await vendor.toMetaMaskSmartAccount({
@@ -550,6 +571,7 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
       const res = await fetch(MONAD_BUNDLER_RPC, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }).then(r=>r.json()).catch(()=>null);
       const result = (res && res.result) || null;
       const hash = extractTxHash(result) || (typeof result === 'string' ? result : null);
+      if (hash) { try { window.dispatchEvent(new CustomEvent('aa:gasless', { detail: { mode: '4337', hash } })); } catch {} }
       return hash || null;
     } catch (err) {
       console.warn('[aaClient] sendViaZeroDevUO error', err);
