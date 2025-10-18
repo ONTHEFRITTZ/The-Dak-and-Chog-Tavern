@@ -1,5 +1,6 @@
 // Minimal EIP-5792 bundler utilities
 // Works with EIP-1193 providers (MetaMask Smart Accounts, etc.)
+import { ZD_PAYMASTER_RPC } from './aa/config.js';
 
 function resolveInjected() {
   try { return window.__walletProvider || window.ethereum; } catch { return undefined; }
@@ -22,7 +23,10 @@ export async function walletSendCalls({ provider, from, chainId, calls }) {
   if (!provider || typeof provider.request !== 'function') throw new Error('No EIP-1193 provider');
   if (!Array.isArray(calls) || !calls.length) throw new Error('No calls');
   const normCalls = calls.map(c => ({ to: c.to, data: c.data || '0x', value: c.value || '0x0' }));
-  const params = [{ from, chainId, calls: normCalls }];
+  // Include fields some MetaMask builds require
+  const capabilities = {};
+  try { if (ZD_PAYMASTER_RPC) capabilities.paymasterService = { url: ZD_PAYMASTER_RPC }; } catch {}
+  const params = [{ from, chainId, calls: normCalls, version: '1', atomicRequired: false, capabilities }];
   try { return await provider.request({ method: 'wallet_sendCalls', params }); } catch (e) {
     try { return await provider.request({ method: 'wallet_sendCalls:1', params }); } catch (e2) {
       throw (e2 || e);
