@@ -291,7 +291,7 @@ async function buildToolkitSmartAccount(injected, { bundlerUrl, paymasterUrl }) 
     const chainId = MONAD.id;
     const stored = loadStoredSmartAccount(chainId);
 
-    const deployParams = [ownerAddress, [], [], []];
+    const deployParams = [[ownerAddress], 1n];
     let mmAccount;
     try {
       // Build strictly with v0.15+ signature only
@@ -303,7 +303,7 @@ async function buildToolkitSmartAccount(injected, { bundlerUrl, paymasterUrl }) 
       mmAccount = await toMetaMaskSmartAccount({
         owner: ownerAddress,
         chain: chainObj,
-        implementation: (Implementation?.Hybrid || Implementation?.EIP7702Stateless || Implementation?.MultiSig),
+        implementation: (Implementation?.MultiSig || Implementation?.Stateless7702 || Implementation?.Hybrid),
         transport: walletClient?.transport,
         // Include signer/client for libs that still read them
         signer: { walletClient },
@@ -552,15 +552,48 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
       const rawVendor = await loadDelegationVendor();
       if (!rawVendor) { console.warn('[aaClient] delegation toolkit vendor unavailable'); return null; }
       const vendor = rawVendor.default ? rawVendor.default : rawVendor;
-      const Impl = (vendor.Implementation && (vendor.Implementation.EIP7702Stateless || vendor.Implementation.Hybrid || vendor.Implementation.MultiSig)) || undefined;
-      // Derive a smart account bound to the controller wallet
-      const account = await vendor.toMetaMaskSmartAccount({
+      const implementations = vendor.Implementation || {};
+      const chainId = (ctx.walletChain && ctx.walletChain.id) || MONAD.id;
+      const cachedAddress = loadStoredSmartAccount(chainId);
+      const ownerAddress = ctx.ownerAccount || (ctx.accounts && ctx.accounts[0]) || (ctx.walletClient?.account && ctx.walletClient.account.address);
+      let implementation = implementations.MultiSig || implementations.Stateless7702 || implementations.Hybrid || undefined;
+      if (!implementation) {
+        console.warn('[aaClient] delegation toolkit implementation unavailable');
+        return null;
+      }
+      const accountArgs = {
         client: ctx.publicClient,
         signer: { walletClient: ctx.walletClient },
-        implementation: Impl,
+        implementation,
         environment: ctx.environment,
         delegations: []
-      });
+      };
+      if (cachedAddress) {
+        accountArgs.address = cachedAddress;
+      } else {
+        if (!ownerAddress) {
+          console.warn('[aaClient] unable to determine owner address for smart account deployment');
+          return null;
+        }
+        if (implementation === implementations.MultiSig) {
+          accountArgs.deployParams = [[ownerAddress], 1n];
+          accountArgs.deploySalt = '0x0';
+        } else if (implementation === implementations.Hybrid) {
+          accountArgs.deployParams = [ownerAddress, [], [], []];
+          accountArgs.deploySalt = '0x0';
+        } else {
+          console.warn('[aaClient] selected implementation requires pre-deployed address');
+          return null;
+        }
+      }
+      // Derive a smart account bound to the controller wallet
+      const account = await vendor.toMetaMaskSmartAccount(accountArgs);
+      try {
+        const derived = account && typeof account.getAddress === 'function' ? await account.getAddress() : account?.address;
+        if (derived) {
+          storeSmartAccount(chainId, lc(derived));
+        }
+      } catch {}
       // Build execution (single call)
       const value = (()=>{ try { return BigInt(tx.value || 0); } catch { return 0n; } })();
       const exec = await vendor.createExecution({ account, calls: [{ to: tx.to, data: ensureHexData(tx.data), value }] });
