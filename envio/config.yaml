@@ -1,15 +1,12 @@
-# Envio HyperIndex config for The Dak & Chog Tavern
-# Network: Monad Testnet (chainId 10143)
-# NOTE: This is a starter file. You can keep this and deploy, or paste in the
-# full config from the Envio dashboard UI if they generate one for you.
-
+version: "0.0.1"
+specVersion: "0.0.5"
 name: the-dak-and-chog-tavern
 description: Tavern activity indexer for staking rewards (hosted build)
 
 networks:
   - id: 10143
     name: monad-testnet
-    rpc_url: ${RPC_URL:-https://monad-testnet.drpc.org}
+    rpc_url: https://monad-testnet.drpc.org
 
 contracts:
   - name: HoldemPoker
@@ -50,9 +47,4 @@ mappings:
       event: HandSettled(uint256 indexed handId, address[] winners, uint256[] payouts, uint256 rake)
       handler: handleHandSettled
 
-<<<<<<< Updated upstream
-startBlock: latest-50000 # start from recent history to sync quickly; adjust as needed
-=======
 startBlock: latest-50000
->>>>>>> Stashed changes
-
