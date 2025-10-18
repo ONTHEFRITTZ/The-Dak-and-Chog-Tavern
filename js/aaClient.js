@@ -524,9 +524,7 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
       if (!ctx || !ctx.walletClient || !ctx.publicClient) { console.warn('[aaClient] toolkit context unavailable'); return null; }
       async function loadDelegationVendor() {
         const tag = encodeURIComponent(window.__BUILD_TAG || Date.now());
-        const directSources = [
-          /js/vendor/metamask-delegation-toolkit-latest.bundle.mjs?v=
-        ];
+        const directSources = [`/js/vendor/metamask-delegation-toolkit-latest.bundle.mjs?v=${tag}`];
         for (const src of directSources) {
           try { return await import(/* @vite-ignore */ src); } catch (err) { console.warn('[aaClient] delegation toolkit direct import failed', src, err); }
         }
@@ -687,4 +685,8 @@ try {
     window.getSmartAccountAddress = getSmartAccountAddress;
   }
 } catch {}
+
+
+
+
 
