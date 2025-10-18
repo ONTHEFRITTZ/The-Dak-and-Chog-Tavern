@@ -523,32 +523,11 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
       const ctx = await ensureDelegationToolkitContext();
       if (!ctx || !ctx.walletClient || !ctx.publicClient) { console.warn('[aaClient] toolkit context unavailable'); return null; }
       async function loadDelegationVendor() {
-        const tag = encodeURIComponent(window.__BUILD_TAG || Date.now());
-        const directImports = [
-          `/js/vendor/metamask-delegation-toolkit-latest.mjs?v=${tag}`,
-          `/js/vendor/metamask-delegation-toolkit-latest.js?v=${tag}`
-        ];
-        for (const path of directImports) {
-          try { return await import(/* @vite-ignore */ path); } catch {}
-        }
-        // Try local fetch+Blob in case the direct import failed due to MIME
-        const fetchPaths = [
-          '/js/vendor/metamask-delegation-toolkit-latest.mjs',
-          '/js/vendor/metamask-delegation-toolkit-latest.js'
-        ];
-        for (const path of fetchPaths) {
-          try {
-            const res = await fetch(path, { cache: 'no-store' });
-            if (res && res.ok) {
-              const code = await res.text();
-              const url = URL.createObjectURL(new Blob([code], { type: 'text/javascript' }));
-              try { return await import(/* @vite-ignore */ url); } finally { URL.revokeObjectURL(url); }
-            }
-          } catch {}
-        }
-        // Final fallback: CDN
+        const src = "export * from 'https://cdn.jsdelivr.net/npm/@metamask/delegation-toolkit@0.13.0/dist/index.mjs'; export { default } from 'https://cdn.jsdelivr.net/npm/@metamask/delegation-toolkit@0.13.0/dist/index.mjs';";
         try {
-          return await import(/* @vite-ignore */ 'https://cdn.jsdelivr.net/npm/@metamask/delegation-toolkit@0.13.0/dist/index.mjs');
+          const url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
+          try { return await import(/* @vite-ignore */ url); }
+          finally { URL.revokeObjectURL(url); }
         } catch {}
         return null;
       }
