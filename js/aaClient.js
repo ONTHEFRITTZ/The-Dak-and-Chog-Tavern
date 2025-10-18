@@ -523,7 +523,25 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
       const ctx = await ensureDelegationToolkitContext();
       if (!ctx || !ctx.walletClient || !ctx.publicClient) { console.warn('[aaClient] toolkit context unavailable'); return null; }
       async function loadDelegationVendor() {
-        try { return await import(/* @vite-ignore */ 'https://cdn.jsdelivr.net/npm/@metamask/delegation-toolkit@0.13.0/dist/index.mjs'); } catch {}
+        const sources = [
+          '/js/vendor/metamask-delegation-toolkit-latest.mjs',
+          '/js/vendor/metamask-delegation-toolkit-latest.js',
+          'https://cdn.jsdelivr.net/npm/@metamask/delegation-toolkit@0.13.0/dist/index.mjs',
+          'https://esm.sh/@metamask/delegation-toolkit@0.13.0'
+        ];
+        for (const src of sources) {
+          try {
+            const res = await fetch(src, { cache: 'no-store', mode: 'cors' });
+            if (!res || !res.ok) continue;
+            const code = await res.text();
+            const blob = new Blob([code], { type: 'text/javascript' });
+            const url = URL.createObjectURL(blob);
+            try { return await import(/* @vite-ignore */ url); }
+            finally { URL.revokeObjectURL(url); }
+          } catch (err) {
+            // Try next source
+          }
+        }
         return null;
       }
       const rawVendor = await loadDelegationVendor();
