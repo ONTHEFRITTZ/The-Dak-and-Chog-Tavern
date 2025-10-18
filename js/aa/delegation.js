@@ -1202,13 +1202,13 @@ export async function enableDelegationV13Landing() {
 
 // Landing convenience: ensure a broad, time-limited delegation is active.
 // Called immediately after the user selects a wallet on landing to front‑load any signing prompts.
-export async function issueOpenDelegationForLanding() {
+export async function issueOpenDelegationForLanding(opts = {}) {
   try { sessionStorage.removeItem('aa:disableAutoDelegation'); } catch {}
   // If a valid delegation already exists, return it; otherwise try to create one.
   const existing = loadDelegation();
   if (existing && existing.end && nowSec() < existing.end) return existing;
   try {
-    const rec = await ensureDelegationActive({});
+    const rec = await ensureDelegationActive({ force: !!opts.force });
     return rec;
   } catch (err) {
     // If the user cancels, ignore silently to avoid blocking entry flow.
