@@ -27,6 +27,8 @@ export async function enableSmartAccountNow() {
   try { await detectEip7702Ready(); } catch {}
   await initAA({});
   try { AA.setSponsored(true); } catch {}
+  try { localStorage.setItem('aa:preferGasless','true'); } catch {}
+  try { window.FORCE_GASLESS = true; } catch {}
   persistOptInDelegationMode();
   try { window.dispatchEvent(new CustomEvent('aa:sponsored', { detail: { active: true } })); } catch {}
   return null;
@@ -105,10 +107,12 @@ try {
 async function siteWideInit() {
   // Broadcast current sponsored (gasless) preference. Never auto-sign.
   const optIn = (() => { try { return localStorage.getItem(SMART_ACCOUNT_OPT_IN_KEY) === 'true'; } catch { return false; } })();
+  const preferGasless = (() => { try { return localStorage.getItem('aa:preferGasless') === 'true'; } catch { return false; } })();
   if (optIn) {
     try { await initAA({}); AA.setSponsored(true); } catch {}
     try { window.dispatchEvent(new CustomEvent('aa:sponsored', { detail: { active: true } })); } catch {}
   }
+  try { window.FORCE_GASLESS = preferGasless; } catch {}
   // Probe EIP-7702 readiness in the background
   try { await detectEip7702Ready(); } catch {}
 }

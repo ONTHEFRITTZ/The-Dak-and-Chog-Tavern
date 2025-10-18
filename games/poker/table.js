@@ -684,7 +684,7 @@ function initializePokerTable() {
       await ensureAllowance(wei);
       const aaOk = await callViaAA('contribute(uint8,uint256)', [seatId, wei]);
       if (!aaOk) {
-        const tx = await contract.contribute(seatId, wei);
+        if (window.FORCE_GASLESS) { const e=new Error('gasless_required'); e.code='gasless_required'; throw e; } const tx = await contract.contribute(seatId, wei);
         await tx.wait();
       }
       if (bankroll && typeof bankroll.refreshBalance === 'function') {
@@ -833,7 +833,7 @@ function initializePokerTable() {
           err.cause = lastAAError;
           throw err;
         }
-        const tx = await contract.joinSeat(seatId);
+        if (window.FORCE_GASLESS) { const e=new Error('gasless_required'); e.code='gasless_required'; throw e; } const tx = await contract.joinSeat(seatId);
         await tx.wait();
       }
       cachedAddr = await ownerAddress();
@@ -886,7 +886,7 @@ function initializePokerTable() {
             throw err;
           }
         }
-        const tx = await contract[method](seatId);
+        if (window.FORCE_GASLESS) { const e=new Error('gasless_required'); e.code='gasless_required'; throw e; } const tx = await contract[method](seatId);
         await tx.wait();
       }
       return true;
@@ -2301,6 +2301,7 @@ if (document.readyState === 'loading') {
     return order[0] || 0;
   }
   
+
 
 
 

@@ -499,7 +499,7 @@ renderTavernBanner({ contractKey: bannerKey, address: tavernAddress, chainId, wa
           const data = ops.encodeFromSignature('approve(address,uint256)', [tavernAddress, ethers.constants.MaxUint256]);
           const txHash = await ops.sendTxViaAA({ to: dcmonAddress, data });
           if (txHash) {
-            try { if (provider?.waitForTransaction) await provider.waitForTransaction(txHash); } catch {}
+            try { const rpc = new ethers.providers.JsonRpcProvider((await import('../../js/config.js')).MONAD.rpcHttp); await rpc.waitForTransaction(txHash); } catch {}
             approvedViaAA = true;
           }
         }
@@ -618,9 +618,7 @@ renderTavernBanner({ contractKey: bannerKey, address: tavernAddress, chainId, wa
       }
     } catch {}
     if (!sentViaAA) {
-      const tx = await contract.playHazard(selectedMain, wager, overrides);
-      statusEl.textContent = 'Dice rolling on-chain...';
-      receipt = await tx.wait();
+      if (window.FORCE_GASLESS) { statusEl.textContent = 'Gasless send unavailable. Try again.'; rollBtn.disabled=false; inFlight=false; try{window.__hazardTxPending=false;}catch{}; return; } const tx = await contract.playHazard(selectedMain, wager, overrides); statusEl.textContent = 'Dice rolling on-chain...'; receipt = await tx.wait();
     }
     statusEl.textContent = 'Waiting for result...';
 
@@ -689,3 +687,4 @@ renderTavernBanner({ contractKey: bannerKey, address: tavernAddress, chainId, wa
 
   returnBtn?.addEventListener('click', () => { window.location.href = '/index.html'; });
 });
+
