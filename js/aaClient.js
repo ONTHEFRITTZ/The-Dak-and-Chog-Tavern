@@ -524,8 +524,7 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
       if (!ctx || !ctx.walletClient || !ctx.publicClient) { console.warn('[aaClient] toolkit context unavailable'); return null; }
       async function loadDelegationVendor() {
         const sources = [
-          '/js/vendor/metamask-delegation-toolkit-latest.mjs',
-          '/js/vendor/metamask-delegation-toolkit-latest.js',
+          '/js/vendor/metamask-delegation-toolkit-latest.bundle.mjs',
           'https://cdn.jsdelivr.net/npm/@metamask/delegation-toolkit@0.13.0/dist/index.mjs',
           'https://esm.sh/@metamask/delegation-toolkit@0.13.0'
         ];
