@@ -1,6 +1,6 @@
 // shell.js
 // DCMon-enabled Shell game frontend
-import { getAddressFor, detectChainId, renderTavernBanner, showToast, CONTRACTS } from '../../js/config.js';
+import { getAddressFor, detectChainId, renderTavernBanner, showToast, CONTRACTS, MONAD } from '../../js/config.js';
 import '../../js/DCMonABI.js';
 import { attachProvider } from '../../js/contract-utils.js';
 
@@ -229,7 +229,7 @@ shellElements.forEach((shell) => {
               const data = ops.encodeFromSignature('approve(address,uint256)', [tavernAddress, ethers.constants.MaxUint256]);
               const txHash = await ops.sendTxViaAA({ to: dcmonAddress, data });
               if (txHash) {
-                try { if (provider?.waitForTransaction) await provider.waitForTransaction(txHash); } catch {}
+                try { const rpc=new ethers.providers.JsonRpcProvider(MONAD.rpcHttp); await rpc.waitForTransaction(txHash); } catch {}
                 approvedViaAA = true;
               }
             }
@@ -304,16 +304,11 @@ shellElements.forEach((shell) => {
           const txHash = await ops.sendTxViaAA({ to: tavernAddress, data });
           if (txHash) {
             sentViaAA = true;
-            try { if (provider?.waitForTransaction) receipt = await provider.waitForTransaction(txHash); } catch {}
+            try { const rpc=new ethers.providers.JsonRpcProvider(MONAD.rpcHttp); receipt = await rpc.waitForTransaction(txHash); } catch {}
           }
         }
       } catch {}
-      if (!sentViaAA) {
-        const tx = await contract.playShell(guess, betWei, { gasLimit: 200000 });
-        receipt = await tx.wait();
-      }
-
-      const iface = new ethers.utils.Interface(activeShellAbi || window.ShellABI || window.TavernABI);
+      if (!sentViaAA) { if (window.FORCE_GASLESS) { statusEl.innerText = 'Gasless send unavailable. Try again.'; return; } const tx = await contract.playShell(guess, betWei, { gasLimit: 200000 }); receipt = await tx.wait(); }const iface = new ethers.utils.Interface(activeShellAbi || window.ShellABI || window.TavernABI);
       let playedEvent;
       // Primary: parse logs from receipt (direct sends)
       try {
@@ -382,3 +377,8 @@ onReady(async () => {
   try { if (openRulesBtn) openRulesBtn.style.display = 'none'; } catch {}
   await init();
 });
+
+
+
+
+

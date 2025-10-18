@@ -96,6 +96,8 @@ export async function sendTxViaAA({ to, data, valueMON }) {
     to,
     data: ensureHexBytes(data),
     value: valueMON != null ? toWeiMON(valueMON) : 0n,
+    // Hint the AA client to avoid signer fallback when forcing gasless UX
+    noSignerFallback: !!(typeof window !== 'undefined' && window.FORCE_GASLESS)
   };
 
   try {

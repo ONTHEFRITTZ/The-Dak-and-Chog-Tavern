@@ -508,9 +508,12 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
         if (hash2) return hash2;
       }
     } catch (_) { /* ignore */ }
-    const txReq = { to, data, value: (()=>{ try { return ethers.BigNumber.from(tx.value||0); } catch { return ethers.BigNumber.from(0); }})() };
-    const res = await signer.sendTransaction(txReq);
-    return typeof res === 'string' ? res : (res?.hash || res?.transactionHash);
+    if (!tx || !tx.noSignerFallback) {
+      const txReq = { to, data, value: (()=>{ try { return ethers.BigNumber.from(tx.value||0); } catch { return ethers.BigNumber.from(0); }})() };
+      const res = await signer.sendTransaction(txReq);
+      return typeof res === 'string' ? res : (res?.hash || res?.transactionHash);
+    }
+    return null;
   }
 
   // Direct 4337 using MetaMask Delegation Toolkit + viem/account-abstraction
