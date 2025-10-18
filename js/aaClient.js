@@ -524,14 +524,18 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
       if (!ctx || !ctx.walletClient || !ctx.publicClient) { console.warn('[aaClient] toolkit context unavailable'); return null; }
       async function loadDelegationVendor() {
         const tag = encodeURIComponent(window.__BUILD_TAG || Date.now());
+        const withTag = (src) => src.includes('?') ? `${src}&v=${tag}` : `${src}?v=${tag}`;
         const sources = [
-          `/js/vendor/metamask-delegation-toolkit-esm.mjs?v=${tag}`,
-          'https://cdn.jsdelivr.net/npm/@metamask/delegation-toolkit@0.13.0/dist/index.mjs',
-          'https://esm.sh/@metamask/delegation-toolkit@0.13.0?bundle',
-          'https://cdn.skypack.dev/@metamask/delegation-toolkit@0.13.0?min'
+          withTag('/js/vendor/metamask-delegation-toolkit-esm.mjs'),
+          withTag('https://esm.sh/@metamask/delegation-toolkit@0.13.0?bundle&target=es2022'),
+          withTag('https://cdn.jsdelivr.net/npm/@metamask/delegation-toolkit@0.13.0/dist/index.mjs'),
+          withTag('https://cdn.skypack.dev/@metamask/delegation-toolkit@0.13.0?min')
         ];
         for (const src of sources) {
           try {
+            if (/^https?:/i.test(src)) {
+              return await import(/* @vite-ignore */ src);
+            }
             const res = await fetch(src, { cache: 'no-store', mode: 'cors' });
             if (!res || !res.ok) throw new Error(String(res && res.status));
             const code = await res.text();
