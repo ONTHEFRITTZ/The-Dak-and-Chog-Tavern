@@ -523,12 +523,19 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
       const ctx = await ensureDelegationToolkitContext();
       if (!ctx || !ctx.walletClient || !ctx.publicClient) { console.warn('[aaClient] toolkit context unavailable'); return null; }
       async function loadDelegationVendor() {
-        const sources = [
+        const tag = encodeURIComponent(window.__BUILD_TAG || Date.now());
+        const directSources = [
+          /js/vendor/metamask-delegation-toolkit-latest.bundle.mjs?v=
+        ];
+        for (const src of directSources) {
+          try { return await import(/* @vite-ignore */ src); } catch (err) { console.warn('[aaClient] delegation toolkit direct import failed', src, err); }
+        }
+        const fetchSources = [
           'https://cdn.jsdelivr.net/npm/@metamask/delegation-toolkit@0.13.0/dist/index.mjs',
           'https://esm.sh/@metamask/delegation-toolkit@0.13.0?bundle',
           'https://cdn.skypack.dev/@metamask/delegation-toolkit@0.13.0?min'
         ];
-        for (const src of sources) {
+        for (const src of fetchSources) {
           try {
             const res = await fetch(src, { cache: 'no-store', mode: 'cors' });
             if (!res || !res.ok) throw new Error(String(res && res.status));
@@ -538,7 +545,7 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
             try { return await import(/* @vite-ignore */ url); }
             finally { URL.revokeObjectURL(url); }
           } catch (err) {
-            console.warn('[aaClient] delegation toolkit import failed', src, err);
+            console.warn('[aaClient] delegation toolkit fetch import failed', src, err);
           }
         }
         return null;
@@ -680,3 +687,4 @@ try {
     window.getSmartAccountAddress = getSmartAccountAddress;
   }
 } catch {}
+

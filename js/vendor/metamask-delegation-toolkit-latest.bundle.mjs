@@ -2,33 +2,33 @@ import {
   actions_exports,
   caveatEnforcerActions,
   isValid7702Implementation
-} from "./chunk-TMYAWDSH.mjs";
+} from "https://cdn.jsdelivr.net/npm/@metamask/delegation-toolkit@0.13.0/dist/chunk-TMYAWDSH.mjs";
 import {
   contracts_exports,
   read
-} from "./chunk-SEXTJ4DB.mjs";
-import "./chunk-LESWPFZK.mjs";
+} from "https://cdn.jsdelivr.net/npm/@metamask/delegation-toolkit@0.13.0/dist/chunk-SEXTJ4DB.mjs";
+import "https://cdn.jsdelivr.net/npm/@metamask/delegation-toolkit@0.13.0/dist/chunk-LESWPFZK.mjs";
 import {
   Implementation,
   createDummyWebAuthnSignature,
   encodeCallsForCaller,
   encodeDeleGatorSignature,
   getCounterfactualAccountData
-} from "./chunk-NV2Z25GV.mjs";
+} from "https://cdn.jsdelivr.net/npm/@metamask/delegation-toolkit@0.13.0/dist/chunk-NV2Z25GV.mjs";
 import {
   SIGNABLE_USER_OP_TYPED_DATA,
   signUserOperation
-} from "./chunk-IVSH2AQS.mjs";
-import "./chunk-WS27FQPE.mjs";
+} from "https://cdn.jsdelivr.net/npm/@metamask/delegation-toolkit@0.13.0/dist/chunk-IVSH2AQS.mjs";
+import "https://cdn.jsdelivr.net/npm/@metamask/delegation-toolkit@0.13.0/dist/chunk-WS27FQPE.mjs";
 import {
   PREFERRED_VERSION,
   getDeleGatorEnvironment,
   redeemDelegations
-} from "./chunk-QYK4FFGA.mjs";
+} from "https://cdn.jsdelivr.net/npm/@metamask/delegation-toolkit@0.13.0/dist/chunk-QYK4FFGA.mjs";
 import {
   ExecutionMode,
   createExecution
-} from "./chunk-CPLIK3VF.mjs";
+} from "https://cdn.jsdelivr.net/npm/@metamask/delegation-toolkit@0.13.0/dist/chunk-CPLIK3VF.mjs";
 import {
   ANY_BENEFICIARY,
   BalanceChangeType,
@@ -39,14 +39,14 @@ import {
   createOpenDelegation,
   signDelegation,
   toDelegationStruct
-} from "./chunk-22I5T7W4.mjs";
+} from "https://cdn.jsdelivr.net/npm/@metamask/delegation-toolkit@0.13.0/dist/chunk-22I5T7W4.mjs";
 
 // src/toMetaMaskSmartAccount.ts
 import {
   EIP7702StatelessDeleGator,
   HybridDeleGator,
   MultiSigDeleGator
-} from "@metamask/delegation-abis";
+} from "https://cdn.jsdelivr.net/npm/@metamask/delegation-abis@0.11.0/dist/index.mjs";
 import {
   entryPoint07Abi,
   toPackedUserOperation,
