@@ -538,16 +538,8 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
       async function loadDelegationVendor() {
         const tag = encodeURIComponent(window.__BUILD_TAG || Date.now());
         const withTag = (src) => src.includes('?') ? `${src}&v=${tag}` : `${src}?v=${tag}`;
-        const toUrl = (src) => {
-          try {
-            if (/^https?:/i.test(src)) return src;
-            const abs = new URL(src, window.location.origin);
-            return abs.href;
-          } catch {
-            return src;
-          }
-        };
         const sources = [
+          withTag('/js/vendor/delegation-toolkit-bundled.mjs'),
           withTag('/js/vendor/delegation-toolkit-shim.mjs'),
           withTag('/js/vendor/metamask-delegation-toolkit-latest.bundle.mjs'),
           withTag('/js/vendor/metamask-delegation-toolkit.mjs'),
@@ -556,22 +548,33 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
           withTag('https://esm.sh/@metamask/delegation-toolkit@0.13.0?bundle&target=es2022'),
           withTag('https://cdn.skypack.dev/@metamask/delegation-toolkit@0.13.0?min')
         ];
-        for (const src of sources) {
-          const resolved = toUrl(src);
+        const isSameOrigin = (url) => {
           try {
-            return await import(/* @vite-ignore */ resolved);
-          } catch (directErr) {
-            try {
-              const res = await fetch(resolved, { cache: 'no-store', mode: 'cors' });
-              if (!res || !res.ok) throw new Error(String(res && res.status));
-              const code = await res.text();
-              const blob = new Blob([code], { type: 'text/javascript' });
-              const url = URL.createObjectURL(blob);
-              try { return await import(/* @vite-ignore */ url); }
-              finally { URL.revokeObjectURL(url); }
-            } catch (err) {
-              console.warn('[aaClient] delegation toolkit fetch import failed', resolved, err);
+            const parsed = new URL(url, window.location.origin);
+            return parsed.origin === window.location.origin;
+          } catch {
+            return !/^https?:/i.test(url);
+          }
+        };
+        for (const src of sources) {
+          const resolved = (() => {
+            if (/^https?:/i.test(src)) return src;
+            try { return new URL(src, window.location.origin).href; }
+            catch { return src; }
+          })();
+          try {
+            if (!isSameOrigin(resolved)) {
+              return await import(/* @vite-ignore */ resolved);
             }
+            const res = await fetch(resolved, { cache: 'no-store', mode: 'cors' });
+            if (!res || !res.ok) throw new Error(String(res && res.status));
+            const code = await res.text();
+            const blob = new Blob([code], { type: 'text/javascript' });
+            const url = URL.createObjectURL(blob);
+            try { return await import(/* @vite-ignore */ url); }
+            finally { URL.revokeObjectURL(url); }
+          } catch (err) {
+            console.warn('[aaClient] delegation toolkit fetch import failed', resolved, err);
           }
         }
         return null;
