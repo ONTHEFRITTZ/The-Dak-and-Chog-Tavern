@@ -1208,8 +1208,19 @@ export async function issueOpenDelegationForLanding(opts = {}) {
   const existing = loadDelegation();
   if (existing && existing.end && nowSec() < existing.end) return existing;
   try {
+    // Try full toolkit path first
     const rec = await ensureDelegationActive({ force: !!opts.force });
-    return rec;
+    if (rec) return rec;
+    // If toolkit/internal signer is not available (user has not enabled Smart Accounts),
+    // fall back to v13-compatible typed‑data delegation (EOA signs once).
+    try {
+      const td = await enableDelegationV13Landing();
+      if (td) return td;
+    } catch (e) {
+      // swallow; will be handled by outer catch below
+      throw e;
+    }
+    return null;
   } catch (err) {
     // If the user cancels, ignore silently to avoid blocking entry flow.
     const code = (err && (err.code || err?.data?.code)) || null;
