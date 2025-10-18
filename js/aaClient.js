@@ -574,6 +574,10 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
         console.warn('[aaClient] delegation toolkit implementation unavailable');
         return null;
       }
+      const environment = (() => {
+        try { return vendor.getDeleGatorEnvironment ? vendor.getDeleGatorEnvironment(chainId) : ctx.environment; }
+        catch { return ctx.environment; }
+      })() || ctx.environment;
       const signer = implementation === implementations.MultiSig
         ? [{ walletClient: ctx.walletClient }]
         : { walletClient: ctx.walletClient };
@@ -581,7 +585,7 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
         client: ctx.publicClient,
         signer,
         implementation,
-        environment: ctx.environment,
+        environment,
         delegations: []
       };
       if (cachedAddress) {
