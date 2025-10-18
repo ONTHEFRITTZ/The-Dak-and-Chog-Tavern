@@ -1,8 +1,8 @@
 // Basic event handlers for HyperIndex
 // Each handler produces a simple Activity row for the dashboard
 
-function makeId(event) {
-  return `${event.transactionHash}-${event.logIndex}`;
+function makeId(log) {
+  return `${log.transactionHash}-${log.logIndex}`;
 }
 
 export function handleSeatTaken(event, ctx) {
@@ -107,3 +107,4 @@ export function handleHandSettled(event, ctx) {
     blockTimestamp: Number(event.blockTimestamp || 0)
   });
 }
+

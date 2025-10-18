@@ -7,4 +7,3 @@
   "event Contributed(uint256 indexed handId, uint8 indexed seat, uint256 amount)",
   "event HandSettled(uint256 indexed handId, address[] winners, uint256[] payouts, uint256 rake)"
 ]
-

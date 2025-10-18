@@ -50,5 +50,9 @@ mappings:
       event: HandSettled(uint256 indexed handId, address[] winners, uint256[] payouts, uint256 rake)
       handler: handleHandSettled
 
+<<<<<<< Updated upstream
 startBlock: latest-50000 # start from recent history to sync quickly; adjust as needed
+=======
+startBlock: latest-50000
+>>>>>>> Stashed changes
 
