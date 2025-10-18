@@ -722,17 +722,35 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
         paymasterPostOpGasLimit: 0n
       };
       const chainNumeric = Number(chainId || MONAD.id);
+      const actionSigner = (typeof vendor.signUserOperationActions === 'function')
+        ? vendor.signUserOperationActions()(ctx.walletClient)
+        : null;
+      const signUserOperationFn = actionSigner && typeof actionSigner.signUserOperation === 'function'
+        ? actionSigner.signUserOperation
+        : (account && typeof account.signUserOperation === 'function'
+            ? (params) => account.signUserOperation(params)
+            : null);
+      if (!signUserOperationFn) {
+        console.warn('[aaClient] signUserOperation helper unavailable');
+        return null;
+      }
       let signedOpSignature = null;
       try {
-        signedOpSignature = await vendor.signUserOperation(ctx.walletClient, {
-          account: ctx.walletClient?.account,
-          userOperation: unsignedOp,
-          entryPoint: { address: environment.EntryPoint },
-          chainId: chainNumeric,
-          address: sender,
-          name: contractName,
-          version: '1'
-        });
+        if (actionSigner && typeof actionSigner.signUserOperation === 'function') {
+          signedOpSignature = await actionSigner.signUserOperation({
+            userOperation: unsignedOp,
+            entryPoint: { address: entryPointAddress },
+            chainId: chainNumeric,
+            address: sender,
+            name: contractName,
+            version: '1'
+          });
+        } else {
+          signedOpSignature = await signUserOperationFn({
+            ...unsignedOp,
+            chainId: chainNumeric
+          });
+        }
       } catch (signErr) {
         console.warn('[aaClient] signUserOperation failed', signErr);
         return null;
@@ -785,7 +803,7 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
         return payload.result;
       }
       // Estimate gas for the UO (fill required limits)
-      const entryPoint = ctx?.environment?.EntryPoint || '0x0000000071727De22E5E9d8BAf0edAc6f37da032';
+      const entryPoint = entryPointAddress;
       try {
         const est = await rpcCall('eth_estimateUserOperationGas', [rpcUserOp, entryPoint]);
         if (est) {
