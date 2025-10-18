@@ -70,6 +70,10 @@ function storeSmartAccount(chainId, address) {
   try { localStorage.setItem(smartAccountStorageKey(chainId), address); } catch {}
 }
 
+function clearSmartAccount(chainId) {
+  try { localStorage.removeItem(smartAccountStorageKey(chainId)); } catch {}
+}
+
 function isToolkitSuppressed() {
   try { return sessionStorage.getItem(TOOLKIT_SUPPRESS_KEY) === 'true'; } catch { return false; }
 }
@@ -601,7 +605,17 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
           });
       const implementations = vendor.Implementation || {};
       const chainId = (ctx.walletChain && ctx.walletChain.id) || MONAD.id;
-      const cachedAddress = loadStoredSmartAccount(chainId);
+      let cachedAddress = loadStoredSmartAccount(chainId);
+      if (cachedAddress) {
+        let deployedCode = null;
+        try {
+          deployedCode = await ctx.publicClient.getBytecode({ address: cachedAddress });
+        } catch {}
+        if (!deployedCode || deployedCode === '0x' || deployedCode === '0X' || deployedCode === '') {
+          clearSmartAccount(chainId);
+          cachedAddress = null;
+        }
+      }
       const ownerAddress = ctx.ownerAccount || (ctx.accounts && ctx.accounts[0]) || (ctx.walletClient?.account && ctx.walletClient.account.address);
       let implementation = implementations.MultiSig ?? implementations.Stateless7702 ?? implementations.Hybrid ?? undefined;
       if (!implementation) {
@@ -680,14 +694,28 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
       }
       // Derive a smart account bound to the controller wallet
       const account = await vendor.toMetaMaskSmartAccount(accountArgs);
+      let derivedAddress = null;
       try {
-        const derived = account && typeof account.getAddress === 'function' ? await account.getAddress() : account?.address;
-        if (derived) {
-          storeSmartAccount(chainId, lc(derived));
-        }
+        derivedAddress = account && typeof account.getAddress === 'function' ? await account.getAddress() : account?.address;
       } catch {}
+      let accountDeployed = false;
+      if (derivedAddress) {
+        try {
+          if (typeof account.isDeployed === 'function') {
+            accountDeployed = await account.isDeployed();
+          } else {
+            const code = await ctx.publicClient.getBytecode({ address: derivedAddress });
+            accountDeployed = !!code && code !== '0x' && code !== '0X';
+          }
+        } catch {}
+      }
+      if (derivedAddress && accountDeployed) {
+        storeSmartAccount(chainId, lc(derivedAddress));
+      } else {
+        clearSmartAccount(chainId);
+      }
       const value = (()=>{ try { return BigInt(tx.value || 0); } catch { return 0n; } })();
-      const sender = await (account?.getAddress ? account.getAddress() : Promise.resolve(account?.address || null));
+      const sender = derivedAddress || await (account?.getAddress ? account.getAddress() : Promise.resolve(account?.address || null));
       if (!sender) { console.warn('[aaClient] unable to resolve smart account address'); return null; }
       const callList = [{ to: tx.to, value, data: ensureHexData(tx.data) }];
       let callData = null;
