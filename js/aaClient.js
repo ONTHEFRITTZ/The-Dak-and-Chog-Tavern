@@ -521,7 +521,7 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
   async function sendViaZeroDevUO(tx){
     try {
       const ctx = await ensureDelegationToolkitContext();
-      if (!ctx || !ctx.walletClient || !ctx.publicClient) return null;
+      if (!ctx || !ctx.walletClient || !ctx.publicClient) { console.warn('[aaClient] toolkit context unavailable'); return null; }
       async function loadDelegationVendor() {
         // Try local file via fetch+Blob to avoid MIME issues
         try {
@@ -545,7 +545,7 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
         return null;
       }
       const rawVendor = await loadDelegationVendor();
-      if (!rawVendor) return null;
+      if (!rawVendor) { console.warn('[aaClient] delegation toolkit vendor unavailable'); return null; }
       const vendor = rawVendor.default ? rawVendor.default : rawVendor;
       const Impl = (vendor.Implementation && (vendor.Implementation.EIP7702Stateless || vendor.Implementation.Hybrid || vendor.Implementation.MultiSig)) || undefined;
       // Derive a smart account bound to the controller wallet
@@ -560,6 +560,15 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
       const exec = await vendor.createExecution({ account, calls: [{ to: tx.to, data: ensureHexData(tx.data), value }] });
       // Sign user operation (initial draft)
       let uo = await vendor.signUserOperation({ account, client: ctx.publicClient, execution: exec });
+      const toHex = (v) => {
+        try {
+          if (typeof v === 'string' && /^0x[0-9a-fA-F]+$/.test(v)) return v;
+          if (typeof v === 'number') return '0x' + BigInt(v).toString(16);
+          if (typeof v === 'bigint') return '0x' + v.toString(16);
+          if (v && typeof v.toHexString === 'function') return v.toHexString();
+        } catch {}
+        return undefined;
+      };
       // Helper for bundler RPC
       async function rpcCall(method, params){
         const body = { jsonrpc: '2.0', id: Date.now(), method, params };
@@ -575,14 +584,32 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
       try {
         const est = await rpcCall('eth_estimateUserOperationGas', [uo, entryPoint]);
         if (est) {
-          // Merge estimated limits if present
-          uo.callGasLimit = uo.callGasLimit || est.callGasLimit || est.callGasLimitHex || undefined;
-          uo.verificationGasLimit = uo.verificationGasLimit || est.verificationGasLimit || est.verificationGas || est.verificationGasLimitHex || undefined;
-          uo.preVerificationGas = uo.preVerificationGas || est.preVerificationGas || est.preVerificationGasHex || undefined;
+          const cg = est.callGasLimitHex || est.callGasLimit || est.callGas || est.callGasHex;
+          const vg = est.verificationGasLimitHex || est.verificationGasLimit || est.verificationGas;
+          const pg = est.preVerificationGasHex || est.preVerificationGas;
+          uo.callGasLimit = toHex(uo.callGasLimit) || toHex(cg);
+          uo.verificationGasLimit = toHex(uo.verificationGasLimit) || toHex(vg);
+          uo.preVerificationGas = toHex(uo.preVerificationGas) || toHex(pg);
         }
       } catch (estErr) {
         try { console.warn('[aaClient] eth_estimateUserOperationGas failed', estErr); } catch {}
       }
+      try {
+        const feeData = ctx.publicClient.getFeeData ? await ctx.publicClient.getFeeData() : null;
+        if (feeData) {
+          const maxFee = feeData.maxFeePerGas || feeData.gasPrice;
+          const maxPriority = feeData.maxPriorityFeePerGas || feeData.maxFeePerGas || feeData.gasPrice;
+          uo.maxFeePerGas = toHex(uo.maxFeePerGas) || toHex(maxFee) || '0x0';
+          uo.maxPriorityFeePerGas = toHex(uo.maxPriorityFeePerGas) || toHex(maxPriority) || '0x0';
+        }
+      } catch (feeErr) {
+        try { console.warn('[aaClient] fee data fetch failed', feeErr); } catch {}
+      }
+      uo.callGasLimit = toHex(uo.callGasLimit) || '0x1';
+      uo.verificationGasLimit = toHex(uo.verificationGasLimit) || '0x186a0';
+      uo.preVerificationGas = toHex(uo.preVerificationGas) || '0x186a0';
+      uo.maxFeePerGas = toHex(uo.maxFeePerGas) || '0x3b9aca00';
+      uo.maxPriorityFeePerGas = toHex(uo.maxPriorityFeePerGas) || '0x3b9aca00';
       // Submit to bundler
       let opHash = null;
       try { opHash = await rpcCall('eth_sendUserOperation', [uo, entryPoint]); }
