@@ -36,7 +36,9 @@
       }
     }
   </script>
-  <script src="../../js/provider-pin.js"></script>`r`n  <script src="/js/envio-config.js"></script>
+  <script src="../../js/provider-pin.js"></script>
+  <script src="/js/envio-config.js"></script>
+  <script src="/js/envio-setup.js"></script>
   <script type="module" src="/js/aa/init-all.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
   <script type="module">
@@ -49,6 +51,12 @@
       }catch(e){ console.error('module loader failed', e); }
     })();
   </script>
+  <style>
+    #shell-result { font-weight: 800; letter-spacing: 0.3px; }
+    #shell-result.win  { color: #9ef89e; text-shadow: 0 0 12px rgba(40,160,80,0.45); }
+    #shell-result.lose { color: #ff9a9a; text-shadow: 0 0 12px rgba(200,60,60,0.45); }
+    #plays li { margin: 2px 0; }
+  </style>
           <style>
     /* Fit content to viewport and remove scroll */
     html, body { height: 100%; overflow: hidden; }

@@ -339,10 +339,15 @@ shellElements.forEach((shell) => {
         : `You lost. Your guess: ${displayGuess}, Winning cup: ${displayWin}`;
       try { showToast(won ? 'You won!' : 'You lost', won ? 'success' : 'info'); } catch {}
 
+      try {
+        statusEl.classList.remove('win','lose');
+        statusEl.classList.add(won ? 'win' : 'lose');
+      } catch {}
       statusEl.innerText = resultText;
 
       const li = document.createElement('li');
       li.innerText = resultText;
+      try { li.style.fontWeight = won ? '700' : '600'; li.style.color = won ? '#9ef89e' : '#f4e6d3'; } catch {}
       playsEl.prepend(li);
     } catch (err) {
       console.error(err);
