@@ -523,12 +523,7 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
       const ctx = await ensureDelegationToolkitContext();
       if (!ctx || !ctx.walletClient || !ctx.publicClient) { console.warn('[aaClient] toolkit context unavailable'); return null; }
       async function loadDelegationVendor() {
-        const src = "export * from 'https://cdn.jsdelivr.net/npm/@metamask/delegation-toolkit@0.13.0/dist/index.mjs'; export { default } from 'https://cdn.jsdelivr.net/npm/@metamask/delegation-toolkit@0.13.0/dist/index.mjs';";
-        try {
-          const url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
-          try { return await import(/* @vite-ignore */ url); }
-          finally { URL.revokeObjectURL(url); }
-        } catch {}
+        try { return await import(/* @vite-ignore */ 'https://cdn.jsdelivr.net/npm/@metamask/delegation-toolkit@0.13.0/dist/index.mjs'); } catch {}
         return null;
       }
       const rawVendor = await loadDelegationVendor();
