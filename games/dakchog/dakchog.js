@@ -1,5 +1,5 @@
 ﻿// Dak & Chog coin flip (frontend scaffolding styled like other games)
-import { renderTavernBanner, detectChainId, getAddressFor } from '../../js/config.js';
+import { renderTavernBanner, detectChainId, getAddressFor, MONAD } from '../../js/config.js';
 import '../../js/TavernABI.js';
 import '../../js/DakChogABI.js';
 import '../../js/DCMonABI.js';
@@ -45,6 +45,16 @@ let dcmonRead = null;
 let dcmonToken = null;
 let choice = 'dak';
 let rulesOK = true; // rules gate removed
+
+// Lazy-load AA ops (encodeFromSignature + sendTxViaAA)
+async function ensureAAOps() {
+  try {
+    const tag = encodeURIComponent(window.__BUILD_TAG || Date.now());
+    return await import(/* @vite-ignore */ `../../js/aa/ops.js?v=${tag}`);
+  } catch {
+    return null;
+  }
+}
 
 function rulesFresh(key) { try { const t = Number(localStorage.getItem(key) || 0); return Date.now() - t < 86400000; } catch { return false; } }
 
@@ -169,8 +179,24 @@ flipBtn.addEventListener('click', async () => {
       if (allowance.lt(betWei)) {
         statusEl.textContent = 'Approving DCMon for Dak & Chog...';
         try { showToast('Approving DCMon...', 'info'); } catch {}
-        const approveTx = await dcmonToken.approve(coinTargetAddress, ethers.constants.MaxUint256);
-        await approveTx.wait();
+        // Try AA path first (gasless)
+        let approvedViaAA = false;
+        try {
+          const ops = await ensureAAOps();
+          if (ops && typeof ops.encodeFromSignature === 'function' && typeof ops.sendTxViaAA === 'function') {
+            const data = ops.encodeFromSignature('approve(address,uint256)', [coinTargetAddress, ethers.constants.MaxUint256]);
+            const txHash = await ops.sendTxViaAA({ to: dcmonAddress, data });
+            if (txHash) {
+              try { const rpc = new ethers.providers.JsonRpcProvider(MONAD.rpcHttp); await rpc.waitForTransaction(txHash); } catch {}
+              approvedViaAA = true;
+            }
+          }
+        } catch {}
+        if (!approvedViaAA) {
+          if (window.FORCE_GASLESS) { statusEl.textContent = 'Gasless approval unavailable. Try again.'; try { coinEl.classList.remove('spin'); } catch {}; return; }
+          const approveTx = await dcmonToken.approve(coinTargetAddress, ethers.constants.MaxUint256);
+          await approveTx.wait();
+        }
       }
     } catch (approveErr) {
       const msg = approveErr?.error?.message || approveErr?.data?.message || approveErr?.reason || approveErr?.message || 'Approval failed.';
@@ -225,9 +251,26 @@ flipBtn.addEventListener('click', async () => {
     }
 
     statusEl.textContent = 'Submitting transaction...';
-    const tx = await coinContract.playCoin(betOnChog, betWei, { gasLimit: 250000 });
-    statusEl.textContent = `Tx sent: ${tx.hash.slice(0,10)}... waiting confirmation...`;
-    const rc = await tx.wait();
+    // Try AA path (gasless) first
+    let sentViaAA = false; let rc = null;
+    try {
+      const ops = await ensureAAOps();
+      if (ops && typeof ops.encodeFromSignature === 'function' && typeof ops.sendTxViaAA === 'function') {
+        const data = ops.encodeFromSignature('playCoin(bool,uint256)', [betOnChog, betWei]);
+        const txHash = await ops.sendTxViaAA({ to: coinTargetAddress, data });
+        if (txHash) {
+          sentViaAA = true;
+          statusEl.textContent = `Tx sent: ${String(txHash).slice(0,10)}... waiting confirmation...`;
+          try { const rpc = new ethers.providers.JsonRpcProvider(MONAD.rpcHttp); rc = await rpc.waitForTransaction(txHash); } catch {}
+        }
+      }
+    } catch {}
+    if (!sentViaAA) {
+      if (window.FORCE_GASLESS) { statusEl.textContent = 'Gasless send unavailable. Try again.'; try { coinEl.classList.remove('spin'); } catch {}; return; }
+      const tx = await coinContract.playCoin(betOnChog, betWei, { gasLimit: 300000 });
+      statusEl.textContent = `Tx sent: ${tx.hash.slice(0,10)}... waiting confirmation...`;
+      rc = await tx.wait();
+    }
     // Parse CoinPlayed event if present
     let ev;
     try { ev = rc.events?.find(e => e.event === 'CoinPlayed'); } catch {}

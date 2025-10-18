@@ -497,7 +497,7 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
       const hashUo = await sendViaZeroDevUO(tx);
       if (hashUo) return hashUo;
     } catch (err4337) {
-      // keep silent; we will try other paths
+      try { console.warn('[aaClient] 4337 submission failed', err4337); } catch {}
     }
     // 2) If wallet advertises 5792 capabilities, try wallet_sendCalls
     try {
@@ -513,6 +513,7 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
       const res = await signer.sendTransaction(txReq);
       return typeof res === 'string' ? res : (res?.hash || res?.transactionHash);
     }
+    try { console.warn('[aaClient] gasless-only mode: signer fallback suppressed'); } catch {}
     return null;
   }
 
@@ -562,11 +563,17 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
       // Submit to bundler
       const entryPoint = ctx?.environment?.EntryPoint || '0x0000000071727De22E5E9d8BAf0edAc6f37da032';
       const body = { jsonrpc: '2.0', id: Date.now(), method: 'eth_sendUserOperation', params: [uo, entryPoint] };
-      const res = await fetch(MONAD_BUNDLER_RPC, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }).then(r=>r.json()).catch(()=>null);
-      const result = (res && res.result) || null;
+      const httpRes = await fetch(MONAD_BUNDLER_RPC, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }).catch((e)=>({ __err:e }));
+      if (!httpRes || httpRes.__err) { console.warn('[aaClient] bundler HTTP error', httpRes && httpRes.__err); return null; }
+      let payload = null; try { payload = await httpRes.json(); } catch { try { payload = { raw: await httpRes.text() }; } catch {} }
+      const result = (payload && payload.result) || null;
       const hash = extractTxHash(result) || (typeof result === 'string' ? result : null);
-      if (hash) { try { window.dispatchEvent(new CustomEvent('aa:gasless', { detail: { mode: '4337', hash } })); } catch {} }
-      return hash || null;
+      if (!hash) {
+        try { console.warn('[aaClient] bundler response without hash', payload && (payload.error || payload.raw || payload)); } catch {}
+        return null;
+      }
+      try { window.dispatchEvent(new CustomEvent('aa:gasless', { detail: { mode: '4337', hash } })); } catch {}
+      return hash;
     } catch (err) {
       console.warn('[aaClient] sendViaZeroDevUO error', err);
       return null;
