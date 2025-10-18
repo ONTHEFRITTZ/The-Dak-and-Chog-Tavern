@@ -143,11 +143,31 @@ function initializePokerTable() {
     const top = 50 + ry * Math.sin(rad);
     return { left, top };
   }
+  function preferredOrder(total){
+    return (total >= 6) ? [3,2,4,1,5,0].slice(0,total) : Array.from({length: total}, (_,i)=>i);
+  }
   function positionSeats() {
     const total = seats.length || 8;
-    const offset = (typeof mySeat === 'number' && mySeat >= 0)
-      ? (((total >= 6 ? 3 : Math.floor(total/2)) - mySeat + total) % total)
-      : 0;
+    // Determine which logical seat should appear at the visual bottom for THIS viewer.
+    let desiredBottomIdx = -1;
+    if (typeof mySeat === 'number' && mySeat >= 0) {
+      desiredBottomIdx = mySeat;
+    } else {
+      // Viewer not seated: aim to show an empty seat at the bottom for a clean look.
+      // Prefer the bottom seat index first, then nearby indices.
+      const order = preferredOrder(total);
+      // Try using live seatMeta (if available) to detect empty seats
+      if (Array.isArray(seatMeta) && seatMeta.length) {
+        for (const idx of order) {
+          const occupied = (() => { try { return seatMeta[idx] && seatMeta[idx].seat && seatMeta[idx].seat.classList.contains('occupied'); } catch { return false; } })();
+          if (!occupied) { desiredBottomIdx = idx; break; }
+        }
+      }
+      // If seatMeta not ready or all appear occupied, fall back to the first in order (bottom preference)
+      if (desiredBottomIdx < 0) desiredBottomIdx = order[0] || 0;
+    }
+    const bottomVisualIndex = (total >= 6 ? 3 : Math.floor(total/2));
+    const offset = ((bottomVisualIndex - desiredBottomIdx + total) % total);
     seats.forEach((seat, idx) => {
       const visual = (idx + offset) % total;
       const { left, top } = seatPosition(visual, total);
