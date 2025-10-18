@@ -1,9 +1,9 @@
 // js/envio-config.js
 // Loads a single Envio endpoint for the whole site.
-// Primary: envio/endpoint.json (preferred). Fallback: envio/config.json, assets/envio.json.
+// Only checks envio/ files; no assets/ fallback.
 (function(){
   async function load() {
-    const paths = ['/envio/endpoint.json', '/envio/config.json', '/assets/envio.json'];
+    const paths = ['/envio/endpoint.json', '/envio/config.json'];
     for (const p of paths) {
       try {
         const res = await fetch(p, { cache: 'no-store' });
