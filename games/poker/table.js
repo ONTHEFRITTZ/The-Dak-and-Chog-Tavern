@@ -143,6 +143,12 @@ function initializePokerTable() {
     const top = 50 + ry * Math.sin(rad);
     return { left, top };
   }
+  // Forward declarations to avoid TDZ when early handlers run
+  var seatMeta = null;
+  var socket = null;
+  var pendingEmits = [];
+
+
   function preferredOrder(total){
     return (total >= 6) ? [3,2,4,1,5,0].slice(0,total) : Array.from({length: total}, (_,i)=>i);
   }
@@ -944,7 +950,7 @@ function initializePokerTable() {
   const lastHandBox = document.getElementById('last-hand');
   const lastHandEl = document.getElementById('lh-content');
   positionSeats();
-  const seatMeta = seats.map((seat) => {
+  seatMeta = seats.map((seat) => {
     let timer = seat.querySelector('.timer');
     if (!timer) {
       timer = document.createElement('div');
@@ -1234,7 +1240,7 @@ function initializePokerTable() {
     console.error('Socket.IO missing');
     return;
   }
-  let socket = null;
+  socket = null;
   const host = (location.hostname || '').toLowerCase();
   const socketPaths = (() => {
     const local = host === 'localhost' || host === '127.0.0.1';
@@ -1243,7 +1249,7 @@ function initializePokerTable() {
   })();
   let activeSocketPath = null;
   let triedPaths = new Set();
-  const pendingEmits = [];
+  pendingEmits = [];
   function flushPendingEmits() {
     if (!socket || !socket.connected) return;
     while (pendingEmits.length) {
@@ -2295,5 +2301,8 @@ if (document.readyState === 'loading') {
     return order[0] || 0;
   }
   
+
+
+
 
 
