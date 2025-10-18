@@ -492,15 +492,23 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
     const data = ensureHexData(tx.data);
     const valueHex = toHex(tx.value || 0n);
     const chainHex = '0x' + (AA.chainId || MONAD.id).toString(16);
+    // Try wallet_sendCalls unconditionally (some wallets don't advertise capabilities but support it)
     try {
-      const { provider: bProvider, available } = await detectBundler(injected);
-      if (available && bProvider) {
-        const res = await walletSendCalls({ provider: bProvider, from: address, chainId: chainHex, calls: [{ to, data, value: valueHex }] });
-        const hash = extractTxHash(res);
-        if (hash) return hash;
-      }
+      const res = await walletSendCalls({ provider: injected, from: address, chainId: chainHex, calls: [{ to, data, value: valueHex }] });
+      const hash = extractTxHash(res);
+      if (hash) return hash;
     } catch (err) {
-      console.warn('[aaClient] wallet_sendCalls failed; falling back to direct send', err);
+      // As a secondary try, probe detectBundler and repeat
+      try {
+        const { provider: bProvider, available } = await detectBundler(injected);
+        if (available && bProvider) {
+          const res2 = await walletSendCalls({ provider: bProvider, from: address, chainId: chainHex, calls: [{ to, data, value: valueHex }] });
+          const hash2 = extractTxHash(res2);
+          if (hash2) return hash2;
+        }
+      } catch (err2) {
+        console.warn('[aaClient] wallet_sendCalls failed; falling back to direct send', err2);
+      }
     }
     const txReq = { to, data, value: (()=>{ try { return ethers.BigNumber.from(tx.value||0); } catch { return ethers.BigNumber.from(0); }})() };
     const res = await signer.sendTransaction(txReq);

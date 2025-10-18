@@ -315,14 +315,30 @@ shellElements.forEach((shell) => {
 
       const iface = new ethers.utils.Interface(activeShellAbi || window.ShellABI || window.TavernABI);
       let playedEvent;
-      for (const log of receipt.logs) {
-        try {
-          const parsed = iface.parseLog(log);
-          if (parsed.name === 'ShellPlayed') {
-            playedEvent = parsed.args;
-            break;
+      // Primary: parse logs from receipt (direct sends)
+      try {
+        if (receipt && Array.isArray(receipt.logs)) {
+          for (const log of receipt.logs) {
+            try { const parsed = iface.parseLog(log); if (parsed.name === 'ShellPlayed') { playedEvent = parsed.args; break; } } catch {}
           }
-        } catch (e) {}
+        }
+      } catch {}
+      // Fallback: AA paths sometimes return minimal logs; scan nearby blocks for our event from this contract and player
+      if (!playedEvent) {
+        try {
+          const player = (userAddress || '').toLowerCase();
+          const topic0 = iface.getEventTopic('ShellPlayed');
+          const fromBlock = Math.max(0, (receipt?.blockNumber || (await provider.getBlockNumber())) - 2);
+          const toBlock = receipt?.blockNumber || fromBlock + 2;
+          const logs = await provider.getLogs({ address: tavernAddress, fromBlock, toBlock, topics: [topic0] }).catch(()=>[]);
+          for (const lg of logs) {
+            try {
+              const parsed = iface.parseLog(lg);
+              const pAddr = (parsed?.args?.player || '').toString().toLowerCase();
+              if (parsed.name === 'ShellPlayed' && (!player || pAddr === player)) { playedEvent = parsed.args; break; }
+            } catch {}
+          }
+        } catch {}
       }
 
       if (!playedEvent) {
