@@ -523,24 +523,32 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
       const ctx = await ensureDelegationToolkitContext();
       if (!ctx || !ctx.walletClient || !ctx.publicClient) { console.warn('[aaClient] toolkit context unavailable'); return null; }
       async function loadDelegationVendor() {
-        // Try local file via fetch+Blob to avoid MIME issues
+        const tag = encodeURIComponent(window.__BUILD_TAG || Date.now());
+        const directImports = [
+          `/js/vendor/metamask-delegation-toolkit-latest.mjs?v=${tag}`,
+          `/js/vendor/metamask-delegation-toolkit-latest.js?v=${tag}`
+        ];
+        for (const path of directImports) {
+          try { return await import(/* @vite-ignore */ path); } catch {}
+        }
+        // Try local fetch+Blob in case the direct import failed due to MIME
+        const fetchPaths = [
+          '/js/vendor/metamask-delegation-toolkit-latest.mjs',
+          '/js/vendor/metamask-delegation-toolkit-latest.js'
+        ];
+        for (const path of fetchPaths) {
+          try {
+            const res = await fetch(path, { cache: 'no-store' });
+            if (res && res.ok) {
+              const code = await res.text();
+              const url = URL.createObjectURL(new Blob([code], { type: 'text/javascript' }));
+              try { return await import(/* @vite-ignore */ url); } finally { URL.revokeObjectURL(url); }
+            }
+          } catch {}
+        }
+        // Final fallback: CDN
         try {
-          const res = await fetch('/js/vendor/metamask-delegation-toolkit-latest.mjs', { cache: 'no-store' });
-          if (res && res.ok) {
-            const code = await res.text();
-            const url = URL.createObjectURL(new Blob([code], { type: 'text/javascript' }));
-            try { return await import(/* @vite-ignore */ url); } finally { URL.revokeObjectURL(url); }
-          }
-        } catch {}
-        // Fallback to CDN
-        try {
-          const cdn = 'https://cdn.jsdelivr.net/npm/@metamask/delegation-toolkit@0.13.0/dist/index.mjs';
-          const res2 = await fetch(cdn, { cache: 'no-store' });
-          if (res2 && res2.ok) {
-            const code2 = await res2.text();
-            const url2 = URL.createObjectURL(new Blob([code2], { type: 'text/javascript' }));
-            try { return await import(/* @vite-ignore */ url2); } finally { URL.revokeObjectURL(url2); }
-          }
+          return await import(/* @vite-ignore */ 'https://cdn.jsdelivr.net/npm/@metamask/delegation-toolkit@0.13.0/dist/index.mjs');
         } catch {}
         return null;
       }
