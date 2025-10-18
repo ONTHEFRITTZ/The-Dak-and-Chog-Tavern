@@ -524,16 +524,13 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
       if (!ctx || !ctx.walletClient || !ctx.publicClient) { console.warn('[aaClient] toolkit context unavailable'); return null; }
       async function loadDelegationVendor() {
         const tag = encodeURIComponent(window.__BUILD_TAG || Date.now());
-        const directSources = [`/js/vendor/metamask-delegation-toolkit-latest.bundle.mjs?v=${tag}`];
-        for (const src of directSources) {
-          try { return await import(/* @vite-ignore */ src); } catch (err) { console.warn('[aaClient] delegation toolkit direct import failed', src, err); }
-        }
-        const fetchSources = [
+        const sources = [
+          `/js/vendor/metamask-delegation-toolkit-latest.bundle.mjs?v=${tag}`,
           'https://cdn.jsdelivr.net/npm/@metamask/delegation-toolkit@0.13.0/dist/index.mjs',
           'https://esm.sh/@metamask/delegation-toolkit@0.13.0?bundle',
           'https://cdn.skypack.dev/@metamask/delegation-toolkit@0.13.0?min'
         ];
-        for (const src of fetchSources) {
+        for (const src of sources) {
           try {
             const res = await fetch(src, { cache: 'no-store', mode: 'cors' });
             if (!res || !res.ok) throw new Error(String(res && res.status));
@@ -685,6 +682,7 @@ try {
     window.getSmartAccountAddress = getSmartAccountAddress;
   }
 } catch {}
+
 
 
 
