@@ -505,6 +505,8 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
   const web3 = new ethers.providers.Web3Provider(injected, 'any');
   const signer = web3.getSigner();
   const address = (await signer.getAddress()).toLowerCase();
+  const aaBundlerEndpoint = bundlerUrl || MONAD_BUNDLER_RPC;
+  const aaPaymasterEndpoint = paymasterUrl || ZD_PAYMASTER_RPC;
   async function sendViaAA(tx){
     const to = tx.to;
     const data = ensureHexData(tx.data);
@@ -750,6 +752,93 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
         paymasterPostOpGasLimit: 0n
       };
       const chainNumeric = Number(chainId || MONAD.id);
+      const toHexValue = (v) => {
+        try {
+          if (typeof v === 'string' && /^0x[0-9a-fA-F]+$/.test(v)) return v;
+          if (typeof v === 'number') return '0x' + BigInt(v).toString(16);
+          if (typeof v === 'bigint') return '0x' + v.toString(16);
+          if (v && typeof v.toHexString === 'function') return v.toHexString();
+        } catch {}
+        return undefined;
+      };
+      const toBigValue = (val) => {
+        if (val == null) return undefined;
+        if (typeof val === 'bigint') return val;
+        if (typeof val === 'number') return BigInt(val);
+        if (typeof val === 'string') {
+          try { return BigInt(val); } catch { return undefined; }
+        }
+        return undefined;
+      };
+      const toRpcUserOp = (op) => ({
+        sender: op.sender,
+        nonce: toHexValue(op.nonce) || '0x0',
+        factory: op.factory,
+        factoryData: op.factoryData,
+        callData: op.callData,
+        callGasLimit: toHexValue(op.callGasLimit) || '0x0',
+        verificationGasLimit: toHexValue(op.verificationGasLimit) || '0x0',
+        preVerificationGas: toHexValue(op.preVerificationGas) || '0x0',
+        maxFeePerGas: toHexValue(op.maxFeePerGas) || '0x0',
+        maxPriorityFeePerGas: toHexValue(op.maxPriorityFeePerGas) || '0x0',
+        paymaster: op.paymaster,
+        paymasterData: op.paymasterData || '0x',
+        paymasterVerificationGasLimit: op.paymasterVerificationGasLimit != null ? toHexValue(op.paymasterVerificationGasLimit) : undefined,
+        paymasterPostOpGasLimit: op.paymasterPostOpGasLimit != null ? toHexValue(op.paymasterPostOpGasLimit) : undefined,
+        signature: op.signature
+      });
+      let rpcUserOp = toRpcUserOp(unsignedOp);
+      const sponsorResponse = async () => {
+        if (!aaPaymasterEndpoint) return null;
+        try {
+          const body = {
+            jsonrpc: '2.0',
+            id: Date.now(),
+            method: 'pm_sponsorUserOperation',
+            params: [rpcUserOp, { entryPoint: entryPointAddress, chainId: toHex(chainNumeric) }]
+          };
+          const res = await fetch(aaPaymasterEndpoint, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(body)
+          }).catch((err) => ({ __err: err }));
+          if (!res || res.__err) throw res && res.__err || new Error('paymaster_http_error');
+          const payload = await res.json();
+          if (payload?.error) {
+            const err = new Error(payload.error.message || 'paymaster_error');
+            err.data = payload.error;
+            throw err;
+          }
+          return payload?.result || null;
+        } catch (err) {
+          console.warn('[aaClient] paymaster sponsorship failed', err);
+          return null;
+        }
+      };
+      const sponsorship = await sponsorResponse();
+      if (sponsorship) {
+        if (typeof sponsorship.paymaster === 'string') {
+          unsignedOp.paymaster = sponsorship.paymaster;
+        }
+        if (typeof sponsorship.paymasterData === 'string') {
+          unsignedOp.paymasterData = sponsorship.paymasterData;
+        } else if (typeof sponsorship.paymasterAndData === 'string' && sponsorship.paymasterAndData.length >= 42) {
+          unsignedOp.paymaster = '0x' + sponsorship.paymasterAndData.slice(2, 42);
+          unsignedOp.paymasterData = '0x' + sponsorship.paymasterAndData.slice(42);
+        }
+        const maybeAssign = (key, value) => {
+          const big = toBigValue(value);
+          if (big != null) unsignedOp[key] = big;
+        };
+        maybeAssign('preVerificationGas', sponsorship.preVerificationGasHex || sponsorship.preVerificationGas);
+        maybeAssign('verificationGasLimit', sponsorship.verificationGasLimitHex || sponsorship.verificationGasLimit);
+        maybeAssign('callGasLimit', sponsorship.callGasLimitHex || sponsorship.callGasLimit);
+        maybeAssign('maxFeePerGas', sponsorship.maxFeePerGasHex || sponsorship.maxFeePerGas);
+        maybeAssign('maxPriorityFeePerGas', sponsorship.maxPriorityFeePerGasHex || sponsorship.maxPriorityFeePerGas);
+        maybeAssign('paymasterVerificationGasLimit', sponsorship.verificationGasLimit);
+        maybeAssign('paymasterPostOpGasLimit', sponsorship.postOpGasLimit);
+        rpcUserOp = toRpcUserOp(unsignedOp);
+      }
       const actionSigner = (typeof vendor.signUserOperationActions === 'function')
         ? vendor.signUserOperationActions()(ctx.walletClient)
         : null;
@@ -784,46 +873,11 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
         return null;
       }
       let uo = { ...unsignedOp, signature: signedOpSignature };
-      const toHex = (v) => {
-        try {
-          if (typeof v === 'string' && /^0x[0-9a-fA-F]+$/.test(v)) return v;
-          if (typeof v === 'number') return '0x' + BigInt(v).toString(16);
-          if (typeof v === 'bigint') return '0x' + v.toString(16);
-          if (v && typeof v.toHexString === 'function') return v.toHexString();
-        } catch {}
-        return undefined;
-      };
-      const toRpcUserOp = (op) => ({
-        sender: op.sender,
-        nonce: toHex(op.nonce) || '0x0',
-        factory: op.factory,
-        factoryData: op.factoryData,
-        callData: op.callData,
-        callGasLimit: toHex(op.callGasLimit) || '0x0',
-        verificationGasLimit: toHex(op.verificationGasLimit) || '0x0',
-        preVerificationGas: toHex(op.preVerificationGas) || '0x0',
-        maxFeePerGas: toHex(op.maxFeePerGas) || '0x0',
-        maxPriorityFeePerGas: toHex(op.maxPriorityFeePerGas) || '0x0',
-        paymaster: op.paymaster,
-        paymasterData: op.paymasterData || '0x',
-        paymasterVerificationGasLimit: op.paymasterVerificationGasLimit != null ? toHex(op.paymasterVerificationGasLimit) : undefined,
-        paymasterPostOpGasLimit: op.paymasterPostOpGasLimit != null ? toHex(op.paymasterPostOpGasLimit) : undefined,
-        signature: op.signature
-      });
-      let rpcUserOp = toRpcUserOp(uo);
-      const toBig = (val) => {
-        if (val == null) return undefined;
-        if (typeof val === 'bigint') return val;
-        if (typeof val === 'number') return BigInt(val);
-        if (typeof val === 'string') {
-          try { return BigInt(val); } catch { return undefined; }
-        }
-        return undefined;
-      };
+      rpcUserOp = toRpcUserOp(uo);
       // Helper for bundler RPC
       async function rpcCall(method, params){
         const body = { jsonrpc: '2.0', id: Date.now(), method, params };
-        const res = await fetch(MONAD_BUNDLER_RPC, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }).catch((e)=>({ __err:e }));
+        const res = await fetch(aaBundlerEndpoint, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }).catch((e)=>({ __err:e }));
         if (!res || res.__err) throw res && res.__err || new Error('bundler_http_error');
         let payload = null; try { payload = await res.json(); } catch { payload = null; }
         if (!payload) throw new Error('bundler_bad_json');
@@ -838,9 +892,9 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
           const cg = est.callGasLimitHex || est.callGasLimit || est.callGas || est.callGasHex;
           const vg = est.verificationGasLimitHex || est.verificationGasLimit || est.verificationGas;
           const pg = est.preVerificationGasHex || est.preVerificationGas;
-          const cgBig = toBig(cg);
-          const vgBig = toBig(vg);
-          const pgBig = toBig(pg);
+          const cgBig = toBigValue(cg);
+          const vgBig = toBigValue(vg);
+          const pgBig = toBigValue(pg);
           if (cgBig != null) uo.callGasLimit = cgBig;
           if (vgBig != null) uo.verificationGasLimit = vgBig;
           if (pgBig != null) uo.preVerificationGas = pgBig;
@@ -852,8 +906,8 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
       try {
         const feeData = ctx.publicClient.getFeeData ? await ctx.publicClient.getFeeData() : null;
         if (feeData) {
-          const maxFee = toBig(feeData.maxFeePerGas || feeData.gasPrice);
-          const maxPriority = toBig(feeData.maxPriorityFeePerGas || feeData.maxFeePerGas || feeData.gasPrice);
+          const maxFee = toBigValue(feeData.maxFeePerGas || feeData.gasPrice);
+          const maxPriority = toBigValue(feeData.maxPriorityFeePerGas || feeData.maxFeePerGas || feeData.gasPrice);
           if (maxFee != null) uo.maxFeePerGas = maxFee;
           if (maxPriority != null) uo.maxPriorityFeePerGas = maxPriority;
           rpcUserOp = toRpcUserOp(uo);
