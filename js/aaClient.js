@@ -548,6 +548,7 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
           }
         };
         const sources = [
+          withTag('/js/vendor/delegation-toolkit-shim.mjs'),
           withTag('/js/vendor/metamask-delegation-toolkit-latest.bundle.mjs'),
           withTag('/js/vendor/metamask-delegation-toolkit.mjs'),
           withTag('/js/vendor/metamask-delegation-toolkit-esm.mjs'),
@@ -558,18 +559,19 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
         for (const src of sources) {
           const resolved = toUrl(src);
           try {
-            if (/^https?:/i.test(resolved) && !resolved.startsWith(window.location.origin)) {
-              return await import(/* @vite-ignore */ resolved);
+            return await import(/* @vite-ignore */ resolved);
+          } catch (directErr) {
+            try {
+              const res = await fetch(resolved, { cache: 'no-store', mode: 'cors' });
+              if (!res || !res.ok) throw new Error(String(res && res.status));
+              const code = await res.text();
+              const blob = new Blob([code], { type: 'text/javascript' });
+              const url = URL.createObjectURL(blob);
+              try { return await import(/* @vite-ignore */ url); }
+              finally { URL.revokeObjectURL(url); }
+            } catch (err) {
+              console.warn('[aaClient] delegation toolkit fetch import failed', resolved, err);
             }
-            const res = await fetch(resolved, { cache: 'no-store', mode: 'cors' });
-            if (!res || !res.ok) throw new Error(String(res && res.status));
-            const code = await res.text();
-            const blob = new Blob([code], { type: 'text/javascript' });
-            const url = URL.createObjectURL(blob);
-            try { return await import(/* @vite-ignore */ url); }
-            finally { URL.revokeObjectURL(url); }
-          } catch (err) {
-            console.warn('[aaClient] delegation toolkit fetch import failed', resolved, err);
           }
         }
         return null;
