@@ -574,10 +574,28 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
         console.warn('[aaClient] delegation toolkit implementation unavailable');
         return null;
       }
-      const environment = (() => {
-        try { return vendor.getDeleGatorEnvironment ? vendor.getDeleGatorEnvironment(chainId) : ctx.environment; }
-        catch { return ctx.environment; }
-      })() || ctx.environment;
+      const mergeEnvironments = (preferred, fallback) => {
+        const base = fallback || {};
+        const extra = preferred || {};
+        return {
+          ...base,
+          ...extra,
+          implementations: { ...(base.implementations || {}), ...(extra.implementations || {}) },
+          caveatEnforcers: { ...(base.caveatEnforcers || {}), ...(extra.caveatEnforcers || {}) }
+        };
+      };
+      let vendorEnvironment = null;
+      try {
+        vendorEnvironment = vendor.getDeleGatorEnvironment ? vendor.getDeleGatorEnvironment(chainId) : null;
+      } catch (envErr) {
+        console.warn('[aaClient] getDeleGatorEnvironment failed', envErr);
+      }
+      const environment = mergeEnvironments(vendorEnvironment, ctx.environment);
+      if (!environment || !environment.EntryPoint || !environment.SimpleFactory) {
+        console.warn('[aaClient] delegation environment incomplete', environment);
+        return null;
+      }
+      try { ctx.environment = environment; } catch {}
       const signer = implementation === implementations.MultiSig
         ? [{ walletClient: ctx.walletClient }]
         : { walletClient: ctx.walletClient };
