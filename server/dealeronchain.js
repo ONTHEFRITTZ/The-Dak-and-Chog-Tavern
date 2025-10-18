@@ -16,7 +16,8 @@ const HOLDEN_POKER_ADDR = process.env.HOLDEM_POKER_ADDR ||
   '0x3352060b4fBcAC18499390643703957E28e128fd';
 const DEALER_PK = process.env.POKER_DEALER_PK || process.env.DEALER_PRIVATE_KEY || null;
 
-const provider = ethers ? new ethers.JsonRpcProvider(RPC_URL) : null;
+const ProviderClass = ethers?.providers?.JsonRpcProvider || null;
+const provider = ProviderClass ? new ProviderClass(RPC_URL) : null;
 let signer = null;
 
 const HoldemPokerABI = [
