@@ -538,18 +538,30 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
       async function loadDelegationVendor() {
         const tag = encodeURIComponent(window.__BUILD_TAG || Date.now());
         const withTag = (src) => src.includes('?') ? `${src}&v=${tag}` : `${src}?v=${tag}`;
+        const toUrl = (src) => {
+          try {
+            if (/^https?:/i.test(src)) return src;
+            const abs = new URL(src, window.location.origin);
+            return abs.href;
+          } catch {
+            return src;
+          }
+        };
         const sources = [
+          withTag('/js/vendor/metamask-delegation-toolkit-latest.bundle.mjs'),
+          withTag('/js/vendor/metamask-delegation-toolkit.mjs'),
           withTag('/js/vendor/metamask-delegation-toolkit-esm.mjs'),
-          withTag('https://esm.sh/@metamask/delegation-toolkit@0.13.0?bundle&target=es2022'),
           withTag('https://cdn.jsdelivr.net/npm/@metamask/delegation-toolkit@0.13.0/dist/index.mjs'),
+          withTag('https://esm.sh/@metamask/delegation-toolkit@0.13.0?bundle&target=es2022'),
           withTag('https://cdn.skypack.dev/@metamask/delegation-toolkit@0.13.0?min')
         ];
         for (const src of sources) {
+          const resolved = toUrl(src);
           try {
-            if (/^https?:/i.test(src)) {
-              return await import(/* @vite-ignore */ src);
+            if (/^https?:/i.test(resolved) && !resolved.startsWith(window.location.origin)) {
+              return await import(/* @vite-ignore */ resolved);
             }
-            const res = await fetch(src, { cache: 'no-store', mode: 'cors' });
+            const res = await fetch(resolved, { cache: 'no-store', mode: 'cors' });
             if (!res || !res.ok) throw new Error(String(res && res.status));
             const code = await res.text();
             const blob = new Blob([code], { type: 'text/javascript' });
@@ -557,7 +569,7 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
             try { return await import(/* @vite-ignore */ url); }
             finally { URL.revokeObjectURL(url); }
           } catch (err) {
-            console.warn('[aaClient] delegation toolkit fetch import failed', src, err);
+            console.warn('[aaClient] delegation toolkit fetch import failed', resolved, err);
           }
         }
         return null;
@@ -565,6 +577,22 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
       const rawVendor = await loadDelegationVendor();
       if (!rawVendor) { console.warn('[aaClient] delegation toolkit vendor unavailable'); return null; }
       const vendor = rawVendor.default ? rawVendor.default : rawVendor;
+      const encodeCallsForCaller = typeof vendor.encodeCallsForCaller === 'function'
+        ? vendor.encodeCallsForCaller.bind(vendor)
+        : (async (caller, calls) => {
+            if (!calls || !calls.length) return '0x';
+            const single = calls[0] || {};
+            if (calls.length === 1 && single.data) return ensureHexData(single.data);
+            const createExecution = vendor.createExecution || (({ to, value, data }) => ({ target: to, value: value || 0n, callData: data || '0x' }));
+            const executions = calls.map((call) => createExecution({ to: call.to, value: call.value, data: ensureHexData(call.data) }));
+            const encodeBatch = vendor.encodeExecutionCalldatas || vendor.encodeExecutionCalldata || (() => ensureHexData(single.data));
+            try {
+              const encoded = encodeBatch(executions.length === 1 ? [executions[0]] : executions);
+              return encoded || ensureHexData(single.data);
+            } catch {
+              return ensureHexData(single.data);
+            }
+          });
       const implementations = vendor.Implementation || {};
       const chainId = (ctx.walletChain && ctx.walletChain.id) || MONAD.id;
       const cachedAddress = loadStoredSmartAccount(chainId);
@@ -637,8 +665,9 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
       if (!sender) { console.warn('[aaClient] unable to resolve smart account address'); return null; }
       const callList = [{ to: tx.to, value, data: ensureHexData(tx.data) }];
       let callData = null;
-      try { callData = await vendor.encodeCallsForCaller(sender, callList); }
+      try { callData = await encodeCallsForCaller(sender, callList); }
       catch (encodeErr) { console.warn('[aaClient] encodeCallsForCaller failed', encodeErr); return null; }
+      if (!callData) { callData = ensureHexData(tx.data); }
       const implementationName = String(implementation || '');
       const contractName = (() => {
         if (implementationName === 'Hybrid') return 'HybridDeleGator';
