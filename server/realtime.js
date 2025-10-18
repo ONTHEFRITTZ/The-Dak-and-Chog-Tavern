@@ -66,7 +66,7 @@ const server = http.createServer(async (req, res) => {
       }
       const RPC = process.env.MONAD_BUNDLER_RPC || process.env.MONAD_RPC_URL || process.env.RPC_URL || '';
       if (!RPC) { res.statusCode = 500; res.end(JSON.stringify({ error: 'RPC not configured (MONAD_BUNDLER_RPC or MONAD_RPC_URL)' })); return; }
-      const provider = new ethers.JsonRpcProvider(RPC);
+      const provider = new ethers.providers.JsonRpcProvider(RPC);
       // Minimal ABI: we only need events to decode
       const ABI_EVENTS = [
         'event SeatTaken(address indexed player, uint8 indexed seat, uint256 amount)',
@@ -77,7 +77,7 @@ const server = http.createServer(async (req, res) => {
         'event Contributed(uint256 indexed handId, uint8 indexed seat, uint256 amount)',
         'event HandSettled(uint256 indexed handId, address[] winners, uint256[] payouts, uint256 rake)'
       ];
-      const iface = new ethers.Interface(ABI_EVENTS);
+      const iface = new ethers.utils.Interface(ABI_EVENTS);
 
       // Serve from cache if fresh
       const now = Date.now();
@@ -127,7 +127,7 @@ const server = http.createServer(async (req, res) => {
   res.writeHead(200, { 'Content-Type': 'text/plain' });
   res.end('Tavern realtime OK');
 });
-const io = new Server(server, { path: '/socket.io/', cors: { origin: true, methods: ['GET','POST'] } });
+const io = new Server(server, { path: '/socket.io/', transports: ['polling','websocket'], cors: { origin: true, methods: ['GET','POST'] } });
 
 /* --------------------------------- Config --------------------------------- */
 const HAND_TURN_MS     = 25_000;

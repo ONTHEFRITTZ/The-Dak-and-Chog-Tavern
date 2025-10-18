@@ -14,13 +14,13 @@ const { buildContracts, connectPokerTable } = require('./dcmon/contracts');
 
 const formatEther = (value) => {
   try {
-    return ethers.formatEther(value);
+    return ethers.utils.formatEther(value);
   } catch {
     return value?.toString?.() || String(value);
   }
 };
 
-const MAX_UINT = ethers.MaxUint256;
+const MAX_UINT = ethers.constants.MaxUint256;
 
 let cachedProvider = null;
 let cachedSigner = null;
@@ -34,7 +34,7 @@ function getProvider() {
     logger.warn('No RPC URL configured (DCMON_RPC_URL)');
     return null;
   }
-  cachedProvider = new ethers.JsonRpcProvider(CONFIG.rpcUrl);
+  cachedProvider = new ethers.providers.JsonRpcProvider(CONFIG.rpcUrl);
   return cachedProvider;
 }
 
@@ -429,7 +429,7 @@ function parseQueueAmount(value) {
   try {
     if (str.startsWith('0x')) return BigInt(str);
     if (/^\d+$/.test(str)) return BigInt(str);
-    return ethers.parseEther(str);
+    return ethers.utils.parseEther(str);
   } catch {
     logger.warn({ value }, 'Unable to parse swap queue amount');
     return 0n;
@@ -439,7 +439,7 @@ function parseQueueAmount(value) {
 function normalizeAddress(address, fallback) {
   if (!address) return fallback;
   try {
-    return ethers.getAddress(address);
+    return ethers.utils.getAddress(address);
   } catch {
     logger.warn({ address }, 'Invalid address provided; using fallback');
     return fallback;
