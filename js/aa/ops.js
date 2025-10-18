@@ -4,7 +4,6 @@
 
 import { ethers } from '../tavern.js';
 import { getSmartAccount } from '../tavern.js';
-import { loadDelegation, ensureDelegationActive, nowSec, isDelegationSuppressed } from './delegation.js';
 import { ensureDelegationToolkitContext } from './toolkit.js';
 
 function resolveBuildTag() {
