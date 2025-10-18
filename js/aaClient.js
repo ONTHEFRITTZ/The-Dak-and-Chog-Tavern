@@ -1,6 +1,7 @@
 // aa-client.js — minimal AA/session-key client w/ budget guardrails (onchain mode only)
 // Works with your importmap (viem/permissionless) if present; otherwise falls back to injected.
 import { MONAD, AA_FEATURES, getPokerTableAddress, MONAD_BUNDLER_RPC, ZD_PAYMASTER_RPC } from './aa/config.js';
+import { MONAD_DELEGATION_ENV } from './aa/delegation-config.js';
 import { ethers } from './tavern.js';
 import { ensureDelegationToolkitContext } from './aa/toolkit.js';
 import { detectBundler, walletSendCalls, extractTxHash } from './bundler.js';
@@ -623,11 +624,31 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
       } catch (envErr) {
         console.warn('[aaClient] getDeleGatorEnvironment failed', envErr);
       }
-      const environment = mergeEnvironments(vendorEnvironment, ctx.environment);
-      if (!environment || !environment.EntryPoint || !environment.SimpleFactory) {
-        console.warn('[aaClient] delegation environment incomplete', environment);
+      const baseEnvironment = ctx.environment || {};
+      const environment = mergeEnvironments(vendorEnvironment, baseEnvironment);
+      const fallbackEnvironment = MONAD_DELEGATION_ENV || {};
+      const entryPointAddress =
+        environment.EntryPoint ||
+        baseEnvironment.EntryPoint ||
+        fallbackEnvironment.EntryPoint ||
+        '0x0000000071727De22E5E9d8BAf0edAc6f37da032';
+      const simpleFactoryAddress =
+        environment.SimpleFactory ||
+        baseEnvironment.SimpleFactory ||
+        fallbackEnvironment.SimpleFactory ||
+        null;
+      const delegationManagerAddress =
+        environment.DelegationManager ||
+        baseEnvironment.DelegationManager ||
+        fallbackEnvironment.DelegationManager ||
+        null;
+      if (!entryPointAddress || !simpleFactoryAddress) {
+        console.warn('[aaClient] delegation environment incomplete', { entryPointAddress, simpleFactoryAddress, environment });
         return null;
       }
+      environment.EntryPoint = entryPointAddress;
+      environment.SimpleFactory = simpleFactoryAddress;
+      if (delegationManagerAddress) environment.DelegationManager = delegationManagerAddress;
       try { ctx.environment = environment; } catch {}
       const signer = implementation === implementations.MultiSig
         ? [{ walletClient: ctx.walletClient }]
