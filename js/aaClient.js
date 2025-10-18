@@ -525,7 +525,7 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
       async function loadDelegationVendor() {
         const tag = encodeURIComponent(window.__BUILD_TAG || Date.now());
         const sources = [
-          `/js/vendor/metamask-delegation-toolkit.mjs?v=${tag}`,
+          `/js/vendor/metamask-delegation-toolkit-esm.mjs?v=${tag}`,
           'https://cdn.jsdelivr.net/npm/@metamask/delegation-toolkit@0.13.0/dist/index.mjs',
           'https://esm.sh/@metamask/delegation-toolkit@0.13.0?bundle',
           'https://cdn.skypack.dev/@metamask/delegation-toolkit@0.13.0?min'
@@ -682,6 +682,7 @@ try {
     window.getSmartAccountAddress = getSmartAccountAddress;
   }
 } catch {}
+
 
 
 
