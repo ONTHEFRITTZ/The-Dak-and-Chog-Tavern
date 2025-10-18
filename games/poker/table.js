@@ -226,13 +226,17 @@ function initializePokerTable() {
   // Seat selection + center sit handler (scoped here to access locals)
   async function pickPreferredSeatIndex() {
     const total = seats.length || 6;
+    // Prefer bottom visually first, then closest neighbors clockwise/counter.
     const order = (total >= 6) ? [3,2,4,1,5,0].slice(0,total) : Array.from({length: total}, (_,i)=>i);
     if (!isOnchainTable) return order[0] || 0;
     try {
       const adapter = await getOnchainAdapter();
       if (!adapter || typeof adapter.readSeatOwnerLower !== 'function') return order[0] || 0;
       for (const idx of order) {
-        try { const owner = await adapter.readSeatOwnerLower(idx); if (!owner || owner === ZERO_ADDR) return idx; } catch {}
+        try {
+          const owner = await adapter.readSeatOwnerLower(idx);
+          if (!owner || owner === ZERO_ADDR) return idx;
+        } catch {}
       }
     } catch {}
     return order[0] || 0;
@@ -282,14 +286,42 @@ function initializePokerTable() {
       if (isOnchainTable) {
         const adapter = await getOnchainAdapter();
         if (!adapter) { alert(describeAdapterError()); return; }
-        await adapter.joinSeat(seatIdx);
+        // Try preferred, then neighbors if taken (robust join flow)
+        const total = seats.length || 6;
+        const order = (total >= 6) ? [3,2,4,1,5,0].slice(0,total) : Array.from({length: total}, (_,i)=>i);
+        let joined = false; let chosen = seatIdx;
+        for (const idx of order) {
+          const target = (idx === seatIdx) ? idx : idx; // keep order
+          try {
+            // Skip clearly occupied seats when we can read
+            if (typeof adapter.readSeatOwnerLower === 'function') {
+              try { const o = await adapter.readSeatOwnerLower(target); if (o && o !== ZERO_ADDR) continue; } catch {}
+            }
+            await adapter.joinSeat(target);
+            chosen = target; joined = true; break;
+          } catch (err) {
+            const msg = String(err?.message||'').toLowerCase();
+            const code = err && (err.code || err?.data?.code);
+            if (code === 'seat_taken' || msg.includes('seat') && msg.includes('taken')) {
+              continue; // try next seat
+            }
+            // For user cancel, stop trying silently
+            if (code === 4001 || String(code).toUpperCase() === 'ACTION_REJECTED' || msg.includes('user denied') || msg.includes('user rejected')) {
+              return;
+            }
+            // Otherwise, try next
+          }
+        }
+        if (!joined) { alert('No seats available right now.'); return; }
         // Inform server for UI sync and set optimistic local seat state
-        emitSocket('seat', { index: seatIdx });
-        mySeat = seatIdx;
+        emitSocket('seat', { index: chosen });
+        mySeat = chosen;
+        try { positionSeats(); } catch {}
+        // Inform server for UI sync and set optimistic local seat state
         try { if (seatMeta[seatIdx]?.nameEl || seatMeta[seatIdx]?.addr) {
           const uname = nameGet().slice(0,12);
-          if (seatMeta[seatIdx].addr) seatMeta[seatIdx].addr.textContent = uname || 'Player';
-          if (seatMeta[seatIdx].nameEl) seatMeta[seatIdx].nameEl.textContent = ''; }
+          if (seatMeta[chosen].addr) seatMeta[chosen].addr.textContent = uname || 'Player';
+          if (seatMeta[chosen].nameEl) seatMeta[chosen].nameEl.textContent = ''; }
         } catch {}
       } else {
         emitSocket('seat', { index: seatIdx });
