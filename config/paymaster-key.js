@@ -1,7 +1,15 @@
-// Runtime-loaded ZeroDev project key. Replace the placeholder value on the server.
+// Runtime-loaded ZeroDev paymaster credentials.
+// Replace these placeholder values on the server (they are intentionally blank in source control).
 // Example deployment command:
-//   echo "window.ZD_API_KEY = 'YOUR_ZERO_DEV_PROJECT_KEY';" > /path/to/config/paymaster-key.js
-
-window.ZD_API_KEY = 'REPLACE_WITH_ZERO_DEV_PROJECT_KEY';
-
-window.ZD_PAYMASTER_RPC = '';
+//   cat <<'EOF' > /var/www/thedakandchog.xyz/secrets/paymaster-key.js
+//   (function () {
+//     if (typeof window === 'undefined') return;
+//     window.ZD_PAYMASTER_RPC = 'https://rpc.zerodev.app/api/v3/<project>/paymaster/<policy>/rpc?selfFunded=true';
+//     window.ZD_API_KEY = '<your-zero-dev-api-key>';
+//   })();
+//   EOF
+(function () {
+  if (typeof window === 'undefined') return;
+  window.ZD_PAYMASTER_RPC = '';
+  window.ZD_API_KEY = '';
+})();
