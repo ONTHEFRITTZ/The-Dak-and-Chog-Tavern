@@ -4,3 +4,4 @@
 
 window.ZD_API_KEY = 'REPLACE_WITH_ZERO_DEV_PROJECT_KEY';
 
+window.ZD_PAYMASTER_RPC = '';
