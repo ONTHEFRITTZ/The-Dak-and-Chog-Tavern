@@ -921,7 +921,7 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
         };
         const sponsorOptions = { chainId: chainHexId };
         const policyId = resolvePolicyId();
-        if (policyId) sponsorOptions.sponsorshipPolicyId = policyId;
+        if (policyId) sponsorOptions.policyId = policyId;
         const body = {
           jsonrpc: '2.0',
           id: Date.now(),
