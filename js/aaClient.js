@@ -1,6 +1,6 @@
 // aa-client.js — minimal AA/session-key client w/ budget guardrails (onchain mode only)
 // Works with your importmap (viem/permissionless) if present; otherwise falls back to injected.
-import { MONAD, AA_FEATURES, getPokerTableAddress, MONAD_BUNDLER_RPC, ZD_PAYMASTER_RPC, ZD_API_KEY } from './aa/config.js';
+import { MONAD, AA_FEATURES, getPokerTableAddress, MONAD_BUNDLER_RPC, ZD_PAYMASTER_RPC, ZD_API_KEY, PAYMASTER_ADDRESS } from './aa/config.js';
 import { MONAD_DELEGATION_ENV } from './aa/delegation-config.js';
 import { ethers } from './tavern.js';
 import { ensureDelegationToolkitContext } from './aa/toolkit.js';
@@ -792,60 +792,7 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
         signature: op.signature
       });
       let rpcUserOp = toRpcUserOp(unsignedOp);
-      const sponsorResponse = async () => {
-        if (!aaPaymasterEndpoint) return null;
-        try {
-          const body = {
-            jsonrpc: '2.0',
-            id: Date.now(),
-            method: 'pm_sponsorUserOperation',
-            params: [rpcUserOp, { entryPoint: entryPointAddress, chainId: toHex(chainNumeric) }]
-          };
-          const headers = { 'content-type': 'application/json' };
-          if (ZD_API_KEY) headers['x-api-key'] = ZD_API_KEY;
-          const res = await fetch(aaPaymasterEndpoint, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify(body)
-          }).catch((err) => ({ __err: err }));
-          if (!res || res.__err) throw res && res.__err || new Error('paymaster_http_error');
-          const payload = await res.json();
-          if (payload?.error) {
-            const err = new Error(payload.error.message || 'paymaster_error');
-            err.data = payload.error;
-            throw err;
-          }
-          return payload?.result || null;
-        } catch (err) {
-          console.warn('[aaClient] paymaster sponsorship failed', err);
-          return null;
-        }
-      };
-      const sponsorship = await sponsorResponse();
-      if (sponsorship) {
-        if (typeof sponsorship.paymaster === 'string') {
-          unsignedOp.paymaster = sponsorship.paymaster;
-        }
-        if (typeof sponsorship.paymasterData === 'string') {
-          unsignedOp.paymasterData = sponsorship.paymasterData;
-        } else if (typeof sponsorship.paymasterAndData === 'string' && sponsorship.paymasterAndData.length >= 42) {
-          unsignedOp.paymaster = '0x' + sponsorship.paymasterAndData.slice(2, 42);
-          unsignedOp.paymasterData = '0x' + sponsorship.paymasterAndData.slice(42);
-        }
-        const maybeAssign = (key, value) => {
-          const big = toBigValue(value);
-          if (big != null) unsignedOp[key] = big;
-        };
-        maybeAssign('preVerificationGas', sponsorship.preVerificationGasHex || sponsorship.preVerificationGas);
-        maybeAssign('verificationGasLimit', sponsorship.verificationGasLimitHex || sponsorship.verificationGasLimit);
-        maybeAssign('callGasLimit', sponsorship.callGasLimitHex || sponsorship.callGasLimit);
-        maybeAssign('maxFeePerGas', sponsorship.maxFeePerGasHex || sponsorship.maxFeePerGas);
-        maybeAssign('maxPriorityFeePerGas', sponsorship.maxPriorityFeePerGasHex || sponsorship.maxPriorityFeePerGas);
-        maybeAssign('paymasterVerificationGasLimit', sponsorship.verificationGasLimit);
-        maybeAssign('paymasterPostOpGasLimit', sponsorship.postOpGasLimit);
-        rpcUserOp = toRpcUserOp(unsignedOp);
-      }
-      const actionSigner = (typeof vendor.signUserOperationActions === 'function')
+const actionSigner = (typeof vendor.signUserOperationActions === 'function')
         ? vendor.signUserOperationActions()(ctx.walletClient)
         : null;
       const signUserOperationFn = actionSigner && typeof actionSigner.signUserOperation === 'function'
@@ -997,6 +944,7 @@ try {
     window.getSmartAccountAddress = getSmartAccountAddress;
   }
 } catch {}
+
 
 
 
