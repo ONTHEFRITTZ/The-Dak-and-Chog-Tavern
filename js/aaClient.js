@@ -5,7 +5,7 @@ import { MONAD_DELEGATION_ENV } from './aa/delegation-config.js';
 import { ethers } from './tavern.js';
 import { ensureDelegationToolkitContext } from './aa/toolkit.js';
 import { detectBundler, walletSendCalls, extractTxHash } from './bundler.js';
-import { createAlchemyBundlerClient, createAlchemyPaymasterClient } from '@pimlico/permissionless/clients/alchemy';
+import { createAlchemyBundlerClient, createAlchemyPaymasterClient } from '@alchemy/aa-alchemy';
 import { http } from 'viem/account-abstraction';
 
 const LS = {
@@ -909,13 +909,16 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
         updateBig('maxPriorityFeePerGas', payload.maxPriorityFeePerGas);
         return touched;
       };
+      const bundlerUrlEffective = bundlerRpcUrl || aaBundlerEndpoint;
+      const paymasterUrlEffective = paymasterRpcUrl || aaPaymasterEndpoint || bundlerUrlEffective;
       try {
-        const transport = buildTransport(paymasterRpcUrl || aaPaymasterEndpoint || bundlerRpcUrl || aaBundlerEndpoint);
-        if (transport) {
+        const transport = paymasterUrlEffective ? buildTransport(paymasterUrlEffective) : null;
+        if (paymasterUrlEffective) {
           paymasterClient = createAlchemyPaymasterClient({
-            transport,
+            chain: chainConfig,
             entryPoint: entryPointAddress,
-            chain: chainConfig
+            rpcUrl: paymasterUrlEffective,
+            transport
           });
         }
       } catch (err) {
@@ -923,14 +926,13 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
         paymasterClient = null;
       }
       try {
-        const transport = buildTransport(bundlerRpcUrl || aaBundlerEndpoint);
-        if (transport) {
+        const transport = bundlerUrlEffective ? buildTransport(bundlerUrlEffective) : null;
+        if (bundlerUrlEffective) {
           bundlerClient = createAlchemyBundlerClient({
-            account,
-            transport,
-            entryPoint: entryPointAddress,
             chain: chainConfig,
-            paymaster: paymasterClient || undefined
+            entryPoint: entryPointAddress,
+            rpcUrl: bundlerUrlEffective,
+            transport
           });
         }
       } catch (err) {
@@ -961,10 +963,9 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
         } catch {}
         if (viemAA?.createBundlerClient) {
           try {
-            const transport = buildTransport(bundlerRpcUrl || aaBundlerEndpoint);
+            const transport = bundlerUrlEffective ? buildTransport(bundlerUrlEffective) : null;
             if (transport) {
               bundlerClient = viemAA.createBundlerClient({
-                account,
                 chain: chainConfig,
                 entryPoint: entryPointAddress,
                 transport
