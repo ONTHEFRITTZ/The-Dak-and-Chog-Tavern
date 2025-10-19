@@ -368,10 +368,10 @@ async function buildToolkitSmartAccount(injected, { bundlerUrl, paymasterUrl }) 
 
       if (mmAccount && typeof mmAccount.sendTransactions === 'function') {
         try {
-          const result = await mmAccount.sendTransactions(
-            [{ to: target, data, value: valueHex }],
-            { chainId, bundlerRpc: bundlerUrl, paymasterRpc: paymasterUrl }
-          );
+      const result = await mmAccount.sendTransactions(
+        [{ to: target, data, value: valueHex }],
+        { chainId, bundlerRpc: bundlerRpcUrl, paymasterRpc: paymasterRpcUrl }
+      );
           const hash = extractTxHash(result);
           if (hash) return hash;
           if (result?.hash) return result.hash;
@@ -529,10 +529,24 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
           const runtime = normalize(alias);
           if (runtime) return runtime;
         }
-      }
-    } catch {}
-    return '';
-  })();
+    }
+  } catch {}
+  return '';
+})();
+  const ensureApiKeyParam = (url, key) => {
+    if (!url || !key) return url;
+    if (url.includes('apikey=')) return url;
+    try {
+      const parsed = new URL(url, (typeof window !== 'undefined' && window?.location?.origin) || undefined);
+      if (!parsed.searchParams.has('apikey')) parsed.searchParams.append('apikey', key);
+      return parsed.href;
+    } catch {
+      const sep = url.includes('?') ? '&' : '?';
+      return `${url}${sep}apikey=${encodeURIComponent(key)}`;
+    }
+  };
+  const bundlerRpcUrl = ensureApiKeyParam(aaBundlerEndpoint, paymasterApiKey) || aaBundlerEndpoint;
+  const paymasterRpcUrl = ensureApiKeyParam(aaPaymasterEndpoint, paymasterApiKey) || aaPaymasterEndpoint;
   async function sendViaAA(tx){
     const to = tx.to;
     const data = ensureHexData(tx.data);
