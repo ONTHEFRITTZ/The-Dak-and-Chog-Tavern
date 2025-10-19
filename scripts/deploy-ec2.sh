@@ -50,6 +50,17 @@ if [ -d "$WEBROOT" ]; then
 fi
 sudo mv "$UPLOAD" "$WEBROOT"
 
+# --- Restore runtime-only secrets (never in git) ---
+SECRET_CONFIG_DIR="${BASE}/secrets"
+PAYMASTER_SECRET="${SECRET_CONFIG_DIR}/paymaster-key.js"
+if [ -f "$PAYMASTER_SECRET" ]; then
+  sudo mkdir -p "$WEBROOT/config"
+  sudo cp "$PAYMASTER_SECRET" "$WEBROOT/config/paymaster-key.js"
+  sudo chmod 644 "$WEBROOT/config/paymaster-key.js"
+else
+  echo "WARNING: ${PAYMASTER_SECRET} not found; keeping repository paymaster-key.js (likely blank)." >&2
+fi
+
 # --- Guard: ensure delegation guard is present in live JS ---
 if ! grep -q "delegate_mm_signer_required" "$WEBROOT/js/aa/delegation.js" 2>/dev/null; then
   echo "ERROR: delegation guard not found in js/aa/delegation.js (delegate_mm_signer_required)." >&2
