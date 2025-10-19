@@ -507,6 +507,26 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
   const address = (await signer.getAddress()).toLowerCase();
   const aaBundlerEndpoint = bundlerUrl || MONAD_BUNDLER_RPC;
   const aaPaymasterEndpoint = paymasterUrl || ZD_PAYMASTER_RPC;
+  const paymasterApiKey = (() => {
+    const normalize = (value) => {
+      if (!value) return '';
+      try {
+        const str = String(value).trim();
+        return str || '';
+      } catch {
+        return '';
+      }
+    };
+    const primary = normalize(ZD_API_KEY);
+    if (primary) return primary;
+    try {
+      if (typeof window !== 'undefined' && window && window.ZD_API_KEY) {
+        const runtime = normalize(window.ZD_API_KEY);
+        if (runtime) return runtime;
+      }
+    } catch {}
+    return '';
+  })();
   async function sendViaAA(tx){
     const to = tx.to;
     const data = ensureHexData(tx.data);
@@ -746,15 +766,24 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
         preVerificationGas: 0n,
         maxFeePerGas: 0n,
         maxPriorityFeePerGas: 0n,
-        paymaster: PAYMASTER_ADDRESS || undefined,
+        paymaster: aaPaymasterEndpoint ? undefined : (PAYMASTER_ADDRESS || undefined),
         paymasterData: '0x',
         paymasterVerificationGasLimit: 0n,
         paymasterPostOpGasLimit: 0n
       };
       const chainNumeric = Number(chainId || MONAD.id);
+      const chainHexId = (() => {
+        try { return '0x' + BigInt(chainNumeric).toString(16); } catch { return '0x0'; }
+      })();
       const toHexValue = (v) => {
         try {
-          if (typeof v === 'string' && /^0x[0-9a-fA-F]+$/.test(v)) return v;
+          if (typeof v === 'string') {
+            const trimmed = v.trim();
+            if (!trimmed) return undefined;
+            if (/^0x[0-9a-fA-F]+$/.test(trimmed)) return trimmed;
+            const asBig = BigInt(trimmed);
+            return '0x' + asBig.toString(16);
+          }
           if (typeof v === 'number') return '0x' + BigInt(v).toString(16);
           if (typeof v === 'bigint') return '0x' + v.toString(16);
           if (v && typeof v.toHexString === 'function') return v.toHexString();
@@ -766,11 +795,63 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
         if (typeof val === 'bigint') return val;
         if (typeof val === 'number') return BigInt(val);
         if (typeof val === 'string') {
-          try { return BigInt(val); } catch { return undefined; }
+          try {
+            const trimmed = val.trim();
+            if (!trimmed) return undefined;
+            if (/^0x[0-9a-fA-F]+$/.test(trimmed)) return BigInt(trimmed);
+            return BigInt(trimmed);
+          } catch { return undefined; }
         }
-        return undefined;
+        try { return BigInt(val); } catch { return undefined; }
       };
-      const toRpcUserOp = (op) => ({
+      const applyPaymasterResult = (target, payload) => {
+        if (!payload || typeof payload !== 'object') return false;
+        let touched = false;
+        const ensureHexString = (value) => {
+          if (value == null) return undefined;
+          if (typeof value === 'string') {
+            const trimmed = value.trim();
+            if (!trimmed) return undefined;
+            if (/^0x[0-9a-fA-F]*$/.test(trimmed)) return trimmed || '0x';
+            try { return '0x' + BigInt(trimmed).toString(16); } catch { return undefined; }
+          }
+          try { return '0x' + BigInt(value).toString(16); } catch { return undefined; }
+        };
+        const assignBig = (field, value) => {
+          const big = toBigValue(value);
+          if (big != null) {
+            target[field] = big;
+            touched = true;
+          }
+        };
+        if (typeof payload.paymaster === 'string' && payload.paymaster) {
+          target.paymaster = payload.paymaster;
+          touched = true;
+        }
+        if (payload.paymasterData != null) {
+          const hex = ensureHexString(payload.paymasterData);
+          if (hex) {
+            target.paymasterData = hex;
+            touched = true;
+          }
+        } else if (typeof payload.paymasterAndData === 'string' && payload.paymasterAndData.startsWith('0x') && payload.paymasterAndData.length >= 42) {
+          const pad = payload.paymasterAndData;
+          const addr = '0x' + pad.slice(2, 42);
+          const data = '0x' + pad.slice(42);
+          if (!target.paymaster) target.paymaster = addr;
+          target.paymasterData = data;
+          touched = true;
+        }
+        assignBig('callGasLimit', payload.callGasLimit ?? payload.callGas);
+        assignBig('verificationGasLimit', payload.verificationGasLimit);
+        assignBig('preVerificationGas', payload.preVerificationGas);
+        assignBig('paymasterVerificationGasLimit', payload.paymasterVerificationGasLimit);
+        assignBig('paymasterPostOpGasLimit', payload.paymasterPostOpGasLimit);
+        assignBig('maxFeePerGas', payload.maxFeePerGas);
+        assignBig('maxPriorityFeePerGas', payload.maxPriorityFeePerGas);
+        return touched;
+      };
+      const toRpcUserOp = (op, { includeSignature = true } = {}) => ({
         sender: op.sender,
         nonce: toHexValue(op.nonce) || '0x0',
         factory: op.factory,
@@ -785,9 +866,50 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
         paymasterData: op.paymasterData || '0x',
         paymasterVerificationGasLimit: op.paymasterVerificationGasLimit != null ? toHexValue(op.paymasterVerificationGasLimit) : undefined,
         paymasterPostOpGasLimit: op.paymasterPostOpGasLimit != null ? toHexValue(op.paymasterPostOpGasLimit) : undefined,
-        signature: op.signature
+        signature: includeSignature ? (op.signature || '0x') : '0x'
       });
-      let rpcUserOp = toRpcUserOp(unsignedOp);
+      const requestSponsorship = async (rpcUserOperation) => {
+        const headers = { 'content-type': 'application/json' };
+        try {
+          if (paymasterApiKey) headers['x-api-key'] = paymasterApiKey;
+        } catch {}
+        const body = {
+          jsonrpc: '2.0',
+          id: Date.now(),
+          method: 'pm_sponsorUserOperation',
+          params: [
+            rpcUserOperation,
+            entryPointAddress,
+            { chainId: chainHexId }
+          ]
+        };
+        const res = await fetch(aaPaymasterEndpoint, { method: 'POST', headers, body: JSON.stringify(body) }).catch((err) => ({ __err: err }));
+        if (!res || res.__err) throw res && res.__err || new Error('paymaster_http_error');
+        if (!res.ok) throw new Error(`paymaster_http_${res.status}`);
+        let payload = null;
+        try { payload = await res.json(); } catch { payload = null; }
+        if (!payload) throw new Error('paymaster_bad_json');
+        if (payload.error) {
+          const err = new Error(payload.error.message || 'paymaster_error');
+          err.data = payload.error;
+          throw err;
+        }
+        return payload.result || null;
+      };
+      let rpcUserOp = toRpcUserOp(unsignedOp, { includeSignature: false });
+      let sponsorshipApplied = false;
+      if (aaPaymasterEndpoint) {
+        try {
+          const sponsorship = await requestSponsorship(rpcUserOp);
+          if (sponsorship && applyPaymasterResult(unsignedOp, sponsorship)) {
+            sponsorshipApplied = true;
+            rpcUserOp = toRpcUserOp(unsignedOp, { includeSignature: false });
+            try { AA.setSponsored?.(true); } catch {}
+          }
+        } catch (sponsorErr) {
+          console.warn('[aaClient] paymaster sponsorship failed', sponsorErr);
+        }
+      }
       const actionSigner = (typeof vendor.signUserOperationActions === 'function')
         ? vendor.signUserOperationActions()(ctx.walletClient)
         : null;
@@ -800,29 +922,45 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
         console.warn('[aaClient] signUserOperation helper unavailable');
         return null;
       }
-      let signedOpSignature = null;
-      try {
+      const signOperation = async (op) => {
         if (actionSigner && typeof actionSigner.signUserOperation === 'function') {
-          signedOpSignature = await actionSigner.signUserOperation({
-            userOperation: unsignedOp,
+          return actionSigner.signUserOperation({
+            userOperation: op,
             entryPoint: { address: entryPointAddress },
             chainId: chainNumeric,
             address: sender,
             name: contractName,
             version: '1'
           });
-        } else {
-          signedOpSignature = await signUserOperationFn({
-            ...unsignedOp,
-            chainId: chainNumeric
-          });
         }
+        return signUserOperationFn({
+          ...op,
+          chainId: chainNumeric
+        });
+      };
+      let signedOpSignature = null;
+      try {
+        signedOpSignature = await signOperation(unsignedOp);
       } catch (signErr) {
         console.warn('[aaClient] signUserOperation failed', signErr);
         return null;
       }
       let uo = { ...unsignedOp, signature: signedOpSignature };
       rpcUserOp = toRpcUserOp(uo);
+      if (aaPaymasterEndpoint && !sponsorshipApplied) {
+        try {
+          const sponsorship = await requestSponsorship(rpcUserOp);
+          if (sponsorship && applyPaymasterResult(unsignedOp, sponsorship)) {
+            sponsorshipApplied = true;
+            try { AA.setSponsored?.(true); } catch {}
+            signedOpSignature = await signOperation(unsignedOp);
+            uo = { ...unsignedOp, signature: signedOpSignature };
+            rpcUserOp = toRpcUserOp(uo);
+          }
+        } catch (sponsorErr) {
+          console.warn('[aaClient] paymaster sponsorship (with signature) failed', sponsorErr);
+        }
+      }
       // Helper for bundler RPC
       async function rpcCall(method, params){
         const body = { jsonrpc: '2.0', id: Date.now(), method, params };

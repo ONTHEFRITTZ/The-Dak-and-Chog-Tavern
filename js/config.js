@@ -2,13 +2,23 @@
 export const MONAD_BUNDLER_RPC =
   "https://rpc.zerodev.app/api/v3/9b503699-15b1-48c4-a4e7-35d41afd0ee3/chain/10143?selfFunded=true";
 
+function runtimeConfigValue(key, fallback = "") {
+  try {
+    if (typeof window !== "undefined" && window && typeof window[key] === "string") {
+      const value = window[key].trim();
+      if (value) return value;
+    }
+  } catch {}
+  return fallback;
+}
+
 // Your self-funded paymaster contract (you deployed this)
 export const PAYMASTER_ADDRESS = "0x225526A98049aCAFb71bB9526dd431E1A114E048";
 
 // ZeroDev paymaster RPC (same project endpoint, no extra path)
-export const ZD_PAYMASTER_RPC = "";
+export const ZD_PAYMASTER_RPC = runtimeConfigValue("ZD_PAYMASTER_RPC", "");
 
-export const ZD_API_KEY = "";
+export const ZD_API_KEY = runtimeConfigValue("ZD_API_KEY", "");
 
 // Primary Monad network metadata (shared by lobby, AA, bankroll helpers)
 export const MONAD = {
