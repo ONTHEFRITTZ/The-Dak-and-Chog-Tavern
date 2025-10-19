@@ -552,6 +552,23 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
     const data = ensureHexData(tx.data);
     const valueHex = toHex(tx.value || 0n);
     const chainHex = '0x' + (AA.chainId || MONAD.id).toString(16);
+    const sponsorActive = (() => {
+      try {
+        if (typeof window !== 'undefined' && window.FORCE_GASLESS) return true;
+        return !!(AA && AA.sponsored);
+      } catch {
+        return false;
+      }
+    })();
+    if (!tx?.noSignerFallback && !sponsorActive) {
+      const txReq = {
+        to,
+        data,
+        value: (() => { try { return ethers.BigNumber.from(tx.value || 0); } catch { return ethers.BigNumber.from(0); } })()
+      };
+      const res = await signer.sendTransaction(txReq);
+      return typeof res === 'string' ? res : (res?.hash || res?.transactionHash);
+    }
     // 1) Direct 4337 to ZeroDev bundler first (silent)
     try {
       const hashUo = await sendViaZeroDevUO(tx);
