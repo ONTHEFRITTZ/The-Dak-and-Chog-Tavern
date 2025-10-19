@@ -922,6 +922,14 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
         const sponsorOptions = { chainId: chainHexId };
         const policyId = resolvePolicyId();
         if (policyId) sponsorOptions.policyId = policyId;
+        try {
+          console.debug('[aaClient] sponsor request', {
+            endpoint: paymasterRpcUrl || aaPaymasterEndpoint,
+            chainId: sponsorOptions.chainId,
+            policyId: policyId || null,
+            hasApiKey: !!paymasterApiKey
+          });
+        } catch {}
         const body = {
           jsonrpc: '2.0',
           id: Date.now(),
@@ -940,7 +948,7 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
         try { payload = await res.json(); } catch { payload = null; }
         if (!payload) throw new Error('paymaster_bad_json');
         if (payload.error) {
-          try { console.warn('[aaClient] paymaster error payload', payload.error); } catch {}
+          try { console.warn('[aaClient] paymaster error payload', payload.error, { endpoint: paymasterRpcUrl || aaPaymasterEndpoint, policyId: policyId || null }); } catch {}
           const err = new Error(payload.error.message || 'paymaster_error');
           err.data = payload.error;
           throw err;
@@ -1028,7 +1036,7 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
         let payload = null; try { payload = await res.json(); } catch { payload = null; }
         if (!payload) throw new Error('bundler_bad_json');
         if (payload.error) {
-          try { console.warn('[aaClient] bundler error payload', payload.error); } catch {}
+          try { console.warn('[aaClient] bundler error payload', payload.error, { endpoint: targetUrl, hasApiKey: !!paymasterApiKey }); } catch {}
           const err = new Error(payload.error.message||'bundler_error');
           err.data = payload.error;
           throw err;
