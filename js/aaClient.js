@@ -272,6 +272,21 @@ let aaSigner = null;
 let aaReady = false;
 let lastBundlerUrl = null;
 
+let pimlicoModulePromise = null;
+async function ensurePimlicoModule() {
+  if (!pimlicoModulePromise) {
+    pimlicoModulePromise = (async () => {
+      try {
+        return await import(/* @vite-ignore */ 'https://esm.sh/@pimlico/permissionless@0.1.20?bundle&target=es2022');
+      } catch (err) {
+        console.warn('[aaClient] failed to load Pimlico permissionless SDK', err);
+        return null;
+      }
+    })();
+  }
+  return pimlicoModulePromise;
+}
+
 // resolveInjectedProvider and createFallbackAccount defined later (single implementations)
 
 async function buildToolkitSmartAccount(injected, { bundlerUrl, paymasterUrl }) {
@@ -863,6 +878,113 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
         signature: includeSignature ? (op.signature || '0x') : '0x'
       });
       let rpcUserOp = toRpcUserOp(unsignedOp, { includeSignature: false });
+      let sponsorshipApplied = false;
+      let sponsorshipResponse = null;
+      let bundlerClient = null;
+      let paymasterClient = null;
+      const pimlicoModule = await ensurePimlicoModule();
+      let viemAA = null;
+      try { viemAA = await import('viem/account-abstraction'); } catch {}
+      let viemCore = null;
+      if (!viemAA?.http) {
+        try { viemCore = await import('viem'); } catch {}
+      }
+      const transportFactory = (viemAA && viemAA.http) || (viemCore && viemCore.http) || null;
+      const chainConfig =
+        ctx.walletClient?.chain ||
+        ctx.walletChain ||
+        ctx.publicClient?.chain ||
+        {
+          id: Number(chainNumeric),
+          name: MONAD.name || 'Monad Testnet',
+          network: 'monad-testnet',
+          nativeCurrency: { name: 'MON', symbol: 'MON', decimals: 18 },
+          rpcUrls: { default: { http: [MONAD.rpcHttp] } }
+        };
+      const applySponsorship = (target, payload) => {
+        if (!payload || typeof payload !== 'object') return false;
+        let touched = false;
+        const updateBig = (field, value) => {
+          const big = toBigValue(value);
+          if (big != null) {
+            target[field] = big;
+            touched = true;
+          }
+        };
+        if (payload.paymaster) { target.paymaster = payload.paymaster; touched = true; }
+        if (payload.paymasterData) { target.paymasterData = payload.paymasterData; touched = true; }
+        if (payload.paymasterAndData) {
+          target.paymasterData = payload.paymasterData || `0x${payload.paymasterAndData.slice(42)}`;
+          target.paymaster = payload.paymaster || `0x${payload.paymasterAndData.slice(2, 42)}`;
+          touched = true;
+        }
+        updateBig('callGasLimit', payload.callGasLimit ?? payload.callGas);
+        updateBig('verificationGasLimit', payload.verificationGasLimit);
+        updateBig('preVerificationGas', payload.preVerificationGas);
+        updateBig('paymasterVerificationGasLimit', payload.paymasterVerificationGasLimit);
+        updateBig('paymasterPostOpGasLimit', payload.paymasterPostOpGasLimit);
+        updateBig('maxFeePerGas', payload.maxFeePerGas);
+        updateBig('maxPriorityFeePerGas', payload.maxPriorityFeePerGas);
+        return touched;
+      };
+      if (pimlicoModule && transportFactory) {
+        if (typeof pimlicoModule.createPimlicoPaymasterClient === 'function') {
+          try {
+            paymasterClient = pimlicoModule.createPimlicoPaymasterClient({
+              transport: transportFactory(paymasterRpcUrl || aaPaymasterEndpoint || bundlerRpcUrl || aaBundlerEndpoint),
+              entryPoint: entryPointAddress,
+              chain: chainConfig
+            });
+          } catch (err) {
+            console.warn('[aaClient] Pimlico paymaster client init failed', err);
+            paymasterClient = null;
+          }
+        }
+        if (typeof pimlicoModule.createPimlicoBundlerClient === 'function') {
+          try {
+            bundlerClient = pimlicoModule.createPimlicoBundlerClient({
+              transport: transportFactory(bundlerRpcUrl || aaBundlerEndpoint),
+              entryPoint: entryPointAddress,
+              chain: chainConfig,
+              account,
+              paymaster: paymasterClient || undefined
+            });
+          } catch (err) {
+            console.warn('[aaClient] Pimlico bundler client init failed', err);
+            bundlerClient = null;
+          }
+        }
+      }
+      if (paymasterClient && typeof paymasterClient.sponsorUserOperation === 'function') {
+        try {
+          const sponsorship = await paymasterClient.sponsorUserOperation({
+            userOperation: rpcUserOp,
+            entryPoint: entryPointAddress
+          });
+          if (applySponsorship(unsignedOp, sponsorship)) {
+            sponsorshipApplied = true;
+            sponsorshipResponse = sponsorship;
+            rpcUserOp = toRpcUserOp(unsignedOp, { includeSignature: false });
+            if (sponsorship?.paymasterAndData) rpcUserOp.paymasterAndData = sponsorship.paymasterAndData;
+            try { AA.setSponsored?.(true); } catch {}
+          }
+        } catch (sponsorErr) {
+          console.warn('[aaClient] Pimlico sponsorUserOperation failed', sponsorErr);
+        }
+      }
+      if (!bundlerClient && viemAA?.createBundlerClient && transportFactory) {
+        try {
+          bundlerClient = viemAA.createBundlerClient({
+            account,
+            chain: chainConfig,
+            entryPoint: entryPointAddress,
+            transport: transportFactory(bundlerRpcUrl || aaBundlerEndpoint)
+          });
+        } catch (err) {
+          console.warn('[aaClient] viem createBundlerClient init failed', err);
+          bundlerClient = null;
+        }
+      }
       const actionSigner = (typeof vendor.signUserOperationActions === 'function')
         ? vendor.signUserOperationActions()(ctx.walletClient)
         : null;
@@ -900,36 +1022,13 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
       }
       let uo = { ...unsignedOp, signature: signedOpSignature };
       rpcUserOp = toRpcUserOp(uo);
-      let bundlerClient = null;
-      if (typeof window !== 'undefined') {
-        try {
-          const aaModule = await import('viem/account-abstraction');
-          const coreModule = await import('viem');
-          const transportFactory = (aaModule && aaModule.http) || coreModule.http;
-          if (aaModule?.createBundlerClient && typeof transportFactory === 'function') {
-            const chainConfig =
-              ctx.walletClient?.chain ||
-              ctx.walletChain ||
-              ctx.publicClient?.chain ||
-              { id: MONAD.id, name: MONAD.name, nativeCurrency: { name: 'MON', symbol: 'MON', decimals: 18 } };
-            bundlerClient = aaModule.createBundlerClient({
-              account,
-              chain: chainConfig,
-              entryPoint: entryPointAddress,
-              transport: transportFactory(bundlerRpcUrl || aaBundlerEndpoint),
-              paymaster: true
-            });
-          }
-        } catch (err) {
-          console.warn('[aaClient] createBundlerClient init failed', err);
-          bundlerClient = null;
-        }
+      if (sponsorshipResponse?.paymasterAndData) {
+        rpcUserOp.paymasterAndData = sponsorshipResponse.paymasterAndData;
       }
       if (bundlerClient && typeof bundlerClient.sendUserOperation === 'function') {
         try {
           const userOpHash = await bundlerClient.sendUserOperation({
             userOperation: rpcUserOp,
-            uo: rpcUserOp,
             entryPoint: entryPointAddress
           });
           let txHash = null;
@@ -948,9 +1047,12 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
           } catch (waitErr) {
             console.warn('[aaClient] waitForUserOperationReceipt failed', waitErr);
           }
+          let finalHash = txHash || userOpHash || null;
           try { AA.setSponsored?.(true); } catch {}
-          if (txHash) return txHash;
-          return userOpHash;
+          if (finalHash) {
+            try { window.dispatchEvent(new CustomEvent('aa:gasless', { detail: { mode: '4337', hash: finalHash } })); } catch {}
+            return finalHash;
+          }
         } catch (sendErr) {
           console.warn('[aaClient] bundler sendUserOperation failed', sendErr);
         }
