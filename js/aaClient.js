@@ -368,10 +368,10 @@ async function buildToolkitSmartAccount(injected, { bundlerUrl, paymasterUrl }) 
 
       if (mmAccount && typeof mmAccount.sendTransactions === 'function') {
         try {
-      const result = await mmAccount.sendTransactions(
-        [{ to: target, data, value: valueHex }],
-        { chainId, bundlerRpc: bundlerRpcUrl, paymasterRpc: paymasterRpcUrl }
-      );
+          const result = await mmAccount.sendTransactions(
+            [{ to: target, data, value: valueHex }],
+            { chainId, bundlerRpc: bundlerRpcUrl, paymasterRpc: paymasterRpcUrl }
+          );
           const hash = extractTxHash(result);
           if (hash) return hash;
           if (result?.hash) return result.hash;
@@ -775,15 +775,19 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
       let factoryArgs = null;
       try { factoryArgs = (typeof account.getFactoryArgs === 'function') ? await account.getFactoryArgs() : null; }
       catch {}
+      const GAS_PRESET_CALL = 800000n;
+      const GAS_PRESET_VERIFICATION = 900000n;
+      const GAS_PRESET_PREVERIFICATION = 120000n;
+      const wantsPresetGas = !!aaPaymasterEndpoint;
       const unsignedOp = {
         sender,
         nonce,
         factory: factoryArgs?.factory,
         factoryData: factoryArgs?.factoryData,
         callData,
-        callGasLimit: 0n,
-        verificationGasLimit: 0n,
-        preVerificationGas: 0n,
+        callGasLimit: wantsPresetGas ? GAS_PRESET_CALL : 0n,
+        verificationGasLimit: wantsPresetGas ? GAS_PRESET_VERIFICATION : 0n,
+        preVerificationGas: wantsPresetGas ? GAS_PRESET_PREVERIFICATION : 0n,
         maxFeePerGas: 0n,
         maxPriorityFeePerGas: 0n,
         paymaster: aaPaymasterEndpoint ? undefined : (PAYMASTER_ADDRESS || undefined),
@@ -906,7 +910,8 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
             { chainId: chainHexId }
           ]
         };
-        const res = await fetch(aaPaymasterEndpoint, { method: 'POST', headers, body: JSON.stringify(body) }).catch((err) => ({ __err: err }));
+        const targetUrl = paymasterRpcUrl || aaPaymasterEndpoint;
+        const res = await fetch(targetUrl, { method: 'POST', headers, body: JSON.stringify(body) }).catch((err) => ({ __err: err }));
         if (!res || res.__err) throw res && res.__err || new Error('paymaster_http_error');
         if (!res.ok) throw new Error(`paymaster_http_${res.status}`);
         let payload = null;
@@ -994,7 +999,8 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
             headers['authorization'] = `Bearer ${paymasterApiKey}`;
           }
         } catch {}
-        const res = await fetch(aaBundlerEndpoint, { method: 'POST', headers, body: JSON.stringify(body) }).catch((e)=>({ __err:e }));
+        const targetUrl = bundlerRpcUrl || aaBundlerEndpoint;
+        const res = await fetch(targetUrl, { method: 'POST', headers, body: JSON.stringify(body) }).catch((e)=>({ __err:e }));
         if (!res || res.__err) throw res && res.__err || new Error('bundler_http_error');
         let payload = null; try { payload = await res.json(); } catch { payload = null; }
         if (!payload) throw new Error('bundler_bad_json');
