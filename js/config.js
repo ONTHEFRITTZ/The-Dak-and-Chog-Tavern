@@ -34,6 +34,10 @@ const PAYMASTER_API_KEY =
 export const ZD_API_KEY = PAYMASTER_API_KEY;
 export const PIMLICO_API_KEY = PAYMASTER_API_KEY;
 
+const PAYMASTER_POLICY_ID =
+  runtimeConfigValue("PIMLICO_POLICY_ID", "");
+export const PIMLICO_POLICY_ID = PAYMASTER_POLICY_ID;
+
 // Primary Monad network metadata (shared by lobby, AA, bankroll helpers)
 export const MONAD = {
   id: 10143,

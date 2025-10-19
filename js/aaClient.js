@@ -1,6 +1,6 @@
 // aa-client.js — minimal AA/session-key client w/ budget guardrails (onchain mode only)
 // Works with your importmap (viem/permissionless) if present; otherwise falls back to injected.
-import { MONAD, AA_FEATURES, getPokerTableAddress, MONAD_BUNDLER_RPC, ZD_PAYMASTER_RPC, ZD_API_KEY, PAYMASTER_ADDRESS } from './aa/config.js';
+import { MONAD, AA_FEATURES, getPokerTableAddress, MONAD_BUNDLER_RPC, ZD_PAYMASTER_RPC, ZD_API_KEY, PAYMASTER_ADDRESS, PIMLICO_POLICY_ID } from './aa/config.js';
 import { MONAD_DELEGATION_ENV } from './aa/delegation-config.js';
 import { ethers } from './tavern.js';
 import { ensureDelegationToolkitContext } from './aa/toolkit.js';
@@ -775,9 +775,9 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
       let factoryArgs = null;
       try { factoryArgs = (typeof account.getFactoryArgs === 'function') ? await account.getFactoryArgs() : null; }
       catch {}
-      const GAS_PRESET_CALL = 800000n;
-      const GAS_PRESET_VERIFICATION = 900000n;
-      const GAS_PRESET_PREVERIFICATION = 120000n;
+      const GAS_PRESET_CALL = 2000000n;
+      const GAS_PRESET_VERIFICATION = 1500000n;
+      const GAS_PRESET_PREVERIFICATION = 250000n;
       const wantsPresetGas = !!aaPaymasterEndpoint;
       const unsignedOp = {
         sender,
@@ -900,6 +900,28 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
             headers['authorization'] = `Bearer ${paymasterApiKey}`;
           }
         } catch {}
+        const resolvePolicyId = () => {
+          const normalize = (value) => {
+            try {
+              const str = String(value || '').trim();
+              return str || '';
+            } catch {
+              return '';
+            }
+          };
+          const staticId = normalize(PIMLICO_POLICY_ID);
+          if (staticId) return staticId;
+          try {
+            if (typeof window !== 'undefined' && window) {
+              const runtime = normalize(window.PIMLICO_POLICY_ID);
+              if (runtime) return runtime;
+            }
+          } catch {}
+          return '';
+        };
+        const sponsorOptions = { chainId: chainHexId };
+        const policyId = resolvePolicyId();
+        if (policyId) sponsorOptions.sponsorshipPolicyId = policyId;
         const body = {
           jsonrpc: '2.0',
           id: Date.now(),
@@ -907,7 +929,7 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
           params: [
             rpcUserOperation,
             entryPointAddress,
-            { chainId: chainHexId }
+            sponsorOptions
           ]
         };
         const targetUrl = paymasterRpcUrl || aaPaymasterEndpoint;
@@ -918,6 +940,7 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
         try { payload = await res.json(); } catch { payload = null; }
         if (!payload) throw new Error('paymaster_bad_json');
         if (payload.error) {
+          try { console.warn('[aaClient] paymaster error payload', payload.error); } catch {}
           const err = new Error(payload.error.message || 'paymaster_error');
           err.data = payload.error;
           throw err;
@@ -1004,7 +1027,12 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
         if (!res || res.__err) throw res && res.__err || new Error('bundler_http_error');
         let payload = null; try { payload = await res.json(); } catch { payload = null; }
         if (!payload) throw new Error('bundler_bad_json');
-        if (payload.error) { const err = new Error(payload.error.message||'bundler_error'); err.data = payload.error; throw err; }
+        if (payload.error) {
+          try { console.warn('[aaClient] bundler error payload', payload.error); } catch {}
+          const err = new Error(payload.error.message||'bundler_error');
+          err.data = payload.error;
+          throw err;
+        }
         return payload.result;
       }
       // Estimate gas for the UO (fill required limits)
