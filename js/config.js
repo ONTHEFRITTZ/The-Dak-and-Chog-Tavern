@@ -1,6 +1,11 @@
 // -------------------- AA / Paymaster config --------------------
-export const MONAD_BUNDLER_RPC =
-  "https://rpc.zerodev.app/api/v3/9b503699-15b1-48c4-a4e7-35d41afd0ee3/chain/10143?selfFunded=true";
+const DEFAULT_PIMLICO_RPC = "https://api.pimlico.io/v2/monad-testnet/rpc";
+
+export const MONAD_BUNDLER_RPC = runtimeConfigValue(
+  "PIMLICO_BUNDLER_RPC",
+  runtimeConfigValue("MONAD_BUNDLER_RPC", DEFAULT_PIMLICO_RPC)
+);
+export const PIMLICO_BUNDLER_RPC = MONAD_BUNDLER_RPC;
 
 function runtimeConfigValue(key, fallback = "") {
   try {
@@ -16,9 +21,10 @@ function runtimeConfigValue(key, fallback = "") {
 export const PAYMASTER_ADDRESS = "0x225526A98049aCAFb71bB9526dd431E1A114E048";
 
 // Paymaster RPC (prefer Pimlico, fall back to legacy ZeroDev names)
-const PAYMASTER_RPC =
-  runtimeConfigValue("PIMLICO_PAYMASTER_RPC",
-    runtimeConfigValue("ZD_PAYMASTER_RPC", ""));
+const PAYMASTER_RPC = runtimeConfigValue(
+  "PIMLICO_PAYMASTER_RPC",
+  runtimeConfigValue("ZD_PAYMASTER_RPC", DEFAULT_PIMLICO_RPC)
+);
 export const ZD_PAYMASTER_RPC = PAYMASTER_RPC;
 export const PIMLICO_PAYMASTER_RPC = PAYMASTER_RPC;
 

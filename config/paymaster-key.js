@@ -5,6 +5,7 @@
 //   (function () {
 //     if (typeof window === 'undefined') return;
 //     window.PIMLICO_PAYMASTER_RPC = 'https://api.pimlico.io/v2/monad-testnet/rpc';
+//     window.PIMLICO_BUNDLER_RPC = 'https://api.pimlico.io/v2/monad-testnet/rpc';
 //     window.PIMLICO_API_KEY = '<your-pimlico-api-key>';
 //   })();
 //   EOF
@@ -16,8 +17,10 @@
   try {
     window.PIMLICO_PAYMASTER_RPC = rpc;
     window.PIMLICO_API_KEY = apiKey;
+    window.PIMLICO_BUNDLER_RPC = rpc;
   } catch {}
   try {
+    window.MONAD_BUNDLER_RPC = rpc;
     window.ZD_PAYMASTER_RPC = rpc;
     window.ZD_API_KEY = apiKey;
   } catch {}

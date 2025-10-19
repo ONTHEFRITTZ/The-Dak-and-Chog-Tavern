@@ -973,7 +973,14 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
       // Helper for bundler RPC
       async function rpcCall(method, params){
         const body = { jsonrpc: '2.0', id: Date.now(), method, params };
-        const res = await fetch(aaBundlerEndpoint, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }).catch((e)=>({ __err:e }));
+        const headers = { 'content-type': 'application/json' };
+        try {
+          if (paymasterApiKey) {
+            headers['x-api-key'] = paymasterApiKey;
+            headers['authorization'] = `Bearer ${paymasterApiKey}`;
+          }
+        } catch {}
+        const res = await fetch(aaBundlerEndpoint, { method: 'POST', headers, body: JSON.stringify(body) }).catch((e)=>({ __err:e }));
         if (!res || res.__err) throw res && res.__err || new Error('bundler_http_error');
         let payload = null; try { payload = await res.json(); } catch { payload = null; }
         if (!payload) throw new Error('bundler_bad_json');
