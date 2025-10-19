@@ -9,6 +9,9 @@ export const PAYMASTER_ADDRESS = "0x225526A98049aCAFb71bB9526dd431E1A114E048";
 export const ZD_PAYMASTER_RPC =
   "https://rpc.zerodev.app/api/v3/9b503699-15b1-48c4-a4e7-35d41afd0ee3/chain/10143";
 
+export const ZD_API_KEY =
+  (typeof window !== 'undefined' && window.ZD_API_KEY) ? window.ZD_API_KEY : '';
+
 // Primary Monad network metadata (shared by lobby, AA, bankroll helpers)
 export const MONAD = {
   id: 10143,

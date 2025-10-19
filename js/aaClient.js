@@ -1,6 +1,6 @@
 // aa-client.js — minimal AA/session-key client w/ budget guardrails (onchain mode only)
 // Works with your importmap (viem/permissionless) if present; otherwise falls back to injected.
-import { MONAD, AA_FEATURES, getPokerTableAddress, MONAD_BUNDLER_RPC, ZD_PAYMASTER_RPC } from './aa/config.js';
+import { MONAD, AA_FEATURES, getPokerTableAddress, MONAD_BUNDLER_RPC, ZD_PAYMASTER_RPC, ZD_API_KEY } from './aa/config.js';
 import { MONAD_DELEGATION_ENV } from './aa/delegation-config.js';
 import { ethers } from './tavern.js';
 import { ensureDelegationToolkitContext } from './aa/toolkit.js';
@@ -797,9 +797,11 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
             method: 'pm_sponsorUserOperation',
             params: [rpcUserOp, { entryPoint: entryPointAddress, chainId: toHex(chainNumeric) }]
           };
+          const headers = { 'content-type': 'application/json' };
+          if (ZD_API_KEY) headers['x-api-key'] = ZD_API_KEY;
           const res = await fetch(aaPaymasterEndpoint, {
             method: 'POST',
-            headers: { 'content-type': 'application/json' },
+            headers,
             body: JSON.stringify(body)
           }).catch((err) => ({ __err: err }));
           if (!res || res.__err) throw res && res.__err || new Error('paymaster_http_error');

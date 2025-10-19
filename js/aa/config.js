@@ -4,6 +4,7 @@
 import {
   MONAD_BUNDLER_RPC as ROOT_MONAD_BUNDLER_RPC,
   ZD_PAYMASTER_RPC as ROOT_ZD_PAYMASTER_RPC,
+  ZD_API_KEY as ROOT_ZD_API_KEY,
   CONTRACTS as ROOT_CONTRACTS,
   getAddressFor as rootGetAddressFor,
 } from '../config.js';
@@ -46,3 +47,4 @@ export const PERMISSIONS_REGISTRY = null; // not used in this path
 
 export const MONAD_BUNDLER_RPC = ROOT_MONAD_BUNDLER_RPC;
 export const ZD_PAYMASTER_RPC = ROOT_ZD_PAYMASTER_RPC;
+export const ZD_API_KEY = ROOT_ZD_API_KEY;
