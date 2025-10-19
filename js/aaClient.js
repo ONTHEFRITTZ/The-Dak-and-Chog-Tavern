@@ -520,9 +520,15 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
     const primary = normalize(ZD_API_KEY);
     if (primary) return primary;
     try {
-      if (typeof window !== 'undefined' && window && window.ZD_API_KEY) {
-        const runtime = normalize(window.ZD_API_KEY);
-        if (runtime) return runtime;
+      if (typeof window !== 'undefined' && window) {
+        const aliases = [
+          window.PIMLICO_API_KEY,
+          window.ZD_API_KEY
+        ];
+        for (const alias of aliases) {
+          const runtime = normalize(alias);
+          if (runtime) return runtime;
+        }
       }
     } catch {}
     return '';
@@ -871,7 +877,10 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
       const requestSponsorship = async (rpcUserOperation) => {
         const headers = { 'content-type': 'application/json' };
         try {
-          if (paymasterApiKey) headers['x-api-key'] = paymasterApiKey;
+          if (paymasterApiKey) {
+            headers['x-api-key'] = paymasterApiKey;
+            headers['authorization'] = `Bearer ${paymasterApiKey}`;
+          }
         } catch {}
         const body = {
           jsonrpc: '2.0',

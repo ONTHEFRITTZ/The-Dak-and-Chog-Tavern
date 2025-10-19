@@ -29,7 +29,10 @@ export async function walletSendCalls({ provider, from, chainId, calls }) {
     if (ZD_PAYMASTER_RPC) {
       const headers = {};
       try {
-        if (ZD_API_KEY) headers['x-api-key'] = ZD_API_KEY;
+        if (ZD_API_KEY) {
+          headers['x-api-key'] = ZD_API_KEY;
+          headers['authorization'] = `Bearer ${ZD_API_KEY}`;
+        }
       } catch {}
       capabilities.paymasterService = {
         url: ZD_PAYMASTER_RPC,
