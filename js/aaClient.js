@@ -751,6 +751,10 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
         paymasterVerificationGasLimit: 0n,
         paymasterPostOpGasLimit: 0n
       };
+      if (PAYMASTER_ADDRESS) {
+        unsignedOp.paymaster = PAYMASTER_ADDRESS;
+        unsignedOp.paymasterData = '0x';
+      }
       const chainNumeric = Number(chainId || MONAD.id);
       const toHexValue = (v) => {
         try {
@@ -993,6 +997,8 @@ try {
     window.getSmartAccountAddress = getSmartAccountAddress;
   }
 } catch {}
+
+
 
 
 
