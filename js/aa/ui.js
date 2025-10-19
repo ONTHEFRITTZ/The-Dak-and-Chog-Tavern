@@ -179,6 +179,9 @@ async function renderButtons(state) {
     const enableBtn = makeButton('Enable Gasless Mode');
     safeRun(enableBtn, async () => {
       try { await initAA({}); AA.setSponsored(true); } catch {}
+      try { window.FORCE_GASLESS = true; } catch {}
+      try { sessionStorage.setItem('aa:forceGasless','1'); } catch {}
+      try { window.dispatchEvent(new CustomEvent('aa:sponsored', { detail: { active: true } })); } catch {}
     }, 'Enabling...');
     actions.appendChild(enableBtn);
     return;
@@ -187,6 +190,9 @@ async function renderButtons(state) {
   const disableBtn = makeButton('Disable Gasless Mode');
   safeRun(disableBtn, async () => {
     try { await initAA({}); AA.setSponsored(false); } catch {}
+    try { window.FORCE_GASLESS = false; } catch {}
+    try { sessionStorage.removeItem('aa:forceGasless'); } catch {}
+    try { window.dispatchEvent(new CustomEvent('aa:sponsored', { detail: { active: false } })); } catch {}
   }, 'Disabling...');
   actions.appendChild(disableBtn);
 

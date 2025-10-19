@@ -133,6 +133,10 @@
     function rememberGaslessPreference(on) {
       try { localStorage.removeItem('aa:preferGasless'); } catch {}
       try { window.FORCE_GASLESS = !!on; } catch {}
+      try {
+        if (on) sessionStorage.setItem('aa:forceGasless','1');
+        else sessionStorage.removeItem('aa:forceGasless');
+      } catch {}
     }
     async function connectMetaMask() { if (window.top !== window.self) { setStatus('Open this page in a tab (not an iframe).'); return; } const mm = getMetaMaskProvider(); if (!mm) { setStatus('MetaMask not detected. Please install the extension.'); return; } lock(btnMM,true); setStatus('Connecting to MetaMask...'); const addr = await ensureAccount(mm,'MetaMask'); lock(btnMM,false); if (!addr) return; const autoGasless = prefersGaslessByDefault();
       if (autoGasless) { try { setStatus('Enabling gasless...'); await window.enableSmartAccountNow?.(); try { await window.__issueOpenDelegationForLanding?.({ force: true }); } catch (e) { console.warn('Delegation pre-issue skipped/failed', e); } rememberGaslessPreference(true); setStatus('Gasless enabled. Entering...'); markSigned(addr,'metamask'); redirectHome(); return; } catch(e) { console.warn('Auto-enable failed; showing modal', e); } }
@@ -152,7 +156,7 @@
     wireAccountsChanged(getPhantomEvmProvider(),'Phantom','phantom');
     document.getElementById('btn-metamask')?.addEventListener('click', connectMetaMask);
     document.getElementById('btn-phantom')?.addEventListener('click', connectPhantom);
-    document.getElementById('sa-enable-here')?.addEventListener('click', async () => { try { setStatus('Enabling gasless...'); await window.enableSmartAccountNow?.(); setStatus('Gasless enabled. Entering...'); finalizePendingEntry(); } catch (e) { console.warn('Enable SA failed', e); setStatus('Open MetaMask to Enable Gasless Mode, then return.'); } });
+    document.getElementById('sa-enable-here')?.addEventListener('click', async () => { try { setStatus('Enabling gasless...'); rememberGaslessPreference(true); await window.enableSmartAccountNow?.(); try { document.dispatchEvent(new CustomEvent('aa:gasless', { detail: { source: 'landing' } })); } catch {} setStatus('Gasless enabled. Entering...'); finalizePendingEntry(); } catch (e) { console.warn('Enable SA failed', e); setStatus('Open MetaMask to Enable Gasless Mode, then return.'); } });
     document.getElementById('sa-proceed')?.addEventListener('click', () => { try { const m = document.getElementById('sa-modal'); if (m) { m.setAttribute('aria-hidden','true'); m.style.display='none'; } rememberGaslessPreference(false); } catch {}; finalizePendingEntry(); });
     document.getElementById('sa-dismiss')?.addEventListener('click', () => { try { const m = document.getElementById('sa-modal'); if (m) { m.setAttribute('aria-hidden','true'); m.style.display='none'; } } catch {}; setStatus('Gasless prompt dismissed.'); });
   </script>

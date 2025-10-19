@@ -32,6 +32,7 @@ export async function enableSmartAccountNow() {
   try { AA.setSponsored(true); } catch {}
   try { localStorage.removeItem('aa:preferGasless'); } catch {}
   try { window.FORCE_GASLESS = true; } catch {}
+  try { sessionStorage.setItem('aa:forceGasless', '1'); } catch {}
   persistOptInDelegationMode();
   try { window.dispatchEvent(new CustomEvent('aa:sponsored', { detail: { active: true } })); } catch {}
   return null;
@@ -113,13 +114,14 @@ async function siteWideInit() {
     localStorage.removeItem(SMART_ACCOUNT_OPT_IN_KEY);
     localStorage.removeItem('aa:preferGasless');
   } catch {}
-  const optIn = false;
-  const preferGasless = false;
-  if (optIn) {
+  const sessionForce = (() => { try { return sessionStorage.getItem('aa:forceGasless') === '1'; } catch { return false; } })();
+  if (sessionForce) {
     try { await initAA({}); AA.setSponsored(true); } catch {}
+    try { window.FORCE_GASLESS = true; } catch {}
     try { window.dispatchEvent(new CustomEvent('aa:sponsored', { detail: { active: true } })); } catch {}
+    return;
   }
-  try { window.FORCE_GASLESS = preferGasless; } catch {}
+  try { window.FORCE_GASLESS = false; } catch {}
   // Probe EIP-7702 readiness in the background
   try { await detectEip7702Ready(); } catch {}
 }
