@@ -375,8 +375,7 @@ import {
 } from "viem/account-abstraction";
 var infuraBundlerActions = () => (client) => ({
   /**
-   * Get user operation gas prices from Infura bundler.
-   * Calls the pimlico_getUserOperationGasPrice RPC method.
+      * Calls the pimlico_getUserOperationGasPrice RPC method.
    *
    * @returns Promise resolving to gas price tiers (slow, standard, fast).
    * @example
