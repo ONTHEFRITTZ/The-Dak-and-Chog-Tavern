@@ -12,8 +12,6 @@ function short(addr) {
   return addr && addr.length > 10 ? `${addr.slice(0, 6)}...${addr.slice(-4)}` : (addr || '');
 }
 
-const SMART_ACCOUNT_OPT_IN_KEY = 'aa.smartAccount.optIn';
-
 function ensureContainer() {
   if (__IS_F2P) return document.createElement('div');
   let c = document.getElementById('aa-controls');
@@ -110,7 +108,7 @@ async function hydrate() {
   try { chainOk = await ensureMonadSelected({ requestSwitch: false }); } catch {}
   const accounts = await getAccounts();
   const addr = (accounts[0] || '').toLowerCase();
-  const smartOptIn = (localStorage.getItem(SMART_ACCOUNT_OPT_IN_KEY) === 'true');
+  const smartOptIn = !!(window.AA && AA.sponsored);
   let smartType = 'fallback';
   try {
     if (smartOptIn) {
@@ -176,11 +174,10 @@ async function renderButtons(state) {
     return;
   }
 
-  const smartOptIn = (window.AA && AA.sponsored) ? true : (localStorage.getItem('aa.smartAccount.optIn') === 'true');
+  const smartOptIn = !!(window.AA && AA.sponsored);
   if (!smartOptIn) {
     const enableBtn = makeButton('Enable Gasless Mode');
     safeRun(enableBtn, async () => {
-      try { localStorage.setItem('aa.smartAccount.optIn', 'true'); } catch {}
       try { await initAA({}); AA.setSponsored(true); } catch {}
     }, 'Enabling...');
     actions.appendChild(enableBtn);
@@ -189,7 +186,6 @@ async function renderButtons(state) {
 
   const disableBtn = makeButton('Disable Gasless Mode');
   safeRun(disableBtn, async () => {
-    try { localStorage.setItem('aa.smartAccount.optIn', 'false'); } catch {}
     try { await initAA({}); AA.setSponsored(false); } catch {}
   }, 'Disabling...');
   actions.appendChild(disableBtn);

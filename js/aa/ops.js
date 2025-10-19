@@ -150,7 +150,10 @@ export async function callWithDelegation({ to, signature, args = [], valueMON })
 }
 const SMART_ACCOUNT_OPT_IN_KEY = 'aa.smartAccount.optIn';
 function isSmartAccountOptedIn() {
-  try { return localStorage.getItem(SMART_ACCOUNT_OPT_IN_KEY) === 'true'; } catch { return false; }
+  try {
+    if (window.AA && typeof window.AA.sponsored === 'boolean') return window.AA.sponsored;
+  } catch {}
+  return false;
 }
 
 

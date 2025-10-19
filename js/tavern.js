@@ -126,7 +126,10 @@ function isOnchainPage() {
   return m === 'onchain';
 }
 function isSmartAccountOptedIn() {
-  try { return localStorage.getItem('aa.smartAccount.optIn') === 'true'; } catch { return false; }
+  try {
+    if (window.AA && typeof window.AA.sponsored === 'boolean') return window.AA.sponsored;
+  } catch {}
+  return false;
 }
 async function maybeInitAA(provider) {
   if (!isOnchainPage()) return null;

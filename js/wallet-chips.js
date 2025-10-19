@@ -164,7 +164,7 @@
       }
       window.addEventListener('aa:sponsored', (e) => { try { mark(!!(e && e.detail && e.detail.active)); } catch {} });
       window.addEventListener('aa:gasless',  () => { try { mark(true); } catch {} });
-      try { if (localStorage.getItem('aa.smartAccount.optIn') === 'true') mark(true); } catch {}
+      try { mark(!!((window.AA && window.AA.sponsored) || window.FORCE_GASLESS)); } catch {}
     } catch {}
   }
 

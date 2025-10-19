@@ -7,7 +7,7 @@ import { ensureDelegationToolkitContext } from './toolkit.js';
 
 // No internal-signer detection in v13 mode
 
-const SMART_ACCOUNT_OPT_IN_KEY = 'aa.smartAccount.optIn'; // repurposed as gasless opt-in
+const SMART_ACCOUNT_OPT_IN_KEY = 'aa.smartAccount.optIn'; // legacy key (no longer persisted)
 
 function lc(s) { return (s || '').toLowerCase(); }
 
@@ -18,7 +18,10 @@ function dispatchSmartEvent(address, type = 'delegation-toolkit') {
 }
 
 function persistOptInDelegationMode() {
-  try { localStorage.setItem(SMART_ACCOUNT_OPT_IN_KEY, 'true'); } catch {}
+  // No longer persisted; prompting is now required each visit.
+  try {
+    localStorage.removeItem(SMART_ACCOUNT_OPT_IN_KEY);
+  } catch {}
 }
 
 export async function enableSmartAccountNow() {
@@ -27,7 +30,7 @@ export async function enableSmartAccountNow() {
   try { await detectEip7702Ready(); } catch {}
   await initAA({});
   try { AA.setSponsored(true); } catch {}
-  try { localStorage.setItem('aa:preferGasless','true'); } catch {}
+  try { localStorage.removeItem('aa:preferGasless'); } catch {}
   try { window.FORCE_GASLESS = true; } catch {}
   persistOptInDelegationMode();
   try { window.dispatchEvent(new CustomEvent('aa:sponsored', { detail: { active: true } })); } catch {}
@@ -106,8 +109,12 @@ try {
 
 async function siteWideInit() {
   // Broadcast current sponsored (gasless) preference. Never auto-sign.
-  const optIn = (() => { try { return localStorage.getItem(SMART_ACCOUNT_OPT_IN_KEY) === 'true'; } catch { return false; } })();
-  const preferGasless = (() => { try { return localStorage.getItem('aa:preferGasless') === 'true'; } catch { return false; } })();
+  try {
+    localStorage.removeItem(SMART_ACCOUNT_OPT_IN_KEY);
+    localStorage.removeItem('aa:preferGasless');
+  } catch {}
+  const optIn = false;
+  const preferGasless = false;
   if (optIn) {
     try { await initAA({}); AA.setSponsored(true); } catch {}
     try { window.dispatchEvent(new CustomEvent('aa:sponsored', { detail: { active: true } })); } catch {}
