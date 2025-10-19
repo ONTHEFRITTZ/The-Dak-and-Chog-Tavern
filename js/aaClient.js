@@ -1,10 +1,12 @@
 // aa-client.js — minimal AA/session-key client w/ budget guardrails (onchain mode only)
 // Works with your importmap (viem/permissionless) if present; otherwise falls back to injected.
-import { MONAD, AA_FEATURES, getPokerTableAddress, MONAD_BUNDLER_RPC, ZD_PAYMASTER_RPC, ZD_API_KEY, PAYMASTER_ADDRESS, PIMLICO_POLICY_ID } from './aa/config.js';
+import { MONAD, AA_FEATURES, getPokerTableAddress, MONAD_BUNDLER_RPC, ZD_PAYMASTER_RPC, ZD_API_KEY, PAYMASTER_ADDRESS } from './aa/config.js';
 import { MONAD_DELEGATION_ENV } from './aa/delegation-config.js';
 import { ethers } from './tavern.js';
 import { ensureDelegationToolkitContext } from './aa/toolkit.js';
 import { detectBundler, walletSendCalls, extractTxHash } from './bundler.js';
+import { createAlchemyBundlerClient, createAlchemyPaymasterClient } from '@pimlico/permissionless/clients/alchemy';
+import { http } from 'viem/account-abstraction';
 
 const LS = {
   SESSION: 'aa:session',
@@ -271,21 +273,6 @@ let aaSmartAccount = null;
 let aaSigner = null;
 let aaReady = false;
 let lastBundlerUrl = null;
-
-let pimlicoModulePromise = null;
-async function ensurePimlicoModule() {
-  if (!pimlicoModulePromise) {
-    pimlicoModulePromise = (async () => {
-      try {
-        return await import(/* @vite-ignore */ 'https://esm.sh/@pimlico/permissionless@0.1.20?bundle&target=es2022');
-      } catch (err) {
-        console.warn('[aaClient] failed to load Pimlico permissionless SDK', err);
-        return null;
-      }
-    })();
-  }
-  return pimlicoModulePromise;
-}
 
 // resolveInjectedProvider and createFallbackAccount defined later (single implementations)
 
@@ -882,14 +869,9 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
       let sponsorshipResponse = null;
       let bundlerClient = null;
       let paymasterClient = null;
-      const pimlicoModule = await ensurePimlicoModule();
-      let viemAA = null;
-      try { viemAA = await import('viem/account-abstraction'); } catch {}
-      let viemCore = null;
-      if (!viemAA?.http) {
-        try { viemCore = await import('viem'); } catch {}
-      }
-      const transportFactory = (viemAA && viemAA.http) || (viemCore && viemCore.http) || null;
+      const buildTransport = (url) => {
+        try { return http(url); } catch { return null; }
+      };
       const chainConfig =
         ctx.walletClient?.chain ||
         ctx.walletChain ||
@@ -927,33 +909,33 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
         updateBig('maxPriorityFeePerGas', payload.maxPriorityFeePerGas);
         return touched;
       };
-      if (pimlicoModule && transportFactory) {
-        if (typeof pimlicoModule.createPimlicoPaymasterClient === 'function') {
-          try {
-            paymasterClient = pimlicoModule.createPimlicoPaymasterClient({
-              transport: transportFactory(paymasterRpcUrl || aaPaymasterEndpoint || bundlerRpcUrl || aaBundlerEndpoint),
-              entryPoint: entryPointAddress,
-              chain: chainConfig
-            });
-          } catch (err) {
-            console.warn('[aaClient] Pimlico paymaster client init failed', err);
-            paymasterClient = null;
-          }
+      try {
+        const transport = buildTransport(paymasterRpcUrl || aaPaymasterEndpoint || bundlerRpcUrl || aaBundlerEndpoint);
+        if (transport) {
+          paymasterClient = createAlchemyPaymasterClient({
+            transport,
+            entryPoint: entryPointAddress,
+            chain: chainConfig
+          });
         }
-        if (typeof pimlicoModule.createPimlicoBundlerClient === 'function') {
-          try {
-            bundlerClient = pimlicoModule.createPimlicoBundlerClient({
-              transport: transportFactory(bundlerRpcUrl || aaBundlerEndpoint),
-              entryPoint: entryPointAddress,
-              chain: chainConfig,
-              account,
-              paymaster: paymasterClient || undefined
-            });
-          } catch (err) {
-            console.warn('[aaClient] Pimlico bundler client init failed', err);
-            bundlerClient = null;
-          }
+      } catch (err) {
+        console.warn('[aaClient] Alchemy paymaster client init failed', err);
+        paymasterClient = null;
+      }
+      try {
+        const transport = buildTransport(bundlerRpcUrl || aaBundlerEndpoint);
+        if (transport) {
+          bundlerClient = createAlchemyBundlerClient({
+            account,
+            transport,
+            entryPoint: entryPointAddress,
+            chain: chainConfig,
+            paymaster: paymasterClient || undefined
+          });
         }
+      } catch (err) {
+        console.warn('[aaClient] Alchemy bundler client init failed', err);
+        bundlerClient = null;
       }
       if (paymasterClient && typeof paymasterClient.sponsorUserOperation === 'function') {
         try {
@@ -969,20 +951,29 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
             try { AA.setSponsored?.(true); } catch {}
           }
         } catch (sponsorErr) {
-          console.warn('[aaClient] Pimlico sponsorUserOperation failed', sponsorErr);
+          console.warn('[aaClient] Alchemy sponsorUserOperation failed', sponsorErr);
         }
       }
-      if (!bundlerClient && viemAA?.createBundlerClient && transportFactory) {
+      if (!bundlerClient) {
+        let viemAA = null;
         try {
-          bundlerClient = viemAA.createBundlerClient({
-            account,
-            chain: chainConfig,
-            entryPoint: entryPointAddress,
-            transport: transportFactory(bundlerRpcUrl || aaBundlerEndpoint)
-          });
-        } catch (err) {
-          console.warn('[aaClient] viem createBundlerClient init failed', err);
-          bundlerClient = null;
+          viemAA = await import('viem/account-abstraction');
+        } catch {}
+        if (viemAA?.createBundlerClient) {
+          try {
+            const transport = buildTransport(bundlerRpcUrl || aaBundlerEndpoint);
+            if (transport) {
+              bundlerClient = viemAA.createBundlerClient({
+                account,
+                chain: chainConfig,
+                entryPoint: entryPointAddress,
+                transport
+              });
+            }
+          } catch (err) {
+            console.warn('[aaClient] viem createBundlerClient init failed', err);
+            bundlerClient = null;
+          }
         }
       }
       const actionSigner = (typeof vendor.signUserOperationActions === 'function')
