@@ -984,6 +984,7 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
             try { payload = await res.json(); } catch { payload = null; }
             if (!payload) throw new Error('paymaster_bad_json');
             if (payload.error) {
+              try { console.warn('[aaClient] paymaster error payload', payload.error, { endpoint: paymasterUrlEffective }); } catch {}
               const err = new Error(payload.error.message || 'paymaster_error');
               err.data = payload.error;
               throw err;
