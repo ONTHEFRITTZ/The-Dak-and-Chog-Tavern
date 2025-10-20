@@ -1,37 +1,30 @@
 // Runtime-loaded paymaster credentials.
 // Replace these placeholder values on the server (they are intentionally blank in source control).
-// Example Pimlico deployment command:
+// Example deployment snippet:
 //   cat <<'EOF' > /var/www/thedakandchog.xyz/secrets/paymaster-key.js
 //   (function () {
 //     if (typeof window === 'undefined') return;
-//     window.PIMLICO_PAYMASTER_RPC = 'https://api.pimlico.io/v2/monad-testnet/rpc';
-//     window.PIMLICO_BUNDLER_RPC = 'https://api.pimlico.io/v2/monad-testnet/rpc';
-//     window.PIMLICO_API_KEY = '<your-pimlico-api-key>';
-//     window.PIMLICO_POLICY_ID = '<optional-sponsorship-policy-id>';
+//     window.ALCHEMY_BUNDLER_RPC = 'https://account-abstraction.alchemy.com/bundler/YOUR_CHAIN/YOUR_KEY';
+//     window.ALCHEMY_PAYMASTER_RPC = 'https://account-abstraction.alchemy.com/paymaster/YOUR_CHAIN/YOUR_KEY';
+//     window.ALCHEMY_API_KEY = 'YOUR_ALCHEMY_AA_KEY';
+//     window.ALCHEMY_POLICY_ID = 'optional-policy-id';
 //   })();
 //   EOF
-// For Alchemy you can do the same but set window.ALCHEMY_PAYMASTER_RPC / window.ALCHEMY_BUNDLER_RPC
-// to the URLs provided in their dashboard and window.ALCHEMY_API_KEY to your AA key.
 (function () {
   if (typeof window === 'undefined') return;
-  const rpc = '';
+  const bundlerRpc = '';
+  const paymasterRpc = '';
   const apiKey = '';
   const policyId = '';
-  // Prefer Pimlico-prefixed keys, but continue to populate legacy ZeroDev names for compatibility.
   try {
-    window.PIMLICO_PAYMASTER_RPC = rpc;
-    window.PIMLICO_API_KEY = apiKey;
-    window.PIMLICO_BUNDLER_RPC = rpc;
-    window.PIMLICO_POLICY_ID = policyId;
-  } catch {}
-  try {
-    window.ALCHEMY_PAYMASTER_RPC = rpc;
-    window.ALCHEMY_BUNDLER_RPC = rpc;
+    if (bundlerRpc) window.ALCHEMY_BUNDLER_RPC = bundlerRpc;
+    if (paymasterRpc) window.ALCHEMY_PAYMASTER_RPC = paymasterRpc;
     window.ALCHEMY_API_KEY = apiKey;
+    window.ALCHEMY_POLICY_ID = policyId;
   } catch {}
   try {
-    window.MONAD_BUNDLER_RPC = rpc;
-    window.ZD_PAYMASTER_RPC = rpc;
-    window.ZD_API_KEY = apiKey;
+    if (bundlerRpc) window.MONAD_BUNDLER_RPC = bundlerRpc;
+    if (paymasterRpc) window.MONAD_PAYMASTER_RPC = paymasterRpc;
+    window.MONAD_PAYMASTER_API_KEY = apiKey;
   } catch {}
 })();

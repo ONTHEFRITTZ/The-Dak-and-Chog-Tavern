@@ -1,6 +1,6 @@
 // Minimal EIP-5792 bundler utilities
 // Works with EIP-1193 providers (MetaMask Smart Accounts, etc.)
-import { ZD_PAYMASTER_RPC, ZD_API_KEY } from './aa/config.js';
+import { ALCHEMY_PAYMASTER_RPC, ALCHEMY_API_KEY } from './aa/config.js';
 
 function resolveInjected() {
   try { return window.__walletProvider || window.ethereum; } catch { return undefined; }
@@ -26,16 +26,15 @@ export async function walletSendCalls({ provider, from, chainId, calls }) {
   // Include fields some MetaMask builds require
   const capabilities = {};
   try {
-    if (ZD_PAYMASTER_RPC) {
+    if (ALCHEMY_PAYMASTER_RPC) {
       const headers = {};
       try {
-        if (ZD_API_KEY) {
-          headers['x-api-key'] = ZD_API_KEY;
-          headers['authorization'] = `Bearer ${ZD_API_KEY}`;
+        if (ALCHEMY_API_KEY) {
+          headers['x-alchemy-token'] = ALCHEMY_API_KEY;
         }
       } catch {}
       capabilities.paymasterService = {
-        url: ZD_PAYMASTER_RPC,
+        url: ALCHEMY_PAYMASTER_RPC,
         ...(Object.keys(headers).length ? { headers } : {})
       };
     }

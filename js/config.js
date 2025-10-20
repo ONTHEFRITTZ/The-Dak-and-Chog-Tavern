@@ -1,15 +1,13 @@
 // -------------------- AA / Paymaster config --------------------
-const DEFAULT_PIMLICO_RPC = "https://api.pimlico.io/v2/monad-testnet/rpc";
+const DEFAULT_ALCHEMY_RPC = "";
 
 const ALCHEMY_BUNDLER_OVERRIDE = runtimeConfigValue("ALCHEMY_BUNDLER_RPC", "");
-const PIMLICO_BUNDLER_OVERRIDE = runtimeConfigValue("PIMLICO_BUNDLER_RPC", "");
-const MONAD_BUNDLER_OVERRIDE = runtimeConfigValue("MONAD_BUNDLER_RPC", DEFAULT_PIMLICO_RPC);
+const MONAD_BUNDLER_OVERRIDE = runtimeConfigValue("MONAD_BUNDLER_RPC", DEFAULT_ALCHEMY_RPC);
 
 export const MONAD_BUNDLER_RPC =
   ALCHEMY_BUNDLER_OVERRIDE ||
-  PIMLICO_BUNDLER_OVERRIDE ||
   MONAD_BUNDLER_OVERRIDE;
-export const PIMLICO_BUNDLER_RPC = PIMLICO_BUNDLER_OVERRIDE || "";
+export const ALCHEMY_BUNDLER_RPC = MONAD_BUNDLER_RPC;
 
 function runtimeConfigValue(key, fallback = "") {
   try {
@@ -24,36 +22,31 @@ function runtimeConfigValue(key, fallback = "") {
 // Your self-funded paymaster contract (you deployed this)
 export const PAYMASTER_ADDRESS = "0x225526A98049aCAFb71bB9526dd431E1A114E048";
 
-// Paymaster RPC (prefer Pimlico, fall back to legacy ZeroDev names)
+// Paymaster RPC (Alchemy only)
 const ALCHEMY_PAYMASTER_OVERRIDE = runtimeConfigValue("ALCHEMY_PAYMASTER_RPC", "");
-const PIMLICO_PAYMASTER_OVERRIDE = runtimeConfigValue("PIMLICO_PAYMASTER_RPC", "");
-const ZD_PAYMASTER_OVERRIDE = runtimeConfigValue("ZD_PAYMASTER_RPC", DEFAULT_PIMLICO_RPC);
+const MONAD_PAYMASTER_OVERRIDE = runtimeConfigValue("MONAD_PAYMASTER_RPC", DEFAULT_ALCHEMY_RPC);
 
 const PAYMASTER_RPC =
   ALCHEMY_PAYMASTER_OVERRIDE ||
-  PIMLICO_PAYMASTER_OVERRIDE ||
-  ZD_PAYMASTER_OVERRIDE;
-export const ZD_PAYMASTER_RPC = PAYMASTER_RPC;
-export const PIMLICO_PAYMASTER_RPC = PAYMASTER_RPC;
+  MONAD_PAYMASTER_OVERRIDE;
+export const ALCHEMY_PAYMASTER_RPC = PAYMASTER_RPC;
+export const MONAD_PAYMASTER_RPC = PAYMASTER_RPC;
 
 const PAYMASTER_API_KEY = (() => {
   const candidates = [
     runtimeConfigValue("ALCHEMY_API_KEY"),
-    runtimeConfigValue("PIMLICO_API_KEY"),
-    runtimeConfigValue("ZD_API_KEY", "")
+    runtimeConfigValue("MONAD_PAYMASTER_API_KEY", "")
   ];
   for (const value of candidates) {
     if (value) return value;
   }
   return "";
 })();
-export const ZD_API_KEY = PAYMASTER_API_KEY;
-export const PIMLICO_API_KEY = PAYMASTER_API_KEY;
 export const ALCHEMY_API_KEY = PAYMASTER_API_KEY;
 
 const PAYMASTER_POLICY_ID =
-  runtimeConfigValue("PIMLICO_POLICY_ID", "");
-export const PIMLICO_POLICY_ID = PAYMASTER_POLICY_ID;
+  runtimeConfigValue("ALCHEMY_POLICY_ID", "");
+export const ALCHEMY_POLICY_ID = PAYMASTER_POLICY_ID;
 
 // Primary Monad network metadata (shared by lobby, AA, bankroll helpers)
 export const MONAD = {
