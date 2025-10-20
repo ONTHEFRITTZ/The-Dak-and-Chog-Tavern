@@ -11,14 +11,14 @@
 
 ## 1. Smart Account Integration (Top Priority)
 
-- [ ] **Alchemy SDK adoption**  
-  - Swap `/js/aaClient.js` to use the Alchemy AA SDK for user ops, paymaster quoting, and bundler submissions (drop ZeroDev/legacy helpers).  
-  - Ensure config flows from env (`NEXT_PUBLIC_ALCHEMY_API_KEY`, `NEXT_PUBLIC_ALCHEMY_PAYMASTER_RPC`, etc.) and matches `/api/paymaster/sign`.  
-  - Remove remaining `window.AA_PAYMASTER_CONTEXT` and other legacy globals.
+- [x] **Alchemy SDK adoption**  
+  - [x] Swap `/js/aaClient.js` to use the Alchemy AA SDK for user ops, paymaster quoting, and bundler submissions (drop ZeroDev/legacy helpers).  
+  - [x] Ensure config flows from env (`NEXT_PUBLIC_ALCHEMY_API_KEY`, `NEXT_PUBLIC_ALCHEMY_PAYMASTER_RPC`, etc.) and matches `/api/paymaster/sign`.  
+  - [x] Remove remaining `window.AA_PAYMASTER_CONTEXT` and other legacy globals.
 
-- [ ] **MetaMask Delegation Toolkit alignment**  
-  - Verify poker AA flows use the Alchemy-backed client while preserving toolkit session UX.  
-  - Confirm fallback signer paths still function when sponsorship disabled.
+- [x] **MetaMask Delegation Toolkit alignment**  
+  - [x] Verify poker AA flows use the Alchemy-backed client while preserving toolkit session UX.  
+  - [x] Confirm fallback signer paths still function when sponsorship disabled.
 
 ## 2. Game Ports
 
@@ -63,10 +63,10 @@
 - [x] **API route for Verifying Paymaster signatures** (`/api/paymaster/sign`).  
   - Confirm env keys in Vercel/Server: `VERIFYING_PAYMASTER_SIGNER_PK`, `MONAD_RPC_URL`, etc.
 
-- [ ] **Frontend adoption of new paymaster endpoint**  
+- [x] **Frontend adoption of new paymaster endpoint**  
   - [x] `useBankroll` and Holdem buy-in flows now request signatures from `/api/paymaster/sign`.  
-  - [ ] Update Dak & Chog / Shell action flows to drop legacy AA helpers and rely on the shared hook.  
-  - [ ] Remove remaining references to `window.AA_PAYMASTER_CONTEXT`.
+  - [x] Update Dak & Chog / Shell action flows to drop legacy AA helpers and rely on the shared hook.  
+  - [x] Remove remaining references to `window.AA_PAYMASTER_CONTEXT`.
 
 - [ ] **Alchemy smart-account runtime**  
   - Replace ad-hoc client calls with `@alchemy/aa-alchemy` helpers for signing and submitting user operations.  

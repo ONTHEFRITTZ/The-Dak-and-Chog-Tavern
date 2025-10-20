@@ -1,18 +1,26 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { MONAD_BUNDLER_RPC } from "@/lib/config";
-
-type AaClientModule = {
-  initAA: (opts?: { bundlerUrl?: string; paymasterUrl?: string; provider?: unknown }) => Promise<any>;
-  client?: {
-    sendTransaction?: (tx: { to: string; data?: string; value?: bigint }) => Promise<string | null>;
-  };
-};
+import type { AlchemySmartAccountClient } from "@alchemy/aa-alchemy";
+import { createAlchemySmartAccountClient } from "@alchemy/aa-alchemy";
+import type { SmartContractAccount } from "@alchemy/aa-core";
+import { type Hex } from "viem";
+import { useWallet } from "@/context/WalletContext";
+import {
+  ALCHEMY_API_KEY,
+  ALCHEMY_PAYMASTER_RPC,
+  ALCHEMY_POLICY_ID,
+  MONAD,
+  MONAD_BUNDLER_RPC,
+  MONAD_CHAIN,
+} from "@/lib/config";
+import { ensureDelegationToolkitContext, resetDelegationToolkitContext } from "./toolkitContext";
+import type { DelegationToolkitContext } from "./toolkitContext";
+import { loadSmartAccountAddress, storeSmartAccountAddress } from "./storage";
 
 type SendTransactionParams = {
   to: string;
-  data?: string;
+  data?: Hex | string;
   value?: bigint;
 };
 
@@ -23,81 +31,172 @@ export type DelegationToolkitAA = {
   ensureReady: () => Promise<void>;
 };
 
-const PAYMASTER_SIGN_ENDPOINT = "/api/paymaster/sign";
+type DelegationModule = typeof import("@/vendor/metamask-delegation-toolkit.mjs");
+
+function pickImplementation(module: DelegationModule) {
+  const { Implementation } = module;
+  if (!Implementation) return null;
+  return Implementation.MultiSig ?? Implementation.Stateless7702 ?? Implementation.Hybrid ?? null;
+}
 
 export function useDelegationToolkitAA(): DelegationToolkitAA {
-  const moduleRef = useRef<AaClientModule | null>(null);
-  const initPromiseRef = useRef<Promise<void> | null>(null);
-  const mountedRef = useRef(true);
+  const { provider, address } = useWallet();
   const [initializing, setInitializing] = useState(false);
   const [ready, setReady] = useState(false);
 
-  useEffect(() => {
-    return () => {
-      mountedRef.current = false;
-    };
+  const alchemyClientRef = useRef<AlchemySmartAccountClient | null>(null);
+  const smartAccountRef = useRef<SmartContractAccount | null>(null);
+  const contextRef = useRef<DelegationToolkitContext | null>(null);
+  const initPromiseRef = useRef<Promise<void> | null>(null);
+
+  const resetState = useCallback(() => {
+    alchemyClientRef.current = null;
+    smartAccountRef.current = null;
+    contextRef.current = null;
+    initPromiseRef.current = null;
+    setReady(false);
   }, []);
 
-  const ensureModule = useCallback(async (): Promise<AaClientModule> => {
-    if (moduleRef.current) return moduleRef.current;
-    const mod: AaClientModule = await import(
-      /* webpackIgnore: true */ "/js/aaClient.js"
-    );
-    moduleRef.current = mod;
-    return mod;
-  }, []);
+  useEffect(() => {
+    if (!provider || !address) {
+      resetDelegationToolkitContext();
+      resetState();
+    }
+  }, [provider, address, resetState]);
 
   const ensureReady = useCallback(async () => {
-    if (ready) return;
+    if (ready && alchemyClientRef.current && smartAccountRef.current) {
+      return;
+    }
     if (initPromiseRef.current) {
       await initPromiseRef.current;
       return;
     }
+
     const promise = (async () => {
-      setInitializing(true);
-      try {
-        const mod = await ensureModule();
-        const bundlerUrl = MONAD_BUNDLER_RPC || undefined;
-        const paymasterUrl = PAYMASTER_SIGN_ENDPOINT;
-        await mod.initAA({
-          bundlerUrl,
-          paymasterUrl,
-        });
-        if (mountedRef.current) {
-          setReady(true);
-        }
-      } finally {
-        if (mountedRef.current) {
-          setInitializing(false);
-        }
-        initPromiseRef.current = null;
+      if (!provider || !address) {
+        throw new Error("Connect wallet to continue.");
       }
-    })();
+      setInitializing(true);
+
+      const ctx = await ensureDelegationToolkitContext();
+      contextRef.current = ctx;
+
+      const { publicClient, walletClient, environment, ownerAccount } = ctx;
+      if (!walletClient || !publicClient) {
+        throw new Error("Delegation Toolkit context incomplete");
+      }
+
+      const module = (await import("@/vendor/metamask-delegation-toolkit.mjs")) as DelegationModule;
+      const implementation = pickImplementation(module);
+      if (!implementation) {
+        throw new Error("MetaMask Delegation Toolkit implementation unavailable");
+      }
+
+      const signerConfig =
+        implementation === module.Implementation.MultiSig ? [{ walletClient }] : { walletClient };
+
+      const storedAddress = loadSmartAccountAddress(publicClient.chain?.id ?? MONAD.id);
+      const multiSigDeployParams: [string[], bigint] = [[ownerAccount], 1n];
+      const hybridDeployParams: [string, string[], string[], string[]] = [ownerAccount, [], [], []];
+
+      const accountOptions = storedAddress
+        ? { address: storedAddress }
+        : implementation === module.Implementation.MultiSig
+        ? { deployParams: multiSigDeployParams, deploySalt: "0x0" as const }
+        : implementation === module.Implementation.Hybrid
+        ? { deployParams: hybridDeployParams, deploySalt: "0x0" as const }
+        : {};
+
+      const smartAccount = await module.toMetaMaskSmartAccount({
+        client: publicClient as any,
+        implementation,
+        signer: signerConfig as any,
+        environment,
+        ...accountOptions,
+      });
+
+      const smartAccountAddress = await smartAccount.getAddress();
+      storeSmartAccountAddress(publicClient.chain?.id ?? MONAD.id, smartAccountAddress);
+
+      const rpcUrl = MONAD_BUNDLER_RPC?.trim();
+      const alchemyConfig: Record<string, unknown> = {
+        account: smartAccount,
+        chain: MONAD_CHAIN,
+      };
+      if (ALCHEMY_API_KEY) alchemyConfig.apiKey = ALCHEMY_API_KEY;
+      if (rpcUrl) alchemyConfig.rpcUrl = rpcUrl;
+      if (!alchemyConfig.apiKey && !alchemyConfig.rpcUrl) {
+        throw new Error(
+          "Alchemy bundler configuration missing. Set NEXT_PUBLIC_MONAD_BUNDLER_RPC or NEXT_PUBLIC_ALCHEMY_API_KEY."
+        );
+      }
+      if (ALCHEMY_PAYMASTER_RPC) {
+        alchemyConfig.gasManagerConfig = {
+          policyId: ALCHEMY_POLICY_ID,
+          provider: ALCHEMY_PAYMASTER_RPC,
+        };
+      }
+
+      const alchemyClient = await createAlchemySmartAccountClient(alchemyConfig as any);
+
+      smartAccountRef.current = smartAccount;
+      alchemyClientRef.current = alchemyClient;
+      setReady(true);
+    })()
+      .catch((err) => {
+        resetState();
+        throw err;
+      })
+      .finally(() => {
+        setInitializing(false);
+        initPromiseRef.current = null;
+      });
+
     initPromiseRef.current = promise;
     await promise;
-  }, [ensureModule, ready]);
+  }, [address, provider, ready, resetState]);
 
   const sendTransaction = useCallback(
     async ({ to, data, value = 0n }: SendTransactionParams) => {
-      if (!to) throw new Error("Transaction target missing");
-      await ensureReady();
-      const mod = moduleRef.current;
-      if (!mod?.client?.sendTransaction) {
-        throw new Error("Delegation Toolkit client unavailable");
+      if (!to) {
+        throw new Error("Transaction target missing");
       }
+
       try {
-        const hash = await mod.client.sendTransaction({
+        await ensureReady();
+      } catch (err) {
+        console.warn("[useDelegationToolkitAA] initialization failed", err);
+        throw err;
+      }
+
+      const alchemyClient = alchemyClientRef.current;
+      if (!alchemyClient) {
+        throw new Error("Alchemy smart account client unavailable");
+      }
+
+      try {
+        const userOpHash = await alchemyClient.sendTransaction({
+          to: to as Hex,
+          data: data as Hex | undefined,
+          value,
+        });
+        const txHash = await alchemyClient.waitForUserOperationTransaction({ hash: userOpHash });
+        return txHash;
+      } catch (err) {
+        console.warn("[useDelegationToolkitAA] sendTransaction via AA failed", err);
+        if (!provider) throw err;
+        const signer = await provider.getSigner();
+        const txResponse = await signer.sendTransaction({
           to,
           data,
           value,
         });
-        return hash ?? null;
-      } catch (err) {
-        console.warn("[useDelegationToolkitAA] sendTransaction failed", err);
-        throw err;
+        const receipt = await txResponse.wait();
+        return receipt?.hash ?? txResponse.hash ?? null;
       }
     },
-    [ensureReady]
+    [ensureReady, provider]
   );
 
   return useMemo(

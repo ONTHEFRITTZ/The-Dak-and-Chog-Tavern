@@ -24,11 +24,9 @@ export default function RootLayout({
           {children}
           <FooterMeta />
         </WalletProvider>
-        <Script
-          id="tavern-build-tag"
-          strategy="beforeInteractive"
-        >{`window.__BUILD_TAG = window.__BUILD_TAG || '${Date.now()}';`}</Script>
-        <Script src="/js/aaClient.js" strategy="afterInteractive" />
+        <Script id="tavern-build-tag" strategy="beforeInteractive">
+          {`window.__BUILD_TAG = window.__BUILD_TAG || '${Date.now()}';`}
+        </Script>
       </body>
     </html>
   );

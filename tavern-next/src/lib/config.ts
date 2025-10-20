@@ -1,4 +1,4 @@
-import type { Address } from "viem";
+import { defineChain, type Address } from "viem";
 
 const DEFAULT_MONAD_RPC = process.env.NEXT_PUBLIC_MONAD_RPC ?? "https://testnet-rpc.monad.xyz";
 const DEFAULT_MONAD_WS = process.env.NEXT_PUBLIC_MONAD_WS ?? "wss://testnet-rpc.monad.xyz/ws";
@@ -10,6 +10,33 @@ export const MONAD = {
   explorer: "https://testnet.monadexplorer.com",
   nativeCurrency: { name: "MON", symbol: "MON", decimals: 18 },
 };
+
+const MONAD_ALCHEMY_BASE = deriveAlchemyRpcBase(
+  process.env.NEXT_PUBLIC_MONAD_BUNDLER_RPC ??
+    process.env.NEXT_PUBLIC_ALCHEMY_BUNDLER_RPC
+);
+
+export const MONAD_CHAIN = defineChain({
+  id: MONAD.id,
+  name: MONAD.name,
+  nativeCurrency: MONAD.nativeCurrency,
+  rpcUrls: {
+    default: { http: [DEFAULT_MONAD_RPC] },
+    public: { http: [DEFAULT_MONAD_RPC] },
+    alchemy: {
+      http: MONAD_ALCHEMY_BASE
+        ? [MONAD_ALCHEMY_BASE]
+        : [
+            process.env.NEXT_PUBLIC_ALCHEMY_BUNDLER_RPC ??
+              process.env.NEXT_PUBLIC_MONAD_BUNDLER_RPC ??
+              DEFAULT_MONAD_RPC,
+          ],
+    },
+  },
+  blockExplorers: {
+    default: { name: "Monad Explorer", url: MONAD.explorer },
+  },
+});
 
 export const RPC_ENDPOINTS: Record<number, string> = {
   [MONAD.id]: DEFAULT_MONAD_WS,
@@ -88,4 +115,17 @@ export function explorerAddressUrl(chainId: number | string | null, address?: Ad
   if (!address) return undefined;
   const base = EXPLORERS[Number(chainId)];
   return base ? `${base}/address/${address}` : undefined;
+}
+
+function deriveAlchemyRpcBase(url?: string | null) {
+  if (!url) return undefined;
+  try {
+    const parsed = new URL(url);
+    parsed.search = "";
+    // Normalise anything past /v2 to the root /v2 path expected by the SDK schema.
+    parsed.pathname = parsed.pathname.replace(/\/v2.*/i, "/v2");
+    return parsed.toString().replace(/\/$/, "");
+  } catch {
+    return undefined;
+  }
 }
