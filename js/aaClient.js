@@ -844,9 +844,9 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
       let factoryArgs = null;
       try { factoryArgs = (typeof account.getFactoryArgs === 'function') ? await account.getFactoryArgs() : null; }
       catch {}
-      const GAS_PRESET_CALL = 2000000n;
-      const GAS_PRESET_VERIFICATION = 1500000n;
-      const GAS_PRESET_PREVERIFICATION = 250000n;
+      const GAS_PRESET_CALL = 4000000n;
+      const GAS_PRESET_VERIFICATION = 2000000n;
+      const GAS_PRESET_PREVERIFICATION = 4000000n;
       const wantsPresetGas = !!aaPaymasterEndpoint;
       const unsignedOp = {
         sender,
