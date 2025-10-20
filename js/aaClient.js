@@ -1,6 +1,6 @@
 // aa-client.js — minimal AA/session-key client w/ budget guardrails (onchain mode only)
 // Works with your viem import map if present; otherwise falls back to injected.
-import { MONAD, AA_FEATURES, getPokerTableAddress, MONAD_BUNDLER_RPC, ZD_PAYMASTER_RPC, ZD_API_KEY, PAYMASTER_ADDRESS } from './aa/config.js';
+import { MONAD, AA_FEATURES, getPokerTableAddress, MONAD_BUNDLER_RPC, ZD_PAYMASTER_RPC, ZD_API_KEY, PAYMASTER_ADDRESS, PIMLICO_POLICY_ID } from './aa/config.js';
 import { MONAD_DELEGATION_ENV } from './aa/delegation-config.js';
 import { ethers } from './tavern.js';
 import { ensureDelegationToolkitContext } from './aa/toolkit.js';
@@ -536,6 +536,47 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
   } catch {}
   return '';
 })();
+  const paymasterPolicyId = (() => {
+    const normalize = (value) => {
+      if (!value) return '';
+      try {
+        const str = String(value).trim();
+        return str || '';
+      } catch {
+        return '';
+      }
+    };
+    const primary = normalize(PIMLICO_POLICY_ID);
+    if (primary) return primary;
+    try {
+      if (typeof window !== 'undefined' && window) {
+        const aliases = [
+          window.ALCHEMY_POLICY_ID,
+          window.PIMLICO_POLICY_ID,
+          window.AA_PAYMASTER_POLICY_ID
+        ];
+        for (const alias of aliases) {
+          const runtime = normalize(alias);
+          if (runtime) return runtime;
+        }
+      }
+    } catch {}
+    return '';
+  })();
+  const paymasterContextOverride = (() => {
+    try {
+      if (typeof window === 'undefined') return null;
+      const raw = window.AA_PAYMASTER_CONTEXT;
+      if (!raw) return null;
+      if (typeof raw === 'object') return raw;
+      if (typeof raw === 'string') {
+        const trimmed = raw.trim();
+        if (!trimmed) return null;
+        try { return JSON.parse(trimmed); } catch { return null; }
+      }
+    } catch {}
+    return null;
+  })();
   const ensureApiKeyParam = (url, key) => {
     if (!url || !key) return url;
     try {
@@ -933,6 +974,19 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
           return '';
         }
       })();
+      const makePaymasterContext = (inputContext) => {
+        let ctx = {};
+        if (paymasterContextOverride) ctx = { ...paymasterContextOverride };
+        if (paymasterPolicyId && !ctx.policyId) ctx.policyId = paymasterPolicyId;
+        if (paymasterHost.includes('alchemy.com')) {
+          const chainNumber = Number.isFinite(chainNumeric) ? chainNumeric : Number(MONAD.id);
+          if (!ctx.chainId) ctx.chainId = chainNumber;
+        }
+        if (inputContext && typeof inputContext === 'object') {
+          ctx = { ...ctx, ...inputContext };
+        }
+        return Object.keys(ctx).length ? ctx : undefined;
+      };
       try {
         if (paymasterUrlEffective) {
           const callPaymasterRpc = async (method, params) => {
@@ -957,7 +1011,7 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
           };
           paymasterClient = {
             sponsorUserOperation: async ({ userOperation, entryPoint, context }) => {
-              const ctx = (context && typeof context === 'object') ? context : undefined;
+              const baseContext = makePaymasterContext(context);
               const attempts = [];
               const tryCall = async (method, paramsBuilder) => {
                 try {
@@ -973,7 +1027,7 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
               if (paymasterHost.includes('pimlico') || paymasterHost.includes('zerodev')) {
                 resultPm = await tryCall('pm_sponsorUserOperation', () => {
                   const params = [userOperation, entryPoint];
-                  if (ctx) params.push(ctx);
+                  if (baseContext) params.push({ ...baseContext });
                   return params;
                 });
                 if (resultPm) return resultPm;
@@ -983,7 +1037,7 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
                   entryPoint,
                   userOperation
                 };
-                if (ctx) Object.assign(payload, ctx);
+                if (baseContext) Object.assign(payload, baseContext);
                 return [payload];
               };
               if (paymasterHost.includes('alchemy.com')) {
