@@ -55,7 +55,7 @@ SECRET_CONFIG_DIR="${BASE}/secrets"
 PAYMASTER_SECRET="${SECRET_CONFIG_DIR}/paymaster-key.js"
 if [ -f "$PAYMASTER_SECRET" ]; then
   sudo mkdir -p "$WEBROOT/config"
-  sudo install -m 600 "$PAYMASTER_SECRET" "$WEBROOT/config/paymaster-key.js"
+  sudo install -m 640 -o www-data -g www-data "$PAYMASTER_SECRET" "$WEBROOT/config/paymaster-key.js"
 else
   echo "WARNING: ${PAYMASTER_SECRET} not found; keeping repository paymaster-key.js (likely blank)." >&2
 fi
@@ -73,7 +73,7 @@ printf '%s @ %s\n' "$commit" "$builtAt" | sudo tee "$WEBROOT/assets/deploy_check
 sudo find "$WEBROOT" -type d -exec chmod 755 {} +
 sudo find "$WEBROOT" -type f -exec chmod 644 {} +
 if [ -f "$WEBROOT/config/paymaster-key.js" ]; then
-  sudo chmod 600 "$WEBROOT/config/paymaster-key.js"
+  sudo chmod 640 "$WEBROOT/config/paymaster-key.js"
 fi
 
 # --- Summary ---
