@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <script type="importmap">
+    {
+      "imports": {
+        "@metamask/delegation-toolkit": "/js/vendor/metamask-delegation-toolkit-latest.mjs",
+        "viem": "https://esm.sh/viem@2.38.2",
+        "viem/actions": "https://esm.sh/viem@2.38.2/actions",
+        "viem/accounts": "https://esm.sh/viem@2.38.2/accounts",
+        "viem/chains": "https://esm.sh/viem@2.38.2/chains",
+        "viem/utils": "https://esm.sh/viem@2.38.2/utils",
+        "viem/account-abstraction": "https://esm.sh/viem@2.38.2/account-abstraction"
+      }
+    }
+  </script>
+  <script src="/js/provider-pin.js"></script>
+  <script>(function(){try{var signed=sessionStorage.getItem('walletSigned')==='true'; if(!signed){ location.replace('/landing.html'); return; }}catch(e){ location.replace('/landing.html'); }})();</script>
+  <script src="/config/paymaster-key.js"></script>
+  <script type="module" src="/js/aa/init-all.js"></script>
+  <title>Faro Lobby</title>
+  <script>
+    (async()=>{
+      try{
+        const b = await fetch('/assets/build.json', { cache:'no-store' }).then(r=>r.ok?r.json():null).catch(()=>null);
+        const tag = (b && b.commit) ? String(b.commit).slice(0,12) : Date.now();
+        window.__BUILD_TAG = tag;
+        const css = document.createElement('link'); css.rel='stylesheet'; css.href = `../../css/style.css?v=${tag}`; document.head.appendChild(css);
+      }catch(e){ console.error('head loader failed', e); }
+    })();
+  </script>
+  <script>(function(){try{var signed=sessionStorage.getItem('walletSigned')==='true'; if(!signed){ location.replace('/landing.html'); return; }}catch(e){ location.replace('/landing.html'); }})();</script>
+  <!-- Preload games-room background to avoid cold paint -->
+  <link rel="preload" as="image" href="../../assets/images/games-room.png" type="image/png">
+  <style>
+    body { background: #120c08 url('../../assets/images/games-room.png') no-repeat center center fixed !important; background-size: 100% auto !important; }
+    /* Match Poker lobby layout: stack, start from top, full viewport */
+    /* Ensure lobby aligns to the top like Poker */
+    body.game.lobby-page {
+      display:flex; flex-direction:column; align-items:center; justify-content:flex-start !important;
+      min-height: 100vh;
+    }
+    /* Place logo above container with a soft backglow (match Hazard sizing) */
+    .game-logo {
+      display:block; height:auto; max-width: clamp(180px, 26vw, 420px);
+      margin: 4px auto 18px; /* tighter above, a bit more space below */
+      filter: drop-shadow(0 0 18px rgba(255,244,233,0.45)) drop-shadow(0 4px 12px rgba(0,0,0,0.25));
+      pointer-events:none; user-select:none;
+    }
+    /* Centered, locked lobby panel (shared with Poker). Expands and scrolls if needed. */
+    :root { --panel-w: clamp(420px, 60vw, 1000px); --panel-vpad: 72px; }
+    #faro-lobby.lobby-wrap { width:95%; max-width:1000px; margin: clamp(24px, 10vh, 120px) auto 32px; position:relative; }
+    body.game { padding-top: 0 !important; }
+    .lobby-card {
+      position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
+      z-index: 11000; width: var(--panel-w);
+      max-height: calc(100vh - var(--panel-vpad) - 24px); overflow: auto;
+      background: var(--panel-bg-soft);
+      border:1px solid rgba(255,255,255,0.12); border-radius:14px;
+      padding:20px; color:#f4e6d3; box-shadow:0 24px 60px rgba(0,0,0,0.55);
+    }
+  </style>
+</head>
+<body class="game lobby-page">
+
+  <script>(function(){try{var signed=sessionStorage.getItem('walletSigned')==='true'; if(!signed){ location.replace('/landing.html'); return; }}catch(e){ location.replace('/landing.html'); }})();</script>
+  
+  <!-- Top banner (match Poker isolated layout) -->
+  <div class="top-banner" role="region" aria-label="Wallet and status">
+    <div class="banner-left">
+      <div id="status" class="banner-status">Connecting...</div>
+    </div>
+    <div class="banner-right">
+      <div class="controls"></div>
+    </div>
+  </div>
+  
+
+  <div id="faro-lobby" class="lobby-wrap">
+    <div class="lobby-card">
+      <h2 style="margin:0 0 8px;">Faro Lobby</h2>
+      <div id="faro-status" class="muted" style="margin-bottom:8px; font-size:13px; min-height:18px;"></div>
+      <div id="lobby" class="lobby-list">
+        <div style="opacity:.7; font-size:13px;">Connecting to lobby...</div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" crossorigin="anonymous"></script>
+  <script type="module" src="../../js/tavern.js"></script>
+  <script type="module">
+    (async()=>{
+      try { const tag = window.__BUILD_TAG || Date.now(); const s=document.createElement('script'); s.type='module'; s.src=`lobby.js?v=${encodeURIComponent(tag)}`; document.body.appendChild(s); } catch(e) { console.error('faro lobby boot failed', e); }
+    })();
+  </script>
+  <!-- Left Sidebar (collapsible) -->
+  <script>
+    (function(){
+      try {
+        var t = (window.__BUILD_TAG||Date.now());
+        var s = document.createElement('script');
+        s.type = 'module';
+        s.src = '/js/sidebar.js?v=' + encodeURIComponent(t);
+        document.body.appendChild(s);
+      } catch(e) {}
+    })();
+  </script>
+</body>
+</html>
+
+
+
+
+

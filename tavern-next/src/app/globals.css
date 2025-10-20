@@ -1,0 +1,326 @@
+/* ==========================================================================   Dak & Chog � Global Styles (leaned, de-duped)   ========================================================================== *//* ------------------------------- Fonts ----------------------------------- */@font-face {  font-family: 'Morris';  src: url('/assets/fonts/MorrisRoman-Black.ttf') format('truetype');  font-weight: 900;  font-style: normal;  font-display: swap;}
+@font-face {  font-family: 'Morris Alt';  src: url('/assets/fonts/MorrisRomanAlternate-Black.ttf') format('truetype');  font-weight: 900;  font-style: normal;  font-display: swap;}
+/* ------------------------------- Root Vars -------------------------------- */:root {  /* Panels / glass (adopt on-chain wallet pill scheme site-wide) */  --panel-bg-soft: rgba(12, 24, 38, 0.85);  --panel-bg-strong: rgba(10, 20, 32, 0.88);  --panel-border: rgba(120,200,255,0.22);  /* Layout sizing */  --content-max: clamp(960px, 80vw, 1480px);  --content-pad: clamp(20px, 3vw, 48px);  /* Poker seat ring tuning (JS reads these) */  --rail-thickness: 78px;        /* leather rail thickness on poker-table.png */  --seat-gap: 16px;              /* space outside the rail */  --ellipse-rotate-deg: 0;       /* global rotation tweak (deg) */  /* Card tile sizes (sprite consumers) */  --card-tile-w: 72px;  --card-tile-h: 104px;  --card-hole-w: 60px;  --card-hole-h: 87px;  /* Seat box (kept stable for layout math) */  --seat-w: 150px;  --seat-h: 160px;  /* Misc spacing */  --edge-pad: 12px;}
+/* --------------------------------- Base ----------------------------------- */* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {  margin: 0;  font-family: 'Morris', 'Morris Alt', serif;  color: #f4e6d3;  text-align: center;  background: url('/assets/images/tavern-bg.webp') no-repeat center center fixed;  background-size: cover;}
+/* Generic page frames */body.home {  min-height: 100vh;  display: flex;  flex-direction: column;  align-items: center;}
+body.game {  min-height: 100vh;  display: flex;  align-items: center;  justify-content: center;}
+/* Visually hidden (a11y) */.visually-hidden {  position: absolute !important;  width: 1px; height: 1px;  padding: 0; margin: -1px;  overflow: hidden; clip: rect(0 0 0 0);  white-space: nowrap; border: 0;}
+/* ------------------------------ Buttons ----------------------------------- */button {  background: #9200fa;  border: none;  padding: clamp(8px, 0.6vw + 6px, 16px) clamp(16px, 1vw + 14px, 28px);  margin: clamp(8px, 0.6vw + 6px, 16px);  color: #fff;  font-size: clamp(1rem, 0.9rem + 0.4vw, 1.6rem);  font-family: inherit;  border-radius: 10px;  cursor: pointer;}
+button:hover { background: #7800cd; }
+/* ------------------------------ Sidebar ----------------------------------- */.sidebar {  position: fixed; inset: 0 auto 0 0;  width: 240px;  background: var(--panel-bg-strong);  border-right: 1px solid var(--panel-border);  box-shadow: 6px 0 18px rgba(0, 0, 0, 0.35);  padding: 10px;  color: #f4e6d3;  z-index: 11000;  display: flex;  flex-direction: column;  gap: 8px;  transition: width .18s ease, transform .18s ease;  overflow-x: hidden;}
+.sidebar.collapsed { width: 64px; overflow: hidden; }
+.sidebar-header { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.sidebar-header .title { font-weight: 900; letter-spacing: .5px; }
+.sidebar-logo {  display: block;  max-height: 60px;  height: auto;  width: auto;  object-fit: contain;  border-radius: 8px;  margin-bottom: 8px;  filter: drop-shadow(0 4px 12px rgba(0,0,0,0.25));}
+.sidebar:not(.collapsed) .sidebar-logo {  width: calc(100% + 20px);  margin-left: -10px;  margin-right: -10px;  max-width: none;  max-height: none;}
+.sidebar.collapsed .sidebar-logo { display:block; width:44px; max-width:44px; height:auto; max-height:36px; object-fit:contain; margin:8px auto 6px; }
+.sidebar-toggle {  border: none;  color: #fff;  font-weight: 700;  height: 32px;  min-width: 32px;  padding: 0 12px;  cursor: pointer;  display: inline-flex;  align-items: center;  justify-content: center;  border-radius: 10px;  background: rgba(0, 0, 0, 0.35);  margin: 0 auto 8px;}
+.sidebar.collapsed .sidebar-toggle {  width: 44px;  padding: 0;}
+.sidebar-links { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.sidebar-links li a {  display: block; text-align: left; text-decoration: none; color: #f4e6d3;  border: 1px solid var(--panel-border);  border-radius: 10px; padding: 10px 12px;  transition: background .12s ease, transform .12s ease;}
+.sidebar-links li a:hover {  transform: translateX(2px); }
+/* collapsed labels + dot */.sidebar.collapsed .sidebar-links li a { text-indent: -9999px; position: relative; }
+.sidebar.collapsed .sidebar-links li a::after {  content: '\2022'; text-indent: 0; /* bullet */  position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%);}
+/* hide sidebar off-canvas on narrow */@media (max-width: 800px) {  .sidebar { transform: translateX(-100%); }
+  .sidebar:not(.collapsed) { transform: translateX(0); }
+}
+/* ------------------------------- Home Card -------------------------------- */.tavern {  padding: var(--content-pad);  border: 1px solid var(--panel-border);  border-radius: 15px;  max-width: var(--content-max);  width: min(95%, var(--content-max));  margin: 8px auto 16px;  box-shadow: 0 24px 60px rgba(0,0,0,0.55);  gap: clamp(12px, 1.6vw, 32px);}
+/* Tavern sign (kept lean) */  margin-left: auto;  margin-right: auto;  margin-bottom: 4px;  transform: scale(clamp(0.5, 0.32 + 0.12vw, 0.75));  top: clamp(24px, 2vh + 12px, 44px);}
+/* ------------------------------ Game links -------------------------------- */.game-links a {  display: inline-block;  margin: 10px; padding: 15px 30px; color: #fff; text-decoration: none;  border-radius: 10px; font-size: 20px;}
+.game-links a:hover {  }
+/* Game logo grid */.game-logos {  display: flex; flex-wrap: wrap; justify-content: center; align-items: center;  gap: clamp(12px, 2vw, 20px); margin-top: 12px;}
+.game-logo-link { display: block; flex: 0 0 calc(33.333% - 20px); max-width: calc(33.333% - 20px);  filter: drop-shadow(0 4px 12px rgba(0,0,0,0.18));  transition: transform .15s ease, filter .15s ease;}
+.game-logo-link img { display: block; width: 100%; height: auto; }
+.game-logo-link:hover { transform: translateY(-2px) scale(1.02); filter: drop-shadow(0 6px 18px rgba(0,0,0,0.25)); }
+@media (max-width: 900px) {  .game-logo-link { flex-basis: calc(50% - 20px); max-width: calc(50% - 20px); }
+}
+@media (max-width: 520px) {  .game-logo-link { flex-basis: 100%; max-width: 100%; }
+}
+/* ------------------------------ Shell Game -------------------------------- */.shells { display: flex; justify-content: space-evenly; gap: 24px; margin-top: 20px; cursor: pointer; }
+.shell {  width: 100px; height: 100px;  background-size: contain; transition: transform .3s;}
+.shell:hover { transform: scale(1.1); }
+.shell.shaking { animation: shake 1s ease; }
+@keyframes shake {  0%,100% { transform: translateX(0); }
+  20%,60% { transform: translateX(-10px); }
+  40%,80% { transform: translateX(10px); }
+}
+/* ------------------------------ Age Landing ------------------------------- */body.age-landing {  min-height: 100vh; display: flex; align-items: center; justify-content: center; text-align: center;}
+.age-hero { width: 100%; max-width: 1200px; margin: 0 auto; padding: 24px 16px; display: flex; flex-direction: column; align-items: center; gap: 24px; }
+.age-logo { width: clamp(360px, 60vw, 980px); height: auto; display: block; filter: drop-shadow(0 8px 18px rgba(0,0,0,0.28)); }
+.age-card {  border: 1px solid var(--panel-border);  border-radius: 16px; box-shadow: 0 24px 60px rgba(0,0,0,0.55);  padding: 20px 22px; width: min(92%, 820px);}
+.age-warning { margin: 0 0 12px; font-size: clamp(16px, 2.2vw, 22px); }
+.age-cta button { padding: 12px 22px; font-size: 18px; border-radius: 10px; }
+@media (max-width: 600px) {  .age-hero { gap: 18px; padding: 16px 12px; }
+  .age-cta button { font-size: 16px; padding: 10px 18px; }
+}
+/* ------------------------------ Profile Modal ------------------------------ */#profile-modal,#profile-modal label,#profile-modal h3,#profile-modal h4,#profile-modal p,#profile-modal #prof-stats { color: #f4e6d3; }
+#profile-modal input[type="text"],#profile-modal input[type="number"],#profile-modal textarea {  color: #f4e6d3;  border: 1px solid var(--panel-border);}
+#profile-modal button { color: #f4e6d3; }
+/* -------------------------- Standalone Net Banner -------------------------- */#network-banner .pill { color: #fff; padding: 4px 8px;  border-radius: 999px; font-weight: 700; display: inline-block; margin-right: 8px;}
+#network-banner .pill a { color: #fff; text-decoration: none; }
+/* ------------------------------- Wallet chip ------------------------------- */#wallet-inline {  position: fixed;  top: var(--edge-pad);  right: var(--edge-pad);  z-index: 12000;  display: flex;  align-items: center;  gap: 6px;  background: var(--panel-bg-soft);  color: #f4e6d3;  border: 1px solid var(--panel-border);  border-radius: 10px;  padding: 4px 8px;}
+#wallet-inline > * {  flex-shrink: 0;}
+#wallet-inline #wi-disconnect {  padding: 6px 12px;  font-size: 12px;  border-radius: 10px;  line-height: 1.1;  height: 32px;}
+#wallet-inline #wi-disconnect {  display: inline-flex;  align-items: center;  justify-content: center;}
+#wallet-inline .wi-balance-badge {  padding: 0 6px;  min-height: 26px;}
+html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] #wallet-inline {  background: rgba(12, 24, 38, 0.85);  border-color: rgba(120,200,255,0.22);}
+/* Gasless indicator styling for wallet pill address */
+#wallet-inline.gasless-on #wi-address { background: linear-gradient(135deg, #ffd166, #ffc04d); color: #2b1e12; padding: 2px 8px; border-radius: 10px; box-shadow: 0 0 14px rgba(255, 209, 102, 0.35); font-weight: 700; }
+/* ==========================================================================   POKER TABLE � MINIMAL, IMAGE-ONLY SURFACE, NO ORANGE TOKENS   ========================================================================== *//* Canvas holds the table art + absolutely positioned seats */.table-canvas {  position: relative;  /* Maintain intrinsic table image aspect for correct seat placement */  /* Seat ellipse radius (percent of canvas). Smaller = closer to table center */  --ring-rx: 58;  --ring-ry: 48;  --ring-rotation: -90;  aspect-ratio: 1000 / 680;  width: min(80vw, 1100px);  max-height: 80vh; height: auto;  margin: 0 auto;}
+/* Table art: restore the single PNG */.table-surface {  position: absolute;  inset: 0;  z-index: 1;}
+.table-surface img {  width: 100%;  height: 100%;  object-fit: contain;  display: block;}
+/* Remove any previous felt/glow/overlays */.table-glow { display: none !important; }
+/* Seats are positioned by table.js around the rail */.seat {  position: absolute;  z-index: 3;  transform: translate(-50%, -50%); /* JS sets left/top */  border: 0;  box-shadow: none;  padding: 0;  width: var(--seat-w);  height: var(--seat-h);  display: flex;  flex-direction: column;  align-items: center;  gap: 4px;}
+/* Basic inner bits the JS adds */.seat .addr {  font-size: 12px;  width: 120px;  text-align: center;  white-space: nowrap;  overflow: hidden;  text-overflow: ellipsis;  margin: 2px auto;}
+.seat .btns { display: flex; gap: 6px; justify-content: center; margin-top: 6px; pointer-events:auto; }
+.seat .btns button { padding: 4px 8px; font-size: 12px; border-radius: 6px; }
+.seat.empty-seat {  justify-content: center;  gap: 0;}
+.seat.empty-seat .timer,.seat.empty-seat .cards,.seat.empty-seat .addr,.seat.empty-seat .stack {  display: none;}
+.seat.empty-seat .btns {  margin-top: 0;  flex: 1;  align-items: center;  justify-content: center;  width: 100%;}
+.seat .addr { max-width: 160px; }
+
+/* Center sit-CTA overlay */
+.table-canvas #sit-cta { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); z-index:6; display:none; align-items:center; gap:10px; }
+.table-canvas #sit-cta.show { display:flex; }
+.table-canvas #sit-cta button { padding:10px 18px; border-radius:12px; font-weight:800; background:#9200fa; color:#fff; border:none; box-shadow:0 8px 30px rgba(0,0,0,.45); }
+/* Name modal */
+.table-canvas #sit-cta .name-modal { display:none; flex-direction:column; gap:10px; padding:14px; border-radius:12px; background:rgba(0,0,0,0.55); border:1px solid rgba(255,255,255,.15); box-shadow:0 18px 40px rgba(0,0,0,.45); min-width:260px; }
+.table-canvas #sit-cta .name-modal.show { display:flex; }
+.table-canvas #sit-cta .name-modal h3 { margin:0; font-size:18px; }
+.table-canvas #sit-cta .name-modal input { width:100%; padding:8px 10px; border-radius:10px; border:1px solid var(--panel-border, rgba(255,255,255,.2)); background:rgba(0,0,0,0.35); color:#f4e6d3; font-family:inherit; }
+.table-canvas #sit-cta .name-modal .row { display:flex; gap:8px; align-items:center; justify-content:flex-end; }
+/* For now we reuse the addr line to show your chosen display name */
+
+/* Hide game UI until seated */
+.table-canvas.pre-seat .seat .btns { display:none !important; }
+.table-canvas.pre-seat #board { display:none !important; }
+.table-canvas.pre-seat .action-bar { display:none !important; }
+.table-canvas.pre-seat .cards { opacity:0.2; }
+.seat.empty-seat .btns button {  padding: 6px 12px;  border-radius: 12px;  font-size: 13px;}
+.seat .cards { display: flex; gap:6px; align-items:center; justify-content:center; min-height: 88px; }
+.seat .timer {  position: relative;  width: 88px;  height: 6px;  border-radius: 999px;  overflow: hidden;  margin: 2px auto 0;}
+.seat .timer .fill {  display: block;  width: 0%;  height: 100%;  transition: width .2s linear;}
+.seat.turn .timer .fill {  box-shadow: 0 0 6px rgba(255, 210, 120, 0.85);}
+.seat.turn {  filter: drop-shadow(0 0 12px rgba(255, 215, 120, 0.6));  transform: translate(-50%, -50%) scale(1.03);  transition: transform .18s ease, filter .18s ease;}
+/* Emphasize the player's own seat */.seat.me { outline: 0; border-radius: 10px; filter: none; }
+.seat:hover { filter: none; }
+@media (min-width: 1400px) {  :root {    --ring-rx: 54;    --ring-ry: 46;    --seat-w: 170px;    --seat-h: 182px;  }
+  .table-canvas {    width: min(80vw, 1280px);  }
+}
+.seat.folded { opacity: 0.55; }
+.seat.winner { animation: seatWinnerFlash 1s ease-in-out 2; }
+@keyframes seatWinnerFlash {  0% { filter: drop-shadow(0 0 0 rgba(255,215,120,0)); }
+  50% { filter: drop-shadow(0 0 12px rgba(255,215,120,0.9)); }
+  100% { filter: drop-shadow(0 0 0 rgba(255,215,120,0)); }
+}
+/* Small card tiles */.card {  display:block;  width: 60px; height: 84px;  border-radius: 6px;  box-shadow: 0 2px 6px rgba(0,0,0,.25);  object-fit: cover;}
+.card.deal { opacity: 0; transform: translateY(-12px) scale(0.95); }
+.card.deal.show { opacity: 1; transform: translateY(0) scale(1); transition: transform .25s ease, opacity .25s ease; }
+/* Center banner (pot/winner/phase) */.center-banner {  position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);  border: 1px solid rgba(255,255,255,.12);  border-radius: 12px;  padding: 12px 14px;  box-shadow: 0 18px 40px rgba(0,0,0,.45);  z-index: 4;}
+/* Action bar placed by JS near the active seat */.table-canvas .action-bar {  position: absolute;  left: 50%;  transform: translate(-50%, 0);  bottom: clamp(4%, 8vh, 12%);  z-index: 5;  display: flex;  flex-wrap: wrap;  gap: 8px;  align-items: center;  justify-content: center;  color: #f4e6d3;  border: 0;  border-radius: 14px;  padding: 8px;  background: var(--panel-bg-strong);  box-shadow: 0 24px 48px rgba(0,0,0,.45);  min-width: clamp(220px, 28vw, 360px);}
+.table-canvas .action-bar.hidden { display: none; }
+.table-canvas .action-bar .info {  flex: 1 1 100%;  text-align: center;  font-size: clamp(0.9rem, 0.8rem + 0.2vw, 1.1rem);  font-weight: 700;  color: #ffe7a8;}
+.table-canvas .action-bar .bet-input {  width: clamp(110px, 16vw, 150px);  border: 1px solid var(--panel-border);  border-radius: 8px;  color: #f4e6d3;  padding: 6px 8px;  background: rgba(0,0,0,0.2);  font-family: inherit;}
+.table-canvas .action-bar button { padding: 6px 14px; }
+/* Hide any AA/sponsor widgets on F2P */:root[data-table-mode="f2p"] #aa-panel,:root[data-table-mode="f2p"] .aa-panel,:root[data-table-mode="f2p"] #aa-root,:root[data-table-mode="f2p"] .aa-root,:root[data-table-mode="f2p"] #agent-panel,:root[data-table-mode="f2p"] .agent-panel,:root[data-table-mode="f2p"] #sponsor-indicator,:root[data-table-mode="f2p"] .agent-sponsor-indicator,:root[data-table-mode="f2p"] [id^="aa-"],:root[data-table-mode="f2p"] [class^="aa-"] {  display:none !important; visibility:hidden !important;}
+/* Community cards: we don't show empty slots � cards are injected only when needed */#board { position:absolute; left:50%; top:50%; transform: translate(-50%,-50%); z-index: 3; pointer-events: none; display: flex; align-items:center; }
+#board.empty { display: none; }
+#board .card { margin: 0 4px; }
+.last-hand-pill,#last-hand {  position: fixed;  right: var(--edge-pad);  bottom: calc(var(--edge-pad) + 12px);  z-index: 9000;  border: 1px solid var(--panel-border);  border-radius: 999px;  padding: 6px 12px;  background: var(--panel-bg-strong);  color: #f4e6d3;  font-size: 12px;  line-height: 1.2;  box-shadow: 0 12px 30px rgba(0,0,0,0.45);  display: none;  pointer-events: none;  white-space: nowrap;  max-width: 60vw;  overflow: hidden;  text-overflow: ellipsis;}
+.burn-pile {  position: absolute;  right: 18%;  top: 42%;  width: 70px;  height: 95px;  z-index: 3;  pointer-events: none;}
+.burn-pile .card {  position: absolute;  inset: 0;  opacity: 0;  transform: translate(16px, -16px) rotate(-14deg) scale(0.9);  transition: opacity .18s ease, transform .18s ease;}
+.burn-pile .card.show {  opacity: 1;  transform: translate(0,0) rotate(-6deg) scale(1);}
+/* Short viewport tweaks */@media (max-height: 720px) { .table-canvas { max-height: 80vh; height: auto; }
+ }
+@media (max-height: 640px) { .table-canvas { max-height: 80vh; height: auto; }
+ }
+.seat .cards .card { width: 56px; height: 82px; }
+.sidebar-footer { display:none !important; visibility:hidden !important; }
+.table-canvas .card { width: 60px; height: 84px; }
+.table-canvas #board .card { margin: 0 4px; }
+/* Fix: ensure collapsed sidebar bullet is a clean dot */.sidebar.collapsed .sidebar-links li a::after { content: '\2022' !important; }
+/* Wallet controls refresh */#wallet-inline { gap: 8px; }
+#wallet-inline #wi-wallet-btn {  padding: 6px 12px;  font-size: 12px;  border-radius: 10px;  line-height: 1.1;  height: 32px;  border: 1px solid var(--panel-border);  background: #9200fa;  color: #fff;  font-weight: 600;  cursor: pointer;  box-shadow: 0 0 12px rgba(146,0,250,0.45);  transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;}
+#wallet-inline #wi-wallet-btn:hover {  background: #7a00d2;  box-shadow: 0 0 16px rgba(146,0,250,0.58);  transform: translateY(-1px);}
+#wallet-inline #wi-wallet-btn.active {  background: #5f00a8;  border-color: rgba(146,0,250,0.45);  box-shadow: 0 0 18px rgba(146,0,250,0.65);}
+
+#wi-disconnect {  padding: 8px 12px;  font-size: 12px;  border-radius: 10px;  line-height: 1.1;  display: inline-flex;  align-items: center;  justify-content: center;  background: rgba(255,255,255,0.08);  border: 1px solid var(--panel-border);  color: inherit;  cursor: pointer;}
+#wi-disconnect:hover {  background: var(--panel-border);}
+#wi-wallet-actions {  display: flex;  flex-direction: column;  gap: 10px;}
+#wi-wallet-actions .wi-wallet-actions-heading {  font-weight: 600;  font-size: 13px;  opacity: 0.85;}
+#wi-wallet-actions #wi-disconnect {  width: 100%;}
+#wi-aa-panel-host {  display: flex;  flex-direction: column;  gap: 8px;}
+
+
+/* --- Adopt on-chain card style across common containers --- */
+#profile-modal {
+  background: var(--panel-bg-strong);
+  border: 1px solid var(--panel-border);
+}
+#aa-controls .aa-status {
+  background: var(--panel-bg-soft) !important;
+  border: 1px solid var(--panel-border);
+}
+#envio-activity, #agent-toggles {
+  background: var(--panel-bg-soft) !important;
+  border: 1px solid var(--panel-border) !important;
+}
+
+#wallet-inline button {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  min-width: 100px;
+  height: 34px;
+  margin: 0;
+  font-size: 13px;
+  padding: 6px 12px;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+#wallet-inline button:hover {
+  background: var(--panel-border);
+}
+
+#wallet-inline #wi-disconnect {
+  display: inline-flex !important;
+}
+
+#wallet-inline #wi-connect[disabled] {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+
+.sidebar.collapsed .sidebar-header { align-items: center; }
+.sidebar.collapsed .sidebar-toggle { margin-top: 2px; }
+
+
+/* --- Poker table UI tighten & banner placement overrides --- */
+.center-banner {
+  top: 8% !important;
+  transform: translate(-50%, 0) !important;
+  background: rgba(0,0,0,0.55) !important;
+  padding: 8px 10px !important;
+  border-radius: 10px !important;
+  z-index: 2 !important; /* keep below board cards */
+  pointer-events: none !important;
+}
+.table-canvas .action-bar {
+  bottom: clamp(2%, 6vh, 10%) !important;
+  display: inline-flex !important;
+  flex-wrap: nowrap !important;
+  gap: 6px !important;
+  padding: 6px 8px !important;
+  border-radius: 10px !important;
+  box-shadow: 0 18px 36px rgba(0,0,0,.45) !important;
+}
+.table-canvas .action-bar .info {
+  flex: 0 0 auto !important;
+  font-size: 0.9rem !important;
+  margin-right: 4px !important;
+}
+.table-canvas .action-bar .bet-input {
+  width: clamp(96px, 12vw, 130px) !important;
+  padding: 4px 6px !important;
+}
+.table-canvas .action-bar button {
+  padding: 6px 10px !important;
+}
+
+
+/* --- Poker tweaks: larger cards, persistent burn pile, non-overlapping banner --- */
+#board .card { width: 72px !important; height: 100px !important; }
+.seat .cards .card { width: 64px !important; height: 92px !important; }
+.burn-pile { width: 140px !important; height: 110px !important; }
+.center-banner { opacity: 0; transition: opacity .2s ease, transform .2s ease; }
+.center-banner.show { opacity: 1; }
+.center-banner { top: 8% !important; transform: translate(-50%, 0) !important; background: rgba(0,0,0,0.55) !important; padding: 8px 10px !important; border-radius: 10px !important; z-index: 2 !important; pointer-events: none !important; }
+.table-canvas .action-bar { bottom: clamp(2%, 6vh, 10%) !important; display: inline-flex !important; flex-wrap: nowrap !important; gap: 6px !important; padding: 6px 8px !important; border-radius: 10px !important; box-shadow: 0 18px 36px rgba(0,0,0,.45) !important; }
+.table-canvas .action-bar .info { flex: 0 0 auto !important; font-size: 0.9rem !important; margin-right: 4px !important; }
+.table-canvas .action-bar .bet-input { width: clamp(96px, 12vw, 130px) !important; padding: 4px 6px !important; }
+.table-canvas .action-bar button { padding: 6px 10px !important; }
+
+/* Ensure hidden class actually hides even with inline-flex override */
+.table-canvas .action-bar.hidden { display: none !important; visibility: hidden !important; }
+
+
+/* Winning five-card highlight */
+.card.best { outline: 2px solid rgba(255,215,120,0.9); box-shadow: 0 0 18px rgba(255,215,120,0.55); animation: bestPulse 1.2s ease-in-out 2; }
+@keyframes bestPulse { 0% { transform: scale(1); } 50% { transform: scale(1.04); } 100% { transform: scale(1); } }
+
+
+
+/* Seat cleanliness overrides */
+.seat { border: 0 !important; box-shadow: none !important; }
+.seat.me { outline: 0 !important; filter: none !important; }
+.seat:hover { filter: none !important; }
+/* Sit button slightly outside edge */
+.seat.empty-seat .btns { margin-top: 0; }
+
+/* Per-seat info lines */
+.seat .name { font-size: 13px; font-weight: 800; max-width: 180px; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.seat .stack { margin-top: 2px; }
+.seat .status { font-size: 12px; opacity:.9; min-height:14px; }
+.seat .marker { position:absolute; top:-10px; right:-10px; background: rgba(0,0,0,0.65); color:#ffe7a8; font-weight:800; font-size:11px; border:1px solid rgba(255,255,255,0.15); border-radius:999px; padding:2px 6px; z-index:4; }
+.seat .marker.sb { background: rgba(70,110,200,0.65); }
+.seat .marker.bb { background: rgba(120,80,200,0.65); }
+
+
+/* Marker/status subtle animations */
+.seat .marker { transition: transform .2s ease, opacity .2s ease; opacity: 0; }
+.seat .marker.show { opacity: .95; }
+.seat .marker.pop { transform: scale(1.06); }
+.seat .status.flash { animation: statusFlash .35s ease-in-out 1; }
+@keyframes statusFlash { 0% { opacity:.5 } 50% { opacity:1 } 100% { opacity:.9 } }
+
+#wallet-inline button {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  min-width: 100px;
+  height: 34px;
+  margin: 0;
+  font-size: 13px;
+  padding: 6px 12px;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+#wallet-inline button:hover {
+  background: var(--panel-border);
+}
+
+#wallet-inline #wi-disconnect {
+  display: inline-flex !important;
+}
+
+#wallet-inline #wi-connect[disabled] {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+.footer-meta-container {
+  position: fixed;
+  right: 12px;
+  bottom: 12px;
+  z-index: 10000;
+}
+
+.footer-meta {
+  font-size: 12px;
+  color: #f4e6d3;
+  opacity: 0.95;
+  background: var(--panel-bg-soft);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  padding: 6px 8px;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+}
