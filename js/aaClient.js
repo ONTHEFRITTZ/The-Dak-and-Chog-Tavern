@@ -1,12 +1,12 @@
 // aa-client.js — minimal AA/session-key client w/ budget guardrails (onchain mode only)
-// Works with your importmap (viem/permissionless) if present; otherwise falls back to injected.
+// Works with your viem import map if present; otherwise falls back to injected.
 import { MONAD, AA_FEATURES, getPokerTableAddress, MONAD_BUNDLER_RPC, ZD_PAYMASTER_RPC, ZD_API_KEY, PAYMASTER_ADDRESS } from './aa/config.js';
 import { MONAD_DELEGATION_ENV } from './aa/delegation-config.js';
 import { ethers } from './tavern.js';
 import { ensureDelegationToolkitContext } from './aa/toolkit.js';
 import { detectBundler, walletSendCalls, extractTxHash } from './bundler.js';
-import { createAlchemyBundlerClient, createAlchemyPaymasterClient } from 'permissionless/clients/alchemy';
-import { http } from 'viem/account-abstraction';
+import { createBundlerClient } from 'viem/account-abstraction';
+import { http } from 'viem';
 
 const LS = {
   SESSION: 'aa:session',
@@ -912,31 +912,87 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
       const bundlerUrlEffective = bundlerRpcUrl || aaBundlerEndpoint;
       const paymasterUrlEffective = paymasterRpcUrl || aaPaymasterEndpoint || bundlerUrlEffective;
       try {
-        const transport = paymasterUrlEffective ? buildTransport(paymasterUrlEffective) : null;
         if (paymasterUrlEffective) {
-          paymasterClient = createAlchemyPaymasterClient({
-            chain: chainConfig,
-            entryPoint: entryPointAddress,
-            rpcUrl: paymasterUrlEffective,
-            transport
-          });
+          const callPaymasterRpc = async (method, params) => {
+            const body = { jsonrpc: '2.0', id: Date.now(), method, params };
+            const headers = { 'content-type': 'application/json' };
+            try {
+              if (paymasterApiKey) {
+                headers['x-api-key'] = paymasterApiKey;
+                headers['authorization'] = `Bearer ${paymasterApiKey}`;
+              }
+            } catch {}
+            const res = await fetch(paymasterUrlEffective, {
+              method: 'POST',
+              headers,
+              body: JSON.stringify(body)
+            }).catch((e) => ({ __err: e }));
+            if (!res || res.__err) throw (res && res.__err) || new Error('paymaster_http_error');
+            let payload = null;
+            try { payload = await res.json(); } catch { payload = null; }
+            if (!payload) throw new Error('paymaster_bad_json');
+            if (payload.error) {
+              const err = new Error(payload.error.message || 'paymaster_error');
+              err.data = payload.error;
+              throw err;
+            }
+            return payload.result;
+          };
+          paymasterClient = {
+            sponsorUserOperation: async ({ userOperation, entryPoint, context }) => {
+              const ctx = (context && typeof context === 'object') ? context : undefined;
+              const attempts = [];
+              const tryCall = async (method, paramsBuilder) => {
+                try {
+                  const params = paramsBuilder();
+                  return await callPaymasterRpc(method, params);
+                } catch (err) {
+                  attempts.push({ method, err });
+                  try { console.warn(`[aaClient] ${method} failed`, err); } catch {}
+                  return null;
+                }
+              };
+              const resultPm = await tryCall('pm_sponsorUserOperation', () => {
+                const params = [userOperation, entryPoint];
+                if (ctx) params.push(ctx);
+                return params;
+              });
+              if (resultPm) return resultPm;
+              const alchemyPayload = () => {
+                const payload = {
+                  entryPoint,
+                  userOperation
+                };
+                if (ctx) Object.assign(payload, ctx);
+                return [payload];
+              };
+              const resultAlchemyGas = await tryCall('alchemy_requestGasAndPaymasterAndData', alchemyPayload);
+              if (resultAlchemyGas) return resultAlchemyGas;
+              const resultAlchemy = await tryCall('alchemy_requestPaymasterAndData', alchemyPayload);
+              if (resultAlchemy) return resultAlchemy;
+              const last = attempts.length ? attempts[attempts.length - 1] : null;
+              if (last) throw last.err;
+              throw new Error('paymaster_sponsor_unavailable');
+            }
+          };
         }
       } catch (err) {
-        console.warn('[aaClient] Alchemy paymaster client init failed', err);
+        console.warn('[aaClient] paymaster client init failed', err);
         paymasterClient = null;
       }
       try {
         const transport = bundlerUrlEffective ? buildTransport(bundlerUrlEffective) : null;
         if (bundlerUrlEffective) {
-          bundlerClient = createAlchemyBundlerClient({
+          bundlerClient = createBundlerClient({
             chain: chainConfig,
             entryPoint: entryPointAddress,
             rpcUrl: bundlerUrlEffective,
-            transport
+            transport,
+            paymaster: true
           });
         }
       } catch (err) {
-        console.warn('[aaClient] Alchemy bundler client init failed', err);
+        console.warn('[aaClient] bundler client init failed', err);
         bundlerClient = null;
       }
       if (paymasterClient && typeof paymasterClient.sponsorUserOperation === 'function') {
@@ -953,7 +1009,7 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
             try { AA.setSponsored?.(true); } catch {}
           }
         } catch (sponsorErr) {
-          console.warn('[aaClient] Alchemy sponsorUserOperation failed', sponsorErr);
+          console.warn('[aaClient] sponsorUserOperation failed', sponsorErr);
         }
       }
       if (!bundlerClient) {
@@ -968,7 +1024,8 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
               bundlerClient = viemAA.createBundlerClient({
                 chain: chainConfig,
                 entryPoint: entryPointAddress,
-                transport
+                transport,
+                paymaster: true
               });
             }
           } catch (err) {
