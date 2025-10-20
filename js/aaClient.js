@@ -524,6 +524,7 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
     try {
       if (typeof window !== 'undefined' && window) {
         const aliases = [
+          window.ALCHEMY_API_KEY,
           window.PIMLICO_API_KEY,
           window.ZD_API_KEY
         ];
@@ -537,18 +538,32 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
 })();
   const ensureApiKeyParam = (url, key) => {
     if (!url || !key) return url;
-    if (url.includes('apikey=')) return url;
     try {
       const parsed = new URL(url, (typeof window !== 'undefined' && window?.location?.origin) || undefined);
+      const host = (parsed.hostname || '').toLowerCase();
+      if (!/pimlico|zerodev/.test(host)) return url;
+      if (parsed.searchParams.has('apikey')) return parsed.href;
       if (!parsed.searchParams.has('apikey')) parsed.searchParams.append('apikey', key);
       return parsed.href;
     } catch {
+      if (!/(pimlico|zerodev)/i.test(String(url))) return url;
       const sep = url.includes('?') ? '&' : '?';
       return `${url}${sep}apikey=${encodeURIComponent(key)}`;
     }
   };
   const bundlerRpcUrl = ensureApiKeyParam(aaBundlerEndpoint, paymasterApiKey) || aaBundlerEndpoint;
   const paymasterRpcUrl = ensureApiKeyParam(aaPaymasterEndpoint, paymasterApiKey) || aaPaymasterEndpoint;
+  const applyAuthHeaders = (headers, url) => {
+    if (!headers || !url || !paymasterApiKey) return;
+    let host = '';
+    try { host = new URL(url, (typeof window !== 'undefined' && window?.location?.origin) || undefined).hostname.toLowerCase(); } catch {}
+    if (host.includes('pimlico') || host.includes('zerodev')) {
+      headers['x-api-key'] = paymasterApiKey;
+      headers['authorization'] = `Bearer ${paymasterApiKey}`;
+    } else if (host.includes('alchemy.com')) {
+      headers['x-alchemy-token'] = paymasterApiKey;
+    }
+  };
   async function sendViaAA(tx){
     const to = tx.to;
     const data = ensureHexData(tx.data);
@@ -911,17 +926,19 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
       };
       const bundlerUrlEffective = bundlerRpcUrl || aaBundlerEndpoint;
       const paymasterUrlEffective = paymasterRpcUrl || aaPaymasterEndpoint || bundlerUrlEffective;
+      const paymasterHost = (() => {
+        try {
+          return new URL(paymasterUrlEffective, (typeof window !== 'undefined' && window?.location?.origin) || undefined).hostname.toLowerCase();
+        } catch {
+          return '';
+        }
+      })();
       try {
         if (paymasterUrlEffective) {
           const callPaymasterRpc = async (method, params) => {
             const body = { jsonrpc: '2.0', id: Date.now(), method, params };
             const headers = { 'content-type': 'application/json' };
-            try {
-              if (paymasterApiKey) {
-                headers['x-api-key'] = paymasterApiKey;
-                headers['authorization'] = `Bearer ${paymasterApiKey}`;
-              }
-            } catch {}
+            applyAuthHeaders(headers, paymasterUrlEffective);
             const res = await fetch(paymasterUrlEffective, {
               method: 'POST',
               headers,
@@ -952,12 +969,15 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
                   return null;
                 }
               };
-              const resultPm = await tryCall('pm_sponsorUserOperation', () => {
-                const params = [userOperation, entryPoint];
-                if (ctx) params.push(ctx);
-                return params;
-              });
-              if (resultPm) return resultPm;
+              let resultPm = null;
+              if (paymasterHost.includes('pimlico') || paymasterHost.includes('zerodev')) {
+                resultPm = await tryCall('pm_sponsorUserOperation', () => {
+                  const params = [userOperation, entryPoint];
+                  if (ctx) params.push(ctx);
+                  return params;
+                });
+                if (resultPm) return resultPm;
+              }
               const alchemyPayload = () => {
                 const payload = {
                   entryPoint,
@@ -966,10 +986,12 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
                 if (ctx) Object.assign(payload, ctx);
                 return [payload];
               };
-              const resultAlchemyGas = await tryCall('alchemy_requestGasAndPaymasterAndData', alchemyPayload);
-              if (resultAlchemyGas) return resultAlchemyGas;
-              const resultAlchemy = await tryCall('alchemy_requestPaymasterAndData', alchemyPayload);
-              if (resultAlchemy) return resultAlchemy;
+              if (paymasterHost.includes('alchemy.com')) {
+                const resultAlchemyGas = await tryCall('alchemy_requestGasAndPaymasterAndData', alchemyPayload);
+                if (resultAlchemyGas) return resultAlchemyGas;
+                const resultAlchemy = await tryCall('alchemy_requestPaymasterAndData', alchemyPayload);
+                if (resultAlchemy) return resultAlchemy;
+              }
               const last = attempts.length ? attempts[attempts.length - 1] : null;
               if (last) throw last.err;
               throw new Error('paymaster_sponsor_unavailable');
@@ -1110,13 +1132,8 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
       async function rpcCall(method, params){
         const body = { jsonrpc: '2.0', id: Date.now(), method, params };
         const headers = { 'content-type': 'application/json' };
-        try {
-          if (paymasterApiKey) {
-            headers['x-api-key'] = paymasterApiKey;
-            headers['authorization'] = `Bearer ${paymasterApiKey}`;
-          }
-        } catch {}
         const targetUrl = bundlerRpcUrl || aaBundlerEndpoint;
+        applyAuthHeaders(headers, targetUrl);
         const res = await fetch(targetUrl, { method: 'POST', headers, body: JSON.stringify(body) }).catch((e)=>({ __err:e }));
         if (!res || res.__err) throw res && res.__err || new Error('bundler_http_error');
         let payload = null; try { payload = await res.json(); } catch { payload = null; }
