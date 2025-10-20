@@ -334,7 +334,7 @@ export function useRealtimePokerTable(
   const [handSummary, setHandSummary] = useState<PokerHandSummary | null>(null);
   const [messages, setMessages] = useState<PokerRealtimeMessage[]>([]);
   const [connected, setConnected] = useState(false);
-  const [status, setStatus] = useState<string | null>("Connecting to table…");
+  const [status, setStatus] = useState<string | null>("Connecting to table...");
   const [error, setError] = useState<string | null>(null);
   const messageIdRef = useRef(0);
   const socketRef = useRef<Socket | null>(null);
@@ -381,7 +381,7 @@ export function useRealtimePokerTable(
 
     const handleConnectError = (err: any) => {
       setError(err?.message || "Poker table connection failed");
-      setStatus("Reconnecting…");
+      setStatus("Reconnecting...");
     };
 
     const handleTableUpdate = (payload: unknown) => {

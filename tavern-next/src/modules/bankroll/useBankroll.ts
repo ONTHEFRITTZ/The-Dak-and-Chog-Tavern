@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Contract, MaxUint256, formatEther } from "ethers";
 import { useWallet } from "@/context/WalletContext";
-import { useLegacyAAOps } from "@/hooks/useLegacyAAOps";
+import { useDelegationToolkitAA } from "@/modules/aa/useDelegationToolkitAA";
 import { CONTRACTS } from "@/lib/config";
 import { DCMonABI } from "@/abi/dcmon";
 
@@ -13,7 +13,7 @@ export type EnsureAllowanceOptions = {
 
 export function useBankroll() {
   const { provider, address } = useWallet();
-  const { ops: legacyAAOps } = useLegacyAAOps();
+  const delegation = useDelegationToolkitAA();
   const [dcmonBalance, setDcmonBalance] = useState<bigint>(0n);
   const [monBalance, setMonBalance] = useState<bigint>(0n);
   const [loading, setLoading] = useState(false);
@@ -69,30 +69,24 @@ export function useBankroll() {
 
         opts.onProgress?.("Approving DCMon...");
 
+        const encoded = dcmonContract.interface.encodeFunctionData("approve", [
+          spender,
+          MaxUint256,
+        ]);
+
         let approved = false;
-        if (
-          legacyAAOps &&
-          typeof legacyAAOps.encodeFromSignature === "function" &&
-          typeof legacyAAOps.sendTxViaAA === "function"
-        ) {
-          try {
-            const data = legacyAAOps.encodeFromSignature("approve(address,uint256)", [
-              spender,
-              MaxUint256,
-            ]);
-            if (data) {
-              const txHash = await legacyAAOps.sendTxViaAA({
-                to: CONTRACTS.dcmon,
-                data,
-              });
-              if (txHash) {
-                await provider.waitForTransaction(txHash);
-                approved = true;
-              }
-            }
-          } catch (err) {
-            console.warn("[useBankroll] AA approval failed", err);
+        try {
+          const hash = await delegation.sendTransaction({
+            to: CONTRACTS.dcmon,
+            data: encoded,
+            value: 0n,
+          });
+          if (hash) {
+            await provider.waitForTransaction(hash);
+            approved = true;
           }
+        } catch (err) {
+          console.warn("[useBankroll] paymaster approval attempt failed", err);
         }
 
         if (!approved) {
@@ -109,7 +103,7 @@ export function useBankroll() {
         return false;
       }
     },
-    [provider, address, legacyAAOps, refresh]
+    [provider, address, delegation, refresh]
   );
 
   return {

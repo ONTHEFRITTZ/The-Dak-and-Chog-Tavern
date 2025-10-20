@@ -13,7 +13,7 @@ type AaClientModule = {
 type SendTransactionParams = {
   to: string;
   data?: string;
-  value?: bigint | number | string;
+  value?: bigint;
 };
 
 export type DelegationToolkitAA = {
@@ -78,29 +78,18 @@ export function useDelegationToolkitAA(): DelegationToolkitAA {
   }, [ensureModule, ready]);
 
   const sendTransaction = useCallback(
-    async (params: SendTransactionParams) => {
+    async ({ to, data, value = 0n }: SendTransactionParams) => {
+      if (!to) throw new Error("Transaction target missing");
       await ensureReady();
       const mod = moduleRef.current;
       if (!mod?.client?.sendTransaction) {
         throw new Error("Delegation Toolkit client unavailable");
       }
-      const { to, data, value } = params;
-      if (!to) throw new Error("Transaction target missing");
-      const formattedValue =
-        typeof value === "bigint"
-          ? value
-          : typeof value === "number"
-          ? BigInt(Math.floor(value))
-          : typeof value === "string"
-          ? value.startsWith("0x")
-            ? BigInt(value)
-            : BigInt(Math.floor(Number(value)))
-          : 0n;
       try {
         const hash = await mod.client.sendTransaction({
           to,
           data,
-          value: formattedValue,
+          value,
         });
         return hash ?? null;
       } catch (err) {

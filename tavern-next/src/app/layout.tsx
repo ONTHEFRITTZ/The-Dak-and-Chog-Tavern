@@ -8,7 +8,7 @@ import Script from "next/script";
 export const metadata: Metadata = {
   title: "The Dak & Chog Tavern",
   description:
-    "The Taverns of Dak & Chog — multiplayer cards, banked AA gameplay, and on-chain fun.",
+    "The Taverns of Dak & Chog - multiplayer cards, banked AA gameplay, and on-chain fun.",
 };
 
 export default function RootLayout({

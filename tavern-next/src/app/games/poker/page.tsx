@@ -37,7 +37,7 @@ function resolveBlinds(meta?: { blinds?: { sb?: string; bb?: string } } | null) 
 function shortAddress(addr: string | null | undefined) {
   if (!addr) return "-";
   const value = addr.toLowerCase();
-  return `${value.slice(0, 6)}…${value.slice(-4)}`;
+  return `${value.slice(0, 6)}...${value.slice(-4)}`;
 }
 
 function categorizeTables(
@@ -78,20 +78,20 @@ export default function PokerLobbyPage() {
     return [
       {
         key: "limit",
-        title: "Texas Hold’em — Limit (3 DCMon / 6 DCMon)",
+        title: "Texas Holdem - Limit (3 DCMon / 6 DCMon)",
         hint:
           grouped.limit.length > 0
             ? "Fixed-limit DCMon with delegated AA rake settlement."
-            : "Setting up tables…",
+            : "Setting up tables...",
         tables: grouped.limit,
       },
       {
         key: "noLimit",
-        title: "Texas Hold’em — No-Limit",
+        title: "Texas Holdem - No-Limit",
         hint:
           grouped.noLimit.length > 0
             ? "Bring DCMon, sit down, and play with AA-backed buy-in."
-            : "Waiting for dealers…",
+            : "Waiting for dealers...",
         tables: grouped.noLimit,
       },
       {
@@ -100,7 +100,7 @@ export default function PokerLobbyPage() {
         hint:
           grouped.freePlay.length > 0
             ? "Simulated chips, zero DCMon required."
-            : "Spinning up practice tables…",
+            : "Spinning up practice tables...",
         tables: grouped.freePlay,
       },
     ];
@@ -124,7 +124,7 @@ export default function PokerLobbyPage() {
             </button>
           ) : (
             <button type="button" onClick={() => connect().catch(() => void 0)} disabled={isConnecting}>
-              {isConnecting ? "Connecting…" : "Connect Wallet"}
+              {isConnecting ? "Connecting..." : "Connect Wallet"}
             </button>
           )}
         </div>

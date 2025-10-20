@@ -202,7 +202,7 @@ export function useRealtimePokerLobby(
 ): UseRealtimePokerLobbyResult {
   const [tables, setTables] = useState<PokerLobbyTable[]>([]);
   const [state, setState] = useState<RealtimeState | null>(null);
-  const [status, setStatus] = useState<string | null>("Connecting to lobby…");
+  const [status, setStatus] = useState<string | null>("Connecting to lobby...");
   const [error, setError] = useState<string | null>(null);
   const [connected, setConnected] = useState(false);
   const socketRef = useRef<Socket | null>(null);
@@ -244,7 +244,7 @@ export function useRealtimePokerLobby(
 
     const handleConnectError = (err: any) => {
       setError(err?.message || "Lobby connection failed");
-      setStatus("Lobby unavailable. Retrying…");
+      setStatus("Lobby unavailable. Retrying...");
     };
 
     const handleLobbyList = (list: unknown) => {

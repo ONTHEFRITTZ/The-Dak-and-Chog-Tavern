@@ -5,6 +5,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { useRealtimePokerTable } from "@/hooks/useRealtimePokerTable";
 import { useWallet } from "@/context/WalletContext";
+import { useHoldemPokerActions } from "@/modules/poker/useHoldemPokerActions";
 
 type TablePageProps = {
   params: { tableId: string };
@@ -13,19 +14,20 @@ type TablePageProps = {
 function short(addr: string | null | undefined) {
   if (!addr) return "-";
   const lower = addr.toLowerCase();
-  return `${lower.slice(0, 6)}…${lower.slice(-4)}`;
+  return `${lower.slice(0, 6)}...${lower.slice(-4)}`;
 }
 
 function formatCommunity(community: string[]) {
-  if (!community?.length) return "—";
+  if (!community?.length) return "--";
   return community.join(" ");
 }
 
-function formatPot(pot: number) {
-  if (!Number.isFinite(pot)) return "0";
-  if (pot >= 1_000_000) return `${(pot / 1_000_000).toFixed(2)}M`;
-  if (pot >= 1_000) return `${(pot / 1_000).toFixed(2)}k`;
-  return pot.toFixed(3);
+function formatPot(chips: number, chipValue: number) {
+  const dcmon = chips * chipValue;
+  if (!Number.isFinite(dcmon)) return "0.000";
+  if (dcmon >= 1_000_000) return `${(dcmon / 1_000_000).toFixed(2)}M DCMon`;
+  if (dcmon >= 1_000) return `${(dcmon / 1_000).toFixed(2)}k DCMon`;
+  return `${dcmon.toFixed(3)} DCMon`;
 }
 
 export default function PokerTablePage({ params }: TablePageProps) {
@@ -33,16 +35,31 @@ export default function PokerTablePage({ params }: TablePageProps) {
   if (!rawId) {
     notFound();
   }
+
   const tableId = decodeURIComponent(rawId);
   const { address, connect, disconnect, isConnecting } = useWallet();
   const realtime = useRealtimePokerTable(tableId);
-  const [betAmount, setBetAmount] = useState("0.5");
+  const holdem = useHoldemPokerActions();
+
+  const [betAmount, setBetAmount] = useState("1");
+  const [actionStatus, setActionStatus] = useState<string | null>(null);
+  const [actionBusy, setActionBusy] = useState(false);
 
   useEffect(() => {
     realtime.identify(address);
   }, [address, realtime]);
 
   const addressLower = (address ?? "").toLowerCase();
+
+  const chipValueDcmon = useMemo(() => {
+    const meta = realtime.table?.meta;
+    if (!meta) return 1;
+    const direct = Number(meta.chipValueDcmon);
+    if (Number.isFinite(direct) && direct > 0) return direct;
+    const sb = Number(meta.blinds?.sb);
+    if (Number.isFinite(sb) && sb > 0) return sb;
+    return 1;
+  }, [realtime.table?.meta]);
 
   const mySeatId = useMemo(() => {
     const seats = realtime.table?.seats ?? [];
@@ -63,7 +80,7 @@ export default function PokerTablePage({ params }: TablePageProps) {
     return null;
   }, [realtime.state, addressLower, mySeatId]);
 
-  const callAmount = useMemo(() => {
+  const callAmountChips = useMemo(() => {
     if (!realtime.state || !myActor) return 0;
     const target = Number(realtime.state.toCall || 0);
     const already = Number(myActor.contrib || 0);
@@ -78,39 +95,121 @@ export default function PokerTablePage({ params }: TablePageProps) {
     return current.addr === myActor.addr || current.seatId === myActor.seatId;
   }, [realtime.state, myActor]);
 
+  const isInHand = useMemo(() => {
+    const stage = realtime.state?.stage?.toLowerCase() ?? "";
+    return ["preflop", "flop", "turn", "river", "showdown"].includes(stage);
+  }, [realtime.state?.stage]);
+
+  const myContributionChips = Number(myActor?.contrib || 0);
+  const myContributionDcmon = myContributionChips * chipValueDcmon;
+  const callAmountDcmon = callAmountChips * chipValueDcmon;
+  const potChips = Number(realtime.state?.pot || 0);
+  const potLabel = formatPot(potChips, chipValueDcmon);
+  const myPrivateCards = useMemo(() => {
+    if (!realtime.privateCards) return [];
+    if (realtime.privateCards.seatId !== mySeatId) return [];
+    return realtime.privateCards.cards ?? [];
+  }, [mySeatId, realtime.privateCards]);
+  const latestHand = realtime.handSummary;
+
+  const runAction = useCallback(
+    async (initialMessage: string, task: () => Promise<void>) => {
+      if (actionBusy) return;
+      setActionBusy(true);
+      setActionStatus(initialMessage);
+      try {
+        await task();
+        setActionStatus(null);
+      } catch (err) {
+        const message =
+          err instanceof Error
+            ? err.message
+            : typeof err === "string"
+            ? err
+            : "Action failed.";
+        setActionStatus(message);
+      } finally {
+        setActionBusy(false);
+      }
+    },
+    [actionBusy]
+  );
+
   const handleJoinSeat = useCallback(
     (seatIndex: number) => {
       if (!address) {
         connect().catch(() => void 0);
         return;
       }
-      realtime.setSeat(seatIndex);
+      runAction("Joining seat...", async () => {
+        await holdem.joinSeat({ seatId: seatIndex, onProgress: setActionStatus });
+        realtime.setSeat(seatIndex);
+      });
     },
-    [address, connect, realtime]
+    [address, connect, holdem, realtime, runAction]
   );
 
   const handleLeaveSeat = useCallback(() => {
-    realtime.leaveSeat();
-  }, [realtime]);
+    if (mySeatId < 0) return;
+    runAction("Leaving seat...", async () => {
+      await holdem.leaveSeat({
+        seatId: mySeatId,
+        duringHand: isInHand,
+        onProgress: setActionStatus,
+      });
+      realtime.leaveSeat();
+    });
+  }, [holdem, isInHand, mySeatId, realtime, runAction]);
 
   const handleFold = useCallback(() => {
     realtime.sendAction("fold");
   }, [realtime]);
 
   const handleCheckOrCall = useCallback(() => {
-    if (callAmount > 0) {
-      realtime.sendAction("call");
+    if (mySeatId < 0) return;
+    if (callAmountChips > 0) {
+      runAction("Calling...", async () => {
+        await holdem.contributeChips({
+          seatId: mySeatId,
+          chips: callAmountChips,
+          chipValueDcmon,
+          onProgress: setActionStatus,
+        });
+        realtime.sendAction("call");
+      });
     } else {
       realtime.sendAction("check");
     }
-  }, [callAmount, realtime]);
+  }, [callAmountChips, chipValueDcmon, holdem, mySeatId, realtime, runAction]);
 
   const handleBet = useCallback(() => {
-    const parsed = Number(betAmount);
-    if (!Number.isFinite(parsed) || parsed <= 0) return;
-    const action = callAmount > 0 ? "raise" : "bet";
-    realtime.sendAction(action, parsed);
-  }, [betAmount, callAmount, realtime]);
+    if (mySeatId < 0) return;
+    const targetChips = Number(betAmount);
+    if (!Number.isFinite(targetChips) || targetChips <= 0) return;
+    const alreadyChips = Number(myActor?.contrib || 0);
+    const deltaChips = Math.max(0, targetChips - alreadyChips);
+    const action = callAmountChips > 0 ? "raise" : "bet";
+    runAction(action === "raise" ? "Raising..." : "Betting...", async () => {
+      if (deltaChips > 0) {
+        await holdem.contributeChips({
+          seatId: mySeatId,
+          chips: deltaChips,
+          chipValueDcmon,
+          onProgress: setActionStatus,
+        });
+      }
+      realtime.sendAction(action, targetChips);
+    });
+  }, [
+    betAmount,
+    callAmountChips,
+    chipValueDcmon,
+    holdem,
+    myActor?.contrib,
+    mySeatId,
+    realtime,
+    runAction,
+  ]);
 
   const handleRebuy = useCallback(() => {
     realtime.requestRebuy();
@@ -118,7 +217,6 @@ export default function PokerTablePage({ params }: TablePageProps) {
 
   const stageLabel = realtime.state?.stage ?? "Waiting";
   const communityCards = formatCommunity(realtime.state?.community ?? []);
-  const potLabel = formatPot(realtime.state?.pot ?? 0);
 
   return (
     <main className="poker-table-view">
@@ -126,8 +224,8 @@ export default function PokerTablePage({ params }: TablePageProps) {
         <div className="poker-table-info">
           <h1>{tableId}</h1>
           <p className="muted">
-            Stage: <span className="highlight">{stageLabel}</span> • Pot:{" "}
-            <span className="highlight">{potLabel} DCMon</span>
+            Stage: <span className="highlight">{stageLabel}</span> - Pot:{" "}
+            <span className="highlight">{potLabel}</span>
           </p>
           <p className="muted">
             Community cards: <span className="highlight">{communityCards}</span>
@@ -149,7 +247,7 @@ export default function PokerTablePage({ params }: TablePageProps) {
                 onClick={() => connect().catch(() => void 0)}
                 disabled={isConnecting}
               >
-                {isConnecting ? "Connecting…" : "Connect"}
+                {isConnecting ? "Connecting..." : "Connect"}
               </button>
             )}
           </div>
@@ -162,6 +260,11 @@ export default function PokerTablePage({ params }: TablePageProps) {
             (seat, index) => {
               const occupied = Boolean(seat);
               const isMe = seat?.addr === addressLower;
+              const chips = Number(seat?.chips ?? seat?.balance ?? 0);
+              const chipsLabel = Number.isFinite(chips) ? chips.toFixed(2) : "0.00";
+              const dcmonLabel = Number.isFinite(chips)
+                ? (chips * chipValueDcmon).toFixed(3)
+                : "0.000";
               return (
                 <div key={index} className={`seat-card ${isMe ? "me" : ""}`}>
                   <header>
@@ -171,20 +274,27 @@ export default function PokerTablePage({ params }: TablePageProps) {
                     <div className="seat-body">
                       <div className="seat-address">{short(seat?.addr)}</div>
                       <div className="seat-meta">
-                        <span>Contrib: {seat?.balance?.toFixed?.(3) ?? "0"}</span>
-                        {typeof seat?.chips === "number" && (
-                          <span>Chips: {seat?.chips.toFixed(2)}</span>
-                        )}
+                        <span>Stack: {chipsLabel} chips</span>
+                        <span>(~{dcmonLabel} DCMon)</span>
                       </div>
                       {isMe && (
-                        <button type="button" className="seat-leave" onClick={handleLeaveSeat}>
+                        <button
+                          type="button"
+                          className="seat-leave"
+                          onClick={handleLeaveSeat}
+                          disabled={actionBusy}
+                        >
                           Leave Seat
                         </button>
                       )}
                     </div>
                   ) : (
                     <div className="seat-empty">
-                      <button type="button" onClick={() => handleJoinSeat(index)}>
+                      <button
+                        type="button"
+                        onClick={() => handleJoinSeat(index)}
+                        disabled={actionBusy}
+                      >
                         Take Seat
                       </button>
                     </div>
@@ -205,6 +315,7 @@ export default function PokerTablePage({ params }: TablePageProps) {
               </span>
             </p>
             {realtime.status && <p className="muted">{realtime.status}</p>}
+            {actionStatus && <p className="muted">{actionStatus}</p>}
             {realtime.error && <p className="error">{realtime.error}</p>}
             {realtime.table?.simulated && (
               <button type="button" className="rebuy-btn" onClick={handleRebuy}>
@@ -220,29 +331,40 @@ export default function PokerTablePage({ params }: TablePageProps) {
             ) : (
               <>
                 <div className="action-row">
-                  <button type="button" onClick={handleFold} disabled={!isMyTurn}>
+                  <button type="button" onClick={handleFold} disabled={!isMyTurn || actionBusy}>
                     Fold
                   </button>
-                  <button type="button" onClick={handleCheckOrCall} disabled={!isMyTurn}>
-                    {callAmount > 0 ? `Call ${callAmount.toFixed(3)}` : "Check"}
+                  <button
+                    type="button"
+                    onClick={handleCheckOrCall}
+                    disabled={!isMyTurn || actionBusy}
+                  >
+                    {callAmountChips > 0
+                      ? `Call ${callAmountChips.toFixed(2)} chips (~${callAmountDcmon.toFixed(
+                          3
+                        )} DCMon)`
+                      : "Check"}
                   </button>
                 </div>
                 <div className="action-row">
                   <input
                     type="number"
                     min="0"
-                    step="0.001"
+                    step="0.01"
                     value={betAmount}
                     onChange={(event) => setBetAmount(event.target.value)}
-                    disabled={!isMyTurn}
+                    disabled={!isMyTurn || actionBusy}
+                    aria-label="Bet amount in chips"
                   />
-                  <button type="button" onClick={handleBet} disabled={!isMyTurn}>
-                    {callAmount > 0 ? "Raise" : "Bet"}
+                  <button type="button" onClick={handleBet} disabled={!isMyTurn || actionBusy}>
+                    {callAmountChips > 0 ? "Raise" : "Bet"}
                   </button>
                 </div>
                 <p className="muted">
                   Your contribution:{" "}
-                  <span className="highlight">{Number(myActor?.contrib ?? 0).toFixed(3)} DCMon</span>
+                  <span className="highlight">
+                    {myContributionChips.toFixed(2)} chips (~{myContributionDcmon.toFixed(3)} DCMon)
+                  </span>
                 </p>
               </>
             )}
@@ -259,8 +381,57 @@ export default function PokerTablePage({ params }: TablePageProps) {
               ))}
             </div>
           </section>
+
+          <section className="poker-hand">
+            <h2>Private Cards</h2>
+            {myPrivateCards.length > 0 ? (
+              <div className="card-row">
+                {myPrivateCards.map((card, idx) => (
+                  <span key={`${card}-${idx}`} className="card-pill">
+                    {card}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="muted">Cards will appear when you are in hand.</p>
+            )}
+          </section>
+
+          {latestHand && (
+            <section className="poker-summary">
+              <h2>Last Hand</h2>
+              <p className="muted">
+                Pot: <span className="highlight">{formatPot(latestHand.pot, chipValueDcmon)}</span>
+              </p>
+              <p className="muted">
+                Board:{" "}
+                <span className="highlight">
+                  {formatCommunity(latestHand.community ?? [])}
+                </span>
+              </p>
+              <ul>
+                {latestHand.winners.map((winner) => (
+                  <li key={`${winner.addr}-${winner.seatId ?? 0}`}>
+                    <span>{short(winner.addr)}</span>
+                    {winner.amount != null && (
+                      <span>
+                        {" "} - {formatPot(winner.amount, chipValueDcmon)} ({winner.amount.toFixed(2)} chips)
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
         </aside>
       </section>
     </main>
   );
 }
+
+
+
+
+
+
+

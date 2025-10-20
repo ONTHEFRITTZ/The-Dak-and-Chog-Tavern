@@ -5,10 +5,8 @@
 ## 1. Game Ports
 
 - [ ] **Poker (lobby + table)**  
-  - Rebuild `poker/index.html` & `table.html` flows as React routes (`/games/poker`, `/games/poker/table/[id]`).  
-  - Replace direct DOM mutations with stateful components; reuse socket clients via a dedicated hook (`useRealtimePoker`).  
-  - Wire bankroll + AA helpers for buy-in / cash-out and table rake (4337 send first, fallback to signer).  
-  - Preserve table animations, card overlays, and admin controls.
+  - [x] React lobby + table routes with `useRealtimePokerLobby` / `useRealtimePokerTable`, shared bankroll + Delegation Toolkit AA flow.  
+  - [ ] Preserve table animations, dealer admin tools, and the legacy overlay polish.
 
 - [x] **Dak & Chog Coin Flip** – React port completed (`/games/dakchog`). *(Verify against production during QA.)*
 
@@ -28,16 +26,17 @@
 ## 2. Shared Runtime & Bankroll
 
 - [ ] **Finalise `useBankroll` hook**  
-  - Replace Dak & Chog / Shell direct DCMon calls with hook methods (ensuring allowance, refresh, formatting).  
-  - Expose reactive state to a global bankroll widget (for wallet pill + future HUD).
+  - [x] Approvals now route through `/api/paymaster/sign` with AA fallback to the connected signer.  
+  - [ ] Expose reactive state to a global bankroll widget (for wallet pill + future HUD).
 
-- [ ] **Create AA execution hook**  
+- [x] **Create AA execution hook**  
   - Wrap `/js/aaClient.js` functionality in a typed hook (`useDelegationToolkitAA`) that:  
     - Ensures toolkit context, bundler client (`paymaster: true`), and session state.  
     - Provides helpers for `sendUserOperation`, `waitForUserOperationReceipt`, and fallback EOA send.  
     - Emits events mirrored from legacy (`aa:sponsored`, `aa:session`, etc.).
+  - _Follow-up:_ expose emitted events + status channel from the legacy client for HUD components.
 
-- [ ] **Socket / realtime hooks**  
+- [x] **Socket / realtime hooks**  
   - Abstract the Socket.IO lobby/table logic into `useRealtimeLobby` & `useRealtimePokerTable`.  
   - Ensure reconnection handling and typed events.
 
@@ -47,8 +46,9 @@
   - Confirm env keys in Vercel/Server: `VERIFYING_PAYMASTER_SIGNER_PK`, `MONAD_RPC_URL`, etc.
 
 - [ ] **Frontend adoption of new paymaster endpoint**  
-  - Update `useBankroll`, poker buy-in/cash-out flows, and game AA sends to request signatures from `/api/paymaster/sign`.  
-  - Remove dummy `window.AA_PAYMASTER_CONTEXT`.
+  - [x] `useBankroll` and Holdem buy-in flows now request signatures from `/api/paymaster/sign`.  
+  - [ ] Update Dak & Chog / Shell action flows to drop legacy AA helpers and rely on the shared hook.  
+  - [ ] Remove remaining references to `window.AA_PAYMASTER_CONTEXT`.
 
 - [ ] **MetaMask Delegation Toolkit integration**  
   - Ensure every user operation is executed via `createBundlerClient({ paymaster: true })`.  
@@ -92,7 +92,7 @@
 
 ## 6. Deployment & Docs
 
-- [ ] **Update README**  
+- [x] **Update README**  
   - Document the Next.js app structure, required env vars, and hackathon-specific flows (Delegation Toolkit, paymaster API).
 
 - [ ] **CI/CD pipeline**  
