@@ -37,13 +37,9 @@ export const ZD_PAYMASTER_RPC = PAYMASTER_RPC;
 export const PIMLICO_PAYMASTER_RPC = PAYMASTER_RPC;
 
 const PAYMASTER_API_KEY =
-  runtimeConfigValue(
-    "ALCHEMY_API_KEY",
-    runtimeConfigValue(
-      "PIMLICO_API_KEY",
-      runtimeConfigValue("ZD_API_KEY", "")
-    )
-  );
+  runtimeConfigValue("ALCHEMY_API_KEY") ||
+  runtimeConfigValue("PIMLICO_API_KEY") ||
+  runtimeConfigValue("ZD_API_KEY", "");
 export const ZD_API_KEY = PAYMASTER_API_KEY;
 export const PIMLICO_API_KEY = PAYMASTER_API_KEY;
 export const ALCHEMY_API_KEY = PAYMASTER_API_KEY;
