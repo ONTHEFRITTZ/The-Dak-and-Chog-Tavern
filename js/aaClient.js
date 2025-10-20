@@ -844,9 +844,9 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
       let factoryArgs = null;
       try { factoryArgs = (typeof account.getFactoryArgs === 'function') ? await account.getFactoryArgs() : null; }
       catch {}
-      const GAS_PRESET_CALL = 4000000n;
-      const GAS_PRESET_VERIFICATION = 2000000n;
-      const GAS_PRESET_PREVERIFICATION = 4000000n;
+      const GAS_PRESET_CALL = 7000000n;
+      const GAS_PRESET_VERIFICATION = 3000000n;
+      const GAS_PRESET_PREVERIFICATION = 7000000n;
       const wantsPresetGas = !!aaPaymasterEndpoint;
       const unsignedOp = {
         sender,
@@ -1234,7 +1234,7 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
       }
       uo.callGasLimit = uo.callGasLimit || 1n;
       uo.verificationGasLimit = uo.verificationGasLimit || 0x186a0n;
-      uo.preVerificationGas = uo.preVerificationGas || 0x186a0n;
+      uo.preVerificationGas = uo.preVerificationGas || 0x5dcd00n; // ≈ 6,160,000
       uo.maxFeePerGas = uo.maxFeePerGas || 0x3b9aca00n;
       uo.maxPriorityFeePerGas = uo.maxPriorityFeePerGas || 0x3b9aca00n;
       rpcUserOp = toRpcUserOp(uo);
