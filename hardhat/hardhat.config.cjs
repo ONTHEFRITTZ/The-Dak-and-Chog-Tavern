@@ -26,7 +26,7 @@ module.exports = {
       accounts: PRIVATE_KEY ? [PRIVATE_KEY] : [],
     },
     monad: {
-      url: MONAD_RPC_URL || 'https://monad-testnet.drpc.org',
+      url: MONAD_RPC_URL || 'https://testnet-rpc.monad.xyz',
       accounts: MONAD_PRIVATE_KEY ? [MONAD_PRIVATE_KEY] : (PRIVATE_KEY ? [PRIVATE_KEY] : []),
     },
   },

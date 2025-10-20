@@ -62,7 +62,7 @@ export const ALCHEMY_POLICY_ID = PAYMASTER_POLICY_ID;
 export const MONAD = {
   id: 10143,
   name: 'Monad Testnet',
-  rpcHttp: 'https://monad-testnet.drpc.org',
+  rpcHttp: 'https://testnet-rpc.monad.xyz',
   explorer: 'https://testnet.monadexplorer.com',
   nativeCurrency: { name: 'MON', symbol: 'MON', decimals: 18 }
 };
@@ -171,7 +171,7 @@ export const EXPLORERS = {
 
 // Optional: RPC endpoints for convenience
 export const RPC_ENDPOINTS = {
-  10143: 'wss://monad-testnet.drpc.org',
+  10143: 'wss://testnet-rpc.monad.xyz/ws',
 };
 
 export function getChainName(chainId) {

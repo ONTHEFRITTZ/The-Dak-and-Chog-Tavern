@@ -14,7 +14,7 @@ import {
 export const MONAD = {
   id: 10143,
   name: 'Monad Testnet',
-  rpcHttp: (window?.RPC_ENDPOINTS && window.RPC_ENDPOINTS[10143]) || 'https://monad-testnet.drpc.org',
+  rpcHttp: (window?.RPC_ENDPOINTS && window.RPC_ENDPOINTS[10143]) || 'https://testnet-rpc.monad.xyz',
   explorer: (window?.EXPLORERS && window.EXPLORERS[10143]) || 'https://testnet.monadexplorer.com',
 };
 

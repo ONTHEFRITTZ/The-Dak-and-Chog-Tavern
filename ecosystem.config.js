@@ -32,7 +32,7 @@ module.exports = {
         ADMIN_ADDR: '0x8ba35eca0fe68787b275c6ed065675829843adf5',
         RT_RAKE_BPS: 100,
         // RPC used by realtime indexer (/events) and dealer hooks.
-        MONAD_BUNDLER_RPC: process.env.MONAD_BUNDLER_RPC || process.env.MONAD_RPC_URL || 'https://monad-testnet.drpc.org',
+        MONAD_BUNDLER_RPC: process.env.MONAD_BUNDLER_RPC || process.env.MONAD_RPC_URL || 'https://testnet-rpc.monad.xyz',
         HOLDEM_POKER_ADDR: process.env.HOLDEM_POKER_ADDR || '0x424F89FE230331df8f656B683812b6394c323f17',
         // Keep private key out of the repo: pass it at restart via env.
         POKER_DEALER_PK: process.env.POKER_DEALER_PK || ''

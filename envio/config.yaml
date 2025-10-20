@@ -5,7 +5,7 @@ description: Tavern activity indexer for staking rewards (hosted build)
 networks:
   - id: 10143
     name: monad-testnet
-    rpc_url: https://monad-testnet.drpc.org
+    rpc_url: https://testnet-rpc.monad.xyz
 
 contracts:
   - name: HoldemPoker
