@@ -5,7 +5,7 @@ import { MONAD_DELEGATION_ENV } from './aa/delegation-config.js';
 import { ethers } from './tavern.js';
 import { ensureDelegationToolkitContext } from './aa/toolkit.js';
 import { detectBundler, walletSendCalls, extractTxHash } from './bundler.js';
-import { createAlchemyBundlerClient, createAlchemyPaymasterClient } from '@alchemy/aa-alchemy';
+import { createAlchemyBundlerClient, createAlchemyPaymasterClient } from 'permissionless/clients/alchemy';
 import { http } from 'viem/account-abstraction';
 
 const LS = {
