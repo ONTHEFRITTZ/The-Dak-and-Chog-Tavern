@@ -2,6 +2,22 @@
 // Works with EIP-1193 providers (MetaMask Smart Accounts, etc.)
 import { ALCHEMY_PAYMASTER_RPC, ALCHEMY_API_KEY } from './aa/config.js';
 
+function normalizeAlchemyUrl(value, label) {
+  if (!value) return '';
+  try {
+    const parsed = new URL(value, (typeof window !== 'undefined' && window?.location?.origin) || undefined);
+    const host = (parsed.hostname || '').toLowerCase();
+    if (!host.includes('alchemy.com')) {
+      console.warn(`[bundler] Ignoring non-Alchemy ${label || 'endpoint'}:`, value);
+      return '';
+    }
+    return parsed.href;
+  } catch {
+    console.warn(`[bundler] Invalid ${label || 'endpoint'}, ignoring:`, value);
+    return '';
+  }
+}
+
 function resolveInjected() {
   try { return window.__walletProvider || window.ethereum; } catch { return undefined; }
 }
@@ -26,7 +42,8 @@ export async function walletSendCalls({ provider, from, chainId, calls }) {
   // Include fields some MetaMask builds require
   const capabilities = {};
   try {
-    if (ALCHEMY_PAYMASTER_RPC) {
+    const paymasterEndpoint = normalizeAlchemyUrl(ALCHEMY_PAYMASTER_RPC, 'paymaster endpoint');
+    if (paymasterEndpoint) {
       const headers = {};
       try {
         if (ALCHEMY_API_KEY) {
@@ -34,7 +51,7 @@ export async function walletSendCalls({ provider, from, chainId, calls }) {
         }
       } catch {}
       capabilities.paymasterService = {
-        url: ALCHEMY_PAYMASTER_RPC,
+        url: paymasterEndpoint,
         ...(Object.keys(headers).length ? { headers } : {})
       };
     }

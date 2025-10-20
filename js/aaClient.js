@@ -507,8 +507,23 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
   const web3 = new ethers.providers.Web3Provider(injected, 'any');
   const signer = web3.getSigner();
   const address = (await signer.getAddress()).toLowerCase();
-  const aaBundlerEndpoint = bundlerUrl || MONAD_BUNDLER_RPC;
-  const aaPaymasterEndpoint = paymasterUrl || ALCHEMY_PAYMASTER_RPC;
+  const normalizeAlchemyUrl = (value, label) => {
+    if (!value) return '';
+    try {
+      const parsed = new URL(value, (typeof window !== 'undefined' && window?.location?.origin) || undefined);
+      const host = (parsed.hostname || '').toLowerCase();
+      if (!host.includes('alchemy.com')) {
+        console.warn(`[aaClient] Ignoring non-Alchemy ${label || 'endpoint'}:`, value);
+        return '';
+      }
+      return parsed.href;
+    } catch {
+      console.warn(`[aaClient] Invalid ${label || 'endpoint'}, ignoring:`, value);
+      return '';
+    }
+  };
+  const aaBundlerEndpoint = normalizeAlchemyUrl(bundlerUrl || MONAD_BUNDLER_RPC, 'bundler endpoint');
+  const aaPaymasterEndpoint = normalizeAlchemyUrl(paymasterUrl || ALCHEMY_PAYMASTER_RPC, 'paymaster endpoint');
   const paymasterApiKey = (() => {
     const normalize = (value) => {
       if (!value) return '';
@@ -581,9 +596,8 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
     if (!headers || !url || !paymasterApiKey) return;
     let host = '';
     try { host = new URL(url, (typeof window !== 'undefined' && window?.location?.origin) || undefined).hostname.toLowerCase(); } catch {}
-    if (host.includes('alchemy.com')) {
-      headers['x-alchemy-token'] = paymasterApiKey;
-    }
+    if (!host.includes('alchemy.com')) return;
+    headers['x-alchemy-token'] = paymasterApiKey;
   };
   async function sendViaAA(tx){
     const to = tx.to;
@@ -945,8 +959,22 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
         updateBig('maxPriorityFeePerGas', payload.maxPriorityFeePerGas);
         return touched;
       };
-      const bundlerUrlEffective = bundlerRpcUrl || aaBundlerEndpoint;
-      const paymasterUrlEffective = paymasterRpcUrl || aaPaymasterEndpoint || bundlerUrlEffective;
+      const ensureAlchemy = (url, label) => {
+        if (!url) return '';
+        try {
+          const host = new URL(url, (typeof window !== 'undefined' && window?.location?.origin) || undefined).hostname.toLowerCase();
+          if (!host.includes('alchemy.com')) {
+            console.warn(`[aaClient] Ignoring non-Alchemy ${label || 'endpoint'}:`, url);
+            return '';
+          }
+          return url;
+        } catch {
+          console.warn(`[aaClient] Invalid ${label || 'endpoint'}, ignoring:`, url);
+          return '';
+        }
+      };
+      const bundlerUrlEffective = ensureAlchemy(bundlerRpcUrl || aaBundlerEndpoint, 'bundler endpoint');
+      const paymasterUrlEffective = ensureAlchemy(paymasterRpcUrl || bundlerUrlEffective, 'paymaster endpoint');
       const paymasterHost = (() => {
         try {
           return new URL(paymasterUrlEffective, (typeof window !== 'undefined' && window?.location?.origin) || undefined).hostname.toLowerCase();
@@ -1156,9 +1184,10 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
       }
       // Helper for bundler RPC
       async function rpcCall(method, params){
+        const targetUrl = bundlerRpcUrl || aaBundlerEndpoint;
+        if (!targetUrl) throw new Error('bundler_unconfigured');
         const body = { jsonrpc: '2.0', id: Date.now(), method, params };
         const headers = { 'content-type': 'application/json' };
-        const targetUrl = bundlerRpcUrl || aaBundlerEndpoint;
         applyAuthHeaders(headers, targetUrl);
         const res = await fetch(targetUrl, { method: 'POST', headers, body: JSON.stringify(body) }).catch((e)=>({ __err:e }));
         if (!res || res.__err) throw res && res.__err || new Error('bundler_http_error');

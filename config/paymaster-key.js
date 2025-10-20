@@ -23,8 +23,12 @@
     window.ALCHEMY_POLICY_ID = policyId;
   } catch {}
   try {
-    if (bundlerRpc) window.MONAD_BUNDLER_RPC = bundlerRpc;
-    if (paymasterRpc) window.MONAD_PAYMASTER_RPC = paymasterRpc;
-    window.MONAD_PAYMASTER_API_KEY = apiKey;
+    delete window.MONAD_BUNDLER_RPC;
+    delete window.MONAD_PAYMASTER_RPC;
+    delete window.MONAD_PAYMASTER_API_KEY;
+    delete window.PIMLICO_PAYMASTER_RPC;
+    delete window.PIMLICO_BUNDLER_RPC;
+    delete window.PIMLICO_API_KEY;
+    delete window.PIMLICO_POLICY_ID;
   } catch {}
 })();
