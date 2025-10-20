@@ -13,9 +13,9 @@ const games = [
     asset: "/assets/images/hazard-logo.png",
   },
   {
-    title: "Faro (Multiplayer)",
-    href: "/games/faro",
-    asset: "/assets/images/faro-logo.png",
+    title: "Blackjack (Coming Soon)",
+    href: "#",
+    asset: "/assets/images/blackjack-logo.png",
   },
   {
     title: "Poker (Texas Hold'em)",

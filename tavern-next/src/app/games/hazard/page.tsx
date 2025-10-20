@@ -5,8 +5,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { Contract, Interface, parseEther } from "ethers";
 import { useWallet } from "@/context/WalletContext";
-import { useLegacyAAOps } from "@/hooks/useLegacyAAOps";
 import { useBankroll } from "@/modules/bankroll";
+import { useDelegationToolkitAA } from "@/modules/aa/useDelegationToolkitAA";
 import { CONTRACTS } from "@/lib/config";
 import { HazardABI } from "@/abi/hazard";
 
@@ -48,7 +48,7 @@ function deriveDicePair(sum: number): [number, number] {
 
 export default function HazardPage() {
   const { address, provider, connect, isConnecting } = useWallet();
-  const { ops: legacyAAOps } = useLegacyAAOps();
+  const delegation = useDelegationToolkitAA();
   const { hasDcmonBalance, ensureAllowance } = useBankroll();
 
   const [bet, setBet] = useState(() => clampBet(String(MIN_BET)).toFixed(3));
@@ -156,44 +156,39 @@ export default function HazardPage() {
         return;
       }
 
-      setStatus("Rolling dice...");
+      setStatus("Submitting wager...");
 
       let receipt: any = null;
-      if (
-        legacyAAOps &&
-        typeof legacyAAOps.encodeFromSignature === "function" &&
-        typeof legacyAAOps.sendTxViaAA === "function"
-      ) {
-        try {
-          const data = legacyAAOps.encodeFromSignature("playHazard(uint8,uint256)", [
-            selectedMain,
-            wager,
-          ]);
-          if (data) {
-            const txHash = await legacyAAOps.sendTxViaAA({ to: hazardAddress, data });
-            if (txHash) {
-              setStatus(
-                Tx sent: ... waiting confirmation...
-              );
-              receipt = await provider.waitForTransaction(txHash);
-            }
-          }
-        } catch (err) {
-          console.warn("[hazard] AA send failed", err);
+      const data = hazardContract.interface.encodeFunctionData("playHazard", [
+        selectedMain,
+        wager,
+      ]);
+      try {
+        const hash = await delegation.sendTransaction({
+          to: hazardAddress,
+          data,
+        });
+        if (hash) {
+          setStatus(`Tx sent: ${String(hash).slice(0, 10)}... waiting confirmation...`);
+          receipt = await provider.waitForTransaction(hash);
         }
+      } catch (err) {
+        console.warn("[hazard] AA send failed", err);
       }
 
       if (!receipt) {
-        if ((window as any).FORCE_GASLESS) {
+        if ((window as any)?.FORCE_GASLESS) {
           setStatus("Gasless send unavailable. Try again.");
           setRolling(false);
           setIsSubmitting(false);
           return;
         }
         const tx = await hazardContract.playHazard(selectedMain, wager);
-        setStatus(Tx sent: ... waiting confirmation...);
+        setStatus("Tx sent: waiting confirmation...");
         receipt = await tx.wait();
       }
+
+      setStatus("Rolling dice...");
 
       if (!receipt) {
         setStatus("Transaction sent. Check explorer for result.");

@@ -21,12 +21,24 @@ export type PokerActor = {
   stack?: number;
 };
 
+export type PokerTableMeta = {
+  chipValueDcmon?: number;
+  blinds?: { sb?: string; bb?: string } | null;
+  minBuy?: { amount?: string; unit?: string; wei?: string } | null;
+  typeKey?: string | null;
+  tableMode?: "onchain" | "f2p" | null;
+};
+
 export type PokerState = {
   stage: string;
   community: string[];
   pot: number;
   toCall: number;
   turnIndex: number;
+  turnSeatId?: number;
+  dealerIndex?: number;
+  sbIndex?: number;
+  bbIndex?: number;
   dealerSeatId?: number;
   actors: PokerActor[];
   rng?: { commit?: string | null };
@@ -64,9 +76,12 @@ export type PokerTableSnapshot = {
   seats: (PokerSeat | null)[];
   started: boolean;
   simulated: boolean;
+  tableMode?: "onchain" | "f2p";
+  dealerSigner?: boolean;
   limit?: string | null;
   stakes?: string | null;
   capacity: number;
+  meta?: PokerTableMeta | null;
 };
 
 export type PokerRealtimeMessage = {
@@ -118,9 +133,21 @@ type RawPokerState = {
   pot?: unknown;
   toCall?: unknown;
   turnIndex?: unknown;
+  turnSeatId?: unknown;
+  dealerIndex?: unknown;
+  sbIndex?: unknown;
+  bbIndex?: unknown;
   dealerSeatId?: unknown;
   actors?: unknown;
   rng?: unknown;
+};
+
+type RawTableMeta = {
+  chipValueDcmon?: unknown;
+  blinds?: unknown;
+  minBuy?: unknown;
+  typeKey?: unknown;
+  tableMode?: unknown;
 };
 
 type RawActor = {
@@ -205,14 +232,72 @@ function normalizeTable(payload: unknown): PokerTableSnapshot | null {
   const seatsRaw = Array.isArray(table.seats) ? table.seats : [];
   const seats = seatsRaw.map((seat) => normalizeSeat(seat));
   const capacity = asNumber(table.capacity);
+  const normalizeMeta = (meta: unknown): PokerTableMeta | null => {
+    if (!meta || typeof meta !== "object") return null;
+    const record = meta as RawTableMeta & Record<string, unknown>;
+    const blindsRaw = record.blinds;
+    const minBuyRaw = record.minBuy;
+    return {
+      chipValueDcmon:
+        record.chipValueDcmon != null ? Number(record.chipValueDcmon) || undefined : undefined,
+      blinds:
+        blindsRaw && typeof blindsRaw === "object"
+          ? {
+              sb:
+                (blindsRaw as Record<string, unknown>).sb != null
+                  ? String((blindsRaw as Record<string, unknown>).sb)
+                  : undefined,
+              bb:
+                (blindsRaw as Record<string, unknown>).bb != null
+                  ? String((blindsRaw as Record<string, unknown>).bb)
+                  : undefined,
+            }
+          : null,
+      minBuy:
+        minBuyRaw && typeof minBuyRaw === "object"
+          ? {
+              amount:
+                (minBuyRaw as Record<string, unknown>).amount != null
+                  ? String((minBuyRaw as Record<string, unknown>).amount)
+                  : undefined,
+              unit:
+                (minBuyRaw as Record<string, unknown>).unit != null
+                  ? String((minBuyRaw as Record<string, unknown>).unit)
+                  : undefined,
+              wei:
+                (minBuyRaw as Record<string, unknown>).wei != null
+                  ? String((minBuyRaw as Record<string, unknown>).wei)
+                  : undefined,
+            }
+          : null,
+      typeKey:
+        record.typeKey != null
+          ? String(record.typeKey)
+          : typeof (meta as Record<string, unknown>).typeKey === "string"
+          ? ((meta as Record<string, unknown>).typeKey as string)
+          : null,
+      tableMode:
+        record.tableMode != null && typeof record.tableMode === "string"
+          ? (record.tableMode as PokerTableMeta["tableMode"])
+          : null,
+    };
+  };
+  const meta = table.meta != null ? normalizeMeta(table.meta) : null;
+  const tableMode =
+    typeof table.tableMode === "string"
+      ? (table.tableMode as PokerTableSnapshot["tableMode"])
+      : meta?.tableMode ?? (table.simulated ? "f2p" : "onchain");
   return {
     id,
     seats,
     started: asBoolean(table.started),
     simulated: asBoolean(table.simulated) || false,
+    tableMode,
+    dealerSigner: typeof table.dealerSigner === "boolean" ? table.dealerSigner : undefined,
     limit: typeof table.limit === "string" ? table.limit : null,
     stakes: typeof table.stakes === "string" ? table.stakes : null,
     capacity: capacity > 0 ? capacity : Math.max(seats.length, 6),
+    meta,
   };
 }
 
@@ -252,6 +337,18 @@ function normalizePokerState(payload: unknown): PokerState | null {
     pot: asNumber(raw.pot),
     toCall: asNumber(raw.toCall),
     turnIndex: asNumber(raw.turnIndex),
+    turnSeatId:
+      raw.turnSeatId != null && Number.isFinite(Number(raw.turnSeatId))
+        ? Number(raw.turnSeatId)
+        : undefined,
+    dealerIndex:
+      raw.dealerIndex != null && Number.isFinite(Number(raw.dealerIndex))
+        ? Number(raw.dealerIndex)
+        : undefined,
+    sbIndex:
+      raw.sbIndex != null && Number.isFinite(Number(raw.sbIndex)) ? Number(raw.sbIndex) : undefined,
+    bbIndex:
+      raw.bbIndex != null && Number.isFinite(Number(raw.bbIndex)) ? Number(raw.bbIndex) : undefined,
     dealerSeatId:
       raw.dealerSeatId != null && Number.isFinite(Number(raw.dealerSeatId))
         ? Number(raw.dealerSeatId)

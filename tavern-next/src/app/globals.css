@@ -63,6 +63,18 @@ button:hover { background: #7800cd; }
 #network-banner .pill a { color: #fff; text-decoration: none; }
 /* ------------------------------- Wallet chip ------------------------------- */#wallet-inline {  position: fixed;  top: var(--edge-pad);  right: var(--edge-pad);  z-index: 12000;  display: flex;  align-items: center;  gap: 6px;  background: var(--panel-bg-soft);  color: #f4e6d3;  border: 1px solid var(--panel-border);  border-radius: 10px;  padding: 4px 8px;}
 #wallet-inline > * {  flex-shrink: 0;}
+#wallet-inline .wallet-providers {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 6px;
+}
+#wallet-inline .wallet-providers img {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  opacity: 0.85;
+}
 #wallet-inline #wi-disconnect {  padding: 6px 12px;  font-size: 12px;  border-radius: 10px;  line-height: 1.1;  height: 32px;}
 #wallet-inline #wi-disconnect {  display: inline-flex;  align-items: center;  justify-content: center;}
 #wallet-inline .wi-balance-badge {  padding: 0 6px;  min-height: 26px;}
@@ -73,14 +85,101 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
 /* Table art: restore the single PNG */.table-surface {  position: absolute;  inset: 0;  z-index: 1;}
 .table-surface img {  width: 100%;  height: 100%;  object-fit: contain;  display: block;}
 /* Remove any previous felt/glow/overlays */.table-glow { display: none !important; }
-/* Seats are positioned by table.js around the rail */.seat {  position: absolute;  z-index: 3;  transform: translate(-50%, -50%); /* JS sets left/top */  border: 0;  box-shadow: none;  padding: 0;  width: var(--seat-w);  height: var(--seat-h);  display: flex;  flex-direction: column;  align-items: center;  gap: 4px;}
-/* Basic inner bits the JS adds */.seat .addr {  font-size: 12px;  width: 120px;  text-align: center;  white-space: nowrap;  overflow: hidden;  text-overflow: ellipsis;  margin: 2px auto;}
-.seat .btns { display: flex; gap: 6px; justify-content: center; margin-top: 6px; pointer-events:auto; }
-.seat .btns button { padding: 4px 8px; font-size: 12px; border-radius: 6px; }
-.seat.empty-seat {  justify-content: center;  gap: 0;}
-.seat.empty-seat .timer,.seat.empty-seat .cards,.seat.empty-seat .addr,.seat.empty-seat .stack {  display: none;}
-.seat.empty-seat .btns {  margin-top: 0;  flex: 1;  align-items: center;  justify-content: center;  width: 100%;}
-.seat .addr { max-width: 160px; }
+/* Seat layout (Next.js port) */
+.seat {
+  position: absolute;
+  z-index: 3;
+  transform: translate(-50%, -50%);
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+  width: var(--seat-w);
+  height: var(--seat-h);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+}
+.seat .name {
+  font-size: 13px;
+  font-weight: 800;
+  max-width: 180px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.seat .stack {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+}
+.seat .stack span {
+  display: block;
+}
+.seat .status {
+  font-size: 12px;
+  opacity: 0.9;
+  min-height: 14px;
+}
+.seat .btns {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  margin-top: 6px;
+  pointer-events: auto;
+}
+.seat .btns button {
+  padding: 4px 8px;
+  font-size: 12px;
+  border-radius: 6px;
+}
+.seat.empty-seat {
+  justify-content: center;
+}
+.seat.empty-seat .stack,
+.seat.empty-seat .status {
+  display: none;
+}
+.seat.empty-seat .btns {
+  margin-top: 0;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+.seat.me {
+  outline: 0;
+  border-radius: 10px;
+  filter: none;
+}
+.seat:hover {
+  filter: none;
+}
+@media (min-width: 1400px) {
+  :root {
+    --ring-rx: 54;
+    --ring-ry: 46;
+    --seat-w: 170px;
+    --seat-h: 182px;
+  }
+  .table-canvas {
+    width: min(80vw, 1280px);
+  }
+}
+.seat.folded {
+  opacity: 0.55;
+}
+.seat.turn,
+.seat.pkr-turn {
+  filter: drop-shadow(0 0 12px rgba(255, 215, 120, 0.6));
+  transform: translate(-50%, -50%) scale(1.03);
+  transition: transform 0.18s ease, filter 0.18s ease;
+}
+.seat.winner {
+  animation: seatWinnerFlash 1s ease-in-out 2;
+}
 
 /* Center sit-CTA overlay */
 .table-canvas #sit-cta { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); z-index:6; display:none; align-items:center; gap:10px; }
@@ -99,23 +198,6 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
 .table-canvas.pre-seat #board { display:none !important; }
 .table-canvas.pre-seat .action-bar { display:none !important; }
 .table-canvas.pre-seat .cards { opacity:0.2; }
-.seat.empty-seat .btns button {  padding: 6px 12px;  border-radius: 12px;  font-size: 13px;}
-.seat .cards { display: flex; gap:6px; align-items:center; justify-content:center; min-height: 88px; }
-.seat .timer {  position: relative;  width: 88px;  height: 6px;  border-radius: 999px;  overflow: hidden;  margin: 2px auto 0;}
-.seat .timer .fill {  display: block;  width: 0%;  height: 100%;  transition: width .2s linear;}
-.seat.turn .timer .fill {  box-shadow: 0 0 6px rgba(255, 210, 120, 0.85);}
-.seat.turn {  filter: drop-shadow(0 0 12px rgba(255, 215, 120, 0.6));  transform: translate(-50%, -50%) scale(1.03);  transition: transform .18s ease, filter .18s ease;}
-/* Emphasize the player's own seat */.seat.me { outline: 0; border-radius: 10px; filter: none; }
-.seat:hover { filter: none; }
-@media (min-width: 1400px) {  :root {    --ring-rx: 54;    --ring-ry: 46;    --seat-w: 170px;    --seat-h: 182px;  }
-  .table-canvas {    width: min(80vw, 1280px);  }
-}
-.seat.folded { opacity: 0.55; }
-.seat.winner { animation: seatWinnerFlash 1s ease-in-out 2; }
-@keyframes seatWinnerFlash {  0% { filter: drop-shadow(0 0 0 rgba(255,215,120,0)); }
-  50% { filter: drop-shadow(0 0 12px rgba(255,215,120,0.9)); }
-  100% { filter: drop-shadow(0 0 0 rgba(255,215,120,0)); }
-}
 /* Small card tiles */.card {  display:block;  width: 60px; height: 84px;  border-radius: 6px;  box-shadow: 0 2px 6px rgba(0,0,0,.25);  object-fit: cover;}
 .card.deal { opacity: 0; transform: translateY(-12px) scale(0.95); }
 .card.deal.show { opacity: 1; transform: translateY(0) scale(1); transition: transform .25s ease, opacity .25s ease; }
@@ -151,6 +233,42 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
 #wi-disconnect:hover {  background: var(--panel-border);}
 #wi-wallet-actions {  display: flex;  flex-direction: column;  gap: 10px;}
 #wi-wallet-actions .wi-wallet-actions-heading {  font-weight: 600;  font-size: 13px;  opacity: 0.85;}
+
+/* Poker overlay layers */
+.table-canvas .pkr-layer,
+.table-canvas .pkr-deck,
+.table-canvas .pkr-burn,
+.table-canvas .pkr-board {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.pkr-layer {
+  z-index: 6;
+}
+.pkr-card {
+  position: absolute;
+  width: 72px;
+  height: 104px;
+  border-radius: 8px;
+  background-size: cover;
+  background-position: center;
+  box-shadow: 0 20px 36px rgba(0, 0, 0, 0.45);
+  opacity: 1;
+  transition: left 0.32s ease, top 0.32s ease, transform 0.32s ease, opacity 0.25s ease;
+}
+.pkr-card.face-down {
+  background-image: url("/assets/images/chog_cards/dak-and-chog-cardback.png");
+}
+.pkr-board-slot {
+  position: absolute;
+  width: 72px;
+  height: 104px;
+  transform: translate(-50%, -50%);
+  border-radius: 8px;
+  border: 1px dashed rgba(255, 255, 255, 0.18);
+  opacity: 0.3;
+}
 #wi-wallet-actions #wi-disconnect {  width: 100%;}
 #wi-aa-panel-host {  display: flex;  flex-direction: column;  gap: 8px;}
 
@@ -1002,6 +1120,16 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
   padding: 16px;
   text-align: left;
 }
+.poker-admin .admin-actions {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.poker-admin .admin-actions button {
+  flex: 1 1 140px;
+  margin: 0;
+}
 
 
 .poker-controls .action-row {
@@ -1147,4 +1275,166 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
 .shell img.revealed {
   outline: 2px solid rgba(255, 209, 102, 0.85);
   border-radius: 16px;
+}
+
+/* Poker table React layout helpers */
+.table-stage {
+  width: min(94vw, 820px);
+  margin: 0 auto;
+}
+
+.table-surface {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1000 / 680;
+  background: url('/assets/images/poker-table.png') center/cover no-repeat;
+  border-radius: 32px;
+  box-shadow: 0 32px 64px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+}
+
+.seat-layer {
+  position: absolute;
+  inset: 0;
+}
+
+.seat-node {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  min-width: 120px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  color: #f4e6d3;
+  text-align: center;
+}
+
+.seat-node.seat-empty {
+  border-style: dashed;
+  opacity: 0.9;
+}
+
+.seat-node.seat-me {
+  border-color: rgba(255, 210, 120, 0.85);
+  box-shadow: 0 0 18px rgba(255, 210, 120, 0.3);
+}
+
+.seat-name {
+  font-weight: 700;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.seat-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+  opacity: 0.9;
+}
+
+.seat-sit-btn,
+.seat-leave-btn {
+  margin-top: 4px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(0, 0, 0, 0.35);
+  color: inherit;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.seat-sit-btn:hover,
+.seat-leave-btn:hover {
+  background: rgba(255, 210, 120, 0.25);
+}
+
+.community-area {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 10px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.pot-indicator {
+  position: absolute;
+  left: 50%;
+  top: 36%;
+  transform: translate(-50%, -50%);
+  padding: 4px 10px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.4);
+  font-size: 12px;
+  color: #ffdc8f;
+  font-weight: 600;
+}
+
+.poker-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3000;
+}
+
+.poker-modal {
+  width: min(90vw, 360px);
+  background: var(--panel-bg-soft);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 18px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  color: #f4e6d3;
+}
+
+.poker-modal input {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(0, 0, 0, 0.35);
+  color: inherit;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.modal-actions button {
+  margin: 0;
+  padding: 6px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(0, 0, 0, 0.4);
+  color: inherit;
+  cursor: pointer;
+}
+
+.modal-actions button:hover:not(:disabled) {
+  background: rgba(255, 210, 120, 0.3);
+}
+
+.modal-actions button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }

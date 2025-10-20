@@ -1,13 +1,14 @@
 'use client';
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Contract, Interface, parseEther } from "ethers";
 import { DakChogABI } from "@/abi/dakChog";
 import { CONTRACTS } from "@/lib/config";
 import { useWallet } from "@/context/WalletContext";
-import { useLegacyAAOps } from "@/hooks/useLegacyAAOps";
+import { useBankroll } from "@/modules/bankroll";
+import { useDelegationToolkitAA } from "@/modules/aa/useDelegationToolkitAA";
 
 const MIN_BET = 0.001;
 const IMG_DAK = "/assets/images/coin-dak.png";
@@ -23,7 +24,9 @@ const clampBet = (value: string) => {
 
 export default function DakChogPage() {
   const { address, provider, connect, isConnecting } = useWallet();
-  const { ops: legacyAAOps } = useLegacyAAOps();
+  const { hasDcmonBalance, ensureAllowance } = useBankroll();
+  const delegation = useDelegationToolkitAA();
+
   const [bet, setBet] = useState(() => clampBet(String(MIN_BET)).toFixed(3));
   const [choice, setChoice] = useState<CoinSide>("dak");
   const [coinFace, setCoinFace] = useState<CoinSide>("dak");
@@ -48,7 +51,7 @@ export default function DakChogPage() {
     setCoinFace(side);
   };
 
-  const ensureConnected = async () => {
+  const ensureConnected = useCallback(async () => {
     if (address) return true;
     try {
       await connect();
@@ -56,9 +59,9 @@ export default function DakChogPage() {
     } catch {
       return false;
     }
-  };
+  }, [address, connect]);
 
-  const playCoin = async () => {
+  const playCoin = useCallback(async () => {
     if (!provider) {
       setStatus("Connect wallet to play.");
       return;
@@ -72,7 +75,7 @@ export default function DakChogPage() {
     const wager = clampBet(bet);
     setBet(wager.toFixed(3));
 
-    let betWei;
+    let betWei: bigint;
     try {
       betWei = parseEther(wager.toString());
     } catch {
@@ -85,49 +88,50 @@ export default function DakChogPage() {
     const contract = new Contract(target, DakChogABI, signer);
     const face = choice === "chog";
 
-    setIsFlipping(true);
     setIsSubmitting(true);
-    setStatus("Submitting transaction...");
+    setIsFlipping(true);
     coinRef.current?.classList.add("spin");
+    setStatus("Checking balance...");
 
     try {
+      const enough = await hasDcmonBalance(betWei);
+      if (!enough) {
+        setStatus("Insufficient DCMon balance for this bet.");
+        return;
+      }
+
+      const approved = await ensureAllowance(target, betWei, {
+        onProgress: setStatus,
+      });
+      if (!approved) {
+        setStatus("DCMon approval declined.");
+        return;
+      }
+
+      setStatus("Submitting transaction...");
+      const data = contract.interface.encodeFunctionData("playCoin", [face, betWei]);
+
       let receipt: any = null;
-      if (
-        legacyAAOps &&
-        typeof legacyAAOps.encodeFromSignature === "function" &&
-        typeof legacyAAOps.sendTxViaAA === "function"
-      ) {
-        try {
-          const data = legacyAAOps.encodeFromSignature("playCoin(bool,uint256)", [
-            face,
-            betWei,
-          ]);
-          if (data) {
-            const txHash = await legacyAAOps.sendTxViaAA({ to: target, data });
-            if (txHash) {
-              setStatus(
-                `Tx sent: ${String(txHash).slice(
-                  0,
-                  10
-                )}... waiting confirmation...`
-              );
-              receipt = await provider.waitForTransaction(txHash);
-            }
-          }
-        } catch (err) {
-          console.warn("[dakchog] AA send failed", err);
+      try {
+        const hash = await delegation.sendTransaction({
+          to: target,
+          data,
+        });
+        if (hash) {
+          setStatus(`Tx sent: ${String(hash).slice(0, 10)}... waiting confirmation...`);
+          receipt = await provider.waitForTransaction(hash);
         }
+      } catch (err) {
+        console.warn("[dakchog] AA send failed", err);
       }
 
       if (!receipt) {
-        if (window.FORCE_GASLESS) {
+        if ((window as any)?.FORCE_GASLESS) {
           setStatus("Gasless send unavailable. Try again.");
           return;
         }
         const tx = await contract.playCoin(face, betWei);
-        setStatus(
-          `Tx sent: ${tx.hash.slice(0, 10)}... waiting confirmation...`
-        );
+        setStatus("Tx sent: waiting confirmation...");
         receipt = await tx.wait();
       }
 
@@ -151,7 +155,6 @@ export default function DakChogPage() {
       }
 
       coinRef.current?.classList.remove("spin");
-      setIsFlipping(false);
       if (parsed) {
         const resultChog = Boolean(parsed.args?.resultChog);
         const won = Boolean(parsed.args?.won);
@@ -181,7 +184,15 @@ export default function DakChogPage() {
       setIsFlipping(false);
       setIsSubmitting(false);
     }
-  };
+  }, [
+    provider,
+    ensureConnected,
+    bet,
+    choice,
+    hasDcmonBalance,
+    ensureAllowance,
+    delegation,
+  ]);
 
   return (
     <main className="tavern game" style={{ minHeight: "100vh" }}>
@@ -234,16 +245,12 @@ export default function DakChogPage() {
             min={MIN_BET}
             step="0.001"
             value={formattedBet}
-            onChange={(e) => setBet(e.target.value)}
+            onChange={(event) => setBet(event.target.value)}
+            disabled={isSubmitting}
           />
         </div>
 
-        <button
-          id="flip"
-          type="button"
-          onClick={playCoin}
-          disabled={isSubmitting}
-        >
+        <button id="flip" type="button" onClick={playCoin} disabled={isSubmitting}>
           {isSubmitting ? "Flipping..." : "Flip Coin"}
         </button>
 
@@ -262,11 +269,8 @@ export default function DakChogPage() {
         )}
       </div>
 
-      <section
-        id="rules-overlay"
-        style={{ display: "none" }}
-        aria-hidden="true"
-      />
+      <section id="rules-overlay" style={{ display: "none" }} aria-hidden="true" />
     </main>
   );
 }
+

@@ -6,6 +6,7 @@ import { useWallet } from "@/context/WalletContext";
 import { useDelegationToolkitAA } from "@/modules/aa/useDelegationToolkitAA";
 import { CONTRACTS } from "@/lib/config";
 import { DCMonABI } from "@/abi/dcmon";
+import { updateBankrollState } from "./store";
 
 export type EnsureAllowanceOptions = {
   onProgress?: (message: string) => void;
@@ -22,9 +23,15 @@ export function useBankroll() {
     if (!provider || !address) {
       setDcmonBalance(0n);
       setMonBalance(0n);
+      updateBankrollState({
+        dcmonBalance: 0n,
+        monBalance: 0n,
+        loading: false,
+      });
       return;
     }
     setLoading(true);
+    updateBankrollState({ loading: true });
     try {
       const dcmonContract = new Contract(CONTRACTS.dcmon, DCMonABI, provider);
       const [dcBal, nativeBal] = await Promise.all([
@@ -33,10 +40,17 @@ export function useBankroll() {
       ]);
       setDcmonBalance(dcBal);
       setMonBalance(nativeBal);
+      updateBankrollState({
+        dcmonBalance: dcBal,
+        monBalance: nativeBal,
+        loading: false,
+      });
     } catch (err) {
       console.warn("[useBankroll] refresh failed", err);
+      updateBankrollState({ loading: false });
     } finally {
       setLoading(false);
+      updateBankrollState({ loading: false });
     }
   }, [provider, address]);
 

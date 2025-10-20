@@ -2,7 +2,25 @@
 
 > Reference checklist for completing the Tavern rebuild on the `nextjs-migration` branch ahead of the [MetaMask Smart Accounts × Monad Dev Cook-Off](https://www.hackquest.io/hackathons/MetaMask-Smart-Accounts-x-Monad-Dev-Cook-Off).
 
-## 1. Game Ports
+> **Priority order (Hackathon scope)**  
+> 1. Alchemy Smart Account SDK integration (paymaster + bundler)  
+> 2. MetaMask Delegation Toolkit / Poker AA polish  
+> 3. Game ports & bankroll HUD parity  
+> 4. UI polish / navigation / responsive tweaks  
+> 5. Post-hackathon items (Agent, DCMon staking, Blackjack, mobile, Phantom, Alchemy Smart Wallet extras)
+
+## 1. Smart Account Integration (Top Priority)
+
+- [ ] **Alchemy SDK adoption**  
+  - Swap `/js/aaClient.js` to use the Alchemy AA SDK for user ops, paymaster quoting, and bundler submissions (drop ZeroDev/legacy helpers).  
+  - Ensure config flows from env (`NEXT_PUBLIC_ALCHEMY_API_KEY`, `NEXT_PUBLIC_ALCHEMY_PAYMASTER_RPC`, etc.) and matches `/api/paymaster/sign`.  
+  - Remove remaining `window.AA_PAYMASTER_CONTEXT` and other legacy globals.
+
+- [ ] **MetaMask Delegation Toolkit alignment**  
+  - Verify poker AA flows use the Alchemy-backed client while preserving toolkit session UX.  
+  - Confirm fallback signer paths still function when sponsorship disabled.
+
+## 2. Game Ports
 
 - [ ] **Poker (lobby + table)**  
   - [x] React lobby + table routes with `useRealtimePokerLobby` / `useRealtimePokerTable`, shared bankroll + Delegation Toolkit AA flow.  
@@ -50,13 +68,9 @@
   - [ ] Update Dak & Chog / Shell action flows to drop legacy AA helpers and rely on the shared hook.  
   - [ ] Remove remaining references to `window.AA_PAYMASTER_CONTEXT`.
 
-- [ ] **MetaMask Delegation Toolkit integration**  
-  - Ensure every user operation is executed via `createBundlerClient({ paymaster: true })`.  
-  - Add test coverage (manual or automated) showing receipt awaited via `waitForUserOperationReceipt`.
-
-- [ ] **Alchemy Smart Wallet readiness**  
-  - Confirm helper in `lib/alchemyClient.ts` works once Monad is supported or we deploy custom factory.  
-  - Document env vars: `NEXT_PUBLIC_ALCHEMY_API_KEY`, `NEXT_PUBLIC_ALCHEMY_PAYMASTER_RPC`, etc.
+- [ ] **Alchemy smart-account runtime**  
+  - Replace ad-hoc client calls with `@alchemy/aa-alchemy` helpers for signing and submitting user operations.  
+  - Document required env vars and test against the Monad devnet paymaster.
 
 ## 4. UI/UX & Layout
 

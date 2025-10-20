@@ -1,7 +1,8 @@
 'use client';
 
-import { useMemo, useState, useEffect, useCallback } from "react";
+import { useMemo, useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
+import Script from "next/script";
 import { notFound } from "next/navigation";
 import { useRealtimePokerTable } from "@/hooks/useRealtimePokerTable";
 import { useWallet } from "@/context/WalletContext";
@@ -30,6 +31,19 @@ function formatPot(chips: number, chipValue: number) {
   return `${dcmon.toFixed(3)} DCMon`;
 }
 
+function computeSeatPositions(total: number) {
+  if (total <= 0) return [];
+  const rx = 42;
+  const ry = 34;
+  return Array.from({ length: total }, (_, idx) => {
+    const angleDeg = 90 + (360 / total) * idx;
+    const rad = (angleDeg * Math.PI) / 180;
+    const left = 50 + rx * Math.cos(rad);
+    const top = 50 + ry * Math.sin(rad);
+    return { left: `${left}%`, top: `${top}%` };
+  });
+}
+
 export default function PokerTablePage({ params }: TablePageProps) {
   const rawId = Array.isArray(params.tableId) ? params.tableId[0] : params.tableId;
   if (!rawId) {
@@ -44,13 +58,68 @@ export default function PokerTablePage({ params }: TablePageProps) {
   const [betAmount, setBetAmount] = useState("1");
   const [actionStatus, setActionStatus] = useState<string | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
+  const [playerName, setPlayerName] = useState("");
+  const [nameInput, setNameInput] = useState("");
+  const [isSitModalOpen, setSitModalOpen] = useState(false);
+  const nameInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     realtime.identify(address);
   }, [address, realtime]);
 
-  const addressLower = (address ?? "").toLowerCase();
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = sessionStorage.getItem("poker:name");
+    if (stored) {
+      setPlayerName(stored);
+      setNameInput(stored);
+    }
+  }, []);
 
+  useEffect(() => {
+    if (!isSitModalOpen) return;
+    requestAnimationFrame(() => {
+      nameInputRef.current?.focus();
+      nameInputRef.current?.select();
+    });
+  }, [isSitModalOpen]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const overlay = (window as any).__PokerOverlay;
+    if (!overlay?.setContext) return;
+    overlay.setContext({ address: addressLower, seatId: mySeatId });
+  }, [addressLower, mySeatId]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const overlay = (window as any).__PokerOverlay;
+    if (!overlay?.refreshSeats) return;
+    const raf = window.requestAnimationFrame(() => {
+      overlay.refreshSeats();
+    });
+    return () => window.cancelAnimationFrame(raf);
+  }, [orderedSeatIndices, seatPositions]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const overlay = (window as any).__PokerOverlay;
+    overlay?.applyState?.(realtime.state ?? null);
+  }, [realtime.state]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const overlay = (window as any).__PokerOverlay;
+    overlay?.applyPrivate?.(realtime.privateCards ?? null);
+  }, [realtime.privateCards]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const overlay = (window as any).__PokerOverlay;
+    overlay?.applyHand?.(realtime.handSummary ?? null);
+  }, [realtime.handSummary]);
+
+  const addressLower = (address ?? "").toLowerCase();
   const chipValueDcmon = useMemo(() => {
     const meta = realtime.table?.meta;
     if (!meta) return 1;
@@ -80,6 +149,55 @@ export default function PokerTablePage({ params }: TablePageProps) {
     return null;
   }, [realtime.state, addressLower, mySeatId]);
 
+  const actorBySeat = useMemo(() => {
+    const map = new Map<number, (typeof realtime.state?.actors)[number]>();
+    if (!realtime.state) return map;
+    for (const actor of realtime.state.actors) {
+      if (Number.isInteger(actor.seatId)) {
+        map.set(actor.seatId, actor);
+      }
+    }
+    return map;
+  }, [realtime.state]);
+
+  const turnSeatId = useMemo(() => {
+    if (!realtime.state) return -1;
+    if (typeof realtime.state.turnSeatId === "number" && realtime.state.turnSeatId >= 0) {
+      return realtime.state.turnSeatId;
+    }
+    const idx = realtime.state.turnIndex;
+    if (!Number.isFinite(idx) || idx < 0) return -1;
+    const actor = realtime.state.actors[idx];
+    return actor ? actor.seatId : -1;
+  }, [realtime.state]);
+
+  const dealerSeatId = realtime.state?.dealerSeatId ?? -1;
+
+  const sbSeatId = useMemo(() => {
+    if (!realtime.state) return -1;
+    if (!Number.isFinite(realtime.state.sbIndex)) return -1;
+    const actor = realtime.state.actors[Number(realtime.state.sbIndex)];
+    return actor ? actor.seatId : -1;
+  }, [realtime.state]);
+
+  const bbSeatId = useMemo(() => {
+    if (!realtime.state) return -1;
+    if (!Number.isFinite(realtime.state.bbIndex)) return -1;
+    const actor = realtime.state.actors[Number(realtime.state.bbIndex)];
+    return actor ? actor.seatId : -1;
+  }, [realtime.state]);
+
+  const winnerSeatIds = useMemo(() => {
+    const set = new Set<number>();
+    if (!realtime.handSummary) return set;
+    for (const winner of realtime.handSummary.winners ?? []) {
+      if (winner.seatId != null && Number.isFinite(winner.seatId)) {
+        set.add(Number(winner.seatId));
+      }
+    }
+    return set;
+  }, [realtime.handSummary]);
+
   const callAmountChips = useMemo(() => {
     if (!realtime.state || !myActor) return 0;
     const target = Number(realtime.state.toCall || 0);
@@ -100,17 +218,149 @@ export default function PokerTablePage({ params }: TablePageProps) {
     return ["preflop", "flop", "turn", "river", "showdown"].includes(stage);
   }, [realtime.state?.stage]);
 
-  const myContributionChips = Number(myActor?.contrib || 0);
-  const myContributionDcmon = myContributionChips * chipValueDcmon;
-  const callAmountDcmon = callAmountChips * chipValueDcmon;
+  const isSimulatedTable = Boolean(realtime.table?.simulated);
+  const totalSeats = realtime.table?.capacity ?? 6;
+
+  const seatEntries = useMemo(() => {
+    return Array.from({ length: totalSeats }, (_, seatId) => {
+      const seatInfo = realtime.table?.seats?.[seatId] ?? null;
+      const actor = actorBySeat.get(seatId) ?? null;
+      const rawAddress = seatInfo?.addr ?? actor?.addr ?? null;
+      const normalized = rawAddress ? rawAddress.toLowerCase() : null;
+      const stack = Number(actor?.stack ?? seatInfo?.chips ?? seatInfo?.balance ?? 0);
+      const contrib = Number(actor?.contrib ?? seatInfo?.balance ?? 0);
+      return {
+        seatId,
+        rawAddress,
+        addr: normalized,
+        isUser: normalized != null && normalized === addressLower,
+        stack: Number.isFinite(stack) ? stack : 0,
+        contrib: Number.isFinite(contrib) ? contrib : 0,
+        actor,
+      };
+    });
+  }, [totalSeats, realtime.table?.seats, actorBySeat, addressLower]);
+
+  const emptySeatIds = useMemo(
+    () => seatEntries.filter((entry) => !entry.rawAddress).map((entry) => entry.seatId),
+    [seatEntries]
+  );
+
+  const preferredSeatId = useMemo(() => {
+    if (mySeatId >= 0) return mySeatId;
+    if (emptySeatIds.length > 0) return emptySeatIds[0];
+    return -1;
+  }, [mySeatId, emptySeatIds]);
+
+  const seatPositions = useMemo(() => computeSeatPositions(totalSeats), [totalSeats]);
+
+  const orderedSeatIndices = useMemo(() => {
+    if (totalSeats === 0) return [];
+    const base = Array.from({ length: totalSeats }, (_, idx) => idx);
+    if (preferredSeatId < 0) return base;
+    const pivot = preferredSeatId % totalSeats;
+    return base.slice(pivot).concat(base.slice(0, pivot));
+  }, [totalSeats, preferredSeatId]);
+
+  const orderedSeats = useMemo(() => {
+    return orderedSeatIndices.map((seatId, displayIndex) => {
+      const entry = seatEntries[seatId];
+      const isEmpty = !entry.rawAddress;
+      const isUser = entry.isUser;
+      const actor = entry.actor;
+      const hasFolded = Boolean(actor?.folded);
+      const hasActed = Boolean(actor?.acted);
+      const isTurn = seatId === turnSeatId;
+      const isDealer = seatId === dealerSeatId;
+      const isSmallBlind = seatId === sbSeatId;
+      const isBigBlind = seatId === bbSeatId;
+      const isWinner = winnerSeatIds.has(seatId);
+      const label = isUser
+        ? playerName || (address ? short(address) : "You")
+        : entry.rawAddress
+        ? short(entry.rawAddress)
+        : "Open Seat";
+      const stackChips = entry.stack;
+      const stackLabel = Number.isFinite(stackChips) ? `${stackChips.toFixed(2)} chips` : null;
+      const dcmonStack =
+        Number.isFinite(stackChips) && chipValueDcmon > 0
+          ? `${(stackChips * chipValueDcmon).toFixed(3)} DCMon`
+          : null;
+      let statusLabel: string | null = null;
+      if (isEmpty) {
+        statusLabel = "Seat Open";
+      } else if (isWinner) {
+        statusLabel = "Winner";
+      } else if (isTurn) {
+        statusLabel = "Acting";
+      } else if (hasFolded) {
+        statusLabel = "Folded";
+      } else if (entry.contrib > 0) {
+        statusLabel = `In Pot: ${entry.contrib.toFixed(2)} chips`;
+      } else if (hasActed) {
+        statusLabel = "Acted";
+      } else if (realtime.state?.stage) {
+        statusLabel = realtime.state.stage === "preflop" ? "Waiting to act" : "Live";
+      }
+
+      const markerTokens: string[] = [];
+      if (isDealer) markerTokens.push("D");
+      if (isSmallBlind) markerTokens.push("SB");
+      if (isBigBlind) markerTokens.push("BB");
+      const markerLabel = markerTokens.join("/");
+      const markerClass = markerTokens
+        .filter((token) => token === "SB" || token === "BB")
+        .map((token) => token.toLowerCase())
+        .join(" ");
+
+      return {
+        ...entry,
+        displayIndex,
+        position: seatPositions[displayIndex] ?? { top: "50%", left: "50%" },
+        label,
+        isEmpty,
+        stackLabel,
+        dcmonStack,
+        statusLabel,
+        isTurn,
+        isDealer,
+        isSmallBlind,
+        isBigBlind,
+        isWinner,
+        hasFolded,
+        hasActed,
+        markerLabel,
+        markerClass,
+      };
+    });
+  }, [
+    orderedSeatIndices,
+    seatEntries,
+    seatPositions,
+    playerName,
+    address,
+    chipValueDcmon,
+    turnSeatId,
+    dealerSeatId,
+    sbSeatId,
+    bbSeatId,
+    realtime.state?.stage,
+    winnerSeatIds,
+  ]);
+
+  const isSeated = mySeatId >= 0;
   const potChips = Number(realtime.state?.pot || 0);
   const potLabel = formatPot(potChips, chipValueDcmon);
+  const myContributionChips = Number(myActor?.contrib || 0);
+  const myContributionDcmon = myContributionChips * chipValueDcmon;
   const myPrivateCards = useMemo(() => {
     if (!realtime.privateCards) return [];
     if (realtime.privateCards.seatId !== mySeatId) return [];
     return realtime.privateCards.cards ?? [];
   }, [mySeatId, realtime.privateCards]);
   const latestHand = realtime.handSummary;
+  const communityCards = realtime.state?.community ?? [];
+  const stageLabel = realtime.state?.stage ?? "Waiting";
 
   const runAction = useCallback(
     async (initialMessage: string, task: () => Promise<void>) => {
@@ -135,31 +385,53 @@ export default function PokerTablePage({ params }: TablePageProps) {
     [actionBusy]
   );
 
-  const handleJoinSeat = useCallback(
-    (seatIndex: number) => {
-      if (!address) {
-        connect().catch(() => void 0);
-        return;
+  const handleOpenSitModal = useCallback(() => {
+    if (preferredSeatId < 0) {
+      setActionStatus("No open seats available right now.");
+      return;
+    }
+    setNameInput(playerName || "");
+    setSitModalOpen(true);
+  }, [preferredSeatId, playerName]);
+
+  const handleConfirmSit = useCallback(() => {
+    if (preferredSeatId < 0) {
+      setActionStatus("No open seats available right now.");
+      return;
+    }
+    const trimmed = nameInput.trim().slice(0, 16);
+    const finalName = trimmed || "Player";
+    runAction("Joining seat...", async () => {
+      if (!isSimulatedTable) {
+        await holdem.joinSeat({ seatId: preferredSeatId, onProgress: setActionStatus });
       }
-      runAction("Joining seat...", async () => {
-        await holdem.joinSeat({ seatId: seatIndex, onProgress: setActionStatus });
-        realtime.setSeat(seatIndex);
-      });
-    },
-    [address, connect, holdem, realtime, runAction]
-  );
+      realtime.setSeat(preferredSeatId);
+      setPlayerName(finalName);
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem("poker:name", finalName);
+      }
+      setSitModalOpen(false);
+    });
+  }, [preferredSeatId, nameInput, runAction, holdem, realtime, isSimulatedTable]);
+
+  const handleCancelSit = useCallback(() => {
+    setSitModalOpen(false);
+    setNameInput(playerName);
+  }, [playerName]);
 
   const handleLeaveSeat = useCallback(() => {
     if (mySeatId < 0) return;
     runAction("Leaving seat...", async () => {
-      await holdem.leaveSeat({
-        seatId: mySeatId,
-        duringHand: isInHand,
-        onProgress: setActionStatus,
-      });
+      if (!isSimulatedTable) {
+        await holdem.leaveSeat({
+          seatId: mySeatId,
+          duringHand: isInHand,
+          onProgress: setActionStatus,
+        });
+      }
       realtime.leaveSeat();
     });
-  }, [holdem, isInHand, mySeatId, realtime, runAction]);
+  }, [mySeatId, isSimulatedTable, holdem, isInHand, realtime, runAction]);
 
   const handleFold = useCallback(() => {
     realtime.sendAction("fold");
@@ -169,28 +441,38 @@ export default function PokerTablePage({ params }: TablePageProps) {
     if (mySeatId < 0) return;
     if (callAmountChips > 0) {
       runAction("Calling...", async () => {
-        await holdem.contributeChips({
-          seatId: mySeatId,
-          chips: callAmountChips,
-          chipValueDcmon,
-          onProgress: setActionStatus,
-        });
+        if (!isSimulatedTable) {
+          await holdem.contributeChips({
+            seatId: mySeatId,
+            chips: callAmountChips,
+            chipValueDcmon,
+            onProgress: setActionStatus,
+          });
+        }
         realtime.sendAction("call");
       });
     } else {
       realtime.sendAction("check");
     }
-  }, [callAmountChips, chipValueDcmon, holdem, mySeatId, realtime, runAction]);
+  }, [
+    mySeatId,
+    callAmountChips,
+    runAction,
+    isSimulatedTable,
+    holdem,
+    chipValueDcmon,
+    realtime,
+  ]);
 
   const handleBet = useCallback(() => {
     if (mySeatId < 0) return;
-    const targetChips = Number(betAmount);
-    if (!Number.isFinite(targetChips) || targetChips <= 0) return;
-    const alreadyChips = Number(myActor?.contrib || 0);
-    const deltaChips = Math.max(0, targetChips - alreadyChips);
+    const target = Number(betAmount);
+    if (!Number.isFinite(target) || target <= 0) return;
+    const already = Number(myActor?.contrib || 0);
+    const deltaChips = Math.max(0, target - already);
     const action = callAmountChips > 0 ? "raise" : "bet";
     runAction(action === "raise" ? "Raising..." : "Betting...", async () => {
-      if (deltaChips > 0) {
+      if (!isSimulatedTable && deltaChips > 0) {
         await holdem.contributeChips({
           seatId: mySeatId,
           chips: deltaChips,
@@ -198,28 +480,43 @@ export default function PokerTablePage({ params }: TablePageProps) {
           onProgress: setActionStatus,
         });
       }
-      realtime.sendAction(action, targetChips);
+      realtime.sendAction(action, target);
     });
   }, [
+    mySeatId,
     betAmount,
     callAmountChips,
-    chipValueDcmon,
-    holdem,
-    myActor?.contrib,
-    mySeatId,
-    realtime,
     runAction,
+    isSimulatedTable,
+    holdem,
+    chipValueDcmon,
+    realtime,
+    myActor?.contrib,
   ]);
 
   const handleRebuy = useCallback(() => {
     realtime.requestRebuy();
   }, [realtime]);
 
-  const stageLabel = realtime.state?.stage ?? "Waiting";
-  const communityCards = formatCommunity(realtime.state?.community ?? []);
+  const handleRefreshOverlay = useCallback(() => {
+    if (typeof window === "undefined") return;
+    const overlay = (window as any).__PokerOverlay;
+    if (!overlay) return;
+    overlay.refreshSeats?.();
+    overlay.applyState?.(realtime.state ?? null);
+    overlay.applyHand?.(realtime.handSummary ?? null);
+  }, [realtime.state, realtime.handSummary]);
+
+  const rngCommit =
+    realtime.state?.rng?.commit ?? realtime.handSummary?.rng?.commit ?? undefined;
+  const tableModeLabel =
+    realtime.table?.tableMode ??
+    (realtime.table?.simulated ? "f2p" : realtime.table ? "onchain" : undefined);
 
   return (
-    <main className="poker-table-view">
+    <>
+      <Script src="/js/poker/cards-overlay.js" strategy="afterInteractive" />
+      <main className="poker-table-view">
       <header className="poker-table-header">
         <div className="poker-table-info">
           <h1>{tableId}</h1>
@@ -228,7 +525,8 @@ export default function PokerTablePage({ params }: TablePageProps) {
             <span className="highlight">{potLabel}</span>
           </p>
           <p className="muted">
-            Community cards: <span className="highlight">{communityCards}</span>
+            Community cards:{" "}
+            <span className="highlight">{formatCommunity(communityCards)}</span>
           </p>
         </div>
         <div className="poker-table-actions">
@@ -255,54 +553,75 @@ export default function PokerTablePage({ params }: TablePageProps) {
       </header>
 
       <section className="poker-table-layout">
-        <div className="seat-grid">
-          {(realtime.table?.seats ?? Array.from({ length: realtime.table?.capacity ?? 6 })).map(
-            (seat, index) => {
-              const occupied = Boolean(seat);
-              const isMe = seat?.addr === addressLower;
-              const chips = Number(seat?.chips ?? seat?.balance ?? 0);
-              const chipsLabel = Number.isFinite(chips) ? chips.toFixed(2) : "0.00";
-              const dcmonLabel = Number.isFinite(chips)
-                ? (chips * chipValueDcmon).toFixed(3)
-                : "0.000";
-              return (
-                <div key={index} className={`seat-card ${isMe ? "me" : ""}`}>
-                  <header>
-                    <span>Seat {index + 1}</span>
-                  </header>
-                  {occupied ? (
-                    <div className="seat-body">
-                      <div className="seat-address">{short(seat?.addr)}</div>
-                      <div className="seat-meta">
-                        <span>Stack: {chipsLabel} chips</span>
-                        <span>(~{dcmonLabel} DCMon)</span>
-                      </div>
-                      {isMe && (
-                        <button
-                          type="button"
-                          className="seat-leave"
-                          onClick={handleLeaveSeat}
-                          disabled={actionBusy}
-                        >
-                          Leave Seat
-                        </button>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="seat-empty">
-                      <button
-                        type="button"
-                        onClick={() => handleJoinSeat(index)}
-                        disabled={actionBusy}
-                      >
-                        Take Seat
-                      </button>
+        <div className="table-stage">
+          <div className="table-surface">
+            <div className="seat-layer">
+              {orderedSeats.map((seat) => (
+                <div
+                  key={seat.seatId}
+                  data-seat-id={seat.seatId}
+                  className={[
+                    "seat",
+                    "seat-node",
+                    seat.isUser ? "me" : "",
+                    seat.isEmpty ? "empty-seat" : "seat-occupied",
+                    seat.isTurn ? "turn" : "",
+                    seat.hasFolded ? "folded" : "",
+                    seat.isWinner ? "winner" : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                  style={{ top: seat.position.top, left: seat.position.left }}
+                >
+                  {seat.markerLabel && (
+                    <div className={["marker", seat.markerClass].filter(Boolean).join(" ")}>
+                      {seat.markerLabel}
                     </div>
                   )}
+                  <div className="name">{seat.label}</div>
+                  {!seat.isEmpty && (
+                    <>
+                      {seat.stackLabel && (
+                        <div className="stack">
+                          <span>{seat.stackLabel}</span>
+                          {seat.dcmonStack && <span>{seat.dcmonStack}</span>}
+                        </div>
+                      )}
+                      {seat.statusLabel && <div className="status">{seat.statusLabel}</div>}
+                    </>
+                  )}
+                  <div className="btns">
+                    {seat.isEmpty && seat.displayIndex === 0 && !isSeated && (
+                      <button
+                        type="button"
+                        onClick={handleOpenSitModal}
+                        disabled={actionBusy || preferredSeatId < 0}
+                      >
+                        Sit
+                      </button>
+                    )}
+                    {seat.isUser && !seat.isEmpty && (
+                      <button type="button" onClick={handleLeaveSeat} disabled={actionBusy}>
+                        Leave
+                      </button>
+                    )}
+                  </div>
                 </div>
-              );
-            }
-          )}
+              ))}
+            </div>
+            <div className="community-area">
+              {communityCards.length ? (
+                communityCards.map((card) => (
+                  <span key={card} className="card-pill">
+                    {card}
+                  </span>
+                ))
+              ) : (
+                <span className="muted">Waiting for deal</span>
+              )}
+            </div>
+            <div className="pot-indicator">Pot {potLabel}</div>
+          </div>
         </div>
 
         <aside className="poker-sidebar">
@@ -327,7 +646,7 @@ export default function PokerTablePage({ params }: TablePageProps) {
           <section className="poker-controls">
             <h2>Action</h2>
             {mySeatId < 0 ? (
-              <p className="muted">Take a seat to act.</p>
+              <p className="muted">Sit to act.</p>
             ) : (
               <>
                 <div className="action-row">
@@ -340,9 +659,7 @@ export default function PokerTablePage({ params }: TablePageProps) {
                     disabled={!isMyTurn || actionBusy}
                   >
                     {callAmountChips > 0
-                      ? `Call ${callAmountChips.toFixed(2)} chips (~${callAmountDcmon.toFixed(
-                          3
-                        )} DCMon)`
+                      ? `Call ${callAmountChips.toFixed(2)} chips (~${callAmountDcmon.toFixed(3)} DCMon)`
                       : "Check"}
                   </button>
                 </div>
@@ -393,8 +710,41 @@ export default function PokerTablePage({ params }: TablePageProps) {
                 ))}
               </div>
             ) : (
-              <p className="muted">Cards will appear when you are in hand.</p>
+              <p className="muted">Cards appear when you are in hand.</p>
             )}
+          </section>
+
+          <section className="poker-admin">
+            <h2>Dealer Tools</h2>
+            <p className="muted">
+              Mode:{" "}
+              <span className="highlight">
+                {(tableModeLabel ?? "unknown").toUpperCase()}
+              </span>
+            </p>
+            <p className="muted">
+              Dealer seat:{" "}
+              <span className="highlight">
+                {dealerSeatId >= 0 ? `#${dealerSeatId + 1}` : "Unassigned"}
+              </span>
+            </p>
+            <p className="muted">
+              Turn seat:{" "}
+              <span className="highlight">{turnSeatId >= 0 ? `#${turnSeatId + 1}` : "Waiting"}</span>
+            </p>
+            {rngCommit && (
+              <p className="muted">
+                RNG commit: <span className="highlight">{rngCommit.slice(0, 12)}…</span>
+              </p>
+            )}
+            <div className="admin-actions">
+              <button type="button" onClick={handleRefreshOverlay}>
+                Refresh Overlay
+              </button>
+              <button type="button" onClick={realtime.reconnect}>
+                Reconnect Socket
+              </button>
+            </div>
           </section>
 
           {latestHand && (
@@ -405,9 +755,7 @@ export default function PokerTablePage({ params }: TablePageProps) {
               </p>
               <p className="muted">
                 Board:{" "}
-                <span className="highlight">
-                  {formatCommunity(latestHand.community ?? [])}
-                </span>
+                <span className="highlight">{formatCommunity(latestHand.community ?? [])}</span>
               </p>
               <ul>
                 {latestHand.winners.map((winner) => (
@@ -415,7 +763,7 @@ export default function PokerTablePage({ params }: TablePageProps) {
                     <span>{short(winner.addr)}</span>
                     {winner.amount != null && (
                       <span>
-                        {" "} - {formatPot(winner.amount, chipValueDcmon)} ({winner.amount.toFixed(2)} chips)
+                        {" "}- {formatPot(winner.amount, chipValueDcmon)} ({winner.amount.toFixed(2)} chips)
                       </span>
                     )}
                   </li>
@@ -425,13 +773,39 @@ export default function PokerTablePage({ params }: TablePageProps) {
           )}
         </aside>
       </section>
-    </main>
+
+        {isSitModalOpen && (
+          <div className="poker-modal-backdrop">
+            <div className="poker-modal">
+              <h3>Take Your Seat</h3>
+              <p className="muted">
+                Enter the name you want other players to see when you act at the table.
+              </p>
+              <input
+                ref={nameInputRef}
+                type="text"
+                maxLength={16}
+                value={nameInput}
+                onChange={(event) => setNameInput(event.target.value)}
+                placeholder="Dak & Chog Regular"
+                disabled={actionBusy}
+              />
+              <div className="modal-actions">
+                <button type="button" onClick={handleCancelSit} disabled={actionBusy}>
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmSit}
+                  disabled={actionBusy || preferredSeatId < 0}
+                >
+                  Take Seat
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </main>
+    </>
   );
 }
-
-
-
-
-
-
-

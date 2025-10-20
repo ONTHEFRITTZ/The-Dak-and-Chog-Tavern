@@ -576,20 +576,7 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
     } catch {}
     return '';
   })();
-  const paymasterContextOverride = (() => {
-    try {
-      if (typeof window === 'undefined') return null;
-      const raw = window.AA_PAYMASTER_CONTEXT;
-      if (!raw) return null;
-      if (typeof raw === 'object') return raw;
-      if (typeof raw === 'string') {
-        const trimmed = raw.trim();
-        if (!trimmed) return null;
-        try { return JSON.parse(trimmed); } catch { return null; }
-      }
-    } catch {}
-    return null;
-  })();
+  const paymasterContextOverride = null;
   const bundlerRpcUrl = aaBundlerEndpoint;
   const paymasterRpcUrl = aaPaymasterEndpoint;
   const applyAuthHeaders = (headers, url) => {

@@ -6,8 +6,8 @@ import Link from "next/link";
 import { Contract, Interface, parseEther } from "ethers";
 import { CONTRACTS } from "@/lib/config";
 import { useWallet } from "@/context/WalletContext";
-import { useLegacyAAOps } from "@/hooks/useLegacyAAOps";
 import { useBankroll } from "@/modules/bankroll";
+import { useDelegationToolkitAA } from "@/modules/aa/useDelegationToolkitAA";
 import { DakChogABI } from "@/abi/dakChog";
 
 const MIN_BET = 0.001;
@@ -27,7 +27,7 @@ const clampBet = (value: string) => {
 
 export default function ShellGamePage() {
   const { address, provider, connect, isConnecting } = useWallet();
-  const { ops: legacyAAOps } = useLegacyAAOps();
+  const delegation = useDelegationToolkitAA();
   const { hasDcmonBalance, ensureAllowance } = useBankroll();
 
   const [bet, setBet] = useState(() => clampBet(String(MIN_BET)).toFixed(3));
@@ -96,47 +96,36 @@ export default function ShellGamePage() {
         return;
       }
 
-      setStatus("Revealing shells...");
+      setStatus("Submitting wager...");
 
       let receipt: any = null;
+      const data = contract.interface.encodeFunctionData("playCoin", [choice === 1, betWei]);
 
-      if (
-        legacyAAOps &&
-        typeof legacyAAOps.encodeFromSignature === "function" &&
-        typeof legacyAAOps.sendTxViaAA === "function"
-      ) {
-        try {
-          const data = legacyAAOps.encodeFromSignature("playCoin(bool,uint256)", [
-            choice === 1,
-            betWei,
-          ]);
-          if (data) {
-            const txHash = await legacyAAOps.sendTxViaAA({
-              to: CONTRACTS.shell,
-              data,
-            });
-            if (txHash) {
-              setStatus(
-                Tx sent: ... waiting confirmation...
-              );
-              receipt = await provider.waitForTransaction(txHash);
-            }
-          }
-        } catch (err) {
-          console.warn("[shell] AA send failed", err);
+      try {
+        const hash = await delegation.sendTransaction({
+          to: CONTRACTS.shell,
+          data,
+        });
+        if (hash) {
+          setStatus(`Tx sent: ${String(hash).slice(0, 10)}... waiting confirmation...`);
+          receipt = await provider.waitForTransaction(hash);
         }
+      } catch (err) {
+        console.warn("[shell] AA send failed", err);
       }
 
       if (!receipt) {
-        if ((window as any).FORCE_GASLESS) {
+        if ((window as any)?.FORCE_GASLESS) {
           setStatus("Gasless send unavailable. Try again.");
           setIsSubmitting(false);
           return;
         }
         const tx = await contract.playCoin(choice === 1, betWei, { gasLimit: 300000 });
-        setStatus(Tx sent: ... waiting confirmation...);
+        setStatus("Tx sent: waiting confirmation...");
         receipt = await tx.wait();
       }
+
+      setStatus("Revealing shells...");
 
       if (!receipt) {
         setStatus("Transaction sent. Check explorer for result.");
