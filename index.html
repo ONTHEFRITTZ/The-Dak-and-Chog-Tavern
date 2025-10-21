@@ -84,10 +84,6 @@
         <a class="game-logo-link" href="/games/hazard/index.html" title="Hazard">
           <img src="assets/images/hazard-logo.png" alt="Hazard">
         </a>
-        <!-- Faro multiplayer link (hard cutover to /games/faro) -->
-        <a class="game-logo-link" href="/games/faro/lobby.html" title="Faro (Multiplayer)">
-          <img src="assets/images/faro-logo.png" alt="Faro (Multiplayer)">
-        </a>
         <!-- Poker (Texas Hold'em) -->
         <a class="game-logo-link" href="/games/poker/index.html" title="Poker (Texas Hold'em)">
           <img src="assets/images/texas-holdem-logo.png" alt="Poker (Texas Hold'em)">
@@ -203,7 +199,6 @@
           const socket = io({ path: '/socket.io/', transports: ['websocket'], upgrade: false, forceNew: true, reconnection: true, reconnectionAttempts: 8, reconnectionDelay: 800 });
           socket.on('connect', function(){
             try { socket.emit('user:location', { path: location.pathname }); } catch(e) {}
-            try { socket.emit('join_table', 'faro-lobby'); } catch(e) {}
             try { console.log('connected', socket.id); } catch(e) {}
           });
           socket.on('system', function(m){ try { console.log('[system]', m); } catch(e) {} });

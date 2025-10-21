@@ -34,7 +34,6 @@ Monad Testnet Addresses (Oct 2025)
 - DCMon: 0x3AcbbD49603D8140C0acbf13E3471DBF691b2Bd7
 - BankrollPool: 0x31574064907cbE75C61Fea28C545264817A9AA4a
 - Player reward wallet: 0xCe1C5bb15041361D6Ab22aAFb3887dD28D05a16E
-- Faro: 0x953f1Bba2eeEa57482037377BD5103cEbA85C987
 - Hazard: 0xb0103807b4B758945331BF6783873Cd776037f89
 - Shell: 0x7Ff5A1b0d71eE4C66D24121D2E68D7844704D377
 - DakChog: 0xa8F48cccE4968F5bf40f3411B2265cEBDB517ADf
@@ -72,21 +71,7 @@ pm2 logs realtime --lines 100
 
 2) NGINX (inside your 443 server block)
 ```
-# Faro (default)
-location = /faro.io { return 301 /faro.io/; }
-location /faro.io/ {
-  proxy_http_version 1.1;
-  proxy_set_header Upgrade $http_upgrade;
-  proxy_set_header Connection "Upgrade";
-  proxy_set_header Host $host;
-  proxy_set_header X-Real-IP $remote_addr;
-  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-  proxy_read_timeout 600s;
-  proxy_send_timeout 600s;
-  proxy_pass http://127.0.0.1:3100/socket.io/;
-}
-
-# Poker (new)
+# Poker realtime
 location = /poker.io { return 301 /poker.io/; }
 location /poker.io/ {
   proxy_http_version 1.1;
@@ -102,19 +87,14 @@ location /poker.io/ {
 ```
 
 3) Clients
-- Faro clients can continue using the default path (`/socket.io`) or switch to `/faro.io` if you add the path override.
 - Poker clients: change Socket.IO path to `/poker.io` when you cut over.
   - Example in code: `io(origin, { path: '/poker.io/' })`
 
 4) Backend flag
-- The server supports `GAME_TYPES` (default `FARO,POKER`). For a unified backend:
-  - Run on 3100 with `GAME_TYPES=FARO,POKER`.
+- Ensure `GAME_TYPES` includes poker (e.g., `GAME_TYPES=POKER` or `GAME_TYPES=HAZARD,POKER`) before restarting.
 
 Post-deploy verification
 ```
-# Live homepage should link to /games/faro
-sudo grep -n "/games/" /var/www/thedakandchog.xyz/html/index.html
-
 # Build markers
 curl -s https://thedakandchog.xyz/assets/build.json
   curl -s https://thedakandchog.xyz/assets/deploy_check.txt

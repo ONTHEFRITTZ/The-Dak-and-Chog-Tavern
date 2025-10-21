@@ -2,11 +2,11 @@ The Dak & Chog Tavern — v1.1 Stable Online Multiplayer
 
 Overview
 - Version: 1.1 — Stable Online Multiplayer
-- On-chain games: Tavern router (Shell, Hazard, Dak & Chog) + Faro (with rake)
+- On-chain games: Tavern router (Shell, Hazard, Dak & Chog)
 
 Architecture
 - Static site hosted on Ubuntu (AWS EC2) with NGINX
-- Games call a unified Tavern router (pooled) and/or Faro directly
+- Games call a unified Tavern router (pooled) per game type
 - Liquidity held in BankrollPool; Tavern pays winners via Pool.pay()
 - Admin page (/admin/) can Set Pool on Tavern, Authorize games in Pool, and shows Site Health
 
@@ -54,12 +54,11 @@ Address configuration
 - js/config.js resolves per-chain addresses via ADDRESS_BOOK
 - Temporary overrides for testing:
   localStorage.setItem('contract.tavern','0x...')
-  localStorage.setItem('contract.faro','0x...')
   localStorage.setItem('contract.pool','0x...')
   location.reload()
 
 Frontend
-- ABI files: js/TavernABI.js, js/FaroV3ABI.js, js/PoolABI.js
+- ABI files: js/TavernABI.js, js/PoolABI.js
 - Versioned loaders on all pages ensure fresh CSS/JS after deploys
 - Return to Tavern buttons use root-relative navigation (/index.html)
 - Hazard uses the “standard” dice set (assets/images/dice/standard)

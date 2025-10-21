@@ -81,7 +81,6 @@ try {
 // Base defaults (used when no chain-specific mapping exists)
 const DEFAULT_ADDRESSES = {
   tavern: "", // router removed; games use dedicated addresses
-  faro:   "0x953f1Bba2eeEa57482037377BD5103cEbA85C987",
   pool:   "0x31574064907cbE75C61Fea28C545264817A9AA4a",
   wmon:   "0x7b4E8B2a3E934701D8bF6cFB31C3f3BDaC5e30Ff",
   dcmon:  "0x3AcbbD49603D8140C0acbf13E3471DBF691b2Bd7",
@@ -96,7 +95,6 @@ export const ADDRESS_BOOK = {
   default: { ...DEFAULT_ADDRESSES },
   10143: { // Monad Testnet
     tavern: "",
-    faro: "0x953f1Bba2eeEa57482037377BD5103cEbA85C987",
     pool:   "0x31574064907cbE75C61Fea28C545264817A9AA4a",
     wmon:   "0x7b4E8B2a3E934701D8bF6cFB31C3f3BDaC5e30Ff",
     dcmon:  "0x3AcbbD49603D8140C0acbf13E3471DBF691b2Bd7",

@@ -102,7 +102,7 @@ Security Considerations
 
 Interop With Existing Contracts
 - Reuse `BankrollPool.sol` for custody. The table only mutates internal balances and performs credit/debit to the pool.
-- Fees can be aggregated similarly to Faro.
+- Fees can be aggregated using the same approach as the Hazard/Shell bankroll pool.
 
 Open Questions
 - Whether to enforce per-round contributions on-chain (more gas) vs trusting dealer to settle fairly.
@@ -113,4 +113,3 @@ Testing Plan (Outline)
 - Hand lifecycle: `beginHand` → `settleHand` happy-path with 1 or more winners.
 - Rake math incl. caps.
 - Reverts for invalid/duplicate `handId`, over-payouts, and paused state.
-

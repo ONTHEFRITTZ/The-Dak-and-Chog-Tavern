@@ -37,7 +37,7 @@
   - [x] Implement table UI, state machine, betting + payouts.  
   - [x] Connect to bankroll/paymaster pipelines.
 
-- [ ] **Remove Faro**  
+- [x] **Remove Faro**  
   - Delete legacy Faro assets/routes once Blackjack is live.  
   - Ensure no references to `/games/faro` remain in sidebar, env, or configs.
 
@@ -45,7 +45,7 @@
 
 - [ ] **Finalise `useBankroll` hook**  
   - [x] Approvals now route through `/api/paymaster/sign` with AA fallback to the connected signer.  
-  - [ ] Expose reactive state to a global bankroll widget (for wallet pill + future HUD).
+  - [x] Expose reactive state to a global bankroll widget (for wallet pill + future HUD).
 
 - [x] **Create AA execution hook**  
   - Wrap `/js/aaClient.js` functionality in a typed hook (`useDelegationToolkitAA`) that:  

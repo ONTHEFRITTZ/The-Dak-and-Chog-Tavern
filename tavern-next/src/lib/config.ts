@@ -69,7 +69,6 @@ export const ZERO_DEV_PROJECT_ID =
   process.env.NEXT_PUBLIC_ZERODEV_PROJECT_ID ?? "";
 
 export const CONTRACTS = {
-  faro: "0x953f1Bba2eeEa57482037377BD5103cEbA85C987" as Address,
   pool: "0x31574064907cbE75C61Fea28C545264817A9AA4a" as Address,
   wmon: "0x7b4E8B2a3E934701D8bF6cFB31C3f3BDaC5e30Ff" as Address,
   dcmon: "0x3AcbbD49603D8140C0acbf13E3471DBF691b2Bd7" as Address,

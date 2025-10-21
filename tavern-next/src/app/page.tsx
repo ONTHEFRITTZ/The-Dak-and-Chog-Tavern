@@ -13,8 +13,8 @@ const games = [
     asset: "/assets/images/hazard-logo.png",
   },
   {
-    title: "Blackjack (Coming Soon)",
-    href: "#",
+    title: "Blackjack",
+    href: "/games/blackjack",
     asset: "/assets/images/blackjack-logo.png",
   },
   {

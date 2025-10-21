@@ -12,7 +12,6 @@ Goal: get the site live with wallet connect, profiles, multiplayer tables, and a
 - Default addresses live in `js/config.js` under `DEFAULT_ADDRESSES` and `ADDRESS_BOOK`.
 - You can temporarily override in the browser console:
   localStorage.setItem('contract.tavern','0x...')
-  localStorage.setItem('contract.faro','0x...')
   location.reload()
 
 3) Realtime Backend (Socket.IO) on your server
@@ -34,7 +33,7 @@ Goal: get the site live with wallet connect, profiles, multiplayer tables, and a
 - Press `Connect Wallet`. The banner shows the network and address. The `Profile` button opens your profile modal.
 - Profiles: Save/Load an X handle. This talks to the realtime backend over `/socket.io`.
 - Multiplayer: Open `games/table/`. Click `Join`, then choose a seat. Toggle `Ready`, place a bet, and `Deal`.
-- Admin: https://yourdomain.xyz/admin/ – connect the owner wallet to enable Pause/Resume and Faro settings.
+- Admin: https://yourdomain.xyz/admin/ – connect the owner wallet to toggle game pause/resume and bankroll settings.
 
 If you see “No such file or directory” on EC2
 - It means the script path doesn’t exist on that machine. Copy the script up, then run it from /tmp:

@@ -259,8 +259,6 @@ export async function defaultAllowlist() {
     }
   } catch {}
   try {
-    const faroAddr = window?.CONTRACTS?.FaroV3 || null;
-    if (faroAddr) out.push({ to: faroAddr, selectors: [] });
   } catch {}
   return out;
 }

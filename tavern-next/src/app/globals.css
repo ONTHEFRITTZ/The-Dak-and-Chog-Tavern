@@ -1750,3 +1750,15 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
     justify-content: space-between;
   }
 }
+/* Bankroll widget */
+.bankroll-widget { position: fixed; top: calc(var(--edge-pad) + 56px); right: var(--edge-pad); z-index: 11000; display: flex; flex-direction: column; gap: 10px; padding: 10px 12px; min-width: 220px; border-radius: 12px; background: rgba(10, 20, 32, 0.85); border: 1px solid rgba(120, 200, 255, 0.18); color: #f4e6d3; backdrop-filter: blur(6px); }
+.bankroll-widget::before { content: ""; position: absolute; inset: 0; border-radius: inherit; box-shadow: 0 18px 36px rgba(0, 0, 0, 0.45); z-index: -1; }
+.bankroll-widget .bankroll-balances { display: flex; justify-content: space-between; gap: 12px; }
+.bankroll-widget .bankroll-balances div { display: flex; flex-direction: column; gap: 4px; font-size: 13px; text-align: right; }
+.bankroll-widget .bankroll-label { opacity: 0.7; letter-spacing: 0.04em; text-transform: uppercase; font-weight: 600; }
+.bankroll-widget .bankroll-value { font-size: 16px; font-weight: 700; color: #ffe7a8; }
+.bankroll-widget .bankroll-actions { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
+.bankroll-widget .bankroll-status { font-size: 12px; opacity: 0.78; }
+.bankroll-widget button { padding: 6px 12px; border-radius: 10px; border: 1px solid rgba(120, 200, 255, 0.26); background: rgba(28, 52, 84, 0.8); color: #f4e6d3; font-weight: 600; cursor: pointer; transition: background 0.15s ease, transform 0.15s ease; }
+.bankroll-widget button:hover:not(:disabled) { background: rgba(42, 82, 130, 0.9); transform: translateY(-1px); }
+.bankroll-widget button:disabled { opacity: 0.55; cursor: wait; }
