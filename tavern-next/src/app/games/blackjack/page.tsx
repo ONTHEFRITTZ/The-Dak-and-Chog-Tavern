@@ -48,7 +48,7 @@ const renderCard = (card: Card, hidden = false, key?: string | number) => {
   if (hidden) {
     return (
       <span key={`hidden-${key ?? card}`} className="bj-card bj-card-hidden" aria-hidden="true">
-        🂠
+        ??
       </span>
     );
   }
@@ -177,7 +177,7 @@ export default function BlackjackPage() {
           <section className="panel">
             <h3>Table Limits</h3>
             <p className="muted">
-              Min {blackjack.minBet.toFixed(2)} • Max {blackjack.maxBet.toFixed(2)} DCMon
+              Min {blackjack.minBet.toFixed(2)} - Max {blackjack.maxBet.toFixed(2)} DCMon
             </p>
             <label className="field">
               <span>Wager</span>
@@ -231,7 +231,7 @@ export default function BlackjackPage() {
               <div className="error-banner">
                 <span>{blackjack.error}</span>
                 <button type="button" onClick={blackjack.resetError}>
-                  ×
+                  Dismiss
                 </button>
               </div>
             )}
@@ -249,7 +249,7 @@ export default function BlackjackPage() {
                     <li key={entry.id}>
                       <span className="history-result">{entry.result.toUpperCase()}</span>
                       <span className="history-wager">
-                        Wager {entry.wager.toFixed(2)} • {net >= 0 ? "+" : ""}
+                        Wager {entry.wager.toFixed(2)} - {net >= 0 ? "+" : ""}
                         {net.toFixed(3)} DCMon
                       </span>
                     </li>

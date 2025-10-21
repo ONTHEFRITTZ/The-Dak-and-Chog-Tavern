@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Contract, Interface, parseEther } from "ethers";
@@ -8,16 +8,48 @@ import { CONTRACTS } from "@/lib/config";
 import { useWallet } from "@/context/WalletContext";
 import { useBankroll } from "@/modules/bankroll";
 import { useDelegationToolkitAA } from "@/modules/aa/useDelegationToolkitAA";
-import { DakChogABI } from "@/abi/dakChog";
+import { ShellABI } from "@/abi/shell";
 
 const MIN_BET = 0.001;
-const BALL_IMAGES = [
-  "/assets/images/shell/ball-left.png",
-  "/assets/images/shell/ball-center.png",
-  "/assets/images/shell/ball-right.png",
-];
+const SHELL_IMAGES = [
+  "/assets/images/cup.png",
+  "/assets/images/cup2.png",
+  "/assets/images/cup.png",
+] as const;
 
 type ShellChoice = 0 | 1 | 2;
+
+type HistoryEntry = {
+  won: boolean;
+  guess: ShellChoice;
+  winningCup: ShellChoice;
+  wager: string;
+};
+
+type StatusVariant = "win" | "loss" | null;
+
+const shellInterface = new Interface(ShellABI);
+
+const extractErrorMessage = (error: unknown): string => {
+  if (typeof error === "string") return error;
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === "object") {
+    const record = error as Record<string, unknown>;
+    const nestedError = record.error;
+    if (nestedError && typeof nestedError === "object" && "message" in nestedError) {
+      const nestedMessage = (nestedError as Record<string, unknown>).message;
+      if (typeof nestedMessage === "string") return nestedMessage;
+    }
+    const nestedData = record.data;
+    if (nestedData && typeof nestedData === "object" && "message" in nestedData) {
+      const nestedMessage = (nestedData as Record<string, unknown>).message;
+      if (typeof nestedMessage === "string") return nestedMessage;
+    }
+    if (typeof record.reason === "string") return record.reason;
+    if (typeof record.message === "string") return record.message;
+  }
+  return "Transaction failed.";
+};
 
 const clampBet = (value: string) => {
   const parsed = Number(value);
@@ -32,16 +64,53 @@ export default function ShellGamePage() {
 
   const [bet, setBet] = useState(() => clampBet(String(MIN_BET)).toFixed(3));
   const [status, setStatus] = useState("Pick a shell and place your bet!");
+  const [statusVariant, setStatusVariant] = useState<StatusVariant>(null);
   const [choice, setChoice] = useState<ShellChoice>(1);
-  const [revealedIndex, setRevealedIndex] = useState<number | null>(null);
+  const [revealedIndex, setRevealedIndex] = useState<ShellChoice | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
+
+  useEffect(() => {
+    try {
+      const storedBet = localStorage.getItem("shell.bet");
+      if (storedBet) {
+        const clamped = clampBet(storedBet);
+        setBet(clamped.toFixed(3));
+      }
+      const storedChoice = localStorage.getItem("shell.choice");
+      if (storedChoice) {
+        const parsed = Number(storedChoice);
+        if (parsed >= 0 && parsed <= 2) {
+          setChoice(parsed as ShellChoice);
+        }
+      }
+    } catch {
+      /* ignore storage issues */
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("shell.bet", bet);
+    } catch {
+      /* ignore */
+    }
+  }, [bet]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("shell.choice", String(choice));
+    } catch {
+      /* ignore */
+    }
+  }, [choice]);
 
   const formattedBet = useMemo(() => {
     const num = Number(bet);
     return Number.isFinite(num) ? num.toFixed(3) : "0.000";
   }, [bet]);
 
-  const ensureConnected = async () => {
+  const ensureConnected = useCallback(async () => {
     if (address) return true;
     try {
       await connect();
@@ -49,42 +118,41 @@ export default function ShellGamePage() {
     } catch {
       return false;
     }
-  };
+  }, [address, connect]);
 
-  const play = async () => {
+  const play = useCallback(async () => {
     if (!provider) {
       setStatus("Connect wallet to play.");
       return;
     }
-    const ok = await ensureConnected();
-    if (!ok) {
+    if (!(await ensureConnected())) {
       setStatus("Wallet connection failed. Try again.");
       return;
     }
 
-    const wager = clampBet(bet);
-    setBet(wager.toFixed(3));
+    const wagerValue = clampBet(bet);
+    setBet(wagerValue.toFixed(3));
 
-    let betWei;
+    let betWei: bigint;
     try {
-      betWei = parseEther(wager.toString());
+      betWei = parseEther(wagerValue.toString());
     } catch {
       setStatus("Invalid bet amount.");
       return;
     }
 
+    const signer = await provider.getSigner();
+    const contract = new Contract(CONTRACTS.shell, ShellABI, signer);
+
+    setIsSubmitting(true);
+    setStatus("Checking bankroll...");
+    setStatusVariant(null);
+    setRevealedIndex(null);
+
     try {
-      setIsSubmitting(true);
-      setStatus("Preparing wager...");
-      setRevealedIndex(null);
-
-      const signer = await provider.getSigner();
-      const contract = new Contract(CONTRACTS.shell, DakChogABI, signer);
-
       const enough = await hasDcmonBalance(betWei);
       if (!enough) {
         setStatus("Insufficient DCMon balance for this bet.");
-        setIsSubmitting(false);
         return;
       }
 
@@ -92,87 +160,93 @@ export default function ShellGamePage() {
         onProgress: setStatus,
       });
       if (!approved) {
-        setIsSubmitting(false);
+        setStatus("DCMon approval declined.");
         return;
       }
 
       setStatus("Submitting wager...");
+      const data = shellInterface.encodeFunctionData("playShell", [choice, betWei]);
 
-      let receipt: any = null;
-      const data = contract.interface.encodeFunctionData("playCoin", [choice === 1, betWei]);
-
+      let receipt: Awaited<ReturnType<typeof provider.waitForTransaction>> | null = null;
       try {
-        const hash = await delegation.sendTransaction({
+        const userOpHash = await delegation.sendTransaction({
           to: CONTRACTS.shell,
           data,
         });
-        if (hash) {
-          setStatus(`Tx sent: ${String(hash).slice(0, 10)}... waiting confirmation...`);
-          receipt = await provider.waitForTransaction(hash);
+        if (userOpHash) {
+          setStatus("Waiting for confirmation...");
+          receipt = await provider.waitForTransaction(userOpHash);
         }
-      } catch (err) {
-        console.warn("[shell] AA send failed", err);
+      } catch (aaErr) {
+        console.warn("[shell] AA send failed", aaErr);
       }
 
       if (!receipt) {
-        if ((window as any)?.FORCE_GASLESS) {
-          setStatus("Gasless send unavailable. Try again.");
-          setIsSubmitting(false);
-          return;
-        }
-        const tx = await contract.playCoin(choice === 1, betWei, { gasLimit: 300000 });
-        setStatus("Tx sent: waiting confirmation...");
+        const tx = await contract.playShell(choice, betWei, { gasLimit: 250_000 });
+        setStatus("Waiting for confirmation...");
         receipt = await tx.wait();
       }
 
-      setStatus("Revealing shells...");
-
       if (!receipt) {
-        setStatus("Transaction sent. Check explorer for result.");
-        setIsSubmitting(false);
+        setStatus("Transaction sent. Awaiting confirmation...");
         return;
       }
 
-      const iface = new Interface(DakChogABI as any);
-      let parsed: ReturnType<Interface["parseLog"]> | null = null;
-      for (const log of receipt.logs) {
+      let won = false;
+      let winningCup: ShellChoice | null = null;
+      let guess: ShellChoice | null = null;
+
+      for (const log of receipt.logs ?? []) {
         try {
-          const descr = iface.parseLog(log);
-          if (descr.name === "CoinPlayed") {
-            parsed = descr;
+          const parsed = shellInterface.parseLog(log);
+          if (parsed.name === "ShellPlayed") {
+            const winCup = Number(parsed.args?.winningCup ?? parsed.args?.[4]);
+            const guessed = Number(parsed.args?.guess ?? parsed.args?.[5]);
+            winningCup = (winCup >= 0 && winCup <= 2 ? winCup : choice) as ShellChoice;
+            guess = (guessed >= 0 && guessed <= 2 ? guessed : choice) as ShellChoice;
+            won = Boolean(parsed.args?.won ?? parsed.args?.[3]);
             break;
           }
         } catch {
-          continue;
+          /* ignore parse errors */
         }
       }
 
-      if (parsed) {
-        const resultChog = Boolean(parsed.args?.resultChog);
-        const won = Boolean(parsed.args?.won);
-        const index = resultChog ? 1 : choice === 1 ? 0 : 2;
-        setRevealedIndex(index);
-        setStatus(won ? "You found Keddle! You won!" : "The shell was empty. Better luck next time.");
-      } else {
-        setStatus("Confirmed. Check wallet or explorer for result.");
+      if (winningCup == null) {
+        setStatus("Confirmed on-chain. Check explorer for final result.");
+        return;
       }
-    } catch (err: any) {
-      console.error(err);
-      const msg =
-        err?.error?.message ||
-        err?.data?.message ||
-        err?.reason ||
-        err?.message ||
-        "Transaction failed.";
-      setStatus(msg);
+
+      setRevealedIndex(winningCup);
+      const message = won
+        ? `You won! Cup ${winningCup + 1} hid the prize.`
+        : `House wins. Cup ${winningCup + 1} held the prize.`;
+      setStatus(message);
+      setStatusVariant(won ? "win" : "loss");
+      setHistory((prev) => [
+        {
+          won,
+          guess: (guess ?? choice) as ShellChoice,
+          winningCup,
+          wager: wagerValue.toFixed(3),
+        },
+        ...prev,
+      ].slice(0, 5));
+    } catch (error) {
+      console.error("[shell] play failed", error);
+      setStatus(extractErrorMessage(error));
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  useEffect(() => {
-    setRevealedIndex(null);
-  }, [choice]);
+  }, [
+    provider,
+    ensureConnected,
+    bet,
+    choice,
+    hasDcmonBalance,
+    ensureAllowance,
+    delegation,
+  ]);
 
   return (
     <main className="tavern game" style={{ minHeight: "100vh" }}>
@@ -183,6 +257,7 @@ export default function ShellGamePage() {
           alt="Shell Game"
           width={260}
           height={120}
+          priority
         />
         <Link href="/" id="return" className="rules-btn">
           Return to Tavern
@@ -190,24 +265,39 @@ export default function ShellGamePage() {
       </div>
 
       <div className="coin-wrap">
-        <div className="shell-grid">
-          {[0, 1, 2].map((idx) => (
-            <button
-              key={idx}
-              className={shell }
-              onClick={() => setChoice(idx as ShellChoice)}
-              type="button"
-              disabled={isSubmitting}
-            >
-              <Image
-                src={BALL_IMAGES[idx]}
-                alt={Shell }
-                width={120}
-                height={120}
-                className={revealedIndex === idx ? "revealed" : ""}
-              />
-            </button>
-          ))}
+        <div
+          id="shell-result"
+          className={`shell-status${statusVariant ? ` ${statusVariant}` : ""}`}
+          aria-live="polite"
+        >
+          {status}
+        </div>
+
+        <div className="shell-grid" role="group" aria-label="Choose a shell">
+          {(SHELL_IMAGES as ReadonlyArray<string>).map((src, idx) => {
+            const shellIndex = idx as ShellChoice;
+            const isActive = choice === shellIndex;
+            const isRevealed = revealedIndex === shellIndex;
+            return (
+              <button
+                key={src}
+                type="button"
+                className={isActive ? "shell active" : "shell"}
+                onClick={() => setChoice(shellIndex)}
+                disabled={isSubmitting}
+                aria-pressed={isActive}
+              >
+                <Image
+                  src={src}
+                  alt={`Shell ${idx + 1}`}
+                  width={220}
+                  height={220}
+                  className={isRevealed ? "revealed" : undefined}
+                  priority={idx === 1}
+                />
+              </button>
+            );
+          })}
         </div>
 
         <div className="bet-wrap">
@@ -218,7 +308,7 @@ export default function ShellGamePage() {
             min={MIN_BET}
             step="0.001"
             value={formattedBet}
-            onChange={(e) => setBet(e.target.value)}
+            onChange={(event) => setBet(event.target.value)}
             disabled={isSubmitting}
           />
         </div>
@@ -227,18 +317,32 @@ export default function ShellGamePage() {
           {isSubmitting ? "Shuffling..." : "Reveal Shell"}
         </button>
 
-        <p id="shell-result">{status}</p>
-
         {!address && (
           <button
             id="connect-wallet"
             type="button"
             onClick={connect}
-            disabled={isConnecting}
+            disabled={isConnecting || isSubmitting}
             style={{ marginTop: "12px" }}
           >
             {isConnecting ? "Connecting..." : "Connect Wallet"}
           </button>
+        )}
+
+        {history.length > 0 && (
+          <div className="hazard-history">
+            <h3>Recent Plays</h3>
+            <ul>
+              {history.map((entry, idx) => (
+                <li key={`${entry.guess}-${idx}`}>
+                  <span>{entry.won ? "Win" : "Loss"}</span>
+                  <span>Guess: {entry.guess + 1}</span>
+                  <span>Winning Cup: {entry.winningCup + 1}</span>
+                  <span>Bet: {entry.wager} DCMon</span>
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
       </div>
     </main>

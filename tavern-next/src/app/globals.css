@@ -1878,3 +1878,61 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
     align-items: flex-start;
   }
 }
+/* Shell status indicator */
+.shell-status {
+  min-height: 28px;
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: 12px;
+  color: #f4e6d3;
+}
+.shell-status.win {
+  color: #9ef89e;
+}
+.shell-status.loss {
+  color: #ffb3b3;
+}
+
+@media (max-width: 768px) {
+  #wallet-inline,
+  .bankroll-widget {
+    position: static;
+    width: 100%;
+    max-width: min(92vw, 420px);
+    margin: 8px auto;
+  }
+  #wallet-inline {
+    flex-wrap: wrap;
+    justify-content: center;
+    padding: 8px 10px;
+    gap: 8px;
+  }
+  #wallet-inline .wallet-providers {
+    order: 3;
+  }
+  .bankroll-widget {
+    align-items: center;
+  }
+  .bankroll-widget .bankroll-actions {
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+  }
+  .bankroll-widget .bankroll-balances {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .app-nav {
+    margin: 32px auto 12px;
+  }
+}
+
+@media (max-width: 540px) {
+  #wallet-inline .wallet-providers {
+    display: none;
+  }
+  .app-nav ul {
+    gap: 6px;
+  }
+}

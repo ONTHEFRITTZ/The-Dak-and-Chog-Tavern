@@ -78,7 +78,7 @@ export const CONTRACTS = {
   pokerTable: "0x424F89FE230331df8f656B683812b6394c323f17" as Address,
   blackjack:
     ((process.env.NEXT_PUBLIC_BLACKJACK_ADDRESS as Address) ??
-      "0x0000000000000000000000000000000000000000") as Address,
+      "0x1cAad08895d334Ba0e149E0B440AE9A42f6ec69B") as Address,
 } as const;
 
 export const ADDRESS_BOOK: Record<string, Partial<typeof CONTRACTS>> = {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Contract, Interface, parseEther } from "ethers";
@@ -11,7 +11,21 @@ import { CONTRACTS } from "@/lib/config";
 import { HazardABI } from "@/abi/hazard";
 
 const MIN_BET = 0.001;
-const MAIN_CHOICES: Array<5 | 6 | 7 | 8 | 9> = [5, 6, 7, 8, 9];
+const MAIN_CHOICES = [5, 6, 7, 8, 9] as const;
+type MainChoice = (typeof MAIN_CHOICES)[number];
+
+const hazardInterface = new Interface(HazardABI);
+
+type HistoryEntry = {
+  win: boolean;
+  sum: number;
+  main: number;
+  wager: string;
+};
+
+const isMainChoice = (value: number): value is MainChoice => {
+  return MAIN_CHOICES.includes(value as MainChoice);
+};
 
 function clampBet(value: string) {
   const parsed = Number(value);
@@ -19,32 +33,61 @@ function clampBet(value: string) {
   return Math.floor(parsed * 1000 + 1e-9) / 1000;
 }
 
-function explainOutcome(main: number, finalSum: number, chance: number, win: boolean) {
-  if (!Number.isFinite(finalSum)) return win ? "Win" : "Loss";
-  const prefix = win ? "WIN" : "LOSS";
-  if (chance === 0) {
-    if (finalSum === main) return ${prefix}: Rolled your main ().;
-    if (main === 7 && [5, 9].includes(finalSum)) {
-      return win ? ${prefix}: Rolled . Special win for main 7. : ${prefix}: Rolled .;
-    }
-    if ([5, 9].includes(main) && finalSum === main) return ${prefix}: Rolled .;
-    return win ? ${prefix}: Rolled . : ${prefix}: Rolled .;
-  }
-  if (win) return ${prefix}: Hit point  before main .;
-  if (finalSum === main) return ${prefix}: Rolled main  before point .;
-  return ${prefix}: Rolled .;
-}
-
 function deriveDicePair(sum: number): [number, number] {
-  if (!Number.isFinite(sum) || sum < 2 || sum > 12) return [1, 1];
+  if (!Number.isFinite(sum) || sum < 2 || sum > 12) return [3, 4];
   for (let first = Math.min(6, sum - 1); first >= 1; first--) {
     const second = sum - first;
     if (second >= 1 && second <= 6) {
       return [first, second];
     }
   }
-  return [1, 1];
+  return [3, 4];
 }
+
+function explainOutcome(main: number, finalSum: number, chance: number, win: boolean) {
+  if (!Number.isFinite(finalSum)) {
+    return win ? "WIN: You beat the house." : "LOSS: Dealer wins this round.";
+  }
+
+  const prefix = win ? "WIN" : "LOSS";
+
+  if (chance === 0) {
+    if (finalSum === main) return `${prefix}: Rolled your main (${finalSum}).`;
+    if (main === 7 && (finalSum === 5 || finalSum === 9)) {
+      return win
+        ? `${prefix}: Rolled ${finalSum}. Special win on main 7.`
+        : `${prefix}: Rolled ${finalSum}. House edge on main 7.`;
+    }
+    return `${prefix}: Rolled ${finalSum}.`;
+  }
+
+  if (win) return `${prefix}: Hit point ${finalSum} before main ${main}.`;
+  if (finalSum === main) return `${prefix}: Rolled main ${main} before point ${chance}.`;
+  return `${prefix}: Rolled ${finalSum}.`;
+}
+
+const extractErrorMessage = (error: unknown): string => {
+  if (typeof error === "string") return error;
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === "object") {
+    const record = error as Record<string, unknown>;
+    const nestedError = record.error;
+    if (nestedError && typeof nestedError === "object" && "message" in nestedError) {
+      const nestedMessage = (nestedError as Record<string, unknown>).message;
+      if (typeof nestedMessage === "string") return nestedMessage;
+    }
+    const nestedData = record.data;
+    if (nestedData && typeof nestedData === "object" && "message" in nestedData) {
+      const nestedMessage = (nestedData as Record<string, unknown>).message;
+      if (typeof nestedMessage === "string") return nestedMessage;
+    }
+    if (typeof record.reason === "string") return record.reason;
+    if (typeof record.message === "string") return record.message;
+  }
+  return "Transaction failed.";
+};
+
+const diceImage = (face: number) => `/assets/images/dice/standard/dice${face}.png`;
 
 export default function HazardPage() {
   const { address, provider, connect, isConnecting } = useWallet();
@@ -52,9 +95,9 @@ export default function HazardPage() {
   const { hasDcmonBalance, ensureAllowance } = useBankroll();
 
   const [bet, setBet] = useState(() => clampBet(String(MIN_BET)).toFixed(3));
-  const [selectedMain, setSelectedMain] = useState<5 | 6 | 7 | 8 | 9>(7);
+  const [selectedMain, setSelectedMain] = useState<MainChoice>(() => MAIN_CHOICES[2]);
   const [status, setStatus] = useState("Pick a main and roll the dice!");
-  const [history, setHistory] = useState<Array<{ win: boolean; sum: number; main: number; wager: string }>>([]);
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [diceFaces, setDiceFaces] = useState<[number, number]>([3, 4]);
   const [rolling, setRolling] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -69,11 +112,13 @@ export default function HazardPage() {
       const storedMain = localStorage.getItem("hazard.main");
       if (storedMain) {
         const parsed = Number(storedMain);
-        if (MAIN_CHOICES.includes(parsed as any)) {
-          setSelectedMain(parsed as 5 | 6 | 7 | 8 | 9);
+        if (isMainChoice(parsed)) {
+          setSelectedMain(parsed);
         }
       }
-    } catch {}
+    } catch {
+      /* ignore storage issues */
+    }
   }, []);
 
   useEffect(() => {
@@ -87,12 +132,28 @@ export default function HazardPage() {
     return () => clearInterval(interval);
   }, [rolling]);
 
+  useEffect(() => {
+    try {
+      localStorage.setItem("hazard.bet", bet);
+    } catch {
+      /* ignore */
+    }
+  }, [bet]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("hazard.main", String(selectedMain));
+    } catch {
+      /* ignore */
+    }
+  }, [selectedMain]);
+
   const formattedBet = useMemo(() => {
     const num = Number(bet);
     return Number.isFinite(num) ? num.toFixed(3) : "0.000";
   }, [bet]);
 
-  const ensureConnected = async () => {
+  const ensureConnected = useCallback(async () => {
     if (address) return true;
     try {
       await connect();
@@ -100,17 +161,16 @@ export default function HazardPage() {
     } catch {
       return false;
     }
-  };
+  }, [address, connect]);
 
-  const hazardAddress = CONTRACTS.hazard || CONTRACTS.tavern;
+  const hazardAddress = CONTRACTS.hazard;
 
-  const handleRoll = async () => {
+  const handleRoll = useCallback(async () => {
     if (!provider) {
       setStatus("Connect wallet to play.");
       return;
     }
-    const ok = await ensureConnected();
-    if (!ok) {
+    if (!(await ensureConnected())) {
       setStatus("Wallet connection failed. Try again.");
       return;
     }
@@ -127,23 +187,22 @@ export default function HazardPage() {
     try {
       wager = parseEther(betValue.toString());
     } catch {
-      setStatus("Enter a valid bet amount.");
+      setStatus("Invalid bet amount.");
       return;
     }
 
+    const signer = await provider.getSigner();
+    const contract = new Contract(hazardAddress, HazardABI, signer);
+
+    setIsSubmitting(true);
+    setRolling(true);
+    setStatus("Checking bankroll...");
+
     try {
-      setIsSubmitting(true);
-      setRolling(true);
-      setStatus("Preparing wager...");
-
-      const signer = await provider.getSigner();
-      const hazardContract = new Contract(hazardAddress, HazardABI, signer);
-
-      const hasBalance = await hasDcmonBalance(wager);
-      if (!hasBalance) {
+      const enough = await hasDcmonBalance(wager);
+      if (!enough) {
         setStatus("Insufficient DCMon balance for this bet.");
         setRolling(false);
-        setIsSubmitting(false);
         return;
       }
 
@@ -151,100 +210,81 @@ export default function HazardPage() {
         onProgress: setStatus,
       });
       if (!approved) {
+        setStatus("DCMon approval declined.");
         setRolling(false);
-        setIsSubmitting(false);
         return;
       }
 
       setStatus("Submitting wager...");
+      const data = hazardInterface.encodeFunctionData("playHazard", [selectedMain, wager]);
 
-      let receipt: any = null;
-      const data = hazardContract.interface.encodeFunctionData("playHazard", [
-        selectedMain,
-        wager,
-      ]);
+      let receipt: Awaited<ReturnType<typeof provider.waitForTransaction>> | null = null;
       try {
-        const hash = await delegation.sendTransaction({
+        const userOpHash = await delegation.sendTransaction({
           to: hazardAddress,
           data,
         });
-        if (hash) {
-          setStatus(`Tx sent: ${String(hash).slice(0, 10)}... waiting confirmation...`);
-          receipt = await provider.waitForTransaction(hash);
+        if (userOpHash) {
+          setStatus("Dice rolling on-chain...");
+          receipt = await provider.waitForTransaction(userOpHash);
         }
-      } catch (err) {
-        console.warn("[hazard] AA send failed", err);
+      } catch (aaErr) {
+        console.warn("[hazard] AA send failed", aaErr);
       }
 
       if (!receipt) {
-        if ((window as any)?.FORCE_GASLESS) {
-          setStatus("Gasless send unavailable. Try again.");
-          setRolling(false);
-          setIsSubmitting(false);
-          return;
-        }
-        const tx = await hazardContract.playHazard(selectedMain, wager);
-        setStatus("Tx sent: waiting confirmation...");
+        const tx = await contract.playHazard(selectedMain, wager, { gasLimit: 300_000 });
+        setStatus("Dice rolling on-chain...");
         receipt = await tx.wait();
       }
 
-      setStatus("Rolling dice...");
-
       if (!receipt) {
-        setStatus("Transaction sent. Check explorer for result.");
-        setRolling(false);
-        setIsSubmitting(false);
+        setStatus("Transaction sent. Awaiting confirmation...");
         return;
       }
 
-      const iface = new Interface(HazardABI as any);
-      const addressLower = hazardAddress.toLowerCase();
-      let parsed: ReturnType<Interface["parseLog"]> | null = null;
+      let win = false;
+      let finalSum = Number.NaN;
+      let chance = 0;
+
       for (const log of receipt.logs ?? []) {
-        const logAddress = String((log as any).address ?? "").toLowerCase();
-        if (logAddress !== addressLower) continue;
         try {
-          const descr = iface.parseLog(log);
-          if (descr?.name === "HazardPlayed") {
-            parsed = descr;
+          const parsed = hazardInterface.parseLog(log);
+          if (parsed.name === "HazardPlayed") {
+            win = Boolean(parsed.args?.win ?? parsed.args?.[2]);
+            finalSum = Number(parsed.args?.finalSum ?? parsed.args?.[4]);
+            chance = Number(parsed.args?.chance ?? parsed.args?.[5]);
             break;
           }
-        } catch {}
+        } catch {
+          /* ignore parse errors */
+        }
       }
 
-      if (parsed) {
-        const args = parsed.args ?? [];
-        const finalSum = Number(args.finalSum ?? args[4] ?? 0);
-        const chance = Number(args.chance ?? args[5] ?? 0);
-        const win = Boolean(args.win ?? args[2] ?? false);
-        const mainValue = Number(args.main ?? args[3] ?? selectedMain);
-        const pair = deriveDicePair(finalSum);
-        setDiceFaces(pair);
-        setRolling(false);
-        const explanation = explainOutcome(mainValue, finalSum, chance, win);
-        setStatus(explanation);
-        setHistory((prev) => [
-          { win, sum: finalSum, main: mainValue, wager: betValue.toFixed(3) },
-          ...prev,
-        ].slice(0, 5));
-      } else {
-        setRolling(false);
-        setStatus("Confirmed on-chain, awaiting event.");
-      }
-    } catch (err: any) {
-      console.error(err);
-      const msg =
-        err?.error?.message ||
-        err?.data?.message ||
-        err?.reason ||
-        err?.message ||
-        "Transaction failed.";
-      setStatus(msg);
-      setRolling(false);
+      const [first, second] = deriveDicePair(finalSum);
+      setDiceFaces([first, second]);
+      setStatus(explainOutcome(selectedMain, finalSum, chance, win));
+      setHistory((prev) => [
+        { win, sum: finalSum, main: selectedMain, wager: betValue.toFixed(3) },
+        ...prev,
+      ].slice(0, 5));
+    } catch (error) {
+      console.error("[hazard] play failed", error);
+      setStatus(extractErrorMessage(error));
     } finally {
+      setRolling(false);
       setIsSubmitting(false);
     }
-  };
+  }, [
+    provider,
+    ensureConnected,
+    bet,
+    selectedMain,
+    hasDcmonBalance,
+    ensureAllowance,
+    delegation,
+    hazardAddress,
+  ]);
 
   return (
     <main className="tavern game" style={{ minHeight: "100vh" }}>
@@ -255,6 +295,7 @@ export default function HazardPage() {
           alt="Hazard"
           width={260}
           height={120}
+          priority
         />
         <Link href="/" id="return" className="rules-btn">
           Return to Tavern
@@ -262,28 +303,26 @@ export default function HazardPage() {
       </div>
 
       <div className="hazard-wrap">
-        <div className={dice-area }>
+        <div className="dice-area" aria-live="polite">
           {diceFaces.map((face, idx) => (
             <Image
-              key={idx}
-              src={/assets/images/dice/standard/dice.png}
-              alt={Die }
+              key={`die-${idx}`}
+              src={diceImage(face)}
+              alt={`Die showing ${face}`}
               width={96}
               height={96}
+              className={rolling ? "rolling" : undefined}
             />
           ))}
         </div>
 
-        <div className="hazard-main-selector">
+        <div className="hazard-main-selector" role="group" aria-label="Select your main">
           {MAIN_CHOICES.map((main) => (
             <button
               key={main}
               type="button"
-              className={selectedMain === main ? "active" : ""}
-              onClick={() => {
-                setSelectedMain(main);
-                try { localStorage.setItem("hazard.main", String(main)); } catch {}
-              }}
+              className={selectedMain === main ? "active" : undefined}
+              onClick={() => setSelectedMain(main)}
               disabled={isSubmitting}
             >
               Main {main}
@@ -299,21 +338,12 @@ export default function HazardPage() {
             min={MIN_BET}
             step="0.001"
             value={formattedBet}
-            onChange={(e) => {
-              const clamped = clampBet(e.target.value);
-              setBet(clamped.toFixed(3));
-              try { localStorage.setItem("hazard.bet", clamped.toString()); } catch {}
-            }}
+            onChange={(event) => setBet(event.target.value)}
             disabled={isSubmitting}
           />
         </div>
 
-        <button
-          id="roll-dice"
-          type="button"
-          onClick={handleRoll}
-          disabled={isSubmitting}
-        >
+        <button id="roll-dice" type="button" onClick={handleRoll} disabled={isSubmitting}>
           {isSubmitting ? "Rolling..." : "Roll Dice"}
         </button>
 
@@ -325,7 +355,7 @@ export default function HazardPage() {
           <button
             type="button"
             onClick={connect}
-            disabled={isConnecting}
+            disabled={isConnecting || isSubmitting}
             className="connect-btn"
           >
             {isConnecting ? "Connecting..." : "Connect Wallet"}
@@ -337,9 +367,9 @@ export default function HazardPage() {
             <h3>Recent Rolls</h3>
             <ul>
               {history.map((row, idx) => (
-                <li key={idx}>
+                <li key={`${row.sum}-${idx}`}>
                   <span>{row.win ? "Win" : "Loss"}</span>
-                  <span>Sum: {row.sum}</span>
+                  <span>Sum: {Number.isFinite(row.sum) ? row.sum : "-"}</span>
                   <span>Main: {row.main}</span>
                   <span>Bet: {row.wager} DCMon</span>
                 </li>

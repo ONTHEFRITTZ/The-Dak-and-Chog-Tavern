@@ -80,6 +80,7 @@
 
 - [ ] **Responsive polish**  
   - Audit game pages on mobile/tablet, adjust CSS to match production.  
+  - Pass 1 (2025-10-20): mobile breakpoints for wallet/bankroll/nav + blackjack/hazard/shell layout tuned. Needs device QA & modal validation.
   - Recreate modals/toasts (`showToast`, rules overlays) using React portals.
 
 - [ ] **Blackjack assets**  
@@ -103,6 +104,7 @@
 - [ ] **Performance & bundling**  
   - Check Next build output for large legacy bundles; tree-shake unused legacy scripts.  
   - Enable image optimisation for all hero logos/icons.
+  - Current blockers (2025-10-20): Turbopack parse errors in `src/app/globals.css` and external `metamask-delegation-toolkit` CDN imports; fix before release build.
 
 ## 6. Deployment & Docs
 
@@ -112,6 +114,7 @@
 - [ ] **CI/CD pipeline**  
   - Add build/test steps for the Next project.  
   - Prepare deployment config (Vercel or self-hosted) with Coroutine for bundler/Socket process.
+  - Initial GitHub Actions workflow added (2025-10-20); lint/build stages still red until legacy `any` usage and vendor module issues resolved.
 
 - [ ] **Launch plan**  
   - Staging URL for hackathon demo.  
