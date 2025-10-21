@@ -40,7 +40,7 @@ fi
 cd "$APP_DIR"
 
 echo "--- installing dependencies ---"
-npm install --silent
+npm ci --legacy-peer-deps --silent
 
 echo "--- building Next.js app ---"
 NODE_ENV="$NODE_ENV" npm run build
