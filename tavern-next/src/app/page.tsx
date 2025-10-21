@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { AgeGate } from "@/components/AgeGate";
 
 const games = [
   {
@@ -32,6 +33,7 @@ const games = [
 export default function HomePage() {
   return (
     <main>
+      <AgeGate />
       <h1 className="visually-hidden">The Dak &amp; Chog Tavern</h1>
       <div className="hero">
         <Image

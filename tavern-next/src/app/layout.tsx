@@ -25,7 +25,7 @@ export default function RootLayout({
           <WalletInline />
           <BankrollWidget />
           <AppNav />
-          {children}
+          <div className="content-frame">{children}</div>
           <FooterMeta />
         </WalletProvider>
         <Script id="tavern-build-tag" strategy="beforeInteractive">

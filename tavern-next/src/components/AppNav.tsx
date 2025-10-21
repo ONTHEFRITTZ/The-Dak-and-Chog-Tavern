@@ -1,8 +1,9 @@
 'use client';
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { ADMIN_ADDRESS } from "@/lib/config";
 import { useWallet } from "@/context/WalletContext";
 
@@ -15,6 +16,7 @@ type NavItem = {
 export const AppNav = () => {
   const pathname = usePathname();
   const { address } = useWallet();
+  const [collapsed, setCollapsed] = useState(false);
 
   const navItems = useMemo<NavItem[]>(() => {
     const base: NavItem[] = [
@@ -44,8 +46,20 @@ export const AppNav = () => {
   }, [pathname, navItems]);
 
   return (
-    <nav className="app-nav" aria-label="Main navigation">
-      <ul>
+    <aside className={`sidebar ${collapsed ? "collapsed" : ""}`} aria-label="Main navigation">
+      <button
+        className="sidebar-toggle"
+        type="button"
+        onClick={() => setCollapsed((prev) => !prev)}
+      >
+        {collapsed ? "Menu" : "Close"}
+      </button>
+
+      <Link className="sidebar-logo" href="/">
+        <Image src="/assets/images/d-and-c-logo.png" alt="Dak & Chog Tavern" width={180} height={80} priority />
+      </Link>
+
+      <ul className="sidebar-links">
         {items.map(({ label, href, active }) => (
           <li key={href}>
             <Link className={active ? "active" : undefined} href={href}>
@@ -54,6 +68,6 @@ export const AppNav = () => {
           </li>
         ))}
       </ul>
-    </nav>
+    </aside>
   );
 };
