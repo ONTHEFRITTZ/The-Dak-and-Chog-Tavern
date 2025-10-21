@@ -7,6 +7,7 @@ import { notFound } from "next/navigation";
 import { useRealtimePokerTable } from "@/hooks/useRealtimePokerTable";
 import { useWallet } from "@/context/WalletContext";
 import { useHoldemPokerActions } from "@/modules/poker/useHoldemPokerActions";
+import { usePageBackdrop } from "@/hooks/usePageBackdrop";
 
 const cx = (...args: Array<string | false | null | undefined>) => args.filter(Boolean).join(" ");
 
@@ -61,6 +62,8 @@ function computeSeatPositions(total: number) {
 }
 
 export default function PokerTablePage({ params }: TablePageProps) {
+  usePageBackdrop("poker-table");
+
   const rawId = Array.isArray(params.tableId) ? params.tableId[0] : params.tableId;
   if (!rawId) {
     notFound();

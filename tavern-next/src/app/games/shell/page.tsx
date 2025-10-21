@@ -9,6 +9,7 @@ import { useWallet } from "@/context/WalletContext";
 import { useBankroll } from "@/modules/bankroll";
 import { useDelegationToolkitAA } from "@/modules/aa/useDelegationToolkitAA";
 import { ShellABI } from "@/abi/shell";
+import { usePageBackdrop } from "@/hooks/usePageBackdrop";
 
 const MIN_BET = 0.001;
 const SHELL_IMAGES = [
@@ -61,6 +62,7 @@ export default function ShellGamePage() {
   const { address, provider, connect, isConnecting } = useWallet();
   const delegation = useDelegationToolkitAA();
   const { hasDcmonBalance, ensureAllowance } = useBankroll();
+  usePageBackdrop("shell");
 
   const [bet, setBet] = useState(() => clampBet(String(MIN_BET)).toFixed(3));
   const [status, setStatus] = useState("Pick a shell and place your bet!");

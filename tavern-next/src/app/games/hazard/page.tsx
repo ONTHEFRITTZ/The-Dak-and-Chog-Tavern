@@ -9,6 +9,7 @@ import { useBankroll } from "@/modules/bankroll";
 import { useDelegationToolkitAA } from "@/modules/aa/useDelegationToolkitAA";
 import { CONTRACTS } from "@/lib/config";
 import { HazardABI } from "@/abi/hazard";
+import { usePageBackdrop } from "@/hooks/usePageBackdrop";
 
 const MIN_BET = 0.001;
 const MAIN_CHOICES = [5, 6, 7, 8, 9] as const;
@@ -90,6 +91,8 @@ const extractErrorMessage = (error: unknown): string => {
 const diceImage = (face: number) => `/assets/images/dice/standard/dice${face}.png`;
 
 export default function HazardPage() {
+  usePageBackdrop("hazard");
+
   const { address, provider, connect, isConnecting } = useWallet();
   const delegation = useDelegationToolkitAA();
   const { hasDcmonBalance, ensureAllowance } = useBankroll();
@@ -202,7 +205,6 @@ export default function HazardPage() {
       const enough = await hasDcmonBalance(wager);
       if (!enough) {
         setStatus("Insufficient DCMon balance for this bet.");
-        setRolling(false);
         return;
       }
 
@@ -211,48 +213,50 @@ export default function HazardPage() {
       });
       if (!approved) {
         setStatus("DCMon approval declined.");
-        setRolling(false);
         return;
       }
 
-      setStatus("Submitting wager...");
-      const data = hazardInterface.encodeFunctionData("playHazard", [selectedMain, wager]);
+      setStatus("Submitting dice roll...");
+      const data = hazardInterface.encodeFunctionData("play", [selectedMain, wager]);
 
-      let receipt: Awaited<ReturnType<typeof provider.waitForTransaction>> | null = null;
+      let receipt: any = null;
+      let hash: string | null = null;
       try {
-        const userOpHash = await delegation.sendTransaction({
+        hash = await delegation.sendTransaction({
           to: hazardAddress,
           data,
         });
-        if (userOpHash) {
-          setStatus("Dice rolling on-chain...");
-          receipt = await provider.waitForTransaction(userOpHash);
+        if (hash) {
+          setStatus(`Tx sent: ${hash.slice(0, 10)}… waiting confirmation...`);
+          receipt = await provider.waitForTransaction(hash);
         }
-      } catch (aaErr) {
-        console.warn("[hazard] AA send failed", aaErr);
+      } catch (error) {
+        console.warn("[hazard] AA send failed", error);
       }
 
       if (!receipt) {
-        const tx = await contract.playHazard(selectedMain, wager, { gasLimit: 300_000 });
-        setStatus("Dice rolling on-chain...");
-        receipt = await tx.wait();
+        const response = await contract.play(selectedMain, wager);
+        hash = response.hash;
+        setStatus(`Tx sent: ${hash.slice(0, 10)}… waiting confirmation...`);
+        receipt = await response.wait();
       }
 
       if (!receipt) {
-        setStatus("Transaction sent. Awaiting confirmation...");
+        setStatus("Transaction pending. Check explorer.");
         return;
       }
 
-      let win = false;
-      let finalSum = Number.NaN;
+      let finalSum = Number.isFinite(receipt?.events?.length) ? NaN : NaN;
       let chance = 0;
+      let win = false;
 
       for (const log of receipt.logs ?? []) {
         try {
           const parsedLog = hazardInterface.parseLog(log);
-          if (parsedLog?.name === "HazardPlayed") {
-            win = Boolean(parsedLog.args?.win ?? parsedLog.args?.[2]);
-            finalSum = Number(parsedLog.args?.finalSum ?? parsedLog.args?.[4]);
+          if (!parsedLog) continue;
+          if (parsedLog.name === "HazardResult") {
+            win = Boolean(parsedLog.args?.won ?? parsedLog.args?.[0]);
+            finalSum = Number(parsedLog.args?.sum ?? parsedLog.args?.[4]);
             chance = Number(parsedLog.args?.chance ?? parsedLog.args?.[5]);
             break;
           }
@@ -287,7 +291,7 @@ export default function HazardPage() {
   ]);
 
   return (
-    <main className="tavern game" style={{ minHeight: "100vh" }}>
+    <main className="tavern game">
       <div className="game-header">
         <Image
           className="game-logo"

@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { AgeGate } from "@/components/AgeGate";
+import { usePageBackdrop } from "@/hooks/usePageBackdrop";
 
 const games = [
   {
@@ -31,6 +32,8 @@ const games = [
 ];
 
 export default function HomePage() {
+  usePageBackdrop("tavern");
+
   return (
     <main>
       <AgeGate />
@@ -50,11 +53,7 @@ export default function HomePage() {
 
           <div className="game-logos">
             {games.map((game) => (
-              <Link
-                key={game.title}
-                className="game-logo-link"
-                href={game.href}
-              >
+              <Link key={game.title} className="game-logo-link" href={game.href}>
                 <Image
                   src={game.asset}
                   alt={game.title}

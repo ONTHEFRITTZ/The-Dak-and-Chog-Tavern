@@ -9,6 +9,7 @@ import { CONTRACTS } from "@/lib/config";
 import { useWallet } from "@/context/WalletContext";
 import { useBankroll } from "@/modules/bankroll";
 import { useDelegationToolkitAA } from "@/modules/aa/useDelegationToolkitAA";
+import { usePageBackdrop } from "@/hooks/usePageBackdrop";
 
 const MIN_BET = 0.001;
 const IMG_DAK = "/assets/images/coin-dak.png";
@@ -26,6 +27,7 @@ export default function DakChogPage() {
   const { address, provider, connect, isConnecting } = useWallet();
   const { hasDcmonBalance, ensureAllowance } = useBankroll();
   const delegation = useDelegationToolkitAA();
+  usePageBackdrop("dakchog");
 
   const [bet, setBet] = useState(() => clampBet(String(MIN_BET)).toFixed(3));
   const [choice, setChoice] = useState<CoinSide>("dak");

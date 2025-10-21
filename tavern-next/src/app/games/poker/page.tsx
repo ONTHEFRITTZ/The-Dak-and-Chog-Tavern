@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useMemo } from "react";
 import { useRealtimePokerLobby } from "@/hooks/useRealtimePokerLobby";
 import { useWallet } from "@/context/WalletContext";
+import { usePageBackdrop } from "@/hooks/usePageBackdrop";
 
 type LobbySectionKey = "limit" | "noLimit" | "freePlay";
 
@@ -66,6 +67,8 @@ function categorizeTables(
 }
 
 export default function PokerLobbyPage() {
+  usePageBackdrop("poker-floor");
+
   const { address, connect, disconnect, isConnecting } = useWallet();
   const lobby = useRealtimePokerLobby();
 
