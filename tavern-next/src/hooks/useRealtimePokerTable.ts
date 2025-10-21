@@ -583,7 +583,7 @@ export function useRealtimePokerTable(
       socketRef.current = null;
       setConnected(false);
     };
-  }, [options.url, options.autoConnect, tableId]);
+  }, [options, tableId]);
 
   useEffect(() => {
     const socket = socketRef.current;

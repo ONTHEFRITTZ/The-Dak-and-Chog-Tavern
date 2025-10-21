@@ -286,7 +286,7 @@ export function useRealtimePokerLobby(
       socketRef.current = null;
       setConnected(false);
     };
-  }, [options.url, options.autoConnect]);
+  }, [options]);
 
   const joinTable = useCallback((tableId: string) => {
     if (!tableId) return;

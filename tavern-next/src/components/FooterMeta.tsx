@@ -31,7 +31,7 @@ export function FooterMeta() {
           builtAt: buildJson?.builtAt,
         });
         setError(null);
-      } catch (err) {
+      } catch {
         if (!mounted) return;
         setError("Version info unavailable");
       }
