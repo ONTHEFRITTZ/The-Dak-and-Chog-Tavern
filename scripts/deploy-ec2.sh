@@ -52,8 +52,12 @@ if ! command -v pm2 >/dev/null 2>&1; then
 fi
 
 echo "--- restarting pm2 processes ---"
-pm2 stop tavern-next || true
-pm2 delete tavern-next || true
+for app in tavern-next realtime dcmon-agent; do
+  pm2 stop "$app" || true
+  pm2 delete "$app" || true
+done
+
+NODE_ENV="$NODE_ENV" pm2 start ecosystem.config.js --only tavern-next --env "$NODE_ENV"
 NODE_ENV="$NODE_ENV" pm2 start ecosystem.config.js --only realtime --env "$NODE_ENV"
 NODE_ENV="$NODE_ENV" pm2 start ecosystem.config.js --only dcmon-agent --env "$NODE_ENV"
 pm2 save

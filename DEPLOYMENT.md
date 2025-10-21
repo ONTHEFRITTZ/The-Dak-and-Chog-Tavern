@@ -17,6 +17,7 @@ Front-end Configuration
 - Set `NEXT_PUBLIC_ADMIN_ADDRESS` to the owner wallet that should see the `/admin` tools.
 - If the address is omitted the nav link is hidden; the page itself will prompt you to configure the env var before running admin actions.
 - `/admin` surfaces DCMon, WMON, and pool management; it reads swap queue data via `server/dcmon/config` so ensure the agent's queue path is accessible to the Next server runtime.
+- The Next.js runtime now serves all web traffic from PM2 (`tavern-next` on port 3000); Nginx simply reverse proxies requests instead of reading `/var/www/thedakandchog.xyz/html`.
 
 Prerequisites (EC2)
 - Install once:
@@ -32,6 +33,11 @@ git checkout main
 git pull --ff-only origin main
 bash scripts/deploy-ec2.sh
 ```
+
+Cutover from legacy static site
+- Run `sudo bash scripts/install-nginx-conf.sh` after pulling to copy the updated reverse proxy config (it no longer serves the stale `/var/www/thedakandchog.xyz/html` snapshot).
+- The first time you cut over, clear the old static bundle: `sudo rm -rf /var/www/thedakandchog.xyz/html/*` (the directory is no longer used once Nginx is reloaded).
+- After Nginx reloads, purge the Cloudflare cache if you still see the legacy landing page.
 
 Admin Panel (WMON/DCMon) Post-Deploy Checklist
 - Load https://thedakandchog.xyz/admin/ (or your domain) and connect the owner wallet.

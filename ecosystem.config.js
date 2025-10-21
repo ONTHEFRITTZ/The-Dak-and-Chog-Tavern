@@ -2,6 +2,32 @@
 module.exports = {
   apps: [
     {
+      name: 'tavern-next',
+      cwd: '/home/ubuntu/The-Dak-and-Chog-Tavern/tavern-next',
+      script: 'node_modules/.bin/next',
+      args: 'start -p 3000',
+      instances: 1,
+      exec_mode: 'fork',
+      watch: false,
+      autorestart: true,
+      min_uptime: '10s',
+      max_restarts: 25,
+      max_memory_restart: '512M',
+      out_file: '/var/log/tavern/next.out.log',
+      error_file: '/var/log/tavern/next.err.log',
+      merge_logs: true,
+      time: true,
+      log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
+      env: {
+        NODE_ENV: 'production',
+        PORT: 3000
+      },
+      env_production: {
+        NODE_ENV: 'production',
+        PORT: 3000
+      }
+    },
+    {
       name: 'realtime',
       script: 'server/realtime.js',
       cwd: '/home/ubuntu/The-Dak-and-Chog-Tavern',
