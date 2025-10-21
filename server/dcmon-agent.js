@@ -395,8 +395,6 @@ async function ensurePaymasterBalance(provider, overrideAmount = 0n) {
  * - Records staking rewards and processes queued swap/cash-out jobs
  */
 
-const { ethers } = require('ethers');
-const { CONFIG } = require('./dcmon/config');
 const { logger, persistLog } = require('./dcmon/logger');
 const { listSwaps, enqueueSwap, takeNextPending, markSwap } = require('./dcmon/queue');
 const { buildContracts, connectPokerTable } = require('./dcmon/contracts');
