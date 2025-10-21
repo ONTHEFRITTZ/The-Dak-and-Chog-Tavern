@@ -50,6 +50,9 @@ Pool & Admin
 - Fund the Pool: Admin → Liquidity Pool → Fund (or send native coin to the Pool address)
 - Site Health (Admin): shows build.json, deploy marker, and whoami
 
+Smart Account Runtime
+- See docs/alchemy-runtime.md for required env vars and smoke tests.
+
 Address configuration
 - js/config.js resolves per-chain addresses via ADDRESS_BOOK
 - Temporary overrides for testing:
@@ -67,4 +70,5 @@ Notes & tips
 - If a game shows “Rejected: not authorized”, authorize its router/contract in the Pool and ensure Tavern is linked to the Pool
 - If a game shows “Bankroll too low”, fund the Pool (pooled games require ≥ 2× wager in Pool)
 - If HTML looks stale after a green deploy, verify the live marker; if it’s fresh, purge CDN HTML once or enable the purge step in CI
+
 

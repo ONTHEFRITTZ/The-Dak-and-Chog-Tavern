@@ -22,7 +22,7 @@
 
 ## 2. Game Ports
 
-- [ ] **Poker (lobby + table)**  
+- [x] **Poker (lobby + table)**  
   - [x] React lobby + table routes with `useRealtimePokerLobby` / `useRealtimePokerTable`, shared bankroll + Delegation Toolkit AA flow.  
   - [x] Preserve table animations, dealer admin tools, and the legacy overlay polish.
 
@@ -43,7 +43,7 @@
 
 ## 2. Shared Runtime & Bankroll
 
-- [ ] **Finalise `useBankroll` hook**  
+- [x] **Finalise `useBankroll` hook**  
   - [x] Approvals now route through `/api/paymaster/sign` with AA fallback to the connected signer.  
   - [x] Expose reactive state to a global bankroll widget (for wallet pill + future HUD).
 
@@ -68,13 +68,13 @@
   - [x] Update Dak & Chog / Shell action flows to drop legacy AA helpers and rely on the shared hook.  
   - [x] Remove remaining references to `window.AA_PAYMASTER_CONTEXT`.
 
-- [ ] **Alchemy smart-account runtime**  
+- [x] **Alchemy smart-account runtime****  
   - Replace ad-hoc client calls with `@alchemy/aa-alchemy` helpers for signing and submitting user operations.  
   - Document required env vars and test against the Monad devnet paymaster.
 
 ## 4. UI/UX & Layout
 
-- [ ] **Global navigation**  
+- [x] **Global navigation****  
   - Replace legacy sidebar script with a React component that reflects the dynamic game list.  
   - Ensure wallet pill, AA status, and bankroll badges display in the Next layout.
 

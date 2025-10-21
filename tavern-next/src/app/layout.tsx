@@ -4,6 +4,7 @@ import { WalletProvider } from "../context/WalletContext";
 import { WalletInline } from "../components/WalletInline";
 import { FooterMeta } from "../components/FooterMeta";
 import { BankrollWidget } from "../components/BankrollWidget";
+import { AppNav } from "../components/AppNav";
 import Script from "next/script";
 
 export const metadata: Metadata = {
@@ -23,6 +24,7 @@ export default function RootLayout({
         <WalletProvider>
           <WalletInline />
           <BankrollWidget />
+          <AppNav />
           {children}
           <FooterMeta />
         </WalletProvider>

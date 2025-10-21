@@ -1762,3 +1762,119 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
 .bankroll-widget button { padding: 6px 12px; border-radius: 10px; border: 1px solid rgba(120, 200, 255, 0.26); background: rgba(28, 52, 84, 0.8); color: #f4e6d3; font-weight: 600; cursor: pointer; transition: background 0.15s ease, transform 0.15s ease; }
 .bankroll-widget button:hover:not(:disabled) { background: rgba(42, 82, 130, 0.9); transform: translateY(-1px); }
 .bankroll-widget button:disabled { opacity: 0.55; cursor: wait; }
+/* App navigation */
+.app-nav {
+  position: fixed;
+  top: calc(var(--edge-pad) + 56px);
+  left: var(--edge-pad);
+  z-index: 10500;
+  background: rgba(8, 16, 26, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 10px 12px;
+  min-width: 200px;
+  backdrop-filter: blur(6px);
+  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.45);
+}
+.app-nav ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.app-nav a {
+  display: block;
+  padding: 6px 10px;
+  border-radius: 8px;
+  color: #f4e6d3;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.95rem;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.app-nav a:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+.app-nav a.active {
+  background: rgba(255, 210, 120, 0.28);
+  color: #2d1a05;
+}
+@media (max-width: 960px) {
+  .app-nav {
+    position: static;
+    margin: 70px auto 12px;
+    max-width: min(92vw, 480px);
+  }
+  .app-nav ul {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+  }
+  .app-nav a {
+    padding: 6px 12px;
+  }
+}
+/* Rules page */
+.rules-page {
+  min-height: 100vh;
+  padding: clamp(24px, 5vw, 64px);
+  display: flex;
+  justify-content: center;
+}
+.rules-card {
+  width: min(92vw, 960px);
+  background: rgba(10, 20, 32, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  padding: clamp(20px, 4vw, 40px);
+  color: #f4e6d3;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+}
+.rules-card nav ul {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 18px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.rules-card nav a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #f4e6d3;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+.rules-card nav a:hover {
+  background: rgba(255, 210, 120, 0.25);
+  color: #2d1a05;
+}
+.rules-card section {
+  margin-top: 24px;
+}
+.rules-card h2 {
+  margin-bottom: 10px;
+}
+.rules-card ul {
+  padding-left: 20px;
+  margin: 0;
+  display: grid;
+  gap: 6px;
+}
+@media (max-width: 640px) {
+  .rules-card {
+    padding: 20px;
+  }
+  .rules-card nav ul {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
