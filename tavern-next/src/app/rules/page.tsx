@@ -1,9 +1,7 @@
-'use client';
-
-import type { Metadata } from "next";
+﻿import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Game Rules – The Dak & Chog Tavern",
+  title: "Game Rules - The Dak & Chog Tavern",
 };
 
 const sections = [
@@ -14,10 +12,10 @@ const sections = [
       "Seats: Up to 8 players. Dealer button rotates clockwise each hand.",
       "Blinds: Small blind (SB) and big blind (BB) auto-post to the two seats left of the button.",
       "Deal: Each active player receives two private hole cards.",
-      "Betting rounds: Preflop → Flop (three community cards) → Turn (one) → River (one).",
+      "Betting rounds: Preflop -> Flop (three community cards) -> Turn (one) -> River (one).",
       "Actions: Fold, check, call, bet/raise (min bet = big blind, min raise = previous raise size). All-in and side pots supported.",
       "Showdown: Best five-card hand using any combination of hole/community cards wins. Ties split the pot.",
-      "Hand ranking (high → low): Royal flush, straight flush, four of a kind, full house, flush, straight, three of a kind, two pair, one pair, high card.",
+      "Hand ranking (high -> low): Royal flush, straight flush, four of a kind, full house, flush, straight, three of a kind, two pair, one pair, high card.",
       "Timing: Expired action timers auto-check or auto-fold depending on the state.",
       "Buy-in/cash-out: Uses DCMon. Approvals wrap/unwrap MON as needed.",
       "Rake: Displayed in-game when applicable.",
@@ -27,9 +25,9 @@ const sections = [
     id: "hazard",
     title: "Hazard (Dice)",
     bullets: [
-      "Choose a main between 5–9 (default is 7).",
-      "Come-out roll outcomes: main = win; 2/3 = loss; 11/12 = win if main 5 or 9, loss if main 7, otherwise loss.",
-      "If the roll is 4,5,6,8,9,10 it becomes the point. Continue rolling: hit the point before the main to win; roll the main first to lose.",
+      "Choose a main between 5-9 (default is 7).",
+      "Come-out roll outcomes: main = win; 2 or 3 = loss; 11 or 12 = win if main is 5 or 9, loss if main is 7, otherwise loss.",
+      "If the roll is 4, 5, 6, 8, 9, or 10 it becomes the point. Continue rolling: hit the point before the main to win; roll the main first to lose.",
       "All wagers pay even money and settle on the same sequence of rolls.",
     ],
   },
@@ -38,7 +36,7 @@ const sections = [
     title: "Shell Game",
     bullets: [
       "Three shells, one hidden token. Pick a shell; the contract reveals the result.",
-      "Correct guesses pay 2× (stake returned plus winnings), capped by bankroll limits.",
+      "Correct guesses pay 2x (stake returned plus winnings), capped by bankroll limits.",
     ],
   },
   {
@@ -46,7 +44,7 @@ const sections = [
     title: "Dak & Chog (Coin Flip)",
     bullets: [
       "Pick Dak or Chog, then place a wager.",
-      "Correct call pays 2× (stake returned plus winnings), capped by bankroll limits.",
+      "Correct call pays 2x (stake returned plus winnings), capped by bankroll limits.",
     ],
   },
 ];
@@ -80,3 +78,4 @@ export default function RulesPage() {
     </main>
   );
 }
+

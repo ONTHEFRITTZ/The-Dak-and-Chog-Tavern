@@ -28,7 +28,6 @@ button:hover { background: #7800cd; }
   .sidebar:not(.collapsed) { transform: translateX(0); }
 }
 /* ------------------------------- Home Card -------------------------------- */.tavern {  padding: var(--content-pad);  border: 1px solid var(--panel-border);  border-radius: 15px;  max-width: var(--content-max);  width: min(95%, var(--content-max));  margin: 8px auto 16px;  box-shadow: 0 24px 60px rgba(0,0,0,0.55);  gap: clamp(12px, 1.6vw, 32px);}
-/* Tavern sign (kept lean) */  margin-left: auto;  margin-right: auto;  margin-bottom: 4px;  transform: scale(clamp(0.5, 0.32 + 0.12vw, 0.75));  top: clamp(24px, 2vh + 12px, 44px);}
 /* ------------------------------ Game links -------------------------------- */.game-links a {  display: inline-block;  margin: 10px; padding: 15px 30px; color: #fff; text-decoration: none;  border-radius: 10px; font-size: 20px;}
 .game-links a:hover {  }
 /* Game logo grid */.game-logos {  display: flex; flex-wrap: wrap; justify-content: center; align-items: center;  gap: clamp(12px, 2vw, 20px); margin-top: 12px;}

@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { BrowserProvider, getAddress } from "ethers";
+import type { PickedProvider } from "@/modules/aa/toolkitContext";
 
 type WalletContextValue = {
   address: string | null;
@@ -13,7 +14,7 @@ type WalletContextValue = {
 
 const WalletContext = createContext<WalletContextValue | undefined>(undefined);
 
-function getInjectedProvider(): any {
+function getInjectedProvider(): PickedProvider | null {
   if (typeof window === "undefined") return null;
   if (window.__walletProvider) return window.__walletProvider;
   if (window.ethereum) return window.ethereum;
@@ -74,12 +75,13 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   useEffect(() => {
     const injected = getInjectedProvider();
     if (!injected?.on) return;
-    const handleAccountsChanged = (accounts: string[]) => {
-      if (!accounts || accounts.length === 0) {
+    const handleAccountsChanged = (accounts: unknown) => {
+      if (!Array.isArray(accounts) || accounts.length === 0) {
         reset();
         return;
       }
-      setAddress(getAddress(accounts[0]));
+      const primary = getAddress(String(accounts[0]));
+      setAddress(primary);
     };
     const handleDisconnect = () => reset();
     injected.on("accountsChanged", handleAccountsChanged);
@@ -143,8 +145,9 @@ export const useWallet = (): WalletContextValue => {
 
 declare global {
   interface Window {
-    __walletProvider?: any;
-    __getSelectedProvider?: () => any;
-    phantom?: { ethereum?: any };
+    __walletProvider?: PickedProvider;
+    __getSelectedProvider?: (hint?: string) => any;
+    ethereum?: PickedProvider;
+    phantom?: { ethereum?: PickedProvider };
   }
 }

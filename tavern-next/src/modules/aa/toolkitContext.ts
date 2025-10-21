@@ -4,7 +4,7 @@ import { createPublicClient, createWalletClient, custom, http, type Chain, type 
 import { MONAD, MONAD_CHAIN } from "@/lib/config";
 import { MONAD_DELEGATION_ENV, type DelegationEnvironment } from "./delegationEnvironment";
 
-type PickedProvider = {
+export type PickedProvider = {
   request: (args: { method: string; params?: unknown[] }) => Promise<any>;
   on?: (event: string, handler: (...args: any[]) => void) => void;
   removeListener?: (event: string, handler: (...args: any[]) => void) => void;

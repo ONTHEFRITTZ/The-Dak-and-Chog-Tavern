@@ -249,11 +249,11 @@ export default function HazardPage() {
 
       for (const log of receipt.logs ?? []) {
         try {
-          const parsed = hazardInterface.parseLog(log);
-          if (parsed.name === "HazardPlayed") {
-            win = Boolean(parsed.args?.win ?? parsed.args?.[2]);
-            finalSum = Number(parsed.args?.finalSum ?? parsed.args?.[4]);
-            chance = Number(parsed.args?.chance ?? parsed.args?.[5]);
+          const parsedLog = hazardInterface.parseLog(log);
+          if (parsedLog?.name === "HazardPlayed") {
+            win = Boolean(parsedLog.args?.win ?? parsedLog.args?.[2]);
+            finalSum = Number(parsedLog.args?.finalSum ?? parsedLog.args?.[4]);
+            chance = Number(parsedLog.args?.chance ?? parsedLog.args?.[5]);
             break;
           }
         } catch {

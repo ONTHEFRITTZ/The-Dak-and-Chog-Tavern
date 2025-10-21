@@ -198,13 +198,13 @@ export default function ShellGamePage() {
 
       for (const log of receipt.logs ?? []) {
         try {
-          const parsed = shellInterface.parseLog(log);
-          if (parsed.name === "ShellPlayed") {
-            const winCup = Number(parsed.args?.winningCup ?? parsed.args?.[4]);
-            const guessed = Number(parsed.args?.guess ?? parsed.args?.[5]);
+          const description = shellInterface.parseLog(log);
+          if (description?.name === "ShellPlayed") {
+            const winCup = Number(description.args?.winningCup ?? description.args?.[4]);
+            const guessed = Number(description.args?.guess ?? description.args?.[5]);
             winningCup = (winCup >= 0 && winCup <= 2 ? winCup : choice) as ShellChoice;
             guess = (guessed >= 0 && guessed <= 2 ? guessed : choice) as ShellChoice;
-            won = Boolean(parsed.args?.won ?? parsed.args?.[3]);
+            won = Boolean(description.args?.won ?? description.args?.[3]);
             break;
           }
         } catch {

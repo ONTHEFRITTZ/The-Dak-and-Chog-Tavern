@@ -70,6 +70,7 @@ export default function PokerTablePage({ params }: TablePageProps) {
   const { address, connect, disconnect, isConnecting } = useWallet();
   const realtime = useRealtimePokerTable(tableId);
   const holdem = useHoldemPokerActions();
+  const addressLower = useMemo(() => (address ?? "").toLowerCase(), [address]);
 
   const [betAmount, setBetAmount] = useState("1");
   const [actionStatus, setActionStatus] = useState<string | null>(null);
@@ -102,22 +103,6 @@ export default function PokerTablePage({ params }: TablePageProps) {
 
   useEffect(() => {
     const overlay = getPokerOverlay();
-    if (!overlay?.setContext) return;
-    overlay.setContext({ address: addressLower, seatId: mySeatId });
-  }, [addressLower, mySeatId]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const overlay = getPokerOverlay();
-    if (!overlay?.refreshSeats) return;
-    const raf = window.requestAnimationFrame(() => {
-      overlay.refreshSeats();
-    });
-    return () => window.cancelAnimationFrame(raf);
-  }, [orderedSeatIndices, seatPositions]);
-
-  useEffect(() => {
-    const overlay = getPokerOverlay();
     overlay?.applyState?.(realtime.state ?? null);
   }, [realtime]);
 
@@ -131,7 +116,6 @@ export default function PokerTablePage({ params }: TablePageProps) {
     overlay?.applyHand?.(realtime.handSummary ?? null);
   }, [realtime.handSummary]);
 
-  const addressLower = (address ?? "").toLowerCase();
   const chipValueDcmon = useMemo(() => {
     const meta = realtime.table?.meta;
     if (!meta) return 1;
@@ -149,6 +133,12 @@ export default function PokerTablePage({ params }: TablePageProps) {
     }
     return -1;
   }, [realtime.table?.seats, addressLower]);
+
+  useEffect(() => {
+    const overlay = getPokerOverlay();
+    if (!overlay?.setContext) return;
+    overlay.setContext({ address: addressLower, seatId: mySeatId });
+  }, [addressLower, mySeatId]);
 
   const myActor = useMemo(() => {
     if (!realtime.state) return null;
@@ -275,6 +265,17 @@ export default function PokerTablePage({ params }: TablePageProps) {
     const pivot = preferredSeatId % totalSeats;
     return base.slice(pivot).concat(base.slice(0, pivot));
   }, [totalSeats, preferredSeatId]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const overlay = getPokerOverlay();
+    const refresh = overlay?.refreshSeats;
+    if (!refresh) return;
+    const raf = window.requestAnimationFrame(() => {
+      refresh();
+    });
+    return () => window.cancelAnimationFrame(raf);
+  }, [orderedSeatIndices, seatPositions]);
 
   const orderedSeats = useMemo(() => {
     return orderedSeatIndices.map((seatId, displayIndex) => {

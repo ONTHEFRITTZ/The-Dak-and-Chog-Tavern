@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AlchemySmartAccountClient } from "@alchemy/aa-alchemy";
@@ -31,7 +31,14 @@ export type DelegationToolkitAA = {
   ensureReady: () => Promise<void>;
 };
 
-type DelegationModule = typeof import("@/vendor/metamask-delegation-toolkit.mjs");
+type DelegationModule = {
+  Implementation: {
+    MultiSig?: unknown;
+    Stateless7702?: unknown;
+    Hybrid?: unknown;
+  };
+  toMetaMaskSmartAccount: (config: Record<string, unknown>) => Promise<SmartContractAccount>;
+};
 
 function pickImplementation(module: DelegationModule) {
   const { Implementation } = module;
@@ -87,7 +94,11 @@ export function useDelegationToolkitAA(): DelegationToolkitAA {
         throw new Error("Delegation Toolkit context incomplete");
       }
 
-      const module = (await import("@/vendor/metamask-delegation-toolkit.mjs")) as DelegationModule;
+      // @ts-ignore -- dynamically imported from CDN at runtime
+      const module = (await import(
+        /* webpackIgnore: true */
+        "https://cdn.jsdelivr.net/npm/@metamask/delegation-toolkit@0.13.0/dist/index.mjs"
+      )) as DelegationModule;
       const implementation = pickImplementation(module);
       if (!implementation) {
         throw new Error("MetaMask Delegation Toolkit implementation unavailable");
@@ -116,7 +127,8 @@ export function useDelegationToolkitAA(): DelegationToolkitAA {
         ...accountOptions,
       });
 
-      const smartAccountAddress = await smartAccount.getAddress();
+      const accountLike = smartAccount as any;
+      const smartAccountAddress = typeof accountLike.getAddress === "function" ? await accountLike.getAddress() : accountLike.address;
       storeSmartAccountAddress(publicClient.chain?.id ?? MONAD.id, smartAccountAddress);
 
       const rpcUrl = MONAD_BUNDLER_RPC?.trim();
@@ -176,12 +188,12 @@ export function useDelegationToolkitAA(): DelegationToolkitAA {
       }
 
       try {
-        const userOpHash = await alchemyClient.sendTransaction({
+        const userOpHash = await (alchemyClient as any).sendTransaction({
           to: to as Hex,
           data: data as Hex | undefined,
           value,
         });
-        const txHash = await alchemyClient.waitForUserOperationTransaction({ hash: userOpHash });
+        const txHash = await (alchemyClient as any).waitForUserOperationTransaction({ hash: userOpHash });
         return txHash;
       } catch (err) {
         console.warn("[useDelegationToolkitAA] sendTransaction via AA failed", err);
@@ -209,3 +221,6 @@ export function useDelegationToolkitAA(): DelegationToolkitAA {
     [ready, initializing, sendTransaction, ensureReady]
   );
 }
+
+
+

@@ -145,7 +145,7 @@ export default function DakChogPage() {
       for (const log of receipt.logs) {
         try {
           const descr = iface.parseLog(log);
-          if (descr.name === "CoinPlayed") {
+          if (descr?.name === "CoinPlayed") {
             parsed = descr;
             break;
           }

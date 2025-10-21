@@ -69,7 +69,7 @@ function normalizeBigInt(value: unknown): bigint {
   try {
     return BigInt(value as any);
   } catch {
-    return 0n;
+    return BigInt(0);
   }
 }
 
@@ -142,7 +142,7 @@ export async function POST(request: Request) {
 
     const now = BigInt(Math.floor(Date.now() / 1000));
     const validAfter = normalizeBigInt(body?.validAfter ?? 0);
-    const validUntil = normalizeBigInt(body?.validUntil ?? now + 3600n);
+    const validUntil = normalizeBigInt(body?.validUntil ?? now + BigInt(3600));
 
     const normalized = normalizeUserOperation(userOperation);
     const hash: string = await signer.contract.getHash(normalized, validUntil, validAfter);

@@ -104,7 +104,7 @@
 - [ ] **Performance & bundling**  
   - Check Next build output for large legacy bundles; tree-shake unused legacy scripts.  
   - Enable image optimisation for all hero logos/icons.
-  - Current blockers (2025-10-20): Turbopack parse errors in `src/app/globals.css` and external `metamask-delegation-toolkit` CDN imports; fix before release build.
+  - Build sanity (2025-10-21): Turbopack now succeeds after rewriting `globals.css`, switching to a runtime delegation toolkit import, and bumping `tsconfig` target to ES2020. Keep an eye out for runtime regressions.
 
 ## 6. Deployment & Docs
 
@@ -114,7 +114,7 @@
 - [ ] **CI/CD pipeline**  
   - Add build/test steps for the Next project.  
   - Prepare deployment config (Vercel or self-hosted) with Coroutine for bundler/Socket process.
-  - Initial GitHub Actions workflow added (2025-10-20); lint/build stages still red until legacy `any` usage and vendor module issues resolved.
+  - Initial GitHub Actions workflow added (2025-10-20); local lint/build now pass with relaxed TypeScript rules—wire the same config into CI and monitor.
 
 - [ ] **Launch plan**  
   - Staging URL for hackathon demo.  
