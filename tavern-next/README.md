@@ -14,18 +14,16 @@ Create a `.env.local` in `tavern-next/` with the following variables:
 
 | Key | Required | Description |
 | --- | --- | --- |
-| `MONAD_RPC_URL` | ✓ | HTTP RPC used server-side by the paymaster route |
-| `VERIFYING_PAYMASTER_SIGNER_PK` | ✓ | Private key for the verifying paymaster signer |
-| `VERIFYING_PAYMASTER_ADDR` | ✓ | Paymaster contract address that validates signatures |
-| `NEXT_PUBLIC_MONAD_RPC` | ✓ | Client-facing RPC endpoint for viem / ethers |
-| `NEXT_PUBLIC_MONAD_WS` | ✓ | WebSocket endpoint for realtime wallet polling |
-| `NEXT_PUBLIC_MONAD_BUNDLER_RPC` | ✓ | Bundler RPC used by the Delegation Toolkit |
-| `NEXT_PUBLIC_PAYMASTER_ADDRESS` | ✓ | Address echoed back to the aaClient window helpers |
-| `NEXT_PUBLIC_ALCHEMY_API_KEY` | optional | If using Alchemy for fallback toolkit flows |
-| `NEXT_PUBLIC_ALCHEMY_BUNDLER_RPC` | optional | Alchemy Smart Account bundler URL override |
-| `NEXT_PUBLIC_ALCHEMY_PAYMASTER_RPC` | optional | Alchemy paymaster URL override |
+| `MONAD_RPC_URL` | Yes | HTTP RPC used server-side by the paymaster route (e.g. `https://monad-testnet.g.alchemy.com/v2/<key>`) |
+| `VERIFYING_PAYMASTER_SIGNER_PK` | Yes | Private key for the verifying paymaster signer |
+| `VERIFYING_PAYMASTER_ADDR` | Yes | Paymaster contract address that validates signatures |
+| `NEXT_PUBLIC_MONAD_RPC` | Yes | Client-facing RPC endpoint for viem / ethers |
+| `NEXT_PUBLIC_MONAD_WS` | Yes | WebSocket endpoint for realtime wallet polling |
+| `NEXT_PUBLIC_MONAD_BUNDLER_RPC` | Yes | Bundler RPC used by the Delegation Toolkit (set to the Alchemy endpoint that embeds your API key) |
+| `NEXT_PUBLIC_PAYMASTER_ADDRESS` | Yes | Address echoed back to the aaClient window helpers |
+| `NEXT_PUBLIC_ALCHEMY_API_KEY` | Yes | Alchemy API key used by the smart-account client |
 
-> The frontend imports `/js/aaClient.js` which reads these `NEXT_PUBLIC_*` values at runtime. The custom hook `useDelegationToolkitAA` always initialises the toolkit with `paymasterUrl = "/api/paymaster/sign"` so 4337 sponsorship runs through the verifying paymaster whenever it is enabled.
+> Example: set the bundler to `https://monad-testnet.g.alchemy.com/v2/<key>` and reuse the same endpoint for `MONAD_RPC_URL` so both the front end and `/api/paymaster/sign` talk to the sponsored RPC.
 
 ## Development
 
@@ -44,8 +42,8 @@ Navigate to [http://localhost:3000](http://localhost:3000). Socket.IO connection
 
 ### Tooling
 
-- `npm run lint` (ESLint) — legacy static assets still produce warnings; the Next.js source must stay clean before shipping.
-- `npm run build` — validates the app router build.
+- `npm run lint` (ESLint) � legacy static assets still produce warnings; the Next.js source must stay clean before shipping.
+- `npm run build` � validates the app router build.
 
 ## Paymaster Endpoint
 
@@ -55,3 +53,4 @@ Navigate to [http://localhost:3000](http://localhost:3000). Socket.IO connection
 
 - If the paymaster rate-limits or returns errors, the hooks fall back to the connected EOA signer. Ensure the selected account has enough MON for manual confirmation.
 - When using gas sponsorship, confirm that the signer wallet holds MON for covering user operations and DCMon for table buy-ins.
+
