@@ -2252,6 +2252,41 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
   opacity: 0.72;
 }
 
+.wallet-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 16px;
+  width: 100%;
+}
+
+.wallet-grid button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 14px;
+  padding: 16px 12px;
+  gap: 10px;
+  font-weight: 600;
+}
+
+.wallet-grid button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.wallet-grid span {
+  color: #f4e6d3;
+}
+
+.age-error {
+  margin: 4px 0 0;
+  font-size: 0.85rem;
+  color: #ff9b9b;
+}
+
 body.home {
   align-items: stretch;
 }
