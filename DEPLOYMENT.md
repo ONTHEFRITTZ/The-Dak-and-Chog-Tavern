@@ -1,4 +1,4 @@
-Deploying The Dak & Chog Tavern
+﻿Deploying The Dak & Chog Tavern
 
 Contributor Workflow (Codex)
 - Always commit and push changes to `main` on GitHub once the work is ready.
@@ -11,17 +11,21 @@ Stable Snapshot
   - `/assets/build.json` => { commit, builtAt }
   - `/assets/deploy_check.txt` => <commit> @ <UTC>
 
-Recommended: EC2 pull-based, atomic deploy
+Deploying the Next.js app on EC2
 
 Prerequisites (EC2)
-- Install tools once:
-  - `sudo apt-get update && sudo apt-get install -y git rsync`
+- Install once:
+  - Node.js 20+ and npm (via nvm or distro package manager)
+  - PM2 globally (`npm install -g pm2`)
+  - git (already available on Amazon Linux)
 
 Deploy (copy/paste)
 ```
-cd ~/The-Dak-and-Chog-Tavern && git fetch origin && git reset --hard origin/main
-DOMAIN="thedakandchog.xyz" WEBROOT="/var/www/${DOMAIN}/html" UPLOAD="/var/www/${DOMAIN}/html_upload" bash scripts/deploy-ec2.sh
-
+cd ~/The-Dak-and-Chog-Tavern
+git fetch origin
+git checkout main
+git pull --ff-only origin main
+bash scripts/deploy-ec2.sh
 ```
 
 Admin Panel (WMON/DCMon) Post-Deploy Checklist

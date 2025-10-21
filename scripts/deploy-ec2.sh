@@ -1,85 +1,63 @@
-#!/usr/bin/env bash
-# Minimal, reliable pull-based deploy for EC2
-# Usage (from EC2):
-#   DOMAIN="thedakandchog.xyz" WEBROOT="/var/www/${DOMAIN}/html" UPLOAD="/var/www/${DOMAIN}/html_upload" bash scripts/deploy-ec2.sh
-# Or rely on defaults and just set DOMAIN
-#   DOMAIN="thedakandchog.xyz" bash scripts/deploy-ec2.sh
+﻿#!/usr/bin/env bash
+# Deployment script for EC2 instance (Next.js + PM2)
+# Example usage from EC2 browser console:
+#   bash scripts/deploy-ec2.sh
+#   DOMAIN="thedakandchog.xyz" NODE_ENV=production bash scripts/deploy-ec2.sh
 
 set -euo pipefail
 
-# --- Resolve paths and inputs ---
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$PROJECT_ROOT"
 
 DOMAIN="${DOMAIN:-thedakandchog.xyz}"
-BASE="/var/www/${DOMAIN}"
-WEBROOT="${WEBROOT:-${BASE}/html}"
-UPLOAD="${UPLOAD:-${BASE}/html_upload}"
+NODE_ENV="${NODE_ENV:-production}"
 
-echo "DOMAIN       : $DOMAIN"
-echo "WEBROOT      : $WEBROOT"
-echo "UPLOAD (temp): $UPLOAD"
+CATALOG_DIR="/home/ubuntu/The-Dak-and-Chog-Tavern"
+APP_DIR="$CATALOG_DIR/tavern-next"
+LOG_DIR="/var/log/tavern"
 
-# --- Generate build metadata ---
-commit=$(git rev-parse --short HEAD 2>/dev/null || echo local)
-builtAt=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-mkdir -p assets
-printf '{"commit":"%s","builtAt":"%s"}\n' "$commit" "$builtAt" > assets/build.json
+# Ensure log directory exists
+sudo mkdir -p "$LOG_DIR"
+sudo chown -R "$(id -u)":"$(id -g)" "$LOG_DIR"
 
-# --- Prepare upload directory fresh ---
-sudo mkdir -p "$UPLOAD" "$WEBROOT"
-# Ensure upload dir is writable by current user
-sudo chown -R "$(id -u)":"$(id -g)" "$UPLOAD"
-sudo rm -rf "${UPLOAD}"/*
+echo "=== Deploying Next.js site ==="
+echo "DOMAIN  : $DOMAIN"
+echo "NODE_ENV: $NODE_ENV"
+echo "REPO    : $CATALOG_DIR"
+echo "APP DIR : $APP_DIR"
 
-# --- Upload site (single rsync pass: root files + directories) ---
-rsync -rlt --delete --prune-empty-dirs \
-  --include '*/' \
-  --include '*.html' \
-  --include '*.ico' --include '*.png' --include '*.jpg' --include '*.jpeg' --include '*.webp' --include '*.svg' \
-  --include 'css/***' --include 'js/***' --include 'assets/***' --include 'admin/***' --include 'games/***' --include 'server/***' \
-  --include 'images/***' --include 'img/***' --include 'fonts/***' --include 'media/***' \
-  --exclude '*' \
-  ./ "$UPLOAD/"
+echo "--- pulling latest main ---"
+git fetch origin
+git checkout main
+git pull --ff-only origin main
 
-# --- Atomic swap into place ---
-ts=$(date +%s)
-if [ -d "$WEBROOT" ]; then
-  sudo mv "$WEBROOT" "${BASE}/html_prev_${ts}" || true
-fi
-sudo mv "$UPLOAD" "$WEBROOT"
-
-# --- Restore runtime-only secrets (never in git) ---
-SECRET_CONFIG_DIR="${BASE}/secrets"
-PAYMASTER_SECRET="${SECRET_CONFIG_DIR}/paymaster-key.js"
-if [ -f "$PAYMASTER_SECRET" ]; then
-  sudo mkdir -p "$WEBROOT/config"
-  sudo install -m 640 -o www-data -g www-data "$PAYMASTER_SECRET" "$WEBROOT/config/paymaster-key.js"
-else
-  echo "WARNING: ${PAYMASTER_SECRET} not found; keeping repository paymaster-key.js (likely blank)." >&2
-fi
-
-# --- Guard: ensure delegation guard is present in live JS ---
-if ! grep -q "delegate_mm_signer_required" "$WEBROOT/js/aa/delegation.js" 2>/dev/null; then
-  echo "ERROR: delegation guard not found in js/aa/delegation.js (delegate_mm_signer_required)." >&2
-  echo "Aborting to avoid serving stale JS. Ensure latest main is deployed." >&2
+if [ ! -d "$APP_DIR" ]; then
+  echo "ERROR: $APP_DIR does not exist. Did the repository layout change?" >&2
   exit 1
 fi
 
-# --- Permissions and deploy marker ---
-sudo mkdir -p "$WEBROOT/assets"
-printf '%s @ %s\n' "$commit" "$builtAt" | sudo tee "$WEBROOT/assets/deploy_check.txt" >/dev/null
-sudo find "$WEBROOT" -type d -exec chmod 755 {} +
-sudo find "$WEBROOT" -type f -exec chmod 644 {} +
-if [ -f "$WEBROOT/config/paymaster-key.js" ]; then
-  sudo chmod 640 "$WEBROOT/config/paymaster-key.js"
+cd "$APP_DIR"
+
+echo "--- installing dependencies ---"
+npm install --silent
+
+echo "--- building Next.js app ---"
+NODE_ENV="$NODE_ENV" npm run build
+
+if ! command -v pm2 >/dev/null 2>&1; then
+  echo "ERROR: pm2 not installed." >&2
+  echo "Install with: npm install -g pm2" >&2
+  exit 1
 fi
 
-# --- Summary ---
-echo "--- LIVE MARKERS ---"
-head -n 1 "$WEBROOT/assets/build.json" || true
-cat "$WEBROOT/assets/deploy_check.txt" || true
-ls -la "$WEBROOT" | sed -n '1,80p'
+echo "--- restarting pm2 processes ---"
+pm2 stop tavern-next || true
+pm2 delete tavern-next || true
+NODE_ENV="$NODE_ENV" pm2 start ecosystem.config.js --only realtime --env "$NODE_ENV"
+NODE_ENV="$NODE_ENV" pm2 start ecosystem.config.js --only dcmon-agent --env "$NODE_ENV"
+pm2 save
 
-echo "Deploy complete to: $WEBROOT"
+echo "--- deployment complete ---"
+pm2 status | sed -n '1,20p'
+
