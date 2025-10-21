@@ -11,6 +11,11 @@ export const metadata: Metadata = {
   title: "The Dak & Chog Tavern",
   description:
     "The Taverns of Dak & Chog - multiplayer cards, banked AA gameplay, and on-chain fun.",
+  icons: {
+    icon: "/assets/images/d-and-c-logo.png",
+    shortcut: "/assets/images/d-and-c-logo.png",
+    apple: "/assets/images/d-and-c-logo.png",
+  },
 };
 
 export default function RootLayout({

@@ -3,7 +3,6 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { useWallet } from "@/context/WalletContext";
 
 const AGE_KEY = "tavern:ageConfirmed";
@@ -11,7 +10,6 @@ const AGE_KEY = "tavern:ageConfirmed";
 type Stage = "age" | "wallet";
 
 export const AgeGate = () => {
-  const router = useRouter();
   const { address, connect, isConnecting } = useWallet();
   const [open, setOpen] = useState(false);
   const [stage, setStage] = useState<Stage>("age");
@@ -71,7 +69,6 @@ export const AgeGate = () => {
       }
       window.__walletProvider = provider;
       await connect();
-      router.push("/games/dakchog");
       setOpen(false);
     } catch (err: any) {
       console.warn("[age-gate] wallet connect failed", err);
