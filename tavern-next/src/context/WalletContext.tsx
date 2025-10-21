@@ -4,12 +4,15 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { BrowserProvider, getAddress } from "ethers";
 import type { PickedProvider } from "@/modules/aa/toolkitContext";
 
+type WalletType = "metamask" | "phantom" | "unknown" | null;
+
 type WalletContextValue = {
   address: string | null;
   provider: BrowserProvider | null;
   isConnecting: boolean;
   connect: () => Promise<void>;
   disconnect: () => Promise<void>;
+  walletType: WalletType;
 };
 
 const WalletContext = createContext<WalletContextValue | undefined>(undefined);
@@ -23,17 +26,36 @@ function getInjectedProvider(): PickedProvider | null {
 }
 
 const STORAGE_KEY = "tavern:wallet:remember";
+const WALLET_TYPE_KEY = "tavern:wallet:type";
+
+function detectWalletType(provider: PickedProvider | null): WalletType {
+  if (!provider) return "unknown";
+  if ((provider as any).isMetaMask) return "metamask";
+  if ((provider as any).isPhantom || (provider as any).isPhantomEthereum) return "phantom";
+  try {
+    if (typeof window !== "undefined") {
+      if (window.phantom?.ethereum === provider) return "phantom";
+      if (window.ethereum === provider) return "metamask";
+    }
+  } catch {
+    // ignore detection failures
+  }
+  return "unknown";
+}
 
 export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [provider, setProvider] = useState<BrowserProvider | null>(null);
   const [address, setAddress] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
+  const [walletType, setWalletType] = useState<WalletType>(null);
 
   const reset = useCallback(async () => {
     setProvider(null);
     setAddress(null);
+    setWalletType(null);
     if (typeof window !== "undefined") {
       sessionStorage.removeItem(STORAGE_KEY);
+       sessionStorage.removeItem(WALLET_TYPE_KEY);
       try { delete window.__walletProvider; } catch { window.__walletProvider = undefined; }
     }
   }, []);
@@ -56,10 +78,13 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
       const primary = getAddress(accounts[0]);
       const browserProvider = new BrowserProvider(injected);
+      const type = detectWalletType(injected);
       setProvider(browserProvider);
       setAddress(primary);
+      setWalletType(type);
       if (typeof window !== "undefined") {
         sessionStorage.setItem(STORAGE_KEY, "true");
+        sessionStorage.setItem(WALLET_TYPE_KEY, type ?? "unknown");
         window.__walletProvider = injected;
         window.dispatchEvent(new CustomEvent("wallet:connected", { detail: { address: primary } }));
       }
@@ -104,6 +129,8 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         const primary = getAddress(accounts[0]);
         setProvider(new BrowserProvider(injected));
         setAddress(primary);
+        const storedType = sessionStorage.getItem(WALLET_TYPE_KEY) as WalletType | null;
+        setWalletType(storedType ?? detectWalletType(injected));
         window.__walletProvider = injected;
       })
       .catch(() => reset());
@@ -128,7 +155,8 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     isConnecting,
     connect,
     disconnect,
-  }), [address, provider, isConnecting, connect, disconnect]);
+    walletType,
+  }), [address, provider, isConnecting, connect, disconnect, walletType]);
 
   return (
     <WalletContext.Provider value={value}>

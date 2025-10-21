@@ -14,9 +14,9 @@ button:hover { background: #7800cd; }
 .sidebar.collapsed { width: 64px; overflow: hidden; }
 .sidebar-header { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
 .sidebar-header .title { font-weight: 900; letter-spacing: .5px; }
-.sidebar-logo {  display: block;  max-height: 60px;  height: auto;  width: auto;  object-fit: contain;  border-radius: 8px;  margin-bottom: 8px;  filter: drop-shadow(0 4px 12px rgba(0,0,0,0.25));}
-.sidebar:not(.collapsed) .sidebar-logo {  width: calc(100% + 20px);  margin-left: -10px;  margin-right: -10px;  max-width: none;  max-height: none;}
-.sidebar.collapsed .sidebar-logo { display:block; width:44px; max-width:44px; height:auto; max-height:36px; object-fit:contain; margin:8px auto 6px; }
+.sidebar-logo { display: block; max-height: 60px; height: auto; width: 100%; object-fit: contain; border-radius: 8px; margin-bottom: 8px; filter: drop-shadow(0 4px 12px rgba(0,0,0,0.25)); }
+.sidebar:not(.collapsed) .sidebar-logo { width: calc(100% + 20px); margin-left: -10px; margin-right: -10px; max-width: none; max-height: none; }
+.sidebar.collapsed .sidebar-logo { display: flex; align-items: center; justify-content: center; width: 54px; max-width: 54px; height: auto; margin: 6px auto; padding: 0; }
 .sidebar-toggle {  border: none;  color: #fff;  font-weight: 700;  height: 32px;  min-width: 32px;  padding: 0 12px;  cursor: pointer;  display: inline-flex;  align-items: center;  justify-content: center;  border-radius: 10px;  background: rgba(0, 0, 0, 0.35);  margin: 0 auto 8px;}
 .sidebar.collapsed .sidebar-toggle {  width: 44px;  padding: 0;}
 .sidebar-links { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
@@ -62,13 +62,13 @@ button:hover { background: #7800cd; }
 #network-banner .pill a { color: #fff; text-decoration: none; }
 /* ------------------------------- Wallet chip ------------------------------- */#wallet-inline {  position: fixed;  top: var(--edge-pad);  right: var(--edge-pad);  z-index: 12000;  display: flex;  align-items: center;  gap: 6px;  background: var(--panel-bg-soft);  color: #f4e6d3;  border: 1px solid var(--panel-border);  border-radius: 10px;  padding: 4px 8px;}
 #wallet-inline > * {  flex-shrink: 0;}
-#wallet-inline .wallet-providers {
+#wallet-inline .wallet-icon {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   margin-right: 6px;
 }
-#wallet-inline .wallet-providers img {
+#wallet-inline .wallet-icon img {
   width: 22px;
   height: 22px;
   border-radius: 50%;
@@ -76,7 +76,7 @@ button:hover { background: #7800cd; }
 }
 #wallet-inline #wi-disconnect {  padding: 6px 12px;  font-size: 12px;  border-radius: 10px;  line-height: 1.1;  height: 32px;}
 #wallet-inline #wi-disconnect {  display: inline-flex;  align-items: center;  justify-content: center;}
-#wallet-inline .wi-balance-badge {  padding: 0 6px;  min-height: 26px;}
+#wallet-inline .wi-balance-badge {  padding: 0 8px;  min-height: 26px;  display: inline-flex;  align-items: center;  height: 32px; }
 html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] #wallet-inline {  background: rgba(12, 24, 38, 0.85);  border-color: rgba(120,200,255,0.22);}
 /* Gasless indicator styling for wallet pill address */
 #wallet-inline.gasless-on #wi-address { background: linear-gradient(135deg, #ffd166, #ffc04d); color: #2b1e12; padding: 2px 8px; border-radius: 10px; box-shadow: 0 0 14px rgba(255, 209, 102, 0.35); font-weight: 700; }
@@ -1901,7 +1901,7 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
     padding: 8px 10px;
     gap: 8px;
   }
-  #wallet-inline .wallet-providers {
+  #wallet-inline .wallet-icon {
     order: 3;
   }
   .bankroll-widget {
@@ -1923,7 +1923,7 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
 }
 
 @media (max-width: 540px) {
-  #wallet-inline .wallet-providers {
+  #wallet-inline .wallet-icon {
     display: none;
   }
   .app-nav ul {
@@ -2123,14 +2123,7 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
   cursor: pointer;
 }
 
-.sidebar-logo {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 8px;
-  border-radius: 14px;
-  background: rgba(0, 0, 0, 0.3);
-}
+.sidebar-logo { display: block; max-height: 60px; height: auto; width: 100%; object-fit: contain; border-radius: 8px; margin-bottom: 8px; filter: drop-shadow(0 4px 12px rgba(0,0,0,0.25)); }
 
 .sidebar-links {
   list-style: none;
@@ -2318,3 +2311,4 @@ body.home {
   gap: clamp(12px, 2vw, 24px);
   align-items: center;
 }
+\n.sidebar-logo img { width: 100%; height: auto; }\n.sidebar.collapsed .sidebar-logo img { width: 42px; height: auto; }\n
