@@ -13,6 +13,10 @@ Stable Snapshot
 
 Deploying the Next.js app on EC2
 
+Front-end Configuration
+- Set `NEXT_PUBLIC_ADMIN_ADDRESS` to the owner wallet that should see the `/admin` tools.
+- `/admin` surfaces DCMon, WMON, and pool management; it reads swap queue data via `server/dcmon/config` so ensure the agent's queue path is accessible to the Next server runtime.
+
 Prerequisites (EC2)
 - Install once:
   - Node.js 20+ and npm (via nvm or distro package manager)

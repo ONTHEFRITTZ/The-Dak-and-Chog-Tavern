@@ -86,6 +86,9 @@ export const ADDRESS_BOOK: Record<string, Partial<typeof CONTRACTS>> = {
   default: { ...CONTRACTS },
 };
 
+export const ADMIN_ADDRESS =
+  (process.env.NEXT_PUBLIC_ADMIN_ADDRESS as Address | undefined)?.toLowerCase() ?? null;
+
 export const CHAIN_NAMES: Record<number, string> = {
   1: "Ethereum",
   5: "Goerli",
