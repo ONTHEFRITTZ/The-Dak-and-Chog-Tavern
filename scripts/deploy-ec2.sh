@@ -39,13 +39,17 @@ fi
 
 cd "$APP_DIR"
 
-echo "--- installing dependencies (npm ci) ---"
-export npm_config_progress=true
-export npm_config_audit=false
-export npm_config_fund=false
-echo "    starting npm ci (can take a couple minutes the first time)..."
-npm ci --legacy-peer-deps --loglevel=info
-echo "    npm ci complete."
+if git rev-parse -q HEAD@{1} >/dev/null 2>&1 && git diff --quiet HEAD@{1} HEAD -- package.json package-lock.json; then
+  echo "--- dependencies unchanged; skipping npm ci ---"
+else
+  echo "--- installing dependencies (npm ci) ---"
+  export npm_config_progress=true
+  export npm_config_audit=false
+  export npm_config_fund=false
+  echo "    starting npm ci (can take a couple minutes the first time)..."
+  npm ci --legacy-peer-deps --loglevel=info
+  echo "    npm ci complete."
+fi
 
 echo "--- building Next.js app ---"
 NODE_ENV="$NODE_ENV" npm run build
