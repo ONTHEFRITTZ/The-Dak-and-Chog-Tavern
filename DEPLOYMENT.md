@@ -15,6 +15,7 @@ Deploying the Next.js app on EC2
 
 Front-end Configuration
 - Set `NEXT_PUBLIC_ADMIN_ADDRESS` to the owner wallet that should see the `/admin` tools.
+- If the address is omitted the nav link is hidden; the page itself will prompt you to configure the env var before running admin actions.
 - `/admin` surfaces DCMon, WMON, and pool management; it reads swap queue data via `server/dcmon/config` so ensure the agent's queue path is accessible to the Next server runtime.
 
 Prerequisites (EC2)
@@ -35,7 +36,9 @@ bash scripts/deploy-ec2.sh
 Admin Panel (WMON/DCMon) Post-Deploy Checklist
 - Load https://thedakandchog.xyz/admin/ (or your domain) and connect the owner wallet.
 - Confirm WMON/DCMon/Bankroll addresses match the expected deployment (see table below).
-- Use the treasury card buttons to fetch stats; inputs clear automatically after a confirmed tx.
+- Use the "Refresh Balances" button to re-query both the bankroll hook and pool stats; it now runs automatically after each confirmed tx.
+- Queue data auto-polls every ~15s via `/api/dcmon/queue`; an empty list usually indicates the agent has no pending swaps or the queue file is unreachable.
+- First-time DCMon deposits will trigger a max WMON approval transaction from the owner wallet; approve it once to avoid repeated prompts.
 - Optional: run a 0.01 MON wrap -> approve -> pool deposit -> pool redeem smoke test to ensure signer permissions.
 Monad Testnet Addresses (Oct 2025)
 - WMON: 0x7b4E8B2a3E934701D8bF6cFB31C3f3BDaC5e30Ff

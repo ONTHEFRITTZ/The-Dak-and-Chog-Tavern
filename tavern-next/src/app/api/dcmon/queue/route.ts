@@ -1,17 +1,21 @@
 import { NextResponse } from "next/server";
 import { createRequire } from "module";
+import path from "node:path";
 import fs from "fs/promises";
 
 export const runtime = "nodejs";
 
-const require = createRequire(import.meta.url);
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const { CONFIG } = require("../../../../../server/dcmon/config");
+function loadConfig() {
+  const require = createRequire(import.meta.url);
+  const configPath = path.resolve(process.cwd(), "../server/dcmon/config.js");
+  return require(configPath) as { CONFIG: { swapQueueFile?: string } };
+}
 
 export async function GET() {
   try {
-    const path = CONFIG.swapQueueFile as string;
-    const raw = await fs.readFile(path, "utf8");
+    const { CONFIG } = loadConfig();
+    const queueFile = CONFIG.swapQueueFile as string;
+    const raw = await fs.readFile(queueFile, "utf8");
     return NextResponse.json(JSON.parse(raw));
   } catch (err) {
     console.error("[api] dcmon queue read failed", err);

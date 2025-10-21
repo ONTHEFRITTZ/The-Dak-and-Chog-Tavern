@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Contract, MaxUint256, formatEther, parseEther } from "ethers";
 import { useWallet } from "@/context/WalletContext";
+import { useBankroll } from "@/modules/bankroll";
 import { ADMIN_ADDRESS, CONTRACTS } from "@/lib/config";
 import { DCMonABI } from "@/abi/dcmon";
 import { PoolABI } from "@/abi/pool";
@@ -10,23 +11,37 @@ import { WMON_ABI } from "@/abi/wmon";
 
 type QueueEntry = {
   id: string;
-  status: string;
-  createdAt?: string;
-  updatedAt?: string;
+  status?: string;
   amount?: string;
   description?: string;
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 type QueuePayload = {
   swaps?: QueueEntry[];
 };
 
-const shortAddress = (value?: string | null) => {
-  if (!value) return "-";
-  return value.length > 12 ? `${value.slice(0, 6)}…${value.slice(-4)}` : value;
+type PoolStats = {
+  wmonBalance: bigint;
+  poolUnderlying: bigint;
+  poolDcmon: bigint;
+  poolOwner: string;
+  houseTreasury: string;
+  rewardPool: string;
+  updatedAt: number | null;
 };
 
-const formatAmount = (value?: bigint | null, digits = 4) => {
+const QUEUE_POLL_INTERVAL = 15000;
+
+const shortAddress = (value: string | null | undefined) => {
+  if (!value) return "-";
+  const trimmed = value.trim();
+  if (trimmed.length <= 12) return trimmed;
+  return `${trimmed.slice(0, 6)}...${trimmed.slice(-4)}`;
+};
+
+const formatTokenAmount = (value?: bigint | null, digits = 4) => {
   if (value == null) return "-";
   try {
     return Number(formatEther(value)).toFixed(digits);
@@ -35,317 +50,377 @@ const formatAmount = (value?: bigint | null, digits = 4) => {
   }
 };
 
+const parseAmountInput = (raw: string) => {
+  const value = raw.trim();
+  if (!value) return null;
+  try {
+    return parseEther(value);
+  } catch {
+    return null;
+  }
+};
+
 export default function AdminPage() {
   const { provider, address, connect, isConnecting } = useWallet();
-  const [status, setStatus] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { dcmonBalance, monBalance, loading: bankrollLoading, refresh: refreshBankroll } =
+    useBankroll();
+
+  const [poolStats, setPoolStats] = useState<PoolStats | null>(null);
   const [queue, setQueue] = useState<QueueEntry[]>([]);
   const [queueLoading, setQueueLoading] = useState(false);
+  const [queueUpdatedAt, setQueueUpdatedAt] = useState<number | null>(null);
+
   const [wrapAmount, setWrapAmount] = useState("");
   const [unwrapAmount, setUnwrapAmount] = useState("");
   const [depositAmount, setDepositAmount] = useState("");
   const [redeemAmount, setRedeemAmount] = useState("");
   const [rewardAmount, setRewardAmount] = useState("");
   const [poolAuthAddress, setPoolAuthAddress] = useState("");
-  const [metrics, setMetrics] = useState({
-    wmonWallet: "-",
-    dcmonWallet: "-",
-    poolUnderlying: "-",
-    poolDcmon: "-",
-    poolOwner: "-",
-    rewardPool: "-",
-    houseTreasury: "-",
-    lastUpdated: "",
-  });
 
-  const normalizedAdmin = useMemo(
-    () => ADMIN_ADDRESS?.toLowerCase() ?? null,
-    []
-  );
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const normalizedAdmin = useMemo(() => ADMIN_ADDRESS?.toLowerCase() ?? null, []);
   const normalizedAddress = address?.toLowerCase() ?? null;
-  const isOwner =
-    normalizedAdmin && normalizedAddress
-      ? normalizedAdmin === normalizedAddress
-      : false;
+  const isOwner = normalizedAdmin
+    ? normalizedAddress === normalizedAdmin
+    : Boolean(normalizedAddress);
 
-  const ensureConnected = useCallback(async () => {
+  const requireWalletConnection = useCallback(async () => {
     if (provider) return true;
     if (!connect) return false;
     try {
       await connect();
       return true;
-    } catch {
+    } catch (err) {
+      console.warn("[admin] wallet connect failed", err);
       return false;
     }
   }, [provider, connect]);
 
+  const refreshPoolStats = useCallback(async () => {
+    if (!provider || !address) return;
+    try {
+      const wmon = new Contract(CONTRACTS.wmon, WMON_ABI, provider);
+      const dcmon = new Contract(CONTRACTS.dcmon, DCMonABI, provider);
+      const pool = new Contract(CONTRACTS.pool, PoolABI, provider);
+
+      const [wmonBalance, poolUnderlying, poolDcmon, poolOwner, houseTreasury, rewardPool] =
+        await Promise.all([
+          wmon.balanceOf(address),
+          pool.poolUnderlyingBalance(),
+          pool.poolDcmonBalance(),
+          pool.owner(),
+          dcmon.houseTreasury(),
+          dcmon.playerRewardPool(),
+        ]);
+
+      setPoolStats({
+        wmonBalance,
+        poolUnderlying,
+        poolDcmon,
+        poolOwner,
+        houseTreasury,
+        rewardPool,
+        updatedAt: Date.now(),
+      });
+    } catch (err) {
+      console.error("[admin] refreshPoolStats failed", err);
+    }
+  }, [provider, address]);
+
   const loadQueue = useCallback(async () => {
+    if (!isOwner) return;
     setQueueLoading(true);
     try {
       const response = await fetch("/api/dcmon/queue", { cache: "no-store" });
-      if (!response.ok) throw new Error(`Queue read failed (${response.status})`);
+      if (!response.ok) {
+        throw new Error(`Queue request failed (${response.status})`);
+      }
       const payload: QueuePayload = await response.json();
       setQueue(payload?.swaps ?? []);
+      setQueueUpdatedAt(Date.now());
     } catch (err) {
       console.error("[admin] queue load failed", err);
       setQueue([]);
     } finally {
       setQueueLoading(false);
     }
-  }, []);
-
-  const refreshMetrics = useCallback(async () => {
-    if (!provider || !address) return;
-    try {
-      const [wmonBal, dcmonBal, dcmonHouse, dcmonRewards] = await Promise.all([
-        new Contract(CONTRACTS.wmon, WMON_ABI, provider).balanceOf(address),
-        new Contract(CONTRACTS.dcmon, DCMonABI, provider).balanceOf(address),
-        new Contract(CONTRACTS.dcmon, DCMonABI, provider).houseTreasury(),
-        new Contract(CONTRACTS.dcmon, DCMonABI, provider).playerRewardPool(),
-      ]);
-
-      const poolContract = new Contract(CONTRACTS.pool, PoolABI, provider);
-      const [poolUnderlying, poolDcmon, ownerAddress] = await Promise.all([
-        poolContract.poolUnderlyingBalance(),
-        poolContract.poolDcmonBalance(),
-        poolContract.owner(),
-      ]);
-
-      setMetrics({
-        wmonWallet: formatAmount(wmonBal),
-        dcmonWallet: formatAmount(dcmonBal),
-        poolUnderlying: formatAmount(poolUnderlying),
-        poolDcmon: formatAmount(poolDcmon),
-        poolOwner: ownerAddress,
-        rewardPool: dcmonRewards,
-        houseTreasury: dcmonHouse,
-        lastUpdated: new Date().toLocaleTimeString(),
-      });
-    } catch (err) {
-      console.error("[admin] metric refresh failed", err);
-    }
-  }, [provider, address]);
+  }, [isOwner]);
 
   useEffect(() => {
+    if (!isOwner) return;
+    refreshBankroll();
+    refreshPoolStats();
+  }, [isOwner, refreshBankroll, refreshPoolStats]);
+
+  useEffect(() => {
+    if (!isOwner) return;
     loadQueue();
-    const timer = setInterval(loadQueue, 20_000);
-    return () => clearInterval(timer);
-  }, [loadQueue]);
+    const timer = window.setInterval(loadQueue, QUEUE_POLL_INTERVAL);
+    return () => window.clearInterval(timer);
+  }, [isOwner, loadQueue]);
 
-  useEffect(() => {
-    refreshMetrics();
-  }, [refreshMetrics]);
-
-  const handleWrap = useCallback(async () => {
-    if (!(await ensureConnected())) return;
-    if (!provider || !address) return;
-    try {
-      setError(null);
-      setStatus("Wrapping MON into WMON…");
-      const signer = await provider.getSigner();
-      const value = parseEther(String(wrapAmount || "0"));
-      if (value === 0n) {
-        setStatus(null);
-        setError("Enter an amount to wrap.");
-        return;
-      }
-      const wmon = new Contract(CONTRACTS.wmon, WMON_ABI, signer);
-      const tx = await wmon.deposit({ value });
-      await tx.wait();
-      setWrapAmount("");
-      setStatus("Wrap complete.");
-      refreshMetrics();
-    } catch (err: any) {
-      console.error("[admin] wrap failed", err);
-      setError(err?.message ?? "Wrap failed.");
-      setStatus(null);
-    }
-  }, [ensureConnected, provider, address, wrapAmount, refreshMetrics]);
-
-  const handleUnwrap = useCallback(async () => {
-    if (!(await ensureConnected())) return;
-    if (!provider || !address) return;
-    try {
-      setError(null);
-      setStatus("Unwrapping WMON…");
-      const signer = await provider.getSigner();
-      const value = parseEther(String(unwrapAmount || "0"));
-      if (value === 0n) {
-        setStatus(null);
-        setError("Enter an amount to unwrap.");
-        return;
-      }
-      const wmon = new Contract(CONTRACTS.wmon, WMON_ABI, signer);
-      const tx = await wmon.withdraw(value);
-      await tx.wait();
-      setUnwrapAmount("");
-      setStatus("Unwrap complete.");
-      refreshMetrics();
-    } catch (err: any) {
-      console.error("[admin] unwrap failed", err);
-      setError(err?.message ?? "Unwrap failed.");
-      setStatus(null);
-    }
-  }, [ensureConnected, provider, address, unwrapAmount, refreshMetrics]);
-
-  const ensureAllowance = useCallback(
+  const ensureWmonAllowance = useCallback(
     async (spender: string, required: bigint) => {
       if (!provider || !address) return false;
-      const readContract = new Contract(CONTRACTS.wmon, WMON_ABI, provider);
-      const allowance = await readContract.allowance(address, spender);
-      if (allowance >= required) return true;
-      const signer = await provider.getSigner();
-      const writeContract = readContract.connect(signer);
-      const tx = await writeContract.approve(spender, MaxUint256);
-      await tx.wait();
-      return true;
+      try {
+        const wmonRead = new Contract(CONTRACTS.wmon, WMON_ABI, provider);
+        const current: bigint = await wmonRead.allowance(address, spender);
+        if (current >= required) return true;
+
+        setStatusMessage("Approving WMON spend...");
+        setErrorMessage(null);
+
+        const signer = await provider.getSigner();
+        const wmonWrite = new Contract(CONTRACTS.wmon, WMON_ABI, signer);
+        const tx = await wmonWrite.approve(spender, MaxUint256);
+        await tx.wait();
+        return true;
+      } catch (err: any) {
+        console.error("[admin] WMON approval failed", err);
+        setErrorMessage(err?.message ?? "WMON approval failed.");
+        setStatusMessage(null);
+        return false;
+      }
     },
     [provider, address]
   );
 
-  const handleDeposit = useCallback(async () => {
-    if (!(await ensureConnected())) return;
-    if (!provider || !address) return;
+  const handleWrap = useCallback(async () => {
+    if (!(await requireWalletConnection())) return;
+    if (!provider) return;
+
+    const amount = parseAmountInput(wrapAmount);
+    if (!amount || amount === 0n) {
+      setErrorMessage("Enter a wrap amount.");
+      setStatusMessage(null);
+      return;
+    }
+
     try {
-      setError(null);
-      setStatus("Depositing into DCMon…");
-      const amount = parseEther(String(depositAmount || "0"));
-      if (amount === 0n) {
-        setStatus(null);
-        setError("Enter an amount to deposit.");
-        return;
-      }
-      const allowanceOk = await ensureAllowance(CONTRACTS.dcmon, amount);
-      if (!allowanceOk) throw new Error("Failed to approve WMON for DCMon.");
+      setErrorMessage(null);
+      setStatusMessage("Submitting wrap transaction...");
+      const signer = await provider.getSigner();
+      const wmon = new Contract(CONTRACTS.wmon, WMON_ABI, signer);
+      const tx = await wmon.deposit({ value: amount });
+      await tx.wait();
+      setWrapAmount("");
+      setStatusMessage("Wrap complete.");
+      await Promise.all([refreshBankroll(), refreshPoolStats()]);
+    } catch (err: any) {
+      console.error("[admin] wrap failed", err);
+      setErrorMessage(err?.message ?? "Wrap failed.");
+      setStatusMessage(null);
+    }
+  }, [requireWalletConnection, provider, wrapAmount, refreshBankroll, refreshPoolStats]);
+
+  const handleUnwrap = useCallback(async () => {
+    if (!(await requireWalletConnection())) return;
+    if (!provider) return;
+
+    const amount = parseAmountInput(unwrapAmount);
+    if (!amount || amount === 0n) {
+      setErrorMessage("Enter an unwrap amount.");
+      setStatusMessage(null);
+      return;
+    }
+
+    try {
+      setErrorMessage(null);
+      setStatusMessage("Submitting unwrap transaction...");
+      const signer = await provider.getSigner();
+      const wmon = new Contract(CONTRACTS.wmon, WMON_ABI, signer);
+      const tx = await wmon.withdraw(amount);
+      await tx.wait();
+      setUnwrapAmount("");
+      setStatusMessage("Unwrap complete.");
+      await Promise.all([refreshBankroll(), refreshPoolStats()]);
+    } catch (err: any) {
+      console.error("[admin] unwrap failed", err);
+      setErrorMessage(err?.message ?? "Unwrap failed.");
+      setStatusMessage(null);
+    }
+  }, [requireWalletConnection, provider, unwrapAmount, refreshBankroll, refreshPoolStats]);
+
+  const handleDeposit = useCallback(async () => {
+    if (!(await requireWalletConnection())) return;
+    if (!provider || !address) return;
+
+    const amount = parseAmountInput(depositAmount);
+    if (!amount || amount === 0n) {
+      setErrorMessage("Enter a deposit amount.");
+      setStatusMessage(null);
+      return;
+    }
+
+    try {
+      setErrorMessage(null);
+      setStatusMessage("Preparing DCMon deposit...");
+      const allowanceOk = await ensureWmonAllowance(CONTRACTS.dcmon, amount);
+      if (!allowanceOk) return;
+
+      setStatusMessage("Submitting DCMon deposit...");
       const signer = await provider.getSigner();
       const dcmon = new Contract(CONTRACTS.dcmon, DCMonABI, signer);
       const tx = await dcmon.deposit(amount, address);
       await tx.wait();
       setDepositAmount("");
-      setStatus("Deposit complete.");
-      refreshMetrics();
+      setStatusMessage("Deposit complete.");
+      await Promise.all([refreshBankroll(), refreshPoolStats()]);
     } catch (err: any) {
       console.error("[admin] deposit failed", err);
-      setError(err?.message ?? "Deposit failed.");
-      setStatus(null);
+      setErrorMessage(err?.message ?? "Deposit failed.");
+      setStatusMessage(null);
     }
-  }, [ensureConnected, provider, address, depositAmount, ensureAllowance, refreshMetrics]);
+  }, [
+    requireWalletConnection,
+    provider,
+    address,
+    depositAmount,
+    ensureWmonAllowance,
+    refreshBankroll,
+    refreshPoolStats,
+  ]);
 
   const handleRedeem = useCallback(async () => {
-    if (!(await ensureConnected())) return;
+    if (!(await requireWalletConnection())) return;
     if (!provider || !address) return;
+
+    const amount = parseAmountInput(redeemAmount);
+    if (!amount || amount === 0n) {
+      setErrorMessage("Enter a redeem amount.");
+      setStatusMessage(null);
+      return;
+    }
+
     try {
-      setError(null);
-      setStatus("Redeeming DCMon…");
-      const amount = parseEther(String(redeemAmount || "0"));
-      if (amount === 0n) {
-        setStatus(null);
-        setError("Enter an amount to redeem.");
-        return;
-      }
+      setErrorMessage(null);
+      setStatusMessage("Submitting DCMon redeem...");
       const signer = await provider.getSigner();
       const dcmon = new Contract(CONTRACTS.dcmon, DCMonABI, signer);
       const tx = await dcmon.redeem(amount, address);
       await tx.wait();
       setRedeemAmount("");
-      setStatus("Redeem complete.");
-      refreshMetrics();
+      setStatusMessage("Redeem complete.");
+      await Promise.all([refreshBankroll(), refreshPoolStats()]);
     } catch (err: any) {
       console.error("[admin] redeem failed", err);
-      setError(err?.message ?? "Redeem failed.");
-      setStatus(null);
+      setErrorMessage(err?.message ?? "Redeem failed.");
+      setStatusMessage(null);
     }
-  }, [ensureConnected, provider, address, redeemAmount, refreshMetrics]);
+  }, [requireWalletConnection, provider, address, redeemAmount, refreshBankroll, refreshPoolStats]);
 
   const handleRecordRewards = useCallback(async () => {
-    if (!(await ensureConnected())) return;
+    if (!(await requireWalletConnection())) return;
     if (!provider) return;
+
+    const amount = parseAmountInput(rewardAmount);
+    if (!amount || amount === 0n) {
+      setErrorMessage("Enter a reward amount.");
+      setStatusMessage(null);
+      return;
+    }
+
     try {
-      setError(null);
-      setStatus("Recording rewards…");
-      const amount = parseEther(String(rewardAmount || "0"));
-      if (amount === 0n) {
-        setStatus(null);
-        setError("Enter a reward amount.");
-        return;
-      }
+      setErrorMessage(null);
+      setStatusMessage("Submitting reward record...");
       const signer = await provider.getSigner();
       const dcmon = new Contract(CONTRACTS.dcmon, DCMonABI, signer);
       const tx = await dcmon.recordRewards(amount);
       await tx.wait();
       setRewardAmount("");
-      setStatus("Rewards recorded.");
-      refreshMetrics();
+      setStatusMessage("Rewards recorded.");
+      await Promise.all([refreshBankroll(), refreshPoolStats()]);
     } catch (err: any) {
       console.error("[admin] record rewards failed", err);
-      setError(err?.message ?? "Record rewards failed.");
-      setStatus(null);
+      setErrorMessage(err?.message ?? "Record rewards failed.");
+      setStatusMessage(null);
     }
-  }, [ensureConnected, provider, rewardAmount, refreshMetrics]);
+  }, [requireWalletConnection, provider, rewardAmount, refreshBankroll, refreshPoolStats]);
 
   const handleAuthorization = useCallback(
     async (allow: boolean) => {
-      if (!(await ensureConnected())) return;
+      if (!(await requireWalletConnection())) return;
       if (!provider) return;
+
       const target = poolAuthAddress.trim();
       if (!/^0x[a-fA-F0-9]{40}$/.test(target)) {
-        setError("Enter a valid game address.");
+        setErrorMessage("Enter a valid 0x address.");
+        setStatusMessage(null);
         return;
       }
+
       try {
-        setError(null);
-        setStatus(`${allow ? "Authorizing" : "Revoking"} game…`);
+        setErrorMessage(null);
+        setStatusMessage(`${allow ? "Authorizing" : "Revoking"} game...`);
         const signer = await provider.getSigner();
         const pool = new Contract(CONTRACTS.pool, PoolABI, signer);
         const tx = await pool.setAuthorized(target, allow);
         await tx.wait();
-        setStatus(`Game ${allow ? "authorized" : "revoked"}.`);
         setPoolAuthAddress("");
+        setStatusMessage(`Game ${allow ? "authorized" : "revoked"}.`);
       } catch (err: any) {
         console.error("[admin] authorization failed", err);
-        setError(err?.message ?? "Authorization failed.");
-        setStatus(null);
+        setErrorMessage(err?.message ?? "Authorization failed.");
+        setStatusMessage(null);
       }
     },
-    [ensureConnected, provider, poolAuthAddress]
+    [requireWalletConnection, provider, poolAuthAddress]
+  );
+
+  const renderConnectGate = () => (
+    <main className="admin-page">
+      <h1>Admin Console</h1>
+      <p>Connect the owner wallet to manage WMON, DCMon, and pool settings.</p>
+      <button onClick={() => connect?.()} disabled={isConnecting}>
+        {isConnecting ? "Connecting..." : "Connect Wallet"}
+      </button>
+    </main>
+  );
+
+  const renderUnauthorized = () => (
+    <main className="admin-page">
+      <h1>Admin Console</h1>
+      <p>Connected wallet is not authorized for admin operations.</p>
+      {normalizedAdmin && (
+        <p>
+          Owner required: <code>{normalizedAdmin}</code>
+        </p>
+      )}
+      {!normalizedAdmin && (
+        <p>
+          Set <code>NEXT_PUBLIC_ADMIN_ADDRESS</code> to limit access to the owner wallet.
+        </p>
+      )}
+    </main>
   );
 
   if (!address) {
-    return (
-      <main className="admin-page">
-        <h1>Admin Console</h1>
-        <p>Please connect with the owner wallet to continue.</p>
-      </main>
-    );
+    return renderConnectGate();
   }
 
   if (!isOwner) {
-    return (
-      <main className="admin-page">
-        <h1>Admin Console</h1>
-        <p>Connected wallet is not authorized for admin operations.</p>
-        {normalizedAdmin && (
-          <p>
-            Owner required: <code>{normalizedAdmin}</code>
-          </p>
-        )}
-      </main>
-    );
+    return renderUnauthorized();
   }
+
+  const queueLastUpdated =
+    queueUpdatedAt != null ? new Date(queueUpdatedAt).toLocaleTimeString() : null;
+  const poolStatsUpdated =
+    poolStats?.updatedAt != null ? new Date(poolStats.updatedAt).toLocaleTimeString() : null;
 
   return (
     <main className="admin-page">
       <h1>Admin Console</h1>
       <p className="admin-intro">
-        Manage DCMon liquidity, WMON wraps, pool authorizations, and review the
-        DCMon agent swap queue. All actions execute directly on-chain through
-        your connected owner wallet.
+        Execute DCMon swaps, manage the bankroll pool, and monitor the on-chain swap queue. All
+        transactions are sent directly from the connected owner wallet.
       </p>
 
-      {(status || error) && (
+      {(statusMessage || errorMessage) && (
         <div className="admin-status">
-          {status && <span className="status-ok">{status}</span>}
-          {error && <span className="status-error">{error}</span>}
+          {statusMessage && <span className="status-ok">{statusMessage}</span>}
+          {errorMessage && <span className="status-error">{errorMessage}</span>}
         </div>
       )}
 
@@ -353,38 +428,50 @@ export default function AdminPage() {
         <h2>Current Balances</h2>
         <div className="admin-metrics">
           <div>
+            <strong>MON (wallet)</strong>
+            <span>{formatTokenAmount(monBalance)}</span>
+          </div>
+          <div>
             <strong>WMON (wallet)</strong>
-            <span>{metrics.wmonWallet}</span>
+            <span>{formatTokenAmount(poolStats?.wmonBalance ?? 0n)}</span>
           </div>
           <div>
             <strong>DCMon (wallet)</strong>
-            <span>{metrics.dcmonWallet}</span>
+            <span>{formatTokenAmount(dcmonBalance)}</span>
           </div>
           <div>
             <strong>Pool Underlying</strong>
-            <span>{metrics.poolUnderlying}</span>
+            <span>{formatTokenAmount(poolStats?.poolUnderlying ?? 0n)}</span>
           </div>
           <div>
             <strong>Pool DCMon</strong>
-            <span>{metrics.poolDcmon}</span>
+            <span>{formatTokenAmount(poolStats?.poolDcmon ?? 0n)}</span>
           </div>
           <div>
             <strong>Pool Owner</strong>
-            <span>{shortAddress(metrics.poolOwner)}</span>
+            <span>{shortAddress(poolStats?.poolOwner)}</span>
           </div>
           <div>
             <strong>House Treasury</strong>
-            <span>{shortAddress(metrics.houseTreasury)}</span>
+            <span>{shortAddress(poolStats?.houseTreasury)}</span>
           </div>
           <div>
-            <strong>Reward Pool</strong>
-            <span>{shortAddress(metrics.rewardPool)}</span>
+            <strong>Player Reward Pool</strong>
+            <span>{shortAddress(poolStats?.rewardPool)}</span>
           </div>
         </div>
-        <button onClick={refreshMetrics}>Refresh Balances</button>
-        {metrics.lastUpdated && (
-          <p className="admin-muted">Last updated: {metrics.lastUpdated}</p>
-        )}
+        <button
+          onClick={async () => {
+            setStatusMessage("Refreshing balances...");
+            setErrorMessage(null);
+            await Promise.all([refreshBankroll(), refreshPoolStats()]);
+            setStatusMessage("Balances refreshed.");
+          }}
+          disabled={bankrollLoading}
+        >
+          Refresh Balances
+        </button>
+        {poolStatsUpdated && <p className="admin-muted">Last updated: {poolStatsUpdated}</p>}
       </section>
 
       <section className="admin-section">
@@ -395,12 +482,13 @@ export default function AdminPage() {
             <input
               type="number"
               value={wrapAmount}
-              onChange={(e) => setWrapAmount(e.target.value)}
+              onChange={(event) => setWrapAmount(event.target.value)}
               placeholder="0.0"
+              min="0"
             />
           </label>
           <button onClick={handleWrap} disabled={isConnecting}>
-            Wrap → WMON
+            Wrap to WMON
           </button>
         </div>
         <div className="admin-grid">
@@ -409,12 +497,13 @@ export default function AdminPage() {
             <input
               type="number"
               value={unwrapAmount}
-              onChange={(e) => setUnwrapAmount(e.target.value)}
+              onChange={(event) => setUnwrapAmount(event.target.value)}
               placeholder="0.0"
+              min="0"
             />
           </label>
           <button onClick={handleUnwrap} disabled={isConnecting}>
-            Unwrap → MON
+            Unwrap to MON
           </button>
         </div>
       </section>
@@ -423,13 +512,13 @@ export default function AdminPage() {
         <h2>DCMon Liquidity</h2>
         <div className="admin-grid">
           <label>
-            Deposit (WMON →
-            DCMon)
+            Deposit (WMON to DCMon)
             <input
               type="number"
               value={depositAmount}
-              onChange={(e) => setDepositAmount(e.target.value)}
+              onChange={(event) => setDepositAmount(event.target.value)}
               placeholder="0.0"
+              min="0"
             />
           </label>
           <button onClick={handleDeposit} disabled={isConnecting}>
@@ -438,13 +527,13 @@ export default function AdminPage() {
         </div>
         <div className="admin-grid">
           <label>
-            Redeem (DCMon →
-            WMON)
+            Redeem (DCMon to WMON)
             <input
               type="number"
               value={redeemAmount}
-              onChange={(e) => setRedeemAmount(e.target.value)}
+              onChange={(event) => setRedeemAmount(event.target.value)}
               placeholder="0.0"
+              min="0"
             />
           </label>
           <button onClick={handleRedeem} disabled={isConnecting}>
@@ -457,8 +546,9 @@ export default function AdminPage() {
             <input
               type="number"
               value={rewardAmount}
-              onChange={(e) => setRewardAmount(e.target.value)}
+              onChange={(event) => setRewardAmount(event.target.value)}
               placeholder="0.0"
+              min="0"
             />
           </label>
           <button onClick={handleRecordRewards} disabled={isConnecting}>
@@ -475,8 +565,8 @@ export default function AdminPage() {
             <input
               type="text"
               value={poolAuthAddress}
-              onChange={(e) => setPoolAuthAddress(e.target.value)}
-              placeholder="0x…"
+              onChange={(event) => setPoolAuthAddress(event.target.value)}
+              placeholder="0x..."
             />
           </label>
           <div className="admin-row">
@@ -489,8 +579,8 @@ export default function AdminPage() {
           </div>
         </div>
         <p className="admin-muted">
-          Ensure the target game contract implements the expected bankroll hooks
-          before authorizing.
+          Only authorize game contracts that call the bankroll hooks correctly. Use revoke to block
+          stale or compromised deployments.
         </p>
       </section>
 
@@ -500,7 +590,10 @@ export default function AdminPage() {
           <button onClick={loadQueue} disabled={queueLoading}>
             Refresh Queue
           </button>
-          {queueLoading && <span className="admin-muted">Loading…</span>}
+          {queueLoading && <span className="admin-muted">Loading...</span>}
+          {queueLastUpdated && !queueLoading && (
+            <span className="admin-muted">Updated: {queueLastUpdated}</span>
+          )}
         </div>
         {queue.length === 0 ? (
           <p className="admin-muted">Swap queue is empty.</p>
@@ -518,8 +611,8 @@ export default function AdminPage() {
                 {entry.description && <div>{entry.description}</div>}
                 {(entry.createdAt || entry.updatedAt) && (
                   <div className="queue-timestamps">
-                    {entry.createdAt && <>Created: {entry.createdAt}</>}
-                    {entry.updatedAt && <> · Updated: {entry.updatedAt}</>}
+                    {entry.createdAt && <span>Created: {entry.createdAt}</span>}
+                    {entry.updatedAt && <span>Updated: {entry.updatedAt}</span>}
                   </div>
                 )}
               </li>

@@ -1,95 +1,120 @@
-﻿param(
+param(
   [string]$SourceDir = 'assets/images/chog_cards',
   [string]$OutDir = 'assets/images/cards',
   [string]$OutFile = 'cards-sprite.png'
 )
+
 Add-Type -AssemblyName System.Drawing
-if (-not (Test-Path $SourceDir)) { throw "SourceDir not found: $SourceDir" }
-if (-not (Test-Path $OutDir)) { New-Item -ItemType Directory -Path $OutDir | Out-Null }
+
+if (-not (Test-Path $SourceDir)) {
+  throw "SourceDir not found: $SourceDir"
+}
+
+if (-not (Test-Path $OutDir)) {
+  New-Item -ItemType Directory -Path $OutDir | Out-Null
+}
+
 $rankNames = @('ace','two','three','four','five','six','seven','eight','nine','ten','jack','queen','king')
 $rankCodes = @('A','2','3','4','5','6','7','8','9','T','J','Q','K')
-$suitNames = @('spades','hearts','diamonds','clubs') # rows S,H,D,C
+$suitNames = @('spades','hearts','diamonds','clubs')
 $suitCodes = @('S','H','D','C')
-<<<<<<< HEAD
-# Build map: code -> file
-=======
->>>>>>> a19ec4c (Add final 14x4 deck spritesheet (PNG, 3.2MB) and reproducible build script)
+
+# Build map: rank+suit code -> source image path
 $files = Get-ChildItem -Recurse -File $SourceDir | Where-Object { $_.Name -like 'chog-*-of-*.png' }
 $map = @{}
-foreach ($f in $files) {
-  if ($f.Name -match 'chog-([a-z]+)-of-([a-z]+)\.png') {
-    $rname = $Matches[1]; $sname=$Matches[2]
-    $ri = [array]::IndexOf($rankNames,$rname)
-    $si = [array]::IndexOf($suitNames,$sname)
-    if ($ri -ge 0 -and $si -ge 0) {
-      $code = $rankCodes[$ri] + $suitCodes[$si]
-      $map[$code] = $f.FullName
+foreach ($file in $files) {
+  if ($file.Name -match 'chog-([a-z]+)-of-([a-z]+)\.png') {
+    $rankName = $Matches[1]
+    $suitName = $Matches[2]
+
+    $rankIndex = [array]::IndexOf($rankNames, $rankName)
+    $suitIndex = [array]::IndexOf($suitNames, $suitName)
+
+    if ($rankIndex -ge 0 -and $suitIndex -ge 0) {
+      $code = $rankCodes[$rankIndex] + $suitCodes[$suitIndex]
+      $map[$code] = $file.FullName
     }
   }
 }
-<<<<<<< HEAD
-# Validate full deck
+
+# Validate that every rank/suit combination exists
 $missing = @()
-for($si=0;$si -lt $suitCodes.Count;$si++){
-  for($ci=0;$ci -lt $rankCodes.Count;$ci++){
-    $code = $rankCodes[$ci] + $suitCodes[$si]
-    if (-not $map.ContainsKey($code)) { $missing += $code }
+for ($suitIndex = 0; $suitIndex -lt $suitCodes.Count; $suitIndex++) {
+  for ($rankIndex = 0; $rankIndex -lt $rankCodes.Count; $rankIndex++) {
+    $code = $rankCodes[$rankIndex] + $suitCodes[$suitIndex]
+    if (-not $map.ContainsKey($code)) {
+      $missing += $code
+    }
   }
 }
-if ($missing.Count -gt 0) { Write-Host "[WARN] Missing cards: $($missing -join ', ')" }
-# Determine tile size from the first present card
+
+if ($missing.Count -gt 0) {
+  Write-Host "[WARN] Missing cards: $($missing -join ', ')"
+}
+
+# Determine card dimensions from the first available asset
 $firstPath = $map.Values | Select-Object -First 1
-if (-not $firstPath) { throw 'No card images found' }
-$firstBmp = New-Object System.Drawing.Bitmap($firstPath)
-$tileW = $firstBmp.Width; $tileH = $firstBmp.Height
-$firstBmp.Dispose()
-$cols = $rankCodes.Count; $rows = $suitCodes.Count
-$sheetW = $cols * $tileW; $sheetH = $rows * $tileH
-=======
-$tileW = 144; $tileH = 208
-$cols = 14; $rows = $suitCodes.Count
-$sheetW = [int]($cols * $tileW); $sheetH = [int]($rows * $tileH)
->>>>>>> a19ec4c (Add final 14x4 deck spritesheet (PNG, 3.2MB) and reproducible build script)
-$sheet = New-Object System.Drawing.Bitmap($sheetW, $sheetH, [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
-$gfx = [System.Drawing.Graphics]::FromImage($sheet)
-$gfx.Clear([System.Drawing.Color]::Transparent)
-$gfx.CompositingQuality = 'HighQuality'
-$gfx.InterpolationMode = 'HighQualityBicubic'
-$gfx.SmoothingMode = 'HighQuality'
-for($si=0;$si -lt $rows;$si++){
-<<<<<<< HEAD
-  for($ci=0;$ci -lt $cols;$ci++){
-    $code = $rankCodes[$ci] + $suitCodes[$si]
-    if ($map.ContainsKey($code)) {
-      $bmp = New-Object System.Drawing.Bitmap($map[$code])
-      $dest = New-Object System.Drawing.Rectangle($ci*$tileW, $si*$tileH, $tileW, $tileH)
-      $gfx.DrawImage($bmp, $dest)
-      $bmp.Dispose()
-    }
-  }
-=======
-  for($ci=0;$ci -lt ($cols-1);$ci++){
-    $code = $rankCodes[$ci] + $suitCodes[$si]
-    if ($map.ContainsKey($code)) {
-      $src = New-Object System.Drawing.Bitmap($map[$code])
-      $x = [int]($ci * $tileW); $y = [int]($si * $tileH)
-      $dest = New-Object System.Drawing.Rectangle($x, $y, [int]$tileW, [int]$tileH)
-      $gfx.DrawImage($src, $dest)
-      $src.Dispose()
-    }
-  }
-  $backPath = Join-Path $SourceDir 'dak-and-chog-cardback.png'
-  if (Test-Path $backPath) {
-    $src = New-Object System.Drawing.Bitmap($backPath)
-    $x = [int](($cols-1) * $tileW); $y = [int]($si * $tileH)
-    $dest = New-Object System.Drawing.Rectangle($x, $y, [int]$tileW, [int]$tileH)
-    $gfx.DrawImage($src, $dest)
-    $src.Dispose()
-  }
->>>>>>> a19ec4c (Add final 14x4 deck spritesheet (PNG, 3.2MB) and reproducible build script)
+if (-not $firstPath) {
+  throw 'No card images found'
 }
-$gfx.Dispose()
-$outPath = Join-Path $OutDir $OutFile
-$sheet.Save($outPath, [System.Drawing.Imaging.ImageFormat]::Png)
+
+$firstBitmap = New-Object System.Drawing.Bitmap($firstPath)
+$tileWidth = $firstBitmap.Width
+$tileHeight = $firstBitmap.Height
+$firstBitmap.Dispose()
+
+$cardColumns = $rankCodes.Count
+$cols = $cardColumns + 1 # include card back column
+$rows = $suitCodes.Count
+$sheetWidth = $cols * $tileWidth
+$sheetHeight = $rows * $tileHeight
+
+$sheet = New-Object System.Drawing.Bitmap(
+  $sheetWidth,
+  $sheetHeight,
+  [System.Drawing.Imaging.PixelFormat]::Format32bppArgb
+)
+$graphics = [System.Drawing.Graphics]::FromImage($sheet)
+$graphics.Clear([System.Drawing.Color]::Transparent)
+$graphics.CompositingQuality = 'HighQuality'
+$graphics.InterpolationMode = 'HighQualityBicubic'
+$graphics.SmoothingMode = 'HighQuality'
+
+$cardBackPath = Join-Path $SourceDir 'dak-and-chog-cardback.png'
+$hasCardBack = Test-Path $cardBackPath
+
+for ($suitIndex = 0; $suitIndex -lt $rows; $suitIndex++) {
+  for ($rankIndex = 0; $rankIndex -lt $cardColumns; $rankIndex++) {
+    $code = $rankCodes[$rankIndex] + $suitCodes[$suitIndex]
+    if ($map.ContainsKey($code)) {
+      $sourceBitmap = New-Object System.Drawing.Bitmap($map[$code])
+      $destRect = New-Object System.Drawing.Rectangle(
+        $rankIndex * $tileWidth,
+        $suitIndex * $tileHeight,
+        $tileWidth,
+        $tileHeight
+      )
+      $graphics.DrawImage($sourceBitmap, $destRect)
+      $sourceBitmap.Dispose()
+    }
+  }
+
+  if ($hasCardBack) {
+    $cardBack = New-Object System.Drawing.Bitmap($cardBackPath)
+    $destRect = New-Object System.Drawing.Rectangle(
+      ($cols - 1) * $tileWidth,
+      $suitIndex * $tileHeight,
+      $tileWidth,
+      $tileHeight
+    )
+    $graphics.DrawImage($cardBack, $destRect)
+    $cardBack.Dispose()
+  }
+}
+
+$graphics.Dispose()
+$outputPath = Join-Path $OutDir $OutFile
+$sheet.Save($outputPath, [System.Drawing.Imaging.ImageFormat]::Png)
 $sheet.Dispose()
-Write-Host "[OK] Wrote spritesheet: $outPath ($sheetW x $sheetH)"
+
+Write-Host "[OK] Wrote spritesheet: $outputPath ($sheetWidth x $sheetHeight)"
