@@ -10,9 +10,8 @@ Technical Notes
 - wallet_sendCalls detection: `js/bundler.js` strictly checks capability before using; fallbacks preserved
 - AA fallback ladder: `js/aa/ops.js` encodes calldata, uses `aaClient.client.sendTransaction` → `window.smartAccount` → no-op if unavailable
 - 7702 detector: Blob import in `js/aa/init-all.js`, emits `aa:7702` and writes `localStorage['aa.7702.ready']`
-- Envio: endpoint from `window.ENVIO_HYPERSYNC_URL` or `localStorage['envio.hypersync.url']`; helper `getActiveScoreFor(address)` in `js/envio-activity.js`
+- Envio integration deprecated; activity feeds now show a static notice until a replacement telemetry pipeline is selected.
 
 Limits Today
 - MetaMask internal signer for 7702 on Monad is not reliably available yet → no live delegation via internal signer
 - Detector is non-blocking and flips UI state when vendor/chain support becomes available
-

@@ -801,17 +801,8 @@ async function harvestStakingRewards(provider) {
   let payout = available;
   if (CONFIG.rewardPayoutTarget > 0n && payout > CONFIG.rewardPayoutTarget) payout = CONFIG.rewardPayoutTarget;
 
-  // Plan allocation based on recent activity per wallet (Envio or local fallback)
-  try {
-    const tableAddr = CONFIG.pokerTableAddress || process.env.HOLDEM_POKER_ADDR || '';
-    const candidates = Array.from(publicProfiles.keys());
-    const scores = await computeActivityScores(tableAddr, candidates, 400).catch(()=>new Map());
-    const plan = planRewardAllocation(payout, scores);
-    persistLog('reward_allocation_plan', { total: payout.toString(), entries: plan });
-    logger.info({ total: formatEther(payout), entries: plan.length }, 'Planned reward allocation by activity');
-  } catch (e) {
-    logger.warn('Activity-based allocation planning failed; proceeding with recordRewards total only');
-  }
+  // Envio-based activity scoring has been removed; record total payout only
+  logger.debug('Skipping activity-based reward allocation (Envio disabled)');
 
   await executeTx('record_rewards_total', () => dcmon.recordRewards(payout), { amount: payout });
   persistLog('reward_record_complete', { amount: payout.toString() });
@@ -1038,64 +1029,6 @@ module.exports = {
 
 
 
-// -------- Envio activity parsing for reward allocation --------
-function getEnvioUrl() {
-  try { if (process.env.ENVIO_HYPERSYNC_URL) return String(process.env.ENVIO_HYPERSYNC_URL).trim(); } catch {}
-  try { return (process.env.SELF_ACTIVITY_BASE || 'http://127.0.0.1:3100'); } catch { return 'http://127.0.0.1:3100'; }
-}
-
-async function fetchRecentActivityFor(address, tableAddress, limit = 200) {
-  const addr = String(address||'').toLowerCase();
-  if (!addr) return [];
-  const base = getEnvioUrl();
-  // If base looks like GraphQL, POST a simple query; else use local REST aggregator
-  if (/graphql/i.test(base)) {
-    const q = `query Recent($limit:Int!){ Activity(limit:$limit, order_by:{blockTimestamp:desc}){ event player seat handId amount txHash blockTimestamp } }`;
-    try {
-      const res = await fetch(base, { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ query:q, variables:{ limit } }) });
-      const json = await res.json();
-      const rows = Array.isArray(json?.data?.Activity) ? json.data.Activity : [];
-      return rows.filter(r => (String(r.player||'').toLowerCase() === addr));
-    } catch { return []; }
-  }
-  // REST fallback to realtime aggregator
-  try {
-    const url = `${base}/events?address=${encodeURIComponent(tableAddress||'')}&limit=${limit}`;
-    const res = await fetch(url);
-    const arr = await res.json();
-    if (!Array.isArray(arr)) return [];
-    return arr.filter(ev => {
-      try {
-        const from = (ev.args?.player || ev.args?.from || ev.from || '').toString().toLowerCase();
-        return from === addr;
-      } catch { return false; }
-    });
-  } catch { return []; }
-}
-
-async function computeActivityScores(tableAddress, addresses, limit=400){
-  const scores = new Map();
-  const list = Array.from(new Set((addresses||[]).map(a=>String(a||'').toLowerCase()).filter(Boolean)));
-  await Promise.all(list.map(async (a)=>{
-    const evs = await fetchRecentActivityFor(a, tableAddress, limit);
-    scores.set(a, evs.length|0);
-  }));
-  return scores;
-}
-
-function planRewardAllocation(totalWei, scores){
-  const total = Array.from(scores.values()).reduce((a,b)=>a + BigInt(b||0), 0n);
-  if (total<=0n) return [];
-  const out = [];
-  for (const [addr,score] of scores){
-    const share = BigInt(score||0);
-    const amt = (share * BigInt(totalWei)) / total;
-    out.push({ addr, score: Number(share), amountWei: amt.toString() });
-  }
-  return out;
-}
-
-
 function parseQueueAmount(value) {
   if (value === undefined || value === null || value === '') return 0n;
   if (typeof value === 'bigint') return value;
@@ -1315,61 +1248,4 @@ module.exports = {
 
 
 
-
-// -------- Envio activity parsing for reward allocation --------
-function getEnvioUrl() {
-  try { if (process.env.ENVIO_HYPERSYNC_URL) return String(process.env.ENVIO_HYPERSYNC_URL).trim(); } catch {}
-  try { return (process.env.SELF_ACTIVITY_BASE || 'http://127.0.0.1:3100'); } catch { return 'http://127.0.0.1:3100'; }
-}
-
-async function fetchRecentActivityFor(address, tableAddress, limit = 200) {
-  const addr = String(address||'').toLowerCase();
-  if (!addr) return [];
-  const base = getEnvioUrl();
-  // If base looks like GraphQL, POST a simple query; else use local REST aggregator
-  if (/graphql/i.test(base)) {
-    const q = `query Recent($limit:Int!){ Activity(limit:$limit, order_by:{blockTimestamp:desc}){ event player seat handId amount txHash blockTimestamp } }`;
-    try {
-      const res = await fetch(base, { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ query:q, variables:{ limit } }) });
-      const json = await res.json();
-      const rows = Array.isArray(json?.data?.Activity) ? json.data.Activity : [];
-      return rows.filter(r => (String(r.player||'').toLowerCase() === addr));
-    } catch { return []; }
-  }
-  // REST fallback to realtime aggregator
-  try {
-    const url = `${base}/events?address=${encodeURIComponent(tableAddress||'')}&limit=${limit}`;
-    const res = await fetch(url);
-    const arr = await res.json();
-    if (!Array.isArray(arr)) return [];
-    return arr.filter(ev => {
-      try {
-        const from = (ev.args?.player || ev.args?.from || ev.from || '').toString().toLowerCase();
-        return from === addr;
-      } catch { return false; }
-    });
-  } catch { return []; }
-}
-
-async function computeActivityScores(tableAddress, addresses, limit=400){
-  const scores = new Map();
-  const list = Array.from(new Set((addresses||[]).map(a=>String(a||'').toLowerCase()).filter(Boolean)));
-  await Promise.all(list.map(async (a)=>{
-    const evs = await fetchRecentActivityFor(a, tableAddress, limit);
-    scores.set(a, evs.length|0);
-  }));
-  return scores;
-}
-
-function planRewardAllocation(totalWei, scores){
-  const total = Array.from(scores.values()).reduce((a,b)=>a + BigInt(b||0), 0n);
-  if (total<=0n) return [];
-  const out = [];
-  for (const [addr,score] of scores){
-    const share = BigInt(score||0);
-    const amt = (share * BigInt(totalWei)) / total;
-    out.push({ addr, score: Number(share), amountWei: amt.toString() });
-  }
-  return out;
-}
 

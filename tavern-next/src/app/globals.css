@@ -281,11 +281,6 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
   background: var(--panel-bg-soft) !important;
   border: 1px solid var(--panel-border);
 }
-#envio-activity, #agent-toggles {
-  background: var(--panel-bg-soft) !important;
-  border: 1px solid var(--panel-border) !important;
-}
-
 #wallet-inline button {
   display: inline-flex !important;
   align-items: center;
