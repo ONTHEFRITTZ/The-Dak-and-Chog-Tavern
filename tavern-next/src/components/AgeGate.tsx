@@ -94,15 +94,9 @@ export const AgeGate = () => {
               to enter.
             </p>
             <div className="age-actions">
-              <button onClick={confirmAge}>
-                I&apos;m 19+ — let me in!
-              </button>
-              <Link
-                href="https://www.responsiblegambling.org/"
-                target="_blank"
-                rel="noreferrer"
-              >
-                I&apos;m not 19 — learn more
+              <button onClick={confirmAge}>I&apos;m 19+ - let me in!</button>
+              <Link href="https://www.responsiblegambling.org/" target="_blank" rel="noreferrer">
+                I&apos;m not 19 - learn more
               </Link>
             </div>
             <p className="age-sub">
