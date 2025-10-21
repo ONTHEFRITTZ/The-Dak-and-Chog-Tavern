@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env bash
+#!/usr/bin/env bash
 # Deployment script for EC2 instance (Next.js + PM2)
 # Example usage from EC2 browser console:
 #   bash scripts/deploy-ec2.sh
@@ -64,4 +64,5 @@ pm2 save
 
 echo "--- deployment complete ---"
 pm2 status | sed -n '1,20p'
+
 
