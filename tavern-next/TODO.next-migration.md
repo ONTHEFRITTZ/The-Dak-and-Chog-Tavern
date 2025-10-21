@@ -24,7 +24,7 @@
 
 - [ ] **Poker (lobby + table)**  
   - [x] React lobby + table routes with `useRealtimePokerLobby` / `useRealtimePokerTable`, shared bankroll + Delegation Toolkit AA flow.  
-  - [ ] Preserve table animations, dealer admin tools, and the legacy overlay polish.
+  - [x] Preserve table animations, dealer admin tools, and the legacy overlay polish.
 
 - [x] **Dak & Chog Coin Flip** – React port completed (`/games/dakchog`). *(Verify against production during QA.)*
 
@@ -33,9 +33,9 @@
 - [x] **Hazard** – React port completed (`/games/hazard`). *(Pending bankroll hook integration – see Section 2.)*
 
 - [ ] **Blackjack (new)**  
-  - Design gameplay spec (DCMon wager, bankroll integration, 4337 route).  
-  - Implement table UI, state machine, betting + payouts.  
-  - Connect to bankroll/paymaster pipelines.
+  - [x] Design gameplay spec (DCMon wager, bankroll integration, 4337 route).  
+  - [x] Implement table UI, state machine, betting + payouts.  
+  - [x] Connect to bankroll/paymaster pipelines.
 
 - [ ] **Remove Faro**  
   - Delete legacy Faro assets/routes once Blackjack is live.  

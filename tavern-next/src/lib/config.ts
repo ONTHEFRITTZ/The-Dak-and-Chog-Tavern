@@ -77,6 +77,9 @@ export const CONTRACTS = {
   shell: "0x7Ff5A1b0d71eE4C66D24121D2E68D7844704D377" as Address,
   dakchog: "0xa8F48cccE4968F5bf40f3411B2265cEBDB517ADf" as Address,
   pokerTable: "0x424F89FE230331df8f656B683812b6394c323f17" as Address,
+  blackjack:
+    ((process.env.NEXT_PUBLIC_BLACKJACK_ADDRESS as Address) ??
+      "0x0000000000000000000000000000000000000000") as Address,
 } as const;
 
 export const ADDRESS_BOOK: Record<string, Partial<typeof CONTRACTS>> = {

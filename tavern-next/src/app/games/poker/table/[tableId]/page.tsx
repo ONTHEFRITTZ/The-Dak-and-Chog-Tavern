@@ -8,6 +8,22 @@ import { useRealtimePokerTable } from "@/hooks/useRealtimePokerTable";
 import { useWallet } from "@/context/WalletContext";
 import { useHoldemPokerActions } from "@/modules/poker/useHoldemPokerActions";
 
+const cx = (...args: Array<string | false | null | undefined>) => args.filter(Boolean).join(" ");
+
+type PokerOverlay = {
+  ready?: () => boolean;
+  refreshSeats?: () => void;
+  setContext?: (ctx: { address?: string | null; seatId?: number }) => void;
+  applyState?: (state: unknown) => void;
+  applyPrivate?: (payload: unknown) => void;
+  applyHand?: (summary: unknown) => void;
+};
+
+const getPokerOverlay = (): PokerOverlay | null => {
+  if (typeof window === "undefined") return null;
+  return (window as typeof window & { __PokerOverlay?: PokerOverlay }).__PokerOverlay ?? null;
+};
+
 type TablePageProps = {
   params: { tableId: string };
 };
@@ -85,15 +101,14 @@ export default function PokerTablePage({ params }: TablePageProps) {
   }, [isSitModalOpen]);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const overlay = (window as any).__PokerOverlay;
+    const overlay = getPokerOverlay();
     if (!overlay?.setContext) return;
     overlay.setContext({ address: addressLower, seatId: mySeatId });
   }, [addressLower, mySeatId]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const overlay = (window as any).__PokerOverlay;
+    const overlay = getPokerOverlay();
     if (!overlay?.refreshSeats) return;
     const raf = window.requestAnimationFrame(() => {
       overlay.refreshSeats();
@@ -102,20 +117,17 @@ export default function PokerTablePage({ params }: TablePageProps) {
   }, [orderedSeatIndices, seatPositions]);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const overlay = (window as any).__PokerOverlay;
+    const overlay = getPokerOverlay();
     overlay?.applyState?.(realtime.state ?? null);
-  }, [realtime.state]);
+  }, [realtime]);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const overlay = (window as any).__PokerOverlay;
+    const overlay = getPokerOverlay();
     overlay?.applyPrivate?.(realtime.privateCards ?? null);
   }, [realtime.privateCards]);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const overlay = (window as any).__PokerOverlay;
+    const overlay = getPokerOverlay();
     overlay?.applyHand?.(realtime.handSummary ?? null);
   }, [realtime.handSummary]);
 
@@ -150,7 +162,8 @@ export default function PokerTablePage({ params }: TablePageProps) {
   }, [realtime.state, addressLower, mySeatId]);
 
   const actorBySeat = useMemo(() => {
-    const map = new Map<number, (typeof realtime.state?.actors)[number]>();
+    type Actor = NonNullable<typeof realtime.state>["actors"][number];
+    const map = new Map<number, Actor>();
     if (!realtime.state) return map;
     for (const actor of realtime.state.actors) {
       if (Number.isInteger(actor.seatId)) {
@@ -158,7 +171,7 @@ export default function PokerTablePage({ params }: TablePageProps) {
       }
     }
     return map;
-  }, [realtime.state]);
+  }, [realtime]);
 
   const turnSeatId = useMemo(() => {
     if (!realtime.state) return -1;
@@ -169,7 +182,7 @@ export default function PokerTablePage({ params }: TablePageProps) {
     if (!Number.isFinite(idx) || idx < 0) return -1;
     const actor = realtime.state.actors[idx];
     return actor ? actor.seatId : -1;
-  }, [realtime.state]);
+  }, [realtime]);
 
   const dealerSeatId = realtime.state?.dealerSeatId ?? -1;
 
@@ -178,7 +191,7 @@ export default function PokerTablePage({ params }: TablePageProps) {
     if (!Number.isFinite(realtime.state.sbIndex)) return -1;
     const actor = realtime.state.actors[Number(realtime.state.sbIndex)];
     return actor ? actor.seatId : -1;
-  }, [realtime.state]);
+  }, [realtime]);
 
   const bbSeatId = useMemo(() => {
     if (!realtime.state) return -1;
@@ -204,6 +217,7 @@ export default function PokerTablePage({ params }: TablePageProps) {
     const already = Number(myActor.contrib || 0);
     return Math.max(0, target - already);
   }, [realtime.state, myActor]);
+  const callAmountDcmon = callAmountChips * chipValueDcmon;
 
   const isMyTurn = useMemo(() => {
     if (!realtime.state || !myActor) return false;
@@ -349,6 +363,22 @@ export default function PokerTablePage({ params }: TablePageProps) {
   ]);
 
   const isSeated = mySeatId >= 0;
+  const tableCanvasClassName = useMemo(
+    () => cx("table-canvas", isSeated ? null : "pre-seat", isSimulatedTable ? "sim-table" : null),
+    [isSeated, isSimulatedTable]
+  );
+  const centerBannerMessage = actionStatus ?? realtime.status ?? null;
+  const centerBannerClassName = cx("center-banner", centerBannerMessage && "show");
+  const actionInfo = useMemo(() => {
+    if (actionStatus) return actionStatus;
+    if (!isSeated) return "Take a seat to begin playing.";
+    if (!isMyTurn) return "Waiting for your turn...";
+    if (callAmountChips > 0) {
+      return `Call ${callAmountChips.toFixed(2)} chips (~${callAmountDcmon.toFixed(3)} DCMon) or raise.`;
+    }
+    return "Check or set your bet to act.";
+  }, [actionStatus, isSeated, isMyTurn, callAmountChips, callAmountDcmon]);
+  const actionBarClassName = cx("action-bar", !isSeated && "hidden");
   const potChips = Number(realtime.state?.pot || 0);
   const potLabel = formatPot(potChips, chipValueDcmon);
   const myContributionChips = Number(myActor?.contrib || 0);
@@ -499,8 +529,7 @@ export default function PokerTablePage({ params }: TablePageProps) {
   }, [realtime]);
 
   const handleRefreshOverlay = useCallback(() => {
-    if (typeof window === "undefined") return;
-    const overlay = (window as any).__PokerOverlay;
+    const overlay = getPokerOverlay();
     if (!overlay) return;
     overlay.refreshSeats?.();
     overlay.applyState?.(realtime.state ?? null);
@@ -515,7 +544,19 @@ export default function PokerTablePage({ params }: TablePageProps) {
 
   return (
     <>
-      <Script src="/js/poker/cards-overlay.js" strategy="afterInteractive" />
+      <Script
+        src="/js/poker/cards-overlay.js"
+        strategy="afterInteractive"
+        onLoad={() => {
+          const overlay = getPokerOverlay();
+          if (!overlay) return;
+          overlay?.refreshSeats?.();
+          overlay?.setContext?.({ address: addressLower, seatId: mySeatId });
+          overlay?.applyState?.(realtime.state ?? null);
+          overlay?.applyPrivate?.(realtime.privateCards ?? null);
+          overlay?.applyHand?.(realtime.handSummary ?? null);
+        }}
+      />
       <main className="poker-table-view">
       <header className="poker-table-header">
         <div className="poker-table-info">
@@ -554,46 +595,89 @@ export default function PokerTablePage({ params }: TablePageProps) {
 
       <section className="poker-table-layout">
         <div className="table-stage">
-          <div className="table-surface">
+          <div className={tableCanvasClassName}>
+            <div className="table-surface" role="presentation" aria-hidden="true" />
+            {centerBannerMessage && (
+              <div className={centerBannerClassName}>
+                <span>{centerBannerMessage}</span>
+              </div>
+            )}
+            <div className="pot-indicator">Pot {potLabel}</div>
+            <div className={actionBarClassName} aria-live="polite">
+              <div className="info">{actionInfo}</div>
+              <button
+                type="button"
+                onClick={handleFold}
+                disabled={!isMyTurn || actionBusy || !isSeated}
+              >
+                Fold
+              </button>
+              <button
+                type="button"
+                onClick={handleCheckOrCall}
+                disabled={!isMyTurn || actionBusy || !isSeated}
+              >
+                {callAmountChips > 0
+                  ? `Call ${callAmountChips.toFixed(2)} chips`
+                  : "Check"}
+              </button>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={betAmount}
+                onChange={(event) => setBetAmount(event.target.value)}
+                disabled={!isMyTurn || actionBusy || !isSeated}
+                aria-label="Bet amount in chips"
+                className="bet-input"
+              />
+              <button
+                type="button"
+                onClick={handleBet}
+                disabled={!isMyTurn || actionBusy || !isSeated}
+              >
+                {callAmountChips > 0 ? "Raise" : "Bet"}
+              </button>
+            </div>
             <div className="seat-layer">
               {orderedSeats.map((seat) => (
                 <div
                   key={seat.seatId}
                   data-seat-id={seat.seatId}
-                  className={[
+                  className={cx(
                     "seat",
                     "seat-node",
-                    seat.isUser ? "me" : "",
-                    seat.isEmpty ? "empty-seat" : "seat-occupied",
-                    seat.isTurn ? "turn" : "",
-                    seat.hasFolded ? "folded" : "",
-                    seat.isWinner ? "winner" : "",
-                  ]
-                    .filter(Boolean)
-                    .join(" ")}
+                    seat.isUser && "me",
+                    seat.isUser && "seat-me",
+                    seat.isEmpty && "empty-seat",
+                    seat.isEmpty && "seat-empty",
+                    !seat.isEmpty && "seat-occupied",
+                    seat.isTurn && "turn",
+                    seat.hasFolded && "folded",
+                    seat.isWinner && "winner"
+                  )}
                   style={{ top: seat.position.top, left: seat.position.left }}
                 >
                   {seat.markerLabel && (
-                    <div className={["marker", seat.markerClass].filter(Boolean).join(" ")}>
-                      {seat.markerLabel}
-                    </div>
+                    <div className={cx("marker", seat.markerClass, "show")}>{seat.markerLabel}</div>
                   )}
-                  <div className="name">{seat.label}</div>
+                  <div className="seat-name name">{seat.label}</div>
                   {!seat.isEmpty && (
                     <>
-                      {seat.stackLabel && (
-                        <div className="stack">
-                          <span>{seat.stackLabel}</span>
-                          {seat.dcmonStack && <span>{seat.dcmonStack}</span>}
-                        </div>
+                      <div className="seat-stack stack">
+                        {seat.stackLabel && <span>{seat.stackLabel}</span>}
+                        {seat.dcmonStack && <span>{seat.dcmonStack}</span>}
+                      </div>
+                      {seat.statusLabel && (
+                        <div className="seat-status status">{seat.statusLabel}</div>
                       )}
-                      {seat.statusLabel && <div className="status">{seat.statusLabel}</div>}
                     </>
                   )}
-                  <div className="btns">
+                  <div className="seat-actions btns">
                     {seat.isEmpty && seat.displayIndex === 0 && !isSeated && (
                       <button
                         type="button"
+                        className="seat-sit-btn"
                         onClick={handleOpenSitModal}
                         disabled={actionBusy || preferredSeatId < 0}
                       >
@@ -601,7 +685,12 @@ export default function PokerTablePage({ params }: TablePageProps) {
                       </button>
                     )}
                     {seat.isUser && !seat.isEmpty && (
-                      <button type="button" onClick={handleLeaveSeat} disabled={actionBusy}>
+                      <button
+                        type="button"
+                        className="seat-leave-btn"
+                        onClick={handleLeaveSeat}
+                        disabled={actionBusy}
+                      >
                         Leave
                       </button>
                     )}
@@ -609,18 +698,6 @@ export default function PokerTablePage({ params }: TablePageProps) {
                 </div>
               ))}
             </div>
-            <div className="community-area">
-              {communityCards.length ? (
-                communityCards.map((card) => (
-                  <span key={card} className="card-pill">
-                    {card}
-                  </span>
-                ))
-              ) : (
-                <span className="muted">Waiting for deal</span>
-              )}
-            </div>
-            <div className="pot-indicator">Pot {potLabel}</div>
           </div>
         </div>
 
@@ -634,7 +711,6 @@ export default function PokerTablePage({ params }: TablePageProps) {
               </span>
             </p>
             {realtime.status && <p className="muted">{realtime.status}</p>}
-            {actionStatus && <p className="muted">{actionStatus}</p>}
             {realtime.error && <p className="error">{realtime.error}</p>}
             {realtime.table?.simulated && (
               <button type="button" className="rebuy-btn" onClick={handleRebuy}>
@@ -645,46 +721,19 @@ export default function PokerTablePage({ params }: TablePageProps) {
 
           <section className="poker-controls">
             <h2>Action</h2>
-            {mySeatId < 0 ? (
-              <p className="muted">Sit to act.</p>
-            ) : (
-              <>
-                <div className="action-row">
-                  <button type="button" onClick={handleFold} disabled={!isMyTurn || actionBusy}>
-                    Fold
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleCheckOrCall}
-                    disabled={!isMyTurn || actionBusy}
-                  >
-                    {callAmountChips > 0
-                      ? `Call ${callAmountChips.toFixed(2)} chips (~${callAmountDcmon.toFixed(3)} DCMon)`
-                      : "Check"}
-                  </button>
-                </div>
-                <div className="action-row">
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={betAmount}
-                    onChange={(event) => setBetAmount(event.target.value)}
-                    disabled={!isMyTurn || actionBusy}
-                    aria-label="Bet amount in chips"
-                  />
-                  <button type="button" onClick={handleBet} disabled={!isMyTurn || actionBusy}>
-                    {callAmountChips > 0 ? "Raise" : "Bet"}
-                  </button>
-                </div>
-                <p className="muted">
-                  Your contribution:{" "}
-                  <span className="highlight">
-                    {myContributionChips.toFixed(2)} chips (~{myContributionDcmon.toFixed(3)} DCMon)
-                  </span>
-                </p>
-              </>
-            )}
+            <p className="muted">Use the table controls when it is your turn.</p>
+            <p className="muted">
+              Call amount:{" "}
+              <span className="highlight">
+                {callAmountChips.toFixed(2)} chips (~{callAmountDcmon.toFixed(3)} DCMon)
+              </span>
+            </p>
+            <p className="muted">
+              Your contribution:{" "}
+              <span className="highlight">
+                {myContributionChips.toFixed(2)} chips (~{myContributionDcmon.toFixed(3)} DCMon)
+              </span>
+            </p>
           </section>
 
           <section className="poker-messages">
