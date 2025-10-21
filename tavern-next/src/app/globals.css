@@ -73,7 +73,18 @@ button:hover { background: #7800cd; }
 /* hide sidebar off-canvas on narrow */@media (max-width: 800px) {  .sidebar { transform: translateX(-100%); }
   .sidebar:not(.collapsed) { transform: translateX(0); }
 }
-/* ------------------------------- Home Card -------------------------------- */.tavern {  padding: var(--content-pad);  border: 1px solid var(--panel-border);  border-radius: 15px;  max-width: var(--content-max);  width: min(95%, var(--content-max));  margin: 8px auto 16px;  box-shadow: 0 24px 60px rgba(0,0,0,0.55);  gap: clamp(12px, 1.6vw, 32px);}
+/* ------------------------------- Home Card -------------------------------- */.tavern {
+  padding: var(--content-pad);
+  border: 1px solid var(--panel-border);
+  border-radius: 15px;
+  max-width: var(--content-max);
+  width: min(95%, var(--content-max));
+  margin: 8px auto 16px;
+  box-shadow: 0 24px 60px rgba(0,0,0,0.55);
+  gap: clamp(12px, 1.6vw, 32px);
+  background: rgba(8, 16, 28, 0.78);
+  backdrop-filter: blur(6px);
+}
 /* ------------------------------ Game links -------------------------------- */.game-links a {  display: inline-block;  margin: 10px; padding: 15px 30px; color: #fff; text-decoration: none;  border-radius: 10px; font-size: 20px;}
 .game-links a:hover {  }
 /* Game logo grid */.game-logos {  display: flex; flex-wrap: wrap; justify-content: center; align-items: center;  gap: clamp(12px, 2vw, 20px); margin-top: 12px;}
@@ -589,11 +600,12 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
 .poker-lobby {
   width: 100%;
   min-height: 100vh;
-  background: #120c08 url('/assets/images/games-room.png') no-repeat center center fixed;
-  background-size: cover;
+  display: flex;
   flex-direction: column;
   align-items: center;
-  padding: clamp(24px, 5vw, 60px) 0 80px;
+  padding: clamp(24px, 5vw, 60px) clamp(16px, 4vw, 48px) 80px;
+  background: transparent;
+  gap: clamp(20px, 4vw, 36px);
 }
 
 .poker-lobby .lobby-hero {
@@ -610,10 +622,11 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
   align-items: center;
   gap: 10px;
   padding: 8px 14px;
-  background: rgba(0, 0, 0, 0.35);
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(8, 16, 28, 0.78);
+  border: 1px solid var(--panel-border);
   border-radius: 14px;
   font-size: 14px;
+  backdrop-filter: blur(6px);
 }
 
 .poker-lobby .wallet-chip button {
@@ -623,10 +636,11 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
 }
 
 .poker-lobby .lobby-wrap {
-  width: min(96vw, 980px);
+  width: min(94vw, 1080px);
   display: flex;
   flex-direction: column;
   gap: 22px;
+  margin-top: clamp(8px, 2vw, 20px);
 }
 
 .poker-lobby .lobby-header {
@@ -655,12 +669,16 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
 }
 
 .poker-lobby .lobby-card {
-  background: var(--panel-bg-soft);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(8, 16, 28, 0.82);
+  border: 1px solid var(--panel-border);
   border-radius: 16px;
   padding: 18px;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.55);
   text-align: left;
+  backdrop-filter: blur(10px);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
 .poker-lobby .section-head {
@@ -682,11 +700,12 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
   display: flex;
   gap: 12px;
   align-items: stretch;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 14px;
-  background: rgba(0, 0, 0, 0.28);
+  background: rgba(0, 0, 0, 0.32);
   padding: 14px;
   flex-wrap: wrap;
+  backdrop-filter: blur(6px);
 }
 
 .poker-lobby .lobby-item-body {
@@ -706,6 +725,7 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
   display: flex;
   align-items: center;
   justify-content: center;
+  flex: 0 0 auto;
 }
 
 .poker-lobby .lobby-cta {
@@ -760,8 +780,7 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
 .poker-table-view {
   width: 100%;
   min-height: 100vh;
-  background: #120c08 url('/assets/images/games-room.png') no-repeat center center fixed;
-  background-size: cover;
+  background: transparent;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -905,11 +924,12 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
 .poker-lobby {
   width: 100%;
   min-height: 100vh;
-  background: #120c08 url('/assets/images/games-room.png') no-repeat center center fixed;
-  background-size: cover;
+  display: flex;
   flex-direction: column;
   align-items: center;
-  padding: clamp(24px, 5vw, 60px) 0 80px;
+  padding: clamp(24px, 5vw, 60px) clamp(16px, 4vw, 48px) 80px;
+  background: transparent;
+  gap: clamp(20px, 4vw, 36px);
 }
 
 .poker-lobby .lobby-hero {
@@ -926,10 +946,11 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
   align-items: center;
   gap: 10px;
   padding: 8px 14px;
-  background: rgba(0, 0, 0, 0.35);
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(8, 16, 28, 0.78);
+  border: 1px solid var(--panel-border);
   border-radius: 14px;
   font-size: 14px;
+  backdrop-filter: blur(6px);
 }
 
 .poker-lobby .wallet-chip button {
@@ -939,10 +960,11 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
 }
 
 .poker-lobby .lobby-wrap {
-  width: min(96vw, 980px);
+  width: min(94vw, 1080px);
   display: flex;
   flex-direction: column;
   gap: 22px;
+  margin-top: clamp(8px, 2vw, 20px);
 }
 
 .poker-lobby .lobby-header {
@@ -971,12 +993,16 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
 }
 
 .poker-lobby .lobby-card {
-  background: var(--panel-bg-soft);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(8, 16, 28, 0.82);
+  border: 1px solid var(--panel-border);
   border-radius: 16px;
   padding: 18px;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.55);
   text-align: left;
+  backdrop-filter: blur(10px);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
 .poker-lobby .section-head {
@@ -998,11 +1024,12 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
   display: flex;
   gap: 12px;
   align-items: stretch;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 14px;
-  background: rgba(0, 0, 0, 0.28);
+  background: rgba(0, 0, 0, 0.32);
   padding: 14px;
   flex-wrap: wrap;
+  backdrop-filter: blur(6px);
 }
 
 .poker-lobby .lobby-item-body {
@@ -1022,6 +1049,7 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
   display: flex;
   align-items: center;
   justify-content: center;
+  flex: 0 0 auto;
 }
 
 .poker-lobby .lobby-cta {
@@ -1065,8 +1093,7 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
 .poker-table-view {
   width: 100%;
   min-height: 100vh;
-  background: #120c08 url('/assets/images/games-room.png') no-repeat center center fixed;
-  background-size: cover;
+  background: transparent;
   display: flex;
   flex-direction: column;
   align-items: center;

@@ -40,7 +40,12 @@ fi
 cd "$APP_DIR"
 
 echo "--- installing dependencies (npm ci) ---"
-npm ci --legacy-peer-deps --no-progress --audit=false --fund=false
+export npm_config_progress=true
+export npm_config_audit=false
+export npm_config_fund=false
+echo "    starting npm ci (can take a couple minutes the first time)..."
+npm ci --legacy-peer-deps --loglevel=info
+echo "    npm ci complete."
 
 echo "--- building Next.js app ---"
 NODE_ENV="$NODE_ENV" npm run build
@@ -64,4 +69,3 @@ pm2 save
 
 echo "--- deployment complete ---"
 pm2 status | sed -n '1,20p'
-

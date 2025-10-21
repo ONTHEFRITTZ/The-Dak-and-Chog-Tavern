@@ -34,6 +34,8 @@ git pull --ff-only origin main
 bash scripts/deploy-ec2.sh
 ```
 
+> `npm ci` runs inside `tavern-next` during the deploy. That step can take a couple of minutes on a fresh EC2 instance—let it finish, the script now prints progress while it works. If you need to run local commands (e.g. `npm run dev`, `npm run lint`) do `cd tavern-next` first.
+
 Cutover from legacy static site
 - Run `sudo bash scripts/install-nginx-conf.sh` after pulling to copy the updated reverse proxy config (it no longer serves the stale `/var/www/thedakandchog.xyz/html` snapshot).
 - The first time you cut over, clear the old static bundle: `sudo rm -rf /var/www/thedakandchog.xyz/html/*` (the directory is no longer used once Nginx is reloaded).

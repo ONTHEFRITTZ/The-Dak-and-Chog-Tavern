@@ -110,7 +110,7 @@ export default function PokerLobbyPage() {
   }, [lobby.tables]);
 
   return (
-    <main className="tavern game poker-lobby">
+    <main className="game poker-lobby">
       <div className="lobby-hero">
         <Image
           src="/assets/images/texas-holdem-logo.png"
