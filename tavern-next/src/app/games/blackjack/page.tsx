@@ -71,12 +71,33 @@ export default function BlackjackPage() {
   const blackjack = useBlackjack();
   const [wagerInput, setWagerInput] = useState(() => blackjack.baseWager.toFixed(2));
   const [isSeated, setIsSeated] = useState(false);
+  const [playerName, setPlayerName] = useState("");
 
   const activeHand = blackjack.playerHands[blackjack.activeHandIndex] ?? null;
   const canAct =
     isSeated && blackjack.phase === "player" && !blackjack.isBusy && activeHand && !activeHand.isFinished;
   const dealerCards = blackjack.dealerCards;
   const revealHole = blackjack.revealDealer || blackjack.phase === "payout";
+  const shortAddress = useMemo(() => {
+    if (!address) return "Player";
+    return `${address.slice(0, 6)}...${address.slice(-4)}`;
+  }, [address]);
+  const displayName = useMemo(() => {
+    const trimmed = playerName.trim();
+    return trimmed.length > 0 ? trimmed : shortAddress;
+  }, [playerName, shortAddress]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const stored = window.localStorage.getItem("blackjack:name");
+      if (stored) {
+        setPlayerName(stored);
+      }
+    } catch {
+      // ignore storage access issues
+    }
+  }, []);
 
   useEffect(() => {
     if (blackjack.playerHands.length > 0 && !isSeated) {
@@ -102,9 +123,45 @@ export default function BlackjackPage() {
     return map;
   }, []);
 
-  const handleSit = useCallback(() => {
-    setIsSeated(true);
+  const storePlayerName = useCallback((value: string) => {
+    setPlayerName(value);
+    if (typeof window === "undefined") return;
+    try {
+      if (value.trim()) {
+        window.localStorage.setItem("blackjack:name", value);
+      } else {
+        window.localStorage.removeItem("blackjack:name");
+      }
+    } catch {
+      // ignore persistence errors
+    }
   }, []);
+
+  const promptForTableName = useCallback(
+    (initial?: string) => {
+      if (typeof window === "undefined") return initial ?? displayName;
+      const baseline = initial ?? displayName;
+      const response = window.prompt("Choose your table name", baseline);
+      if (response === null) {
+        return baseline;
+      }
+      const trimmed = response.trim().slice(0, 24);
+      storePlayerName(trimmed);
+      return trimmed || shortAddress;
+    },
+    [displayName, shortAddress, storePlayerName]
+  );
+
+  const handleRename = useCallback(() => {
+    promptForTableName(displayName);
+  }, [displayName, promptForTableName]);
+
+  const handleSit = useCallback(() => {
+    if (!playerName.trim()) {
+      promptForTableName(shortAddress);
+    }
+    setIsSeated(true);
+  }, [playerName, promptForTableName, shortAddress]);
 
   const seatNodes = useMemo(() => {
     return SEAT_POSITIONS.map((pos, idx) => {
@@ -123,7 +180,7 @@ export default function BlackjackPage() {
         if (!activeHand) {
           return (
             <div key="player-seat" className="bj-seat me waiting" style={style}>
-              <div className="seat-name">{address ? "You" : "Player"}</div>
+              <div className="seat-name">{displayName}</div>
               <div className="card-group bj-card-placeholder">
                 <span className="bj-placeholder">Waiting for deal…</span>
               </div>
@@ -136,7 +193,7 @@ export default function BlackjackPage() {
             className={`bj-seat me ${blackjack.phase === "player" ? "active" : ""}`}
             style={style}
           >
-            <div className="seat-name">{address ? "You" : "Player"}</div>
+            <div className="seat-name">{displayName}</div>
             <div className="card-group">
               {activeHand.cards.map((card, i) => renderCard(card, false, i))}
             </div>
@@ -165,7 +222,7 @@ export default function BlackjackPage() {
         </div>
       );
     });
-  }, [address, activeHand, blackjack.phase, handleSit, isSeated, spectatorAssignments]);
+  }, [activeHand, blackjack.phase, displayName, handleSit, isSeated, spectatorAssignments]);
 
   const handleWagerChange = (value: string) => {
     setWagerInput(value);
@@ -174,6 +231,13 @@ export default function BlackjackPage() {
       blackjack.setWager(parsed);
     }
   };
+
+  const handleLeaveTable = useCallback(() => {
+    blackjack.nextHand();
+    blackjack.resetError();
+    setIsSeated(false);
+    setWagerInput(blackjack.baseWager.toFixed(2));
+  }, [blackjack, setWagerInput]);
 
   const dealerContent = useMemo(() => {
     if (dealerCards.length === 0) {
@@ -186,13 +250,8 @@ export default function BlackjackPage() {
 
   return (
     <main className="blackjack-page">
-      <header className="blackjack-header">
-        <h1 className="blackjack-title">Blackjack</h1>
-        <p className="blackjack-subtitle">Take a seat, place your wager, and take on the dealer.</p>
-      </header>
-
       <section className="blackjack-stage">
-        <div className="table-stage">
+        <div className="blackjack-table-wrap">
           <div className="table-canvas blackjack-table">
             <div className="dealer-node">
               <h2>Dealer</h2>
@@ -202,6 +261,11 @@ export default function BlackjackPage() {
               )}
             </div>
             <div className="seat-layer">{seatNodes}</div>
+            {!isSeated && (
+              <div className="blackjack-callout">
+                Take a seat, place your wager, and take on the dealer.
+              </div>
+            )}
           </div>
         </div>
 
@@ -261,6 +325,26 @@ export default function BlackjackPage() {
                 Split
               </button>
             </div>
+            {isSeated && (
+              <div className="table-utilities">
+                <button
+                  type="button"
+                  className="ghost-btn"
+                  onClick={handleRename}
+                  disabled={blackjack.isBusy}
+                >
+                  Change Name
+                </button>
+                <button
+                  type="button"
+                  className="leave-table-btn"
+                  onClick={handleLeaveTable}
+                  disabled={blackjack.isBusy}
+                >
+                  Leave Table
+                </button>
+              </div>
+            )}
             <p className="muted">{blackjack.message}</p>
             {blackjack.error && (
               <div className="error-banner">

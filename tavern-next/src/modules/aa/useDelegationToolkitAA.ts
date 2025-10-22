@@ -46,12 +46,15 @@ function pickImplementation(module: DelegationModule) {
 
 function ensureDelegationToolkitImportMap() {
   if (typeof document === "undefined") return;
+  if (document.getElementById("aa-import-map")) return;
   if (document.getElementById("delegation-toolkit-importmap")) return;
   const script = document.createElement("script");
   script.id = "delegation-toolkit-importmap";
   script.type = "importmap";
   script.textContent = JSON.stringify({
     imports: {
+      viem: "https://esm.sh/viem@2.8.6?bundle",
+      "viem/account-abstraction": "https://esm.sh/viem@2.8.6/account-abstraction?bundle",
       "@metamask/delegation-abis":
         "https://cdn.jsdelivr.net/npm/@metamask/delegation-abis@0.13.0/dist/index.js",
       "@metamask/providers":

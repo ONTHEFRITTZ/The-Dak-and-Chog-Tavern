@@ -70,16 +70,23 @@ fi
 
 echo "--- restarting pm2 processes ---"
 sudo lsof -ti :3000 | xargs -r sudo kill -9 || true
-for app in tavern-next realtime dcmon-agent; do
-  pm2 stop "$app" || true
-  pm2 delete "$app" || true
-done
-
 cd "$PROJECT_ROOT"
 
-NODE_ENV="$NODE_ENV" pm2 start "$ECOSYSTEM_FILE" --only tavern-next --env "$NODE_ENV"
-NODE_ENV="$NODE_ENV" pm2 start "$ECOSYSTEM_FILE" --only realtime --env "$NODE_ENV"
-NODE_ENV="$NODE_ENV" pm2 start "$ECOSYSTEM_FILE" --only dcmon-agent --env "$NODE_ENV"
+ECOSYSTEM_BASENAME="$(basename "$ECOSYSTEM_FILE")"
+
+PM2_APPS=(tavern-next realtime dcmon-agent)
+for app in "${PM2_APPS[@]}"; do
+  if pm2 describe "$app" >/dev/null 2>&1; then
+    pm2 stop "$app" || true
+    pm2 delete "$app" || true
+  else
+    echo "PM2: $app not found (skip stop/delete)"
+  fi
+done
+
+for app in "${PM2_APPS[@]}"; do
+  NODE_ENV="$NODE_ENV" pm2 start "$ECOSYSTEM_BASENAME" --only "$app" --env "$NODE_ENV"
+done
 pm2 save
 
 echo "--- deployment complete ---"

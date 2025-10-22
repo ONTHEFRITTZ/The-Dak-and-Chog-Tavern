@@ -1,7 +1,8 @@
 'use client';
 
 import Image from "next/image";
-import { useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
+import { ethers } from "ethers";
 import { useWallet } from "../context/WalletContext";
 import { formatDcmon, useBankrollState } from "@/modules/bankroll";
 
@@ -14,6 +15,13 @@ const ICON_MAP: WalletTypeIconMap = {
   phantom: "/assets/images/logos/phantom.png",
   unknown: "/assets/images/logos/metamask.png",
 };
+
+declare global {
+  interface Window {
+    ethers?: typeof ethers;
+    openWalletChipsModal?: () => void;
+  }
+}
 
 function truncateAddress(addr: string | null): string {
   if (!addr) return "Connect Wallet";
@@ -45,6 +53,23 @@ export const WalletInline = () => {
     );
   }, [address, walletType]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!window.ethers) {
+      window.ethers = ethers;
+    }
+  }, []);
+
+  const handleWalletClick = useCallback(() => {
+    if (typeof window === "undefined") return;
+    if (!address) return;
+    try {
+      window.openWalletChipsModal?.();
+    } catch (error) {
+      console.error("[wallet] open modal failed", error);
+    }
+  }, [address]);
+
   return (
     <div id="wallet-inline">
       {walletIcon && (
@@ -54,6 +79,16 @@ export const WalletInline = () => {
       )}
       <span id="wi-address">{label}</span>
       <span className="wi-balance-badge">{balanceLabel}</span>
+      <button
+        id="wi-wallet-btn"
+        type="button"
+        onClick={handleWalletClick}
+        disabled={!address}
+        aria-haspopup="dialog"
+        aria-expanded="false"
+      >
+        Wallet
+      </button>
       {address ? (
         <button id="wi-disconnect" type="button" onClick={disconnect}>
           Disconnect
