@@ -1534,55 +1534,60 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
 }
 
 /* Blackjack layout */
-/* Blackjack layout */
-.game.blackjack {
+.blackjack-page {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: clamp(32px, 5vw, 72px) clamp(24px, 4vw, 64px);
   display: flex;
   flex-direction: column;
-  gap: 24px;
-  padding: clamp(16px, 4vw, 40px);
-  background: #120c08 url('/assets/images/games-room.png') no-repeat center center fixed;
-  background-size: cover;
+  align-items: center;
+  gap: clamp(24px, 4vw, 48px);
+  background: transparent;
+  border: none;
+  box-shadow: none;
 }
 
 .blackjack-header {
+  text-align: center;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
 }
 
-.blackjack-header .header-main {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
+.blackjack-title {
+  margin: 0;
+  font-size: clamp(2rem, 1.4rem + 1.6vw, 3rem);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #ffdc8f;
 }
 
-.blackjack-header .wallet-strip {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 12px;
-  padding: 12px 16px;
-  border-radius: 16px;
-  background: rgba(0, 0, 0, 0.45);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-}
-
-.wallet-strip .wallet-btn {
-  padding: 8px 16px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: rgba(17, 28, 44, 0.78);
-  color: #f4e6d3;
-  font-weight: 600;
+.blackjack-subtitle {
+  margin: 0;
+  font-size: clamp(1rem, 0.95rem + 0.3vw, 1.25rem);
+  opacity: 0.78;
 }
 
 .blackjack-stage {
+  width: min(100%, 1280px);
   display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
-  gap: clamp(16px, 3vw, 32px);
+  grid-template-columns: minmax(0, 1.6fr) minmax(280px, 360px);
+  gap: clamp(20px, 4vw, 48px);
+  align-items: start;
+  justify-content: center;
+  margin: 0 auto;
+}
+
+.blackjack-stage .table-stage {
+  width: min(96vw, 900px);
+  margin: 0 auto;
+  display: flex;
+  justify-content: center;
+}
+
+.blackjack-stage .blackjack-table {
+  margin: 0 auto;
 }
 
 .blackjack-table {
@@ -1757,6 +1762,8 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
   display: flex;
   flex-direction: column;
   gap: 18px;
+  position: relative;
+  z-index: 1;
 }
 
 .panel {
@@ -1876,6 +1883,14 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
 @media (max-width: 1080px) {
   .blackjack-stage {
     grid-template-columns: 1fr;
+    width: min(100%, 960px);
+    justify-items: center;
+  }
+  .blackjack-stage .table-stage {
+    width: min(96vw, 820px);
+  }
+  .blackjack-sidebar {
+    width: min(100%, 420px);
   }
 }
 
@@ -1887,13 +1902,8 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
     width: 48px;
     height: 68px;
   }
-  .blackjack-header .header-main {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-  .blackjack-header .header-actions {
-    width: 100%;
-    justify-content: space-between;
+  .blackjack-header {
+    align-items: center;
   }
 }
 /* Bankroll widget */

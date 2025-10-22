@@ -1,7 +1,6 @@
 'use client';
 
 import { useMemo, useState, useEffect, useCallback } from "react";
-import Image from "next/image";
 import { useWallet } from "@/context/WalletContext";
 import { useBlackjack } from "@/modules/blackjack/useBlackjack";
 import type { Card } from "@/modules/blackjack/engine";
@@ -68,7 +67,7 @@ const renderCard = (card: Card, hidden = false, key?: string | number) => {
 export default function BlackjackPage() {
   usePageBackdrop("blackjack");
 
-  const { address, connect, disconnect, isConnecting } = useWallet();
+  const { address } = useWallet();
   const blackjack = useBlackjack();
   const [wagerInput, setWagerInput] = useState(() => blackjack.baseWager.toFixed(2));
   const [isSeated, setIsSeated] = useState(false);
@@ -186,36 +185,10 @@ export default function BlackjackPage() {
   const enableDeal = blackjack.phase === "betting" && !blackjack.isBusy && isSeated;
 
   return (
-    <main className="tavern game blackjack">
+    <main className="blackjack-page">
       <header className="blackjack-header">
-        <div className="header-main">
-          <Image
-            className="game-logo"
-            src="/assets/images/games-table.png"
-            alt="Blackjack"
-            width={280}
-            height={120}
-          />
-                  </div>
-        <div className="wallet-strip">
-          <span className="wallet-balance">
-            Balance: <strong>{blackjack.formattedBalance} DCMon</strong>
-          </span>
-          {address ? (
-            <button type="button" className="wallet-btn" onClick={disconnect}>
-              Disconnect
-            </button>
-          ) : (
-            <button
-              type="button"
-              className="wallet-btn"
-              onClick={() => connect().catch(() => void 0)}
-              disabled={isConnecting}
-            >
-              {isConnecting ? "Connecting..." : "Connect Wallet"}
-            </button>
-          )}
-        </div>
+        <h1 className="blackjack-title">Blackjack</h1>
+        <p className="blackjack-subtitle">Take a seat, place your wager, and take on the dealer.</p>
       </header>
 
       <section className="blackjack-stage">
