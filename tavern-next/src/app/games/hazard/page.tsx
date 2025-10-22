@@ -227,7 +227,8 @@ export default function HazardPage() {
           data,
         });
         if (hash) {
-          setStatus(`Tx sent: ${hash.slice(0, 10)}… waiting confirmation...`);
+          const shortHash = hash.slice(0, 10);
+          setStatus(`Tx sent: ${shortHash}… waiting confirmation...`);
           receipt = await provider.waitForTransaction(hash);
         }
       } catch (error) {
@@ -236,15 +237,17 @@ export default function HazardPage() {
 
       if (!receipt) {
         const response = await contract.play(selectedMain, wager);
-        hash = response.hash ?? null;
-        if (hash) {
-          setStatus(`Tx sent: ${hash.slice(0, 10)}… waiting confirmation...`);
+        const responseHash = response.hash ?? "";
+        if (responseHash) {
+          hash = responseHash;
+          const shortHash = responseHash.slice(0, 10);
+          setStatus(`Tx sent: ${shortHash}… waiting confirmation...`);
         } else {
+          hash = null;
           setStatus("Tx sent. Waiting for confirmation...");
         }
         receipt = await response.wait();
       }
-
       if (!receipt) {
         setStatus("Transaction pending. Check explorer.");
         return;
