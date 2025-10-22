@@ -228,7 +228,7 @@ export default function HazardPage() {
         });
         if (hash) {
           const shortHash = hash.slice(0, 10);
-          setStatus(`Tx sent: ${shortHash}… waiting confirmation...`);
+          setStatus(`Tx sent: ${shortHash}... waiting confirmation...`);
           receipt = await provider.waitForTransaction(hash);
         }
       } catch (error) {
@@ -241,7 +241,7 @@ export default function HazardPage() {
         if (responseHash) {
           hash = responseHash;
           const shortHash = responseHash.slice(0, 10);
-          setStatus(`Tx sent: ${shortHash}… waiting confirmation...`);
+          setStatus(`Tx sent: ${shortHash}... waiting confirmation...`);
         } else {
           hash = null;
           setStatus("Tx sent. Waiting for confirmation...");
