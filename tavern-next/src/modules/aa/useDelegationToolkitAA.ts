@@ -44,6 +44,23 @@ function pickImplementation(module: DelegationModule) {
   return Implementation.MultiSig ?? Implementation.Stateless7702 ?? Implementation.Hybrid ?? null;
 }
 
+function ensureDelegationToolkitImportMap() {
+  if (typeof document === "undefined") return;
+  if (document.getElementById("delegation-toolkit-importmap")) return;
+  const script = document.createElement("script");
+  script.id = "delegation-toolkit-importmap";
+  script.type = "importmap";
+  script.textContent = JSON.stringify({
+    imports: {
+      "@metamask/delegation-abis":
+        "https://cdn.jsdelivr.net/npm/@metamask/delegation-abis@0.13.0/dist/index.js",
+      "@metamask/providers":
+        "https://cdn.jsdelivr.net/npm/@metamask/providers@12.1.0/dist/index.js",
+    },
+  });
+  document.head.appendChild(script);
+}
+
 function serializeBigNumberish(value: unknown): string {
   if (typeof value === "bigint") return value.toString();
   if (typeof value === "number") return Math.trunc(value).toString();
@@ -111,6 +128,8 @@ export function useDelegationToolkitAA(): DelegationToolkitAA {
       if (!walletClient || !publicClient) {
         throw new Error("Delegation Toolkit context incomplete");
       }
+
+      ensureDelegationToolkitImportMap();
 
       // @ts-ignore -- dynamically imported from CDN at runtime
       const module = (await import(

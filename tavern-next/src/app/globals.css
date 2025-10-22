@@ -502,31 +502,38 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
   padding: 6px 8px;
   box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
 }
-.hazard-wrap {
-  width: min(92vw, 560px);
-  margin: 0 auto;
-  background: var(--panel-bg-soft);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 18px;
-  padding: 16px 20px;
+.hazard-page,
+.shell-page,
+.dakchog-page {
+  width: min(96vw, 680px);
+  margin: clamp(48px, 8vw, 96px) auto;
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  color: #f4e6d3;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+  align-items: center;
+  gap: clamp(18px, 3vw, 28px);
 }
 
-.coin-wrap {
-  width: min(92vw, 560px);
-  margin: 0 auto;
-  background: var(--panel-bg-soft);
-  border: 1px solid var(--panel-border);
-  border-radius: 18px;
-  padding: clamp(18px, 4vw, 32px);
+.hazard-content,
+.shell-content,
+.dakchog-content {
+  width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+  align-items: center;
+  gap: 18px;
+  text-align: center;
+}
+
+.game-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.game-header .rules-btn {
+  align-self: center;
 }
 
 .dice-area {
@@ -567,7 +574,13 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
   text-align: center;
 }
 
-.hazard-history ul {
+.hazard-history,
+.shell-history {
+  width: 100%;
+}
+
+.hazard-history ul,
+.shell-history ul {
   list-style: none;
   padding: 0;
   margin: 0;
@@ -577,13 +590,14 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
   font-size: 13px;
 }
 
-.hazard-history li {
+.hazard-history li,
+.shell-history li {
   display: grid;
   grid-template-columns: repeat(4, auto);
   gap: 10px;
   justify-content: space-between;
-  background: rgba(0, 0, 0, 0.25);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
   padding: 6px 8px;
 }
@@ -596,6 +610,7 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
   background: rgba(0, 0, 0, 0.25);
   color: inherit;
   cursor: pointer;
+  margin-top: 12px;
 }
 .poker-lobby {
   width: 100%;

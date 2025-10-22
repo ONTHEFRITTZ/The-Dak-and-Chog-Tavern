@@ -10,26 +10,36 @@ const games = [
     title: "Shell Game",
     href: "/games/shell",
     asset: "/assets/images/shell-game-logo.png",
+    width: 320,
+    height: 150,
   },
   {
     title: "Hazard",
     href: "/games/hazard",
     asset: "/assets/images/hazard-logo.png",
+    width: 420,
+    height: 240,
   },
   {
     title: "Blackjack",
     href: "/games/blackjack",
     asset: "/assets/images/blackjack-logo.png",
+    width: 320,
+    height: 150,
   },
   {
     title: "Poker (Texas Hold'em)",
     href: "/games/poker",
     asset: "/assets/images/texas-holdem-logo.png",
+    width: 320,
+    height: 150,
   },
   {
     title: "Dak & Chog",
     href: "/games/dakchog",
     asset: "/assets/images/dakandchog-logo.png",
+    width: 320,
+    height: 150,
   },
 ];
 
@@ -59,8 +69,8 @@ export default function HomePage() {
                 <Image
                   src={game.asset}
                   alt={game.title}
-                  width={260}
-                  height={160}
+                  width={game.width}
+                  height={game.height}
                   sizes="(max-width: 600px) 50vw, 200px"
                 />
               </Link>

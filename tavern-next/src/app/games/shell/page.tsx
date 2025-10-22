@@ -251,14 +251,14 @@ export default function ShellGamePage() {
   ]);
 
   return (
-    <main className="tavern game" style={{ minHeight: "100vh" }}>
+    <main className="game shell-page">
       <div className="game-header">
         <Image
           className="game-logo"
           src="/assets/images/shell-game-logo.png"
           alt="Shell Game"
-          width={260}
-          height={120}
+          width={320}
+          height={150}
           priority
         />
         <Link href="/" id="return" className="rules-btn">
@@ -266,7 +266,7 @@ export default function ShellGamePage() {
         </Link>
       </div>
 
-      <div className="coin-wrap">
+      <section className="shell-content">
         <div
           id="shell-result"
           className={`shell-status${statusVariant ? ` ${statusVariant}` : ""}`}
@@ -325,14 +325,14 @@ export default function ShellGamePage() {
             type="button"
             onClick={connect}
             disabled={isConnecting || isSubmitting}
-            style={{ marginTop: "12px" }}
+            className="connect-btn"
           >
             {isConnecting ? "Connecting..." : "Connect Wallet"}
           </button>
         )}
 
         {history.length > 0 && (
-          <div className="hazard-history">
+          <div className="shell-history">
             <h3>Recent Plays</h3>
             <ul>
               {history.map((entry, idx) => (
@@ -346,7 +346,7 @@ export default function ShellGamePage() {
             </ul>
           </div>
         )}
-      </div>
+      </section>
     </main>
   );
 }

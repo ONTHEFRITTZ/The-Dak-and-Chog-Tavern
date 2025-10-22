@@ -197,14 +197,14 @@ export default function DakChogPage() {
   ]);
 
   return (
-    <main className="tavern game" style={{ minHeight: "100vh" }}>
+    <main className="game dakchog-page">
       <div className="game-header">
         <Image
           className="game-logo"
           src="/assets/images/dakandchog-logo.png"
           alt="Dak & Chog"
-          width={280}
-          height={120}
+          width={320}
+          height={140}
           priority
         />
         <Link href="/" id="return" className="rules-btn">
@@ -212,7 +212,7 @@ export default function DakChogPage() {
         </Link>
       </div>
 
-      <div className="coin-wrap">
+      <section className="dakchog-content">
         <div
           id="coin"
           ref={coinRef}
@@ -264,12 +264,12 @@ export default function DakChogPage() {
             type="button"
             onClick={connect}
             disabled={isConnecting}
-            style={{ marginTop: "12px" }}
+            className="connect-btn"
           >
             {isConnecting ? "Connecting..." : "Connect Wallet"}
           </button>
         )}
-      </div>
+      </section>
 
       <section id="rules-overlay" style={{ display: "none" }} aria-hidden="true" />
     </main>

@@ -298,14 +298,14 @@ export default function HazardPage() {
   ]);
 
   return (
-    <main className="tavern game">
+    <main className="game hazard-page">
       <div className="game-header">
         <Image
           className="game-logo"
           src="/assets/images/hazard-logo.png"
           alt="Hazard"
-          width={260}
-          height={120}
+          width={420}
+          height={240}
           priority
         />
         <Link href="/" id="return" className="rules-btn">
@@ -313,7 +313,7 @@ export default function HazardPage() {
         </Link>
       </div>
 
-      <div className="hazard-wrap">
+      <section className="hazard-content">
         <div className="dice-area" aria-live="polite">
           {diceFaces.map((face, idx) => (
             <Image
@@ -388,7 +388,7 @@ export default function HazardPage() {
             </ul>
           </div>
         )}
-      </div>
+      </section>
     </main>
   );
 }
