@@ -236,8 +236,12 @@ export default function HazardPage() {
 
       if (!receipt) {
         const response = await contract.play(selectedMain, wager);
-        hash = response.hash;
-        setStatus(`Tx sent: ${hash.slice(0, 10)}… waiting confirmation...`);
+        hash = response.hash ?? null;
+        if (hash) {
+          setStatus(`Tx sent: ${hash.slice(0, 10)}… waiting confirmation...`);
+        } else {
+          setStatus("Tx sent. Waiting for confirmation...");
+        }
         receipt = await response.wait();
       }
 

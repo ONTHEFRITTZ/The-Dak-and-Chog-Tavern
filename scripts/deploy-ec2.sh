@@ -52,6 +52,8 @@ else
 fi
 
 echo "--- building Next.js app ---"
+export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=4096}"
+rm -rf .next
 NODE_ENV="$NODE_ENV" npm run build
 
 if ! command -v pm2 >/dev/null 2>&1; then
@@ -61,6 +63,7 @@ if ! command -v pm2 >/dev/null 2>&1; then
 fi
 
 echo "--- restarting pm2 processes ---"
+sudo lsof -ti :3000 | xargs -r sudo kill -9 || true
 for app in tavern-next realtime dcmon-agent; do
   pm2 stop "$app" || true
   pm2 delete "$app" || true
