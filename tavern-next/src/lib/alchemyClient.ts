@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import type { Address } from "viem";
 import { createLightAccountAlchemyClient } from "@alchemy/aa-alchemy";
