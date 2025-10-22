@@ -2457,4 +2457,13 @@ body.home {
   gap: clamp(12px, 2vw, 24px);
   align-items: center;
 }
-\n.sidebar-logo img { width: 100%; height: auto; }\n.sidebar.collapsed .sidebar-logo img { width: 38px; height: auto; }\n
+
+.sidebar-logo img {
+  width: 100%;
+  height: auto;
+}
+
+.sidebar.collapsed .sidebar-logo img {
+  width: 38px;
+  height: auto;
+}
