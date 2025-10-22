@@ -5,7 +5,6 @@ import { createLightAccountAlchemyClient } from "@alchemy/aa-alchemy";
 import type { SmartAccountSigner } from "@alchemy/aa-core";
 import {
   MONAD_CHAIN,
-  MONAD_BUNDLER_RPC,
   ALCHEMY_API_KEY,
   ALCHEMY_POLICY_ID,
 } from "./config";
@@ -15,7 +14,7 @@ export type SupportedSigner = SmartAccountSigner & { getAddress(): Promise<Addre
 export async function createAlchemySmartAccountClient<TSigner extends SupportedSigner>(
   signer: TSigner
 ) {
-  if (!ALCHEMY_API_KEY || !MONAD_BUNDLER_RPC) {
+  if (!ALCHEMY_API_KEY) {
     throw new Error("Alchemy AA env vars missing. Set NEXT_PUBLIC_ALCHEMY_* to enable.");
   }
 
