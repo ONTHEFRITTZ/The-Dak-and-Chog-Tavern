@@ -9,7 +9,6 @@ import { useWallet } from "@/context/WalletContext";
 import {
   ALCHEMY_API_KEY,
   MONAD,
-  MONAD_BUNDLER_RPC,
   MONAD_CHAIN,
 } from "@/lib/config";
 import { ensureDelegationToolkitContext, resetDelegationToolkitContext } from "./toolkitContext";
@@ -138,16 +137,16 @@ export function useDelegationToolkitAA(): DelegationToolkitAA {
       const smartAccountAddress = typeof accountLike.getAddress === "function" ? await accountLike.getAddress() : accountLike.address;
       storeSmartAccountAddress(publicClient.chain?.id ?? MONAD.id, smartAccountAddress);
 
-      const rpcUrl = MONAD_BUNDLER_RPC?.trim();
       const alchemyConfig: Record<string, unknown> = {
         account: smartAccount,
         chain: MONAD_CHAIN,
       };
-      if (ALCHEMY_API_KEY) alchemyConfig.apiKey = ALCHEMY_API_KEY;
-      if (rpcUrl) alchemyConfig.rpcUrl = rpcUrl;
-      if (!alchemyConfig.apiKey && !alchemyConfig.rpcUrl) {
+      if (ALCHEMY_API_KEY) {
+        alchemyConfig.apiKey = ALCHEMY_API_KEY;
+      }
+      if (!alchemyConfig.apiKey) {
         throw new Error(
-          "Alchemy bundler configuration missing. Set NEXT_PUBLIC_MONAD_BUNDLER_RPC or NEXT_PUBLIC_ALCHEMY_API_KEY."
+          "Alchemy bundler configuration missing. Set NEXT_PUBLIC_ALCHEMY_API_KEY."
         );
       }
 
