@@ -8,8 +8,9 @@ import Script from "next/script";
 
 const LEGACY_IMPORT_MAP = {
   imports: {
-    viem: "https://esm.sh/viem@2.8.6?target=es2020&bundle",
-    "viem/account-abstraction": "https://esm.sh/viem@2.8.6/account-abstraction?target=es2020&bundle",
+    viem: "https://esm.sh/viem@2.31.4?target=es2020&bundle",
+    "viem/account-abstraction":
+      "https://esm.sh/viem@2.31.4/account-abstraction?target=es2020&bundle",
     "@metamask/delegation-abis":
       "https://esm.sh/@metamask/delegation-abis@0.13.0?target=es2020&bundle",
     "@metamask/providers":

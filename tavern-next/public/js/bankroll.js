@@ -93,8 +93,9 @@
   }
 
   function createEthersCompat(ethers) {
+    const hasRuntime = !!ethers;
     const hasBigNumber = !!ethers?.BigNumber?.isBigNumber;
-    const BigNumberCtor = ethers?.BigNumber;
+    const BigNumberCtor = hasRuntime ? ethers.BigNumber : null;
 
     function toBigInt(value) {
       if (value == null) return 0n;

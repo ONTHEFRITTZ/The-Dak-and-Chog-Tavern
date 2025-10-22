@@ -61,7 +61,7 @@ export async function ensureDelegationToolkitContext() {
 
     const viem = await (async () => {
       try { return await import('viem'); } catch (_) {}
-      try { return await import('https://esm.sh/viem@2.38.2'); } catch (_) {}
+      try { return await import('https://esm.sh/viem@2.31.4'); } catch (_) {}
       throw new Error('Unable to load viem');
     })();
     const { createPublicClient, createWalletClient, http, custom } = viem;

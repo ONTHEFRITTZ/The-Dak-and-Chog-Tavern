@@ -23,7 +23,7 @@ export async function createAlchemySmartAccountClient<TSigner extends SupportedS
 
   return createLightAccountAlchemyClient({
     apiKey: ALCHEMY_API_KEY,
-    chain: MONAD_CHAIN,
+    chain: MONAD_CHAIN as any,
     rpcUrl: MONAD_BUNDLER_RPC,
     signer,
     accountAddress,

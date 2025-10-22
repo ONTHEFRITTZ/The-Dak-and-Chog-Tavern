@@ -11,7 +11,7 @@ async function ensureViem() {
       viemImportPromise = import('viem');
     } catch (_) {
       // Fallback to pinned CDN version to avoid mixed viem builds.
-      viemImportPromise = import('https://esm.sh/viem@2.38.2');
+      viemImportPromise = import('https://esm.sh/viem@2.31.4');
     }
   }
   return viemImportPromise;
