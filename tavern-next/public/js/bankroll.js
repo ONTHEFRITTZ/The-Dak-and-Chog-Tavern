@@ -92,11 +92,208 @@
     return abisPromise;
   }
 
+  function createEthersCompat(ethers) {
+    const hasBigNumber = !!ethers?.BigNumber?.isBigNumber;
+    const BigNumberCtor = ethers?.BigNumber;
+
+    function toBigInt(value) {
+      if (value == null) return 0n;
+      if (value === '') return 0n;
+      if (typeof value === 'bigint') return value;
+      if (typeof value === 'number') return BigInt(Math.trunc(value));
+      if (typeof value === 'string') {
+        const trimmed = value.trim();
+        if (!trimmed) return 0n;
+        if (/^0x[0-9a-fA-F]+$/.test(trimmed)) return BigInt(trimmed);
+        const sign = trimmed.startsWith('-') ? '-' : '';
+        const digits = sign ? trimmed.slice(1) : trimmed;
+        if (/^[0-9]+$/.test(digits)) return BigInt(trimmed);
+      }
+      if (hasBigNumber && BigNumberCtor.isBigNumber(value)) {
+        try {
+          return BigInt(value.toString());
+        } catch {}
+      }
+      if (typeof value === 'object') {
+        if (value && typeof value.toString === 'function') {
+          try {
+            const str = value.toString();
+            if (str && str !== '[object Object]') return toBigInt(str);
+          } catch {}
+        }
+        if (value instanceof Uint8Array) {
+          let hex = '0x';
+          for (let i = 0; i < value.length; i += 1) {
+            hex += value[i].toString(16).padStart(2, '0');
+          }
+          try {
+            return BigInt(hex);
+          } catch {}
+        }
+      }
+      throw new Error('Unsupported numeric value');
+    }
+
+    const numeric = {
+      from: (value) => toBigInt(value),
+      add: (a, b) => numeric.from(a) + numeric.from(b),
+      sub: (a, b) => numeric.from(a) - numeric.from(b),
+      mul: (a, b) => numeric.from(a) * numeric.from(b),
+      div: (a, b) => {
+        const divisor = numeric.from(b);
+        if (divisor === 0n) throw new Error('Division by zero');
+        return numeric.from(a) / divisor;
+      },
+      gt: (a, b) => numeric.from(a) > numeric.from(b),
+      gte: (a, b) => numeric.from(a) >= numeric.from(b),
+      lt: (a, b) => numeric.from(a) < numeric.from(b),
+      lte: (a, b) => numeric.from(a) <= numeric.from(b),
+      eq: (a, b) => numeric.from(a) === numeric.from(b),
+      isZero: (value) => numeric.from(value) === 0n,
+      clampToZero: (value) => {
+        const n = numeric.from(value);
+        return n < 0n ? 0n : n;
+      },
+      toBigNumberish: (value) => {
+        const bigIntValue = numeric.from(value);
+        if (hasBigNumber) return BigNumberCtor.from(bigIntValue.toString());
+        return bigIntValue;
+      },
+      toString: (value) => numeric.from(value).toString()
+    };
+
+    const weiPerEtherRaw = ethers?.constants?.WeiPerEther ?? ethers?.WeiPerEther ?? '1000000000000000000';
+    const maxUintRaw = ethers?.constants?.MaxUint256 ?? ethers?.MaxUint256 ?? '0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff';
+
+    const constants = {
+      WeiPerEther: numeric.from(weiPerEtherRaw),
+      MaxUint256: numeric.from(maxUintRaw)
+    };
+
+    const formatEtherFn = ethers?.formatEther ?? ethers?.utils?.formatEther ?? null;
+    const formatUnitsFn = ethers?.formatUnits ?? ethers?.utils?.formatUnits ?? null;
+    const parseEtherFn = ethers?.parseEther ?? ethers?.utils?.parseEther ?? null;
+    const parseUnitsFn = ethers?.parseUnits ?? ethers?.utils?.parseUnits ?? null;
+
+    function formatEtherCompat(value) {
+      if (!formatEtherFn) return null;
+      try {
+        return formatEtherFn(numeric.toBigNumberish(value));
+      } catch {
+        return null;
+      }
+    }
+
+    function formatUnitsCompat(value, decimals) {
+      if (!formatUnitsFn) return null;
+      try {
+        return formatUnitsFn(numeric.toBigNumberish(value), decimals);
+      } catch {
+        return null;
+      }
+    }
+
+    function parseEtherCompat(value) {
+      if (!parseEtherFn) return null;
+      try {
+        const raw = parseEtherFn(String(value));
+        return numeric.from(raw);
+      } catch {
+        return null;
+      }
+    }
+
+    function parseUnitsCompat(value, decimals) {
+      if (!parseUnitsFn) return null;
+      try {
+        const raw = parseUnitsFn(String(value), decimals);
+        return numeric.from(raw);
+      } catch {
+        return null;
+      }
+    }
+
+    function createInjectedProvider(injected) {
+      if (!ethers) throw new Error('ethers runtime unavailable');
+      if (ethers?.providers?.Web3Provider) {
+        return new ethers.providers.Web3Provider(injected, 'any');
+      }
+      if (ethers?.BrowserProvider) {
+        return new ethers.BrowserProvider(injected);
+      }
+      throw new Error('No compatible injected provider');
+    }
+
+    async function resolveSigner(provider, index) {
+      if (!provider || typeof provider.getSigner !== 'function') return null;
+      const signerLike = provider.getSigner(index);
+      if (signerLike && typeof signerLike.then === 'function') {
+        return signerLike.then((resolved) => resolved);
+      }
+      return signerLike || null;
+    }
+
+    function createJsonRpcProvider(url) {
+      if (!ethers) throw new Error('ethers runtime unavailable');
+      if (ethers?.providers?.JsonRpcProvider) {
+        return new ethers.providers.JsonRpcProvider(url);
+      }
+      if (typeof ethers?.JsonRpcProvider === 'function') {
+        return new ethers.JsonRpcProvider(url);
+      }
+      throw new Error('No JsonRpcProvider available');
+    }
+
+    if (ethers) {
+      if (!ethers.utils) ethers.utils = {};
+      if (formatEtherFn && !ethers.utils.formatEther) {
+        ethers.utils.formatEther = (value) => formatEtherFn(value);
+      }
+      if (formatUnitsFn && !ethers.utils.formatUnits) {
+        ethers.utils.formatUnits = (value, decimals) => formatUnitsFn(value, decimals);
+      }
+      if (parseEtherFn && !ethers.utils.parseEther) {
+        ethers.utils.parseEther = (value) => parseEtherFn(String(value));
+      }
+      if (parseUnitsFn && !ethers.utils.parseUnits) {
+        ethers.utils.parseUnits = (value, decimals) => parseUnitsFn(String(value), decimals);
+      }
+      if (!ethers.constants) ethers.constants = {};
+      if (ethers.constants.WeiPerEther == null) {
+        ethers.constants.WeiPerEther = numeric.toBigNumberish(constants.WeiPerEther);
+      }
+      if (ethers.constants.MaxUint256 == null) {
+        ethers.constants.MaxUint256 = numeric.toBigNumberish(constants.MaxUint256);
+      }
+      if (!ethers.providers) ethers.providers = {};
+      if (!ethers.providers.JsonRpcProvider && typeof ethers.JsonRpcProvider === 'function') {
+        ethers.providers.JsonRpcProvider = ethers.JsonRpcProvider;
+      }
+      if (!ethers.providers.Web3Provider && typeof ethers.BrowserProvider === 'function') {
+        ethers.providers.Web3Provider = ethers.BrowserProvider;
+      }
+    }
+
+    return {
+      numeric,
+      constants,
+      formatEther: formatEtherCompat,
+      formatUnits: formatUnitsCompat,
+      parseEther: parseEtherCompat,
+      parseUnits: parseUnitsCompat,
+      createInjectedProvider,
+      getSigner: resolveSigner,
+      createJsonRpcProvider
+    };
+  }
+
   function bootstrap() {
     if (bootstrapped) return;
     bootstrapped = true;
   
     const ethers = window.ethers;
+    const compat = createEthersCompat(ethers);
+    const numeric = compat.numeric;
     const state = {
       lastStatus: null,
       statusTargets: new Set(['wi-bank-status']),
@@ -151,18 +348,35 @@
       });
     }
   
-    function sanitizeAmount(value, fallback) {
+    function sanitizeAmount(value) {
+      if (value == null) return null;
+      if (typeof value === 'bigint') {
+        return value > 0n ? value : null;
+      }
       if (ethers?.BigNumber?.isBigNumber && ethers.BigNumber.isBigNumber(value)) {
-        return value;
+        try {
+          const big = numeric.from(value);
+          return numeric.gt(big, 0n) ? big : null;
+        } catch {
+          return null;
+        }
       }
-      if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
-        return value;
+      if (typeof value === 'number') {
+        if (!Number.isFinite(value) || value <= 0) return null;
+        return value.toString();
       }
-      if (typeof value === 'string' && value.trim()) {
-        const parsed = parseFloat(value.trim());
-        if (Number.isFinite(parsed) && parsed > 0) return parsed;
+      if (typeof value === 'string') {
+        const trimmed = value.trim();
+        if (!trimmed) return null;
+        const normalized = trimmed.replace(/,/g, '');
+        const parsed = Number(normalized);
+        if (!Number.isFinite(parsed) || parsed <= 0) return null;
+        return normalized;
       }
-      return fallback;
+      if (typeof value === 'object' && typeof value.valueOf === 'function' && value.valueOf() !== value) {
+        return sanitizeAmount(value.valueOf());
+      }
+      return null;
     }
   
     function storedAddress() {
@@ -203,7 +417,6 @@
 
     async function getProvider() {
       if (providerCache) return providerCache;
-      if (!ethers?.providers) return null;
       let injected = null;
       try {
         if (typeof window.__getSelectedProvider === 'function') injected = window.__getSelectedProvider();
@@ -213,7 +426,7 @@
       if (!injected) return null;
       try {
         injectedProvider = injected;
-        providerCache = new ethers.providers.Web3Provider(injected, 'any');
+        providerCache = compat.createInjectedProvider(injected);
         return providerCache;
       } catch (err) {
         console.error('bankroll: provider init failed', err);
@@ -228,8 +441,10 @@
       const provider = await getProvider();
       if (!provider) return null;
       try {
-        signerCache = provider.getSigner();
-        await signerCache.getAddress();
+        const signer = await compat.getSigner(provider);
+        if (!signer) return null;
+        await signer.getAddress();
+        signerCache = signer;
         return signerCache;
       } catch (err) {
         console.warn('bankroll: signer unavailable', err);
@@ -351,7 +566,7 @@
       const mon = await loadMonConfig();
       if (!rpcProvider && mon?.rpcHttp) {
         try {
-          rpcProvider = new ethers.providers.JsonRpcProvider(mon.rpcHttp);
+          rpcProvider = compat.createJsonRpcProvider(mon.rpcHttp);
         } catch (err) {
           console.error('bankroll: rpc provider init failed', err);
         }
@@ -410,15 +625,13 @@
       return true;
     }
   
-    function formatEther(bn) {
-      try {
-        const val = parseFloat(ethers.utils.formatEther(bn));
-        if (!Number.isFinite(val)) return '-';
-        const fixed = val.toFixed(3);
-        return fixed === '-0.000' ? '0.000' : fixed;
-      } catch {
-        return '-';
-      }
+    function formatEther(value) {
+      const formatted = compat.formatEther(value);
+      if (formatted == null) return '-';
+      const num = Number.parseFloat(formatted);
+      if (!Number.isFinite(num)) return '-';
+      const fixed = num.toFixed(3);
+      return fixed === '-0.000' ? '0.000' : fixed;
     }
   
     async function refreshBalance(addr) {
@@ -439,8 +652,9 @@
         return null;
       }
       try {
-        const bal = await dcmonRead.balanceOf(address);
-        state.balances.dcmonWei = bal;
+        const balRaw = await dcmonRead.balanceOf(address);
+        const bal = numeric.from(balRaw);
+        state.balances.dcmonWei = numeric.toBigNumberish(bal);
         updateTargetSet(balanceTargets.dcmon, formatEther(bal));
         setStatus('');
       } catch (err) {
@@ -458,23 +672,19 @@
           if (typeof dcmonRead.exchangeRate === 'function') {
             try {
               const res = await dcmonRead.exchangeRate();
-              const num = res && (res.numerator || res[0]);
-              if (num) {
-                const val = (window.ethers && window.ethers.utils && window.ethers.utils.formatUnits)
-                  ? window.ethers.utils.formatUnits(num, 18)
-                  : null;
+              const num = res && (res.numerator != null ? res.numerator : res[0]);
+              if (num != null) {
+                const val = compat.formatUnits(num, 18);
                 if (val != null) rateStr = String(Number.parseFloat(val).toFixed(6));
               }
             } catch (_) { /* silent: not all deployments expose exchangeRate */ }
           }
           // Fallback: previewRedeem(1e18) -> MON per 1 DCMon
-          if ((rateStr === '-' || rateStr == null) && typeof dcmonRead.previewRedeem === 'function' && window.ethers?.constants?.WeiPerEther) {
+          if ((rateStr === '-' || rateStr == null) && typeof dcmonRead.previewRedeem === 'function' && compat.constants?.WeiPerEther != null) {
             try {
-              const out = await dcmonRead.previewRedeem(window.ethers.constants.WeiPerEther);
+              const out = await dcmonRead.previewRedeem(numeric.toBigNumberish(compat.constants.WeiPerEther));
               if (out) {
-                const val = (window.ethers && window.ethers.utils && window.ethers.utils.formatEther)
-                  ? window.ethers.utils.formatEther(out)
-                  : null;
+                const val = compat.formatEther(out);
                 if (val != null) rateStr = String(Number.parseFloat(val).toFixed(6));
               }
             } catch (_) { /* silent */ }
@@ -483,15 +693,15 @@
           if ((rateStr === '-' || rateStr == null)
               && typeof dcmonRead.totalUnderlying === 'function'
               && typeof dcmonRead.totalSupply === 'function'
-              && window.ethers?.constants?.WeiPerEther) {
+              && compat.constants?.WeiPerEther != null) {
             try {
-              const tvl = await dcmonRead.totalUnderlying();
-              const supply = await dcmonRead.totalSupply();
-              if (supply && window.ethers.BigNumber.isBigNumber(supply) && supply.gt(0)) {
-                const num = tvl.mul(window.ethers.constants.WeiPerEther).div(supply);
-                const val = (window.ethers && window.ethers.utils && window.ethers.utils.formatUnits)
-                  ? window.ethers.utils.formatUnits(num, 18)
-                  : null;
+              const tvlRaw = await dcmonRead.totalUnderlying();
+              const supplyRaw = await dcmonRead.totalSupply();
+              const supply = numeric.from(supplyRaw);
+              if (!numeric.isZero(supply)) {
+                const tvl = numeric.from(tvlRaw);
+                const ratio = numeric.div(numeric.mul(tvl, compat.constants.WeiPerEther), supply);
+                const val = compat.formatUnits(numeric.toBigNumberish(ratio), 18);
                 if (val != null) rateStr = String(Number.parseFloat(val).toFixed(6));
               }
             } catch (_) { /* silent */ }
@@ -501,7 +711,7 @@
           if ((rateStr === '-' || rateStr == null)
               && typeof dcmonRead.underlying === 'function'
               && typeof dcmonRead.totalSupply === 'function'
-              && window.ethers?.constants?.WeiPerEther) {
+              && compat.constants?.WeiPerEther != null) {
             try {
               const uAddr = await dcmonRead.underlying();
               if (uAddr && /^0x[0-9a-fA-F]{40}$/.test(String(uAddr))) {
@@ -509,13 +719,13 @@
                 const base = rpcProvider || await getProvider();
                 if (base && window.ethers?.Contract) {
                   const u = new window.ethers.Contract(uAddr, ERC20_MIN_ABI, base);
-                  const tvl = await u.balanceOf(dcmonAddress);
-                  const supply = await dcmonRead.totalSupply();
-                  if (supply && window.ethers.BigNumber.isBigNumber(supply) && supply.gt(0)) {
-                    const num = tvl.mul(window.ethers.constants.WeiPerEther).div(supply);
-                    const val = (window.ethers && window.ethers.utils && window.ethers.utils.formatUnits)
-                      ? window.ethers.utils.formatUnits(num, 18)
-                      : null;
+                  const tvlRaw = await u.balanceOf(dcmonAddress);
+                  const supplyRaw = await dcmonRead.totalSupply();
+                  const supply = numeric.from(supplyRaw);
+                  if (!numeric.isZero(supply)) {
+                    const tvl = numeric.from(tvlRaw);
+                    const ratio = numeric.div(numeric.mul(tvl, compat.constants.WeiPerEther), supply);
+                    const val = compat.formatUnits(numeric.toBigNumberish(ratio), 18);
                     if (val != null) rateStr = String(Number.parseFloat(val).toFixed(6));
                   }
                 }
@@ -531,8 +741,9 @@
       try {
         const balanceProvider = rpcProvider || await getProvider();
         if (balanceProvider) {
-          const monWei = await balanceProvider.getBalance(address);
-          state.balances.monWei = monWei;
+          const monWeiRaw = await balanceProvider.getBalance(address);
+          const monWei = numeric.from(monWeiRaw);
+          state.balances.monWei = numeric.toBigNumberish(monWei);
           updateTargetSet(balanceTargets.mon, formatEther(monWei));
         }
       } catch (err) {
@@ -547,12 +758,14 @@
       if (!IS_ONCHAIN_MODE) return false;
       if (!await ensureWriteContracts()) return false;
       if (!wmonRead || !wmonWrite) return false;
-      const current = await wmonRead.balanceOf(address);
-      if (current.gte(amountWei)) return true;
-      const deficit = amountWei.sub(current);
-      if (deficit.lte(ethers.BigNumber.from(0))) return true;
+      const targetAmount = numeric.from(amountWei);
+      const currentRaw = await wmonRead.balanceOf(address);
+      const current = numeric.from(currentRaw);
+      if (numeric.gte(current, targetAmount)) return true;
+      const deficit = numeric.sub(targetAmount, current);
+      if (!numeric.gt(deficit, 0n)) return true;
       setStatus('Wrapping MON...', 'info');
-      const tx = await wmonWrite.deposit({ value: deficit });
+      const tx = await wmonWrite.deposit({ value: numeric.toBigNumberish(deficit) });
       await tx.wait();
       return true;
     }
@@ -560,10 +773,12 @@
     async function ensureWmonAllowance(amountWei, address) {
       if (!IS_ONCHAIN_MODE) return false;
       if (!await ensureWriteContracts()) return false;
-      const allowance = await wmonRead.allowance(address, dcmonAddress);
-      if (allowance.gte(amountWei)) return true;
+      const required = numeric.from(amountWei);
+      const allowanceRaw = await wmonRead.allowance(address, dcmonAddress);
+      const allowance = numeric.from(allowanceRaw);
+      if (numeric.gte(allowance, required)) return true;
       setStatus('Approving WMON...', 'info');
-      const tx = await wmonWrite.approve(dcmonAddress, ethers.constants.MaxUint256);
+      const tx = await wmonWrite.approve(dcmonAddress, numeric.toBigNumberish(compat.constants.MaxUint256));
       await tx.wait();
       return true;
     }
@@ -573,10 +788,12 @@
       if (!await ensureWriteContracts()) return false;
       const target = spender || dcmonAddress;
       if (!target) return false;
-      const allowance = await dcmonRead.allowance(address, target);
-      if (allowance.gte(amountWei)) return true;
+      const required = numeric.from(amountWei);
+      const allowanceRaw = await dcmonRead.allowance(address, target);
+      const allowance = numeric.from(allowanceRaw);
+      if (numeric.gte(allowance, required)) return true;
       setStatus('Approving DCMon...', 'info');
-      const tx = await dcmonWrite.approve(target, ethers.constants.MaxUint256);
+      const tx = await dcmonWrite.approve(target, numeric.toBigNumberish(compat.constants.MaxUint256));
       await tx.wait();
       return true;
     }
@@ -599,12 +816,16 @@
     }
   
     function parseAmountToWei(amount) {
-      if (!ethers?.utils?.parseEther) return null;
-      if (ethers.BigNumber.isBigNumber(amount)) return amount;
-      const parsed = sanitizeAmount(amount, null);
-      if (!Number.isFinite(parsed) || parsed <= 0) return null;
+      const normalized = sanitizeAmount(amount);
+      if (normalized == null) return null;
+      if (typeof normalized === 'bigint') {
+        return normalized;
+      }
+      if (!compat.parseEther) return null;
       try {
-        return ethers.utils.parseEther(String(parsed));
+        const wei = compat.parseEther(normalized);
+        if (wei == null) return null;
+        return numeric.gt(wei, 0n) ? wei : null;
       } catch {
         return null;
       }
@@ -634,7 +855,7 @@
         await ensureWrap(amountWei, addr);
         await ensureWmonAllowance(amountWei, addr);
         setStatus('Minting DCMon...', 'info');
-        const tx = await dcmonWrite.deposit(amountWei, addr);
+        const tx = await dcmonWrite.deposit(numeric.toBigNumberish(amountWei), addr);
         await tx.wait();
         clearInput(controlTargets.buyInputs);
         setStatus('Buy-in complete.', 'success');
@@ -668,11 +889,11 @@
   
       try {
         setStatus('Redeeming DCMon...', 'info');
-        const tx = await dcmonWrite.redeem(amountWei, addr);
+        const tx = await dcmonWrite.redeem(numeric.toBigNumberish(amountWei), addr);
         await tx.wait();
         if (wmonWrite) {
           setStatus('Unwrapping MON...', 'info');
-          const unwrapTx = await wmonWrite.withdraw(amountWei);
+          const unwrapTx = await wmonWrite.withdraw(numeric.toBigNumberish(amountWei));
           await unwrapTx.wait();
         }
         clearInput(controlTargets.cashInputs);

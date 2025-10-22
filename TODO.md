@@ -1,0 +1,4 @@
+- [ ] **Highest Priority**: Wire Blackjack flow to use the paymaster so the on-chain demo is ready. Coordinate with bankroll hooks and AA module for end-to-end testing.
+- [ ] Remove temporary ethers v5 compatibility shims once all legacy browser scripts and services are upgraded to ethers v6 APIs.
+- [ ] Audit backend and edge APIs for consistency with current smart-contract interfaces; update docs and clients accordingly.
+- [ ] Schedule a security sweep covering smart contracts, paymaster integration, and client-side wallet handling before public launch.
