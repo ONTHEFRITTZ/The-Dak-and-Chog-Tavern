@@ -36,6 +36,30 @@ bash scripts/deploy-ec2.sh
 
 > `npm ci` runs inside `tavern-next` during the deploy. That step can take a couple of minutes on a fresh EC2 instance—let it finish, the script now prints progress while it works. If you need to run local commands (e.g. `npm run dev`, `npm run lint`) do `cd tavern-next` first.
 
+## Fast path (build locally, ship bundle)
+
+When dependency files have not changed it is faster to build on your machine and upload the bundle:
+
+```
+DEPLOY_HOST=ubuntu@ip-172-31-46-204 bash scripts/deploy-bundle.sh
+```
+
+The script will:
+
+- run `npm run build` locally (with increased Node heap),
+- tar the `.next` output plus `package*.json` and `public/`,
+- upload it to `/tmp/next-build.tgz` on the EC2 box,
+- unpack it into `~/The-Dak-and-Chog-Tavern/tavern-next/`, kill anything using port 3000, and restart the PM2 apps.
+
+Override defaults if needed:
+
+```
+DEPLOY_HOST=ubuntu@server \
+DEPLOY_PATH=/custom/path/The-Dak-and-Chog-Tavern \
+NODE_ENV=production \
+bash scripts/deploy-bundle.sh
+```
+
 Cutover from legacy static site
 - Run `sudo bash scripts/install-nginx-conf.sh` after pulling to copy the updated reverse proxy config (it no longer serves the stale `/var/www/thedakandchog.xyz/html` snapshot).
 - The first time you cut over, clear the old static bundle: `sudo rm -rf /var/www/thedakandchog.xyz/html/*` (the directory is no longer used once Nginx is reloaded).
