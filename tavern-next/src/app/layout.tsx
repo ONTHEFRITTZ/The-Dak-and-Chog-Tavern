@@ -6,14 +6,14 @@ import { FooterMeta } from "../components/FooterMeta";
 import { AppNav } from "../components/AppNav";
 import Script from "next/script";
 
-const AA_IMPORT_MAP = {
+const LEGACY_IMPORT_MAP = {
   imports: {
-    viem: "https://esm.sh/viem@2.8.6?bundle",
-    "viem/account-abstraction": "https://esm.sh/viem@2.8.6/account-abstraction?bundle",
+    viem: "https://esm.sh/viem@2.8.6?target=es2020&bundle",
+    "viem/account-abstraction": "https://esm.sh/viem@2.8.6/account-abstraction?target=es2020&bundle",
     "@metamask/delegation-abis":
-      "https://cdn.jsdelivr.net/npm/@metamask/delegation-abis@0.13.0/dist/index.js",
+      "https://esm.sh/@metamask/delegation-abis@0.13.0?target=es2020&bundle",
     "@metamask/providers":
-      "https://cdn.jsdelivr.net/npm/@metamask/providers@12.1.0/dist/index.js",
+      "https://esm.sh/@metamask/providers@12.1.0?target=es2020&bundle",
   },
 };
 
@@ -43,7 +43,7 @@ export default function RootLayout({
           <FooterMeta />
         </WalletProvider>
         <Script id="aa-import-map" strategy="beforeInteractive" type="importmap">
-          {JSON.stringify(AA_IMPORT_MAP)}
+          {JSON.stringify(LEGACY_IMPORT_MAP)}
         </Script>
         <Script id="bankroll-script" src="/js/bankroll.js" strategy="afterInteractive" />
         <Script id="wallet-sync-script" src="/js/wallet-sync.js" strategy="afterInteractive" />

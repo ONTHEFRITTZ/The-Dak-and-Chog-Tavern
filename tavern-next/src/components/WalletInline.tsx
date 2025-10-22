@@ -1,7 +1,7 @@
 'use client';
 
 import Image from "next/image";
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { ethers } from "ethers";
 import { useWallet } from "../context/WalletContext";
 import { formatDcmon, useBankrollState } from "@/modules/bankroll";
@@ -21,6 +21,10 @@ declare global {
     ethers?: typeof ethers;
     openWalletChipsModal?: () => void;
   }
+}
+
+if (typeof window !== "undefined" && !window.ethers) {
+  window.ethers = ethers;
 }
 
 function truncateAddress(addr: string | null): string {
@@ -52,13 +56,6 @@ export const WalletInline = () => {
       />
     );
   }, [address, walletType]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (!window.ethers) {
-      window.ethers = ethers;
-    }
-  }, []);
 
   const handleWalletClick = useCallback(() => {
     if (typeof window === "undefined") return;

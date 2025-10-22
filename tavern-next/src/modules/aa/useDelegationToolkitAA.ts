@@ -29,39 +29,12 @@ export type DelegationToolkitAA = {
   ensureReady: () => Promise<void>;
 };
 
-type DelegationModule = {
-  Implementation: {
-    MultiSig?: unknown;
-    Stateless7702?: unknown;
-    Hybrid?: unknown;
-  };
-  toMetaMaskSmartAccount: (config: Record<string, unknown>) => Promise<SmartContractAccount>;
-};
+type DelegationModule = any;
 
 function pickImplementation(module: DelegationModule) {
   const { Implementation } = module;
   if (!Implementation) return null;
   return Implementation.MultiSig ?? Implementation.Stateless7702 ?? Implementation.Hybrid ?? null;
-}
-
-function ensureDelegationToolkitImportMap() {
-  if (typeof document === "undefined") return;
-  if (document.getElementById("aa-import-map")) return;
-  if (document.getElementById("delegation-toolkit-importmap")) return;
-  const script = document.createElement("script");
-  script.id = "delegation-toolkit-importmap";
-  script.type = "importmap";
-  script.textContent = JSON.stringify({
-    imports: {
-      viem: "https://esm.sh/viem@2.8.6?bundle",
-      "viem/account-abstraction": "https://esm.sh/viem@2.8.6/account-abstraction?bundle",
-      "@metamask/delegation-abis":
-        "https://cdn.jsdelivr.net/npm/@metamask/delegation-abis@0.13.0/dist/index.js",
-      "@metamask/providers":
-        "https://cdn.jsdelivr.net/npm/@metamask/providers@12.1.0/dist/index.js",
-    },
-  });
-  document.head.appendChild(script);
 }
 
 function serializeBigNumberish(value: unknown): string {
@@ -132,13 +105,7 @@ export function useDelegationToolkitAA(): DelegationToolkitAA {
         throw new Error("Delegation Toolkit context incomplete");
       }
 
-      ensureDelegationToolkitImportMap();
-
-      // @ts-ignore -- dynamically imported from CDN at runtime
-      const module = (await import(
-        /* webpackIgnore: true */
-        "https://cdn.jsdelivr.net/npm/@metamask/delegation-toolkit@0.13.0/dist/index.mjs"
-      )) as DelegationModule;
+      const module: DelegationModule = await import("@metamask/delegation-toolkit");
       const implementation = pickImplementation(module);
       if (!implementation) {
         throw new Error("MetaMask Delegation Toolkit implementation unavailable");
