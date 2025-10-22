@@ -58,7 +58,7 @@ else
 fi
 
 echo "--- building Next.js app ---"
-export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=4096}"
+export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=6144}"
 rm -rf .next
 NODE_ENV="$NODE_ENV" npm run build
 
