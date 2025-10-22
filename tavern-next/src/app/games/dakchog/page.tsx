@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
-import Link from "next/link";
 import Image from "next/image";
 import { Contract, Interface, parseEther } from "ethers";
 import { DakChogABI } from "@/abi/dakChog";
@@ -207,9 +206,6 @@ export default function DakChogPage() {
           height={140}
           priority
         />
-        <Link href="/" id="return" className="rules-btn">
-          Return to Tavern
-        </Link>
       </div>
 
       <section className="dakchog-content">

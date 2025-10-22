@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
-import Link from "next/link";
 import { Contract, Interface, parseEther } from "ethers";
 import { CONTRACTS } from "@/lib/config";
 import { useWallet } from "@/context/WalletContext";
@@ -261,9 +260,6 @@ export default function ShellGamePage() {
           height={150}
           priority
         />
-        <Link href="/" id="return" className="rules-btn">
-          Return to Tavern
-        </Link>
       </div>
 
       <section className="shell-content">

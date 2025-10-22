@@ -2,7 +2,6 @@
 
 import { useMemo, useState, useEffect, useCallback } from "react";
 import Image from "next/image";
-import Link from "next/link";
 import { useWallet } from "@/context/WalletContext";
 import { useBlackjack } from "@/modules/blackjack/useBlackjack";
 import type { Card } from "@/modules/blackjack/engine";
@@ -197,10 +196,7 @@ export default function BlackjackPage() {
             width={280}
             height={120}
           />
-          <Link href="/" className="rules-btn">
-            Return to Tavern
-          </Link>
-        </div>
+                  </div>
         <div className="wallet-strip">
           <span className="wallet-balance">
             Balance: <strong>{blackjack.formattedBalance} DCMon</strong>

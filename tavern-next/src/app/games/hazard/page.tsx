@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
-import Link from "next/link";
 import { Contract, Interface, parseEther } from "ethers";
 import { useWallet } from "@/context/WalletContext";
 import { useBankroll } from "@/modules/bankroll";
@@ -308,9 +307,6 @@ export default function HazardPage() {
           height={240}
           priority
         />
-        <Link href="/" id="return" className="rules-btn">
-          Return to Tavern
-        </Link>
       </div>
 
       <section className="hazard-content">

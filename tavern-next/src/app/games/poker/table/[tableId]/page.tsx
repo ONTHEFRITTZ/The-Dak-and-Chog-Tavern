@@ -862,3 +862,4 @@ export default function PokerTablePage({ params }: TablePageProps) {
     </>
   );
 }
+

@@ -137,10 +137,7 @@ export default function PokerLobbyPage() {
         <div className="lobby-header">
           <h1>Poker Lobby</h1>
           <div className="lobby-actions">
-            <Link className="rules-btn" href="/">
-              Return to Tavern
-            </Link>
-            {lobby.status && <span className="lobby-status">{lobby.status}</span>}
+                        {lobby.status && <span className="lobby-status">{lobby.status}</span>}
             {lobby.error && <span className="lobby-error">{lobby.error}</span>}
           </div>
         </div>

@@ -55,13 +55,7 @@ button:hover { background: #7800cd; }
 .sidebar-logo { display: block; max-height: 60px; height: auto; width: 100%; object-fit: contain; border-radius: 8px; margin-bottom: 8px; filter: drop-shadow(0 4px 12px rgba(0,0,0,0.25)); }
 .sidebar:not(.collapsed) .sidebar-logo { width: calc(100% + 20px); margin-left: -10px; margin-right: -10px; max-width: none; max-height: none; }
 .sidebar.collapsed .sidebar-logo {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 46px;
-  max-width: 46px;
-  margin: 6px auto;
-  padding: 0;
+  display: none;
 }
 .sidebar-toggle {  border: none;  color: #fff;  font-weight: 700;  height: 32px;  min-width: 32px;  padding: 0 12px;  cursor: pointer;  display: inline-flex;  align-items: center;  justify-content: center;  border-radius: 10px;  background: rgba(0, 0, 0, 0.35);  margin: 0 auto 8px;}
 .sidebar.collapsed .sidebar-toggle {  width: 44px;  padding: 0;}
@@ -528,13 +522,10 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
   width: 100%;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   gap: 18px;
 }
 
-.game-header .rules-btn {
-  align-self: center;
-}
 
 .dice-area {
   display: flex;
