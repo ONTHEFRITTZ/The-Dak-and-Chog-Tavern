@@ -30,7 +30,7 @@ Deploy (copy/paste)
 cd ~/The-Dak-and-Chog-Tavern
 git fetch origin
 git checkout main
-git pull --ff-only origin main
+git reset --hard origin/main
 bash scripts/deploy-ec2.sh
 ```
 
