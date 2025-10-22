@@ -16,6 +16,7 @@ NODE_ENV="${NODE_ENV:-production}"
 CATALOG_DIR="/home/ubuntu/The-Dak-and-Chog-Tavern"
 APP_DIR="$CATALOG_DIR/tavern-next"
 LOG_DIR="/var/log/tavern"
+ECOSYSTEM_FILE="$PROJECT_ROOT/ecosystem.config.js"
 
 # Ensure log directory exists
 sudo mkdir -p "$LOG_DIR"
@@ -34,6 +35,11 @@ git pull --ff-only origin main
 
 if [ ! -d "$APP_DIR" ]; then
   echo "ERROR: $APP_DIR does not exist. Did the repository layout change?" >&2
+  exit 1
+fi
+
+if [ ! -f "$ECOSYSTEM_FILE" ]; then
+  echo "ERROR: ecosystem config not found at $ECOSYSTEM_FILE" >&2
   exit 1
 fi
 
@@ -69,9 +75,11 @@ for app in tavern-next realtime dcmon-agent; do
   pm2 delete "$app" || true
 done
 
-NODE_ENV="$NODE_ENV" pm2 start ecosystem.config.js --only tavern-next --env "$NODE_ENV"
-NODE_ENV="$NODE_ENV" pm2 start ecosystem.config.js --only realtime --env "$NODE_ENV"
-NODE_ENV="$NODE_ENV" pm2 start ecosystem.config.js --only dcmon-agent --env "$NODE_ENV"
+cd "$PROJECT_ROOT"
+
+NODE_ENV="$NODE_ENV" pm2 start "$ECOSYSTEM_FILE" --only tavern-next --env "$NODE_ENV"
+NODE_ENV="$NODE_ENV" pm2 start "$ECOSYSTEM_FILE" --only realtime --env "$NODE_ENV"
+NODE_ENV="$NODE_ENV" pm2 start "$ECOSYSTEM_FILE" --only dcmon-agent --env "$NODE_ENV"
 pm2 save
 
 echo "--- deployment complete ---"
