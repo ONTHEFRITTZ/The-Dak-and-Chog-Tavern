@@ -640,6 +640,7 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
         const tag = encodeURIComponent(window.__BUILD_TAG || Date.now());
         const withTag = (src) => src.includes('?') ? `${src}&v=${tag}` : `${src}?v=${tag}`;
         const sources = [
+          '@metamask/delegation-toolkit',
           withTag('/js/vendor/delegation-toolkit-bundled.mjs'),
           withTag('/js/vendor/delegation-toolkit-shim.mjs'),
           withTag('/js/vendor/metamask-delegation-toolkit-latest.bundle.mjs'),

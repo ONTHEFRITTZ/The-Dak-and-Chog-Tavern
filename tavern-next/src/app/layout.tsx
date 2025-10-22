@@ -11,8 +11,9 @@ const LEGACY_IMPORT_MAP = {
     viem: "https://esm.sh/viem@2.31.4?target=es2020&bundle",
     "viem/account-abstraction":
       "https://esm.sh/viem@2.31.4/account-abstraction?target=es2020&bundle",
+    "@metamask/delegation-toolkit": "/js/vendor/delegation-toolkit-bundled.mjs",
     "@metamask/delegation-abis":
-      "https://esm.sh/@metamask/delegation-abis@0.13.0?target=es2020&bundle",
+      "https://esm.sh/@metamask/delegation-abis@0.11.0?target=es2020&bundle",
     "@metamask/providers":
       "https://esm.sh/@metamask/providers@12.1.0?target=es2020&bundle",
   },
