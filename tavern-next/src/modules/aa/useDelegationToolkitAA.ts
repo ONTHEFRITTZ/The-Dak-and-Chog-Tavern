@@ -37,6 +37,18 @@ function pickImplementation(module: DelegationModule) {
   return Implementation.MultiSig ?? Implementation.Stateless7702 ?? Implementation.Hybrid ?? null;
 }
 
+function deriveAlchemyRpcBase(url?: string | null) {
+  if (!url) return undefined;
+  try {
+    const parsed = new URL(url);
+    parsed.search = "";
+    parsed.pathname = parsed.pathname.replace(/\/v2.*/i, "/v2");
+    return parsed.toString().replace(/\/$/, "");
+  } catch {
+    return undefined;
+  }
+}
+
 function serializeBigNumberish(value: unknown): string {
   if (typeof value === "bigint") return value.toString();
   if (typeof value === "number") return Math.trunc(value).toString();
@@ -138,9 +150,23 @@ export function useDelegationToolkitAA(): DelegationToolkitAA {
       const smartAccountAddress = typeof accountLike.getAddress === "function" ? await accountLike.getAddress() : accountLike.address;
       storeSmartAccountAddress(publicClient.chain?.id ?? MONAD.id, smartAccountAddress);
 
+      const alchemyBase = deriveAlchemyRpcBase(MONAD_BUNDLER_RPC);
+      const chain = alchemyBase
+        ? {
+            ...MONAD_CHAIN,
+            rpcUrls: {
+              ...MONAD_CHAIN.rpcUrls,
+              alchemy: {
+                ...(MONAD_CHAIN.rpcUrls as any)?.alchemy,
+                http: [alchemyBase],
+              },
+            },
+          }
+        : MONAD_CHAIN;
+
       const alchemyConfig: Record<string, unknown> = {
         account: smartAccount,
-        chain: MONAD_CHAIN,
+        chain,
       };
       if (ALCHEMY_API_KEY) {
         alchemyConfig.apiKey = ALCHEMY_API_KEY;
