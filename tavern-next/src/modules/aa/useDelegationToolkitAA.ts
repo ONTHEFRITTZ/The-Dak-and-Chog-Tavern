@@ -9,6 +9,7 @@ import { useWallet } from "@/context/WalletContext";
 import {
   ALCHEMY_API_KEY,
   MONAD,
+  MONAD_BUNDLER_RPC,
   MONAD_CHAIN,
 } from "@/lib/config";
 import { ensureDelegationToolkitContext, resetDelegationToolkitContext } from "./toolkitContext";
@@ -143,10 +144,12 @@ export function useDelegationToolkitAA(): DelegationToolkitAA {
       };
       if (ALCHEMY_API_KEY) {
         alchemyConfig.apiKey = ALCHEMY_API_KEY;
+      } else if (MONAD_BUNDLER_RPC) {
+        alchemyConfig.rpcUrl = MONAD_BUNDLER_RPC;
       }
-      if (!alchemyConfig.apiKey) {
+      if (!alchemyConfig.apiKey && !alchemyConfig.rpcUrl) {
         throw new Error(
-          "Alchemy bundler configuration missing. Set NEXT_PUBLIC_ALCHEMY_API_KEY."
+          "Alchemy bundler configuration missing. Set NEXT_PUBLIC_ALCHEMY_API_KEY or NEXT_PUBLIC_MONAD_BUNDLER_RPC."
         );
       }
 
