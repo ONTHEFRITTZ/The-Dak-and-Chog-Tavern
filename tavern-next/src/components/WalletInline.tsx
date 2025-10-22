@@ -23,8 +23,15 @@ declare global {
   }
 }
 
-if (typeof window !== "undefined" && !window.ethers) {
-  window.ethers = ethers;
+if (typeof window !== "undefined") {
+  if (!window.ethers) {
+    window.ethers = ethers;
+  }
+  try {
+    window.dispatchEvent(new CustomEvent("wallet:ethers-ready"));
+  } catch {
+    // ignore dispatch errors
+  }
 }
 
 function truncateAddress(addr: string | null): string {

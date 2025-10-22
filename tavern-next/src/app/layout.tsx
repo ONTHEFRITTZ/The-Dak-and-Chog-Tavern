@@ -42,6 +42,11 @@ export default function RootLayout({
           <div className="content-frame">{children}</div>
           <FooterMeta />
         </WalletProvider>
+        <Script
+          id="ethers-umd"
+          src="https://cdn.jsdelivr.net/npm/ethers@6.15.0/dist/ethers.umd.min.js"
+          strategy="beforeInteractive"
+        />
         <Script id="aa-import-map" strategy="beforeInteractive" type="importmap">
           {JSON.stringify(LEGACY_IMPORT_MAP)}
         </Script>
