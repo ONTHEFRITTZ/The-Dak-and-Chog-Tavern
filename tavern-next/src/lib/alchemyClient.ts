@@ -1,30 +1,22 @@
 'use client';
 
 import type { Address, Chain } from 'viem';
-import { createLightAccountAlchemyClient } from '@alchemy/aa-alchemy';
-import type { SmartAccountSigner } from '@alchemy/aa-core';
+import type { SmartAccountSigner } from '@aa-sdk/core';
+import { alchemy } from '@account-kit/infra';
+import { createLightAccountAlchemyClient } from '@account-kit/smart-contracts';
 
 import {
   MONAD_CHAIN,        // your viem Chain for Monad (testnet/mainnet)
   ALCHEMY_API_KEY,
   ALCHEMY_POLICY_ID,
+  MONAD_BUNDLER_RPC,
 } from './config';
 
 export type SupportedSigner = SmartAccountSigner & {
   getAddress(): Promise<Address>;
 };
 
-/**
- * Ensure the Chain object includes Alchemy RPC URLs.
- * If you're not on Monad Testnet, change the base URLs accordingly.
- */
 function withAlchemyRpc(chain: Chain, apiKey: string): Chain {
-  // 🔁 Swap these hosts if you're on a different network.
-  // Examples:
-  //   Ethereum Sepolia: https://eth-sepolia.g.alchemy.com/v2/
-  //   Ethereum Mainnet: https://eth-mainnet.g.alchemy.com/v2/
-  //   Base Sepolia:     https://base-sepolia.g.alchemy.com/v2/
-  //   Polygon Amoy:     https://polygon-amoy.g.alchemy.com/v2/
   const http = [`https://monad-testnet.g.alchemy.com/v2/${apiKey}`];
   const webSocket = [`wss://monad-testnet.g.alchemy.com/v2/${apiKey}`];
 
@@ -32,6 +24,7 @@ function withAlchemyRpc(chain: Chain, apiKey: string): Chain {
     ...chain,
     rpcUrls: {
       ...(chain.rpcUrls ?? {}),
+      alchemy: { http, webSocket },
       default: { http, webSocket },
       public: { http, webSocket },
     },
@@ -41,20 +34,32 @@ function withAlchemyRpc(chain: Chain, apiKey: string): Chain {
 export async function createAlchemySmartAccountClient<TSigner extends SupportedSigner>(
   signer: TSigner
 ) {
-  if (!ALCHEMY_API_KEY) {
-    throw new Error('Alchemy AA env vars missing. Set NEXT_PUBLIC_ALCHEMY_* to enable.');
-  }
-
   const accountAddress = await signer.getAddress();
 
-  // ✅ Make sure the chain carries an Alchemy RPC URL
-  const chain = withAlchemyRpc(MONAD_CHAIN as Chain, ALCHEMY_API_KEY);
+  const transportConfig: Parameters<typeof alchemy>[0] = (() => {
+    if (ALCHEMY_API_KEY) {
+      return { apiKey: ALCHEMY_API_KEY };
+    }
+    if (MONAD_BUNDLER_RPC) {
+      return { rpcUrl: MONAD_BUNDLER_RPC };
+    }
+    throw new Error(
+      'Alchemy transport configuration missing. Set NEXT_PUBLIC_ALCHEMY_API_KEY or NEXT_PUBLIC_MONAD_BUNDLER_RPC.'
+    );
+  })();
+
+  const chain =
+    'apiKey' in transportConfig
+      ? withAlchemyRpc(MONAD_CHAIN as Chain, transportConfig.apiKey!)
+      : (MONAD_CHAIN as Chain);
+
+  const transport = alchemy(transportConfig);
 
   return createLightAccountAlchemyClient({
-    apiKey: ALCHEMY_API_KEY,
     chain,
+    transport,
     signer,
     accountAddress,
-    gasManagerConfig: ALCHEMY_POLICY_ID ? { policyId: ALCHEMY_POLICY_ID } : undefined,
+    policyId: ALCHEMY_POLICY_ID || undefined,
   });
 }

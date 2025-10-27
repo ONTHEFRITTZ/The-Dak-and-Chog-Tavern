@@ -1,10 +1,10 @@
 ﻿'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { AlchemySmartAccountClient } from "@alchemy/aa-alchemy";
-import { createAlchemySmartAccountClient } from "@alchemy/aa-alchemy";
-import type { SmartContractAccount } from "@alchemy/aa-core";
-import { type Hex } from "viem";
+import type { AlchemySmartAccountClient } from "@account-kit/infra";
+import { createAlchemySmartAccountClient, alchemy } from "@account-kit/infra";
+import type { SmartContractAccount } from "@aa-sdk/core";
+import { type Chain, type Hex } from "viem";
 import { useWallet } from "@/context/WalletContext";
 import {
   ALCHEMY_API_KEY,
@@ -151,7 +151,7 @@ export function useDelegationToolkitAA(): DelegationToolkitAA {
       storeSmartAccountAddress(publicClient.chain?.id ?? MONAD.id, smartAccountAddress);
 
       const alchemyBase = deriveAlchemyRpcBase(MONAD_BUNDLER_RPC);
-      const chain = alchemyBase
+      const chain: Chain = (alchemyBase
         ? {
             ...MONAD_CHAIN,
             rpcUrls: {
@@ -162,22 +162,21 @@ export function useDelegationToolkitAA(): DelegationToolkitAA {
               },
             },
           }
-        : MONAD_CHAIN;
+        : MONAD_CHAIN) as Chain;
 
-      const alchemyConfig: Record<string, unknown> = {
-        account: smartAccount,
-        chain,
-      };
-      if (ALCHEMY_API_KEY) {
-        alchemyConfig.apiKey = ALCHEMY_API_KEY;
-      } else if (MONAD_BUNDLER_RPC) {
-        alchemyConfig.rpcUrl = MONAD_BUNDLER_RPC;
-      }
-      if (!alchemyConfig.apiKey && !alchemyConfig.rpcUrl) {
+      const transportConfig: Parameters<typeof alchemy>[0] = (() => {
+        if (ALCHEMY_API_KEY) {
+          return { apiKey: ALCHEMY_API_KEY };
+        }
+        if (MONAD_BUNDLER_RPC) {
+          return { rpcUrl: MONAD_BUNDLER_RPC };
+        }
         throw new Error(
           "Alchemy bundler configuration missing. Set NEXT_PUBLIC_ALCHEMY_API_KEY or NEXT_PUBLIC_MONAD_BUNDLER_RPC."
         );
-      }
+      })();
+
+      const transport = alchemy(transportConfig);
 
       const attachPaymaster = async (uo: any) => {
         try {
@@ -243,7 +242,9 @@ export function useDelegationToolkitAA(): DelegationToolkitAA {
       };
 
       const alchemyClient = await createAlchemySmartAccountClient({
-        ...(alchemyConfig as any),
+        chain,
+        transport,
+        account: smartAccount as SmartContractAccount,
         customMiddleware: async (struct, context) => {
           if (context?.overrides && bypassesPaymaster(context.overrides)) {
             return struct;
