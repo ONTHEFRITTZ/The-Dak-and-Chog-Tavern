@@ -388,7 +388,6 @@ export default function PokerTablePage({ params }: TablePageProps) {
     }
     return "Check or set your bet to act.";
   }, [actionStatus, isSeated, isMyTurn, callAmountChips, callAmountDcmon]);
-  const actionBarClassName = cx("action-bar", !isSeated && "hidden");
   const potChips = Number(realtime.state?.pot || 0);
   const potLabel = formatPot(potChips, chipValueDcmon);
   const myContributionChips = Number(myActor?.contrib || 0);
@@ -578,42 +577,6 @@ export default function PokerTablePage({ params }: TablePageProps) {
                 </div>
               )}
               <div className="pot-indicator">Pot {potLabel}</div>
-              <div className={actionBarClassName} aria-live="polite">
-                <div className="info">{actionInfo}</div>
-                <button
-                  type="button"
-                  onClick={handleFold}
-                  disabled={!isMyTurn || actionBusy || !isSeated}
-                >
-                  Fold
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCheckOrCall}
-                  disabled={!isMyTurn || actionBusy || !isSeated}
-                >
-                  {callAmountChips > 0
-                    ? `Call ${callAmountChips.toFixed(2)} chips`
-                    : "Check"}
-                </button>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={betAmount}
-                  onChange={(event) => setBetAmount(event.target.value)}
-                  disabled={!isMyTurn || actionBusy || !isSeated}
-                  aria-label="Bet amount in chips"
-                  className="bet-input"
-                />
-                <button
-                  type="button"
-                  onClick={handleBet}
-                  disabled={!isMyTurn || actionBusy || !isSeated}
-                >
-                  {callAmountChips > 0 ? "Raise" : "Bet"}
-                </button>
-              </div>
               <div className="seat-layer">
                 {orderedSeats.map((seat) => (
                   <div
@@ -738,22 +701,60 @@ export default function PokerTablePage({ params }: TablePageProps) {
             )}
           </section>
 
-          <section className="panel poker-controls">
-            <h2>Action</h2>
-            <p className="muted">Use the table controls when it is your turn.</p>
-            <p className="muted">
-              Call amount:{" "}
-              <span className="highlight">
-                {callAmountChips.toFixed(2)} chips (~{callAmountDcmon.toFixed(3)} DCMon)
-              </span>
-            </p>
-            <p className="muted">
-              Your contribution:{" "}
-              <span className="highlight">
-                {myContributionChips.toFixed(2)} chips (~{myContributionDcmon.toFixed(3)} DCMon)
-              </span>
-            </p>
-          </section>
+            <section className="panel poker-controls">
+              <h2>Action</h2>
+              <p className="muted">Use the table controls when it is your turn.</p>
+              <p className="muted">{actionInfo}</p>
+              <p className="muted">
+                Call amount:{" "}
+                <span className="highlight">
+                  {callAmountChips.toFixed(2)} chips (~{callAmountDcmon.toFixed(3)} DCMon)
+                </span>
+              </p>
+              <p className="muted">
+                Your contribution:{" "}
+                <span className="highlight">
+                  {myContributionChips.toFixed(2)} chips (~{myContributionDcmon.toFixed(3)} DCMon)
+                </span>
+              </p>
+              <div className="action-grid">
+                <button
+                  type="button"
+                  onClick={handleFold}
+                  disabled={!isMyTurn || actionBusy || !isSeated}
+                >
+                  Fold
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCheckOrCall}
+                  disabled={!isMyTurn || actionBusy || !isSeated}
+                >
+                  {callAmountChips > 0
+                    ? `Call ${callAmountChips.toFixed(2)} chips`
+                    : "Check"}
+                </button>
+              </div>
+              <div className="bet-input-row">
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={betAmount}
+                  onChange={(event) => setBetAmount(event.target.value)}
+                  disabled={!isMyTurn || actionBusy || !isSeated}
+                  aria-label="Bet amount in chips"
+                  className="bet-input"
+                />
+                <button
+                  type="button"
+                  onClick={handleBet}
+                  disabled={!isMyTurn || actionBusy || !isSeated}
+                >
+                  {callAmountChips > 0 ? "Raise" : "Bet"}
+                </button>
+              </div>
+            </section>
 
           <section className="panel poker-messages">
             <h2>Table Log</h2>
