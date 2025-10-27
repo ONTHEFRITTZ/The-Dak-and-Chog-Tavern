@@ -209,14 +209,9 @@ export default function DakChogPage() {
       </div>
 
       <section className="dakchog-content">
-        <div
-          id="coin"
-          ref={coinRef}
-          className={`coin ${isFlipping ? "spin" : ""}`}
-          aria-live="polite"
-        />
+        <div id="coin" ref={coinRef} className={`coin ${isFlipping ? "spin" : ""}`} aria-live="polite" />
 
-        <div className="choose-wrap">
+        <div className="choice" aria-label="Choose side">
           <button
             id="choose-dak"
             className={choice === "dak" ? "active" : ""}
@@ -235,7 +230,7 @@ export default function DakChogPage() {
           </button>
         </div>
 
-        <div className="bet-wrap">
+        <div className="controls">
           <label htmlFor="bet">Bet (DCMon)</label>
           <input
             id="bet"
@@ -248,9 +243,11 @@ export default function DakChogPage() {
           />
         </div>
 
-        <button id="flip" type="button" onClick={playCoin} disabled={isSubmitting}>
-          {isSubmitting ? "Flipping..." : "Flip Coin"}
-        </button>
+        <div className="cta">
+          <button id="flip" type="button" onClick={playCoin} disabled={isSubmitting}>
+            {isSubmitting ? "Flipping..." : "Flip Coin"}
+          </button>
+        </div>
 
         <p id="dc-status">{status}</p>
 

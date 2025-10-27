@@ -368,7 +368,13 @@ export default function PokerTablePage({ params }: TablePageProps) {
 
   const isSeated = mySeatId >= 0;
   const tableCanvasClassName = useMemo(
-    () => cx("table-canvas", isSeated ? null : "pre-seat", isSimulatedTable ? "sim-table" : null),
+    () =>
+      cx(
+        "table-canvas",
+        "poker-table",
+        isSeated ? null : "pre-seat",
+        isSimulatedTable ? "sim-table" : null
+      ),
     [isSeated, isSimulatedTable]
   );
   const centerBannerMessage = actionStatus ?? realtime.status ?? null;
@@ -561,152 +567,157 @@ export default function PokerTablePage({ params }: TablePageProps) {
           overlay?.applyHand?.(realtime.handSummary ?? null);
         }}
       />
-      <main className="poker-table-view">
-      <header className="poker-table-header">
-        <div className="poker-table-info">
-          <h1>{tableId}</h1>
-          <p className="muted">
-            Stage: <span className="highlight">{stageLabel}</span> - Pot:{" "}
-            <span className="highlight">{potLabel}</span>
-          </p>
-          <p className="muted">
-            Community cards:{" "}
-            <span className="highlight">{formatCommunity(communityCards)}</span>
-          </p>
-        </div>
-        <div className="poker-table-actions">
-          <Link className="rules-btn" href="/games/poker">
-            Back to Lobby
-          </Link>
-          <div className="wallet-chip">
-            <span>{short(address)}</span>
-            {address ? (
-              <button type="button" onClick={disconnect}>
-                Disconnect
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => connect().catch(() => void 0)}
-                disabled={isConnecting}
-              >
-                {isConnecting ? "Connecting..." : "Connect"}
-              </button>
-            )}
+      <main className="poker-page">
+        <header className="poker-header">
+          <div className="poker-header-main">
+            <h1 className="poker-title">{tableId}</h1>
+            <p className="poker-subtitle">
+              Stage: <span className="highlight">{stageLabel}</span> · Pot:{" "}
+              <span className="highlight">{potLabel}</span>
+            </p>
+            <p className="poker-meta">
+              Community cards:{" "}
+              <span className="highlight">{formatCommunity(communityCards)}</span>
+            </p>
           </div>
-        </div>
-      </header>
-
-      <section className="poker-table-layout">
-        <div className="table-stage">
-          <div className={tableCanvasClassName}>
-            <div className="table-surface" role="presentation" aria-hidden="true" />
-            {centerBannerMessage && (
-              <div className={centerBannerClassName}>
-                <span>{centerBannerMessage}</span>
-              </div>
-            )}
-            <div className="pot-indicator">Pot {potLabel}</div>
-            <div className={actionBarClassName} aria-live="polite">
-              <div className="info">{actionInfo}</div>
-              <button
-                type="button"
-                onClick={handleFold}
-                disabled={!isMyTurn || actionBusy || !isSeated}
-              >
-                Fold
-              </button>
-              <button
-                type="button"
-                onClick={handleCheckOrCall}
-                disabled={!isMyTurn || actionBusy || !isSeated}
-              >
-                {callAmountChips > 0
-                  ? `Call ${callAmountChips.toFixed(2)} chips`
-                  : "Check"}
-              </button>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={betAmount}
-                onChange={(event) => setBetAmount(event.target.value)}
-                disabled={!isMyTurn || actionBusy || !isSeated}
-                aria-label="Bet amount in chips"
-                className="bet-input"
-              />
-              <button
-                type="button"
-                onClick={handleBet}
-                disabled={!isMyTurn || actionBusy || !isSeated}
-              >
-                {callAmountChips > 0 ? "Raise" : "Bet"}
-              </button>
-            </div>
-            <div className="seat-layer">
-              {orderedSeats.map((seat) => (
-                <div
-                  key={seat.seatId}
-                  data-seat-id={seat.seatId}
-                  className={cx(
-                    "seat",
-                    "seat-node",
-                    seat.isUser && "me",
-                    seat.isUser && "seat-me",
-                    seat.isEmpty && "empty-seat",
-                    seat.isEmpty && "seat-empty",
-                    !seat.isEmpty && "seat-occupied",
-                    seat.isTurn && "turn",
-                    seat.hasFolded && "folded",
-                    seat.isWinner && "winner"
-                  )}
-                  style={{ top: seat.position.top, left: seat.position.left }}
+          <div className="poker-header-actions">
+            <Link className="rules-btn" href="/games/poker">
+              Back to Lobby
+            </Link>
+            <div className="wallet-chip">
+              <span>{short(address)}</span>
+              {address ? (
+                <button type="button" onClick={disconnect}>
+                  Disconnect
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => connect().catch(() => void 0)}
+                  disabled={isConnecting}
                 >
-                  {seat.markerLabel && (
-                    <div className={cx("marker", seat.markerClass, "show")}>{seat.markerLabel}</div>
-                  )}
-                  <div className="seat-name name">{seat.label}</div>
-                  {!seat.isEmpty && (
-                    <>
-                      <div className="seat-stack stack">
-                        {seat.stackLabel && <span>{seat.stackLabel}</span>}
-                        {seat.dcmonStack && <span>{seat.dcmonStack}</span>}
-                      </div>
-                      {seat.statusLabel && (
-                        <div className="seat-status status">{seat.statusLabel}</div>
-                      )}
-                    </>
-                  )}
-                  <div className="seat-actions btns">
-                    {seat.isEmpty && seat.displayIndex === 0 && !isSeated && (
-                      <button
-                        type="button"
-                        className="seat-sit-btn"
-                        onClick={handleOpenSitModal}
-                        disabled={actionBusy || preferredSeatId < 0}
-                      >
-                        Sit
-                      </button>
-                    )}
-                    {seat.isUser && !seat.isEmpty && (
-                      <button
-                        type="button"
-                        className="seat-leave-btn"
-                        onClick={handleLeaveSeat}
-                        disabled={actionBusy}
-                      >
-                        Leave
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
+                  {isConnecting ? "Connecting..." : "Connect"}
+                </button>
+              )}
             </div>
           </div>
-        </div>
+        </header>
 
-        <aside className="poker-sidebar">
-          <section className="poker-status">
+        <div className="poker-stage">
+          <div className="poker-table-wrap">
+            <div className={tableCanvasClassName}>
+              <div className="table-surface" role="presentation" aria-hidden="true" />
+              {centerBannerMessage && (
+                <div className={centerBannerClassName}>
+                  <span>{centerBannerMessage}</span>
+                </div>
+              )}
+              <div className="pot-indicator">Pot {potLabel}</div>
+              <div className={actionBarClassName} aria-live="polite">
+                <div className="info">{actionInfo}</div>
+                <button
+                  type="button"
+                  onClick={handleFold}
+                  disabled={!isMyTurn || actionBusy || !isSeated}
+                >
+                  Fold
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCheckOrCall}
+                  disabled={!isMyTurn || actionBusy || !isSeated}
+                >
+                  {callAmountChips > 0
+                    ? `Call ${callAmountChips.toFixed(2)} chips`
+                    : "Check"}
+                </button>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={betAmount}
+                  onChange={(event) => setBetAmount(event.target.value)}
+                  disabled={!isMyTurn || actionBusy || !isSeated}
+                  aria-label="Bet amount in chips"
+                  className="bet-input"
+                />
+                <button
+                  type="button"
+                  onClick={handleBet}
+                  disabled={!isMyTurn || actionBusy || !isSeated}
+                >
+                  {callAmountChips > 0 ? "Raise" : "Bet"}
+                </button>
+              </div>
+              <div className="seat-layer">
+                {orderedSeats.map((seat) => (
+                  <div
+                    key={seat.seatId}
+                    data-seat-id={seat.seatId}
+                    className={cx(
+                      "seat",
+                      "seat-node",
+                      seat.isUser && "me",
+                      seat.isUser && "seat-me",
+                      seat.isEmpty && "empty-seat",
+                      seat.isEmpty && "seat-empty",
+                      !seat.isEmpty && "seat-occupied",
+                      seat.isTurn && "turn",
+                      seat.hasFolded && "folded",
+                      seat.isWinner && "winner"
+                    )}
+                    style={{ top: seat.position.top, left: seat.position.left }}
+                  >
+                    {seat.markerLabel && (
+                      <div className={cx("marker", seat.markerClass, "show")}>{seat.markerLabel}</div>
+                    )}
+                    <div className="seat-name name">{seat.label}</div>
+                    {!seat.isEmpty && (
+                      <>
+                        <div className="seat-stack stack">
+                          {seat.stackLabel && <span>{seat.stackLabel}</span>}
+                          {seat.dcmonStack && <span>{seat.dcmonStack}</span>}
+                        </div>
+                        {seat.statusLabel && (
+                          <div className="seat-status status">{seat.statusLabel}</div>
+                        )}
+                      </>
+                    )}
+                    <div className="seat-actions btns">
+                      {seat.isEmpty && seat.displayIndex === 0 && !isSeated && (
+                        <button
+                          type="button"
+                          className="seat-sit-btn"
+                          onClick={handleOpenSitModal}
+                          disabled={actionBusy || preferredSeatId < 0}
+                        >
+                          Sit
+                        </button>
+                      )}
+                      {seat.isUser && !seat.isEmpty && (
+                        <button
+                          type="button"
+                          className="seat-leave-btn"
+                          onClick={handleLeaveSeat}
+                          disabled={actionBusy}
+                        >
+                          Leave
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {!isSeated && (
+                <div className="poker-callout">
+                  Take a seat, place your wager, and join the action.
+                </div>
+              )}
+            </div>
+          </div>
+
+          <aside className="poker-sidebar">
+            <section className="panel poker-status">
             <h2>Table Status</h2>
             <p className="muted">
               Connection:{" "}
@@ -723,7 +734,7 @@ export default function PokerTablePage({ params }: TablePageProps) {
             )}
           </section>
 
-          <section className="poker-controls">
+          <section className="panel poker-controls">
             <h2>Action</h2>
             <p className="muted">Use the table controls when it is your turn.</p>
             <p className="muted">
@@ -740,7 +751,7 @@ export default function PokerTablePage({ params }: TablePageProps) {
             </p>
           </section>
 
-          <section className="poker-messages">
+          <section className="panel poker-messages">
             <h2>Table Log</h2>
             <div className="message-list">
               {realtime.messages.map((message) => (
@@ -752,7 +763,7 @@ export default function PokerTablePage({ params }: TablePageProps) {
             </div>
           </section>
 
-          <section className="poker-hand">
+          <section className="panel poker-hand">
             <h2>Private Cards</h2>
             {myPrivateCards.length > 0 ? (
               <div className="card-row">
@@ -767,7 +778,7 @@ export default function PokerTablePage({ params }: TablePageProps) {
             )}
           </section>
 
-          <section className="poker-admin">
+          <section className="panel poker-admin">
             <h2>Dealer Tools</h2>
             <p className="muted">
               Mode:{" "}
@@ -801,7 +812,7 @@ export default function PokerTablePage({ params }: TablePageProps) {
           </section>
 
           {latestHand && (
-            <section className="poker-summary">
+            <section className="panel poker-summary">
               <h2>Last Hand</h2>
               <p className="muted">
                 Pot: <span className="highlight">{formatPot(latestHand.pot, chipValueDcmon)}</span>
@@ -825,7 +836,7 @@ export default function PokerTablePage({ params }: TablePageProps) {
             </section>
           )}
         </aside>
-      </section>
+        </div>
 
         {isSitModalOpen && (
           <div className="poker-modal-backdrop">

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AlchemySmartAccountClient } from "@account-kit/infra";
 import { createAlchemySmartAccountClient, alchemy } from "@account-kit/infra";
-import type { SmartContractAccount } from "@aa-sdk/core";
+import { getEntryPoint, type SmartContractAccount } from "@aa-sdk/core";
 import { type Chain, type Hex } from "viem";
 import { useWallet } from "@/context/WalletContext";
 import {
@@ -241,10 +241,23 @@ export function useDelegationToolkitAA(): DelegationToolkitAA {
         return uo;
       };
 
+      const metamaskAccount = smartAccount as SmartContractAccount & {
+        entryPoint?: { address: string; version?: string };
+        getEntryPoint?: () => ReturnType<typeof getEntryPoint>;
+      };
+      if (!metamaskAccount.getEntryPoint) {
+        const entryPointVersion = metamaskAccount.entryPoint?.version as string | undefined;
+        const entryPointDef =
+          entryPointVersion != null
+            ? getEntryPoint(chain, { version: entryPointVersion as any })
+            : getEntryPoint(chain);
+        metamaskAccount.getEntryPoint = () => entryPointDef;
+      }
+
       const alchemyClient = await createAlchemySmartAccountClient({
         chain,
         transport,
-        account: smartAccount as SmartContractAccount,
+        account: metamaskAccount as SmartContractAccount,
         customMiddleware: async (struct, context) => {
           if (context?.overrides && bypassesPaymaster(context.overrides)) {
             return struct;
