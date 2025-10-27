@@ -568,42 +568,7 @@ export default function PokerTablePage({ params }: TablePageProps) {
         }}
       />
       <main className="poker-page">
-        <header className="poker-header">
-          <div className="poker-header-main">
-            <h1 className="poker-title">{tableId}</h1>
-            <p className="poker-subtitle">
-              Stage: <span className="highlight">{stageLabel}</span> · Pot:{" "}
-              <span className="highlight">{potLabel}</span>
-            </p>
-            <p className="poker-meta">
-              Community cards:{" "}
-              <span className="highlight">{formatCommunity(communityCards)}</span>
-            </p>
-          </div>
-          <div className="poker-header-actions">
-            <Link className="rules-btn" href="/games/poker">
-              Back to Lobby
-            </Link>
-            <div className="wallet-chip">
-              <span>{short(address)}</span>
-              {address ? (
-                <button type="button" onClick={disconnect}>
-                  Disconnect
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => connect().catch(() => void 0)}
-                  disabled={isConnecting}
-                >
-                  {isConnecting ? "Connecting..." : "Connect"}
-                </button>
-              )}
-            </div>
-          </div>
-        </header>
-
-        <div className="poker-stage">
+        <section className="poker-stage">
           <div className="poker-table-wrap">
             <div className={tableCanvasClassName}>
               <div className="table-surface" role="presentation" aria-hidden="true" />
@@ -717,6 +682,45 @@ export default function PokerTablePage({ params }: TablePageProps) {
           </div>
 
           <aside className="poker-sidebar">
+            <section className="panel poker-info">
+              <h3>{tableId}</h3>
+              <p className="muted">
+                Stage: <span className="highlight">{stageLabel}</span>
+              </p>
+              <p className="muted">
+                Pot: <span className="highlight">{potLabel}</span>
+              </p>
+              <p className="muted">
+                Community cards:{" "}
+                <span className="highlight">{formatCommunity(communityCards)}</span>
+              </p>
+              <p className="muted">
+                Mode:{" "}
+                <span className="highlight">{(tableModeLabel ?? "unknown").toUpperCase()}</span>
+              </p>
+              <div className="poker-info-actions">
+                <Link className="rules-btn" href="/games/poker">
+                  Back to Lobby
+                </Link>
+                <div className="wallet-chip">
+                  <span>{short(address)}</span>
+                  {address ? (
+                    <button type="button" onClick={disconnect}>
+                      Disconnect
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => connect().catch(() => void 0)}
+                      disabled={isConnecting}
+                    >
+                      {isConnecting ? "Connecting..." : "Connect"}
+                    </button>
+                  )}
+                </div>
+              </div>
+            </section>
+
             <section className="panel poker-status">
             <h2>Table Status</h2>
             <p className="muted">
@@ -836,7 +840,7 @@ export default function PokerTablePage({ params }: TablePageProps) {
             </section>
           )}
         </aside>
-        </div>
+        </section>
 
         {isSitModalOpen && (
           <div className="poker-modal-backdrop">

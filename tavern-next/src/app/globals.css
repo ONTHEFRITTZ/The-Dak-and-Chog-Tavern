@@ -1665,52 +1665,6 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
   box-shadow: none;
 }
 
-.poker-header {
-  width: min(100%, 1400px);
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: clamp(16px, 3vw, 32px);
-  flex-wrap: wrap;
-  text-align: left;
-}
-
-.poker-header-main {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.poker-title {
-  margin: 0;
-  font-size: clamp(2rem, 1.4rem + 1.6vw, 3rem);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #ffdc8f;
-}
-
-.poker-subtitle,
-.poker-meta {
-  margin: 0;
-  font-size: clamp(1rem, 0.95rem + 0.3vw, 1.25rem);
-  opacity: 0.78;
-}
-
-.poker-meta {
-  opacity: 0.7;
-}
-
-.poker-header-actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.poker-header-actions .wallet-chip {
-  margin: 0;
-}
-
 .poker-stage {
   width: min(100%, 1400px);
   display: flex;
@@ -1731,6 +1685,17 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
   border: none;
   border-radius: 0;
   overflow: visible;
+}
+
+.poker-info-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.poker-info-actions .wallet-chip {
+  margin: 0;
 }
 
 .blackjack-stage {
@@ -2149,19 +2114,13 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
 }
 
 @media (max-width: 720px) {
-  .blackjack-header,
-  .poker-header {
-    align-items: flex-start;
-    text-align: left;
-  }
-
-  .poker-header-actions {
-    justify-content: flex-start;
-  }
-
   .blackjack-sidebar,
   .poker-sidebar {
     flex-direction: column;
+  }
+
+  .poker-info-actions {
+    justify-content: flex-start;
   }
 }
 
