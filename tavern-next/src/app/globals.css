@@ -1674,12 +1674,6 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
   margin: 0 auto;
 }
 
-.poker-table-wrap {
-  flex: 1 1 auto;
-  display: flex;
-  justify-content: center;
-}
-
 .table-canvas.poker-table {
   box-shadow: 0 32px 64px rgba(0, 0, 0, 0.45);
   border: none;
@@ -2110,10 +2104,6 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
   }
 
   .blackjack-table-wrap,
-  .poker-table-wrap {
-    width: 100%;
-  }
-
   .blackjack-sidebar,
   .poker-sidebar {
     width: min(100%, 480px);
