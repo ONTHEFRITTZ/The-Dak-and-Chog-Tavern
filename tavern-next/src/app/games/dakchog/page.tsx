@@ -202,9 +202,10 @@ export default function DakChogPage() {
           className="game-logo"
           src="/assets/images/dakandchog-logo.png"
           alt="Dak & Chog"
-          width={320}
-          height={140}
+          width={540}
+          height={220}
           priority
+          style={{ width: "min(360px, 60vw)", height: "auto" }}
         />
       </div>
 

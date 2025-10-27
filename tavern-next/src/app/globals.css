@@ -89,9 +89,10 @@ button:hover { background: #7800cd; }
 }
 @media (max-width: 520px) {  .game-logo-link { flex-basis: 100%; max-width: 100%; }
 }
-/* ------------------------------ Shell Game -------------------------------- */.shells { display: flex; justify-content: space-evenly; gap: 24px; margin-top: 20px; cursor: pointer; }
-.shell {  width: 100px; height: 100px;  background-size: contain; transition: transform .3s;}
-.shell:hover { transform: scale(1.1); }
+/* ------------------------------ Shell Game -------------------------------- */.shells { display: flex; justify-content: center; gap: 24px; margin-top: 20px; cursor: pointer; }
+.shell {  background: transparent; border: none; padding: 0; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: transform .15s ease;}
+.shell:hover,
+.shell:focus-visible { background: transparent; }
 .shell.shaking { animation: shake 1s ease; }
 @keyframes shake {  0%,100% { transform: translateX(0); }
   20%,60% { transform: translateX(-10px); }
@@ -1425,8 +1426,10 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
 .shell-grid {
   display: flex;
   justify-content: center;
-  gap: 16px;
-  margin-bottom: 14px;
+  align-items: flex-end;
+  gap: clamp(18px, 4vw, 36px);
+  margin-bottom: clamp(12px, 2vw, 20px);
+  padding: 0;
 }
 
 .shell {
@@ -1434,17 +1437,31 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
   border: none;
   padding: 0;
   cursor: pointer;
-  transition: transform 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.shell.active {
-  transform: translateY(-4px);
+.shell:disabled {
+  cursor: not-allowed;
 }
 
 .shell img {
-  width: clamp(96px, 12vw, 140px);
+  width: clamp(120px, 14vw, 180px);
   height: auto;
   filter: drop-shadow(0 6px 18px rgba(0, 0, 0, 0.45));
+  transition: transform 0.18s ease, filter 0.18s ease;
+}
+
+.shell:hover img,
+.shell:focus-visible img {
+  transform: scale(1.08);
+  filter: drop-shadow(0 10px 24px rgba(0, 0, 0, 0.55));
+}
+
+.shell.active img {
+  transform: scale(1.12);
+  filter: drop-shadow(0 12px 28px rgba(0, 0, 0, 0.55));
 }
 
 .shell img.revealed {
