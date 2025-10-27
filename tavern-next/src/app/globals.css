@@ -127,15 +127,6 @@ button:hover { background: #7800cd; }
 }
 #wallet-inline #wi-disconnect {  padding: 6px 12px;  font-size: 12px;  border-radius: 10px;  line-height: 1.1;  height: 32px;}
 #wallet-inline #wi-disconnect {  display: inline-flex;  align-items: center;  justify-content: center;}
-#wallet-inline .wi-balance-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 32px;
-  padding: 0 10px;
-  line-height: 1;
-  min-height: 32px;
-}
 html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] #wallet-inline {  background: rgba(12, 24, 38, 0.85);  border-color: rgba(120,200,255,0.22);}
 /* Gasless indicator styling for wallet pill address */
 #wallet-inline.gasless-on #wi-address { background: linear-gradient(135deg, #ffd166, #ffc04d); color: #2b1e12; padding: 2px 8px; border-radius: 10px; box-shadow: 0 0 14px rgba(255, 209, 102, 0.35); font-weight: 700; }
@@ -518,6 +509,35 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
   text-align: center;
 }
 
+.shell-content,
+.dakchog-content {
+  position: relative;
+  isolation: isolate;
+  padding: clamp(20px, 4vw, 32px);
+  border-radius: 24px;
+  border: 1px solid rgba(255, 210, 120, 0.24);
+  background: linear-gradient(160deg, rgba(22, 32, 46, 0.86), rgba(12, 20, 31, 0.72));
+  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.55);
+}
+
+.shell-content::before,
+.dakchog-content::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(ellipse at top, rgba(255, 210, 120, 0.26), transparent 60%);
+  opacity: 0.9;
+  pointer-events: none;
+  mix-blend-mode: screen;
+}
+
+.shell-content > *,
+.dakchog-content > * {
+  position: relative;
+  z-index: 1;
+}
+
 .game-header {
   width: 100%;
   display: flex;
@@ -815,11 +835,11 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
 }
 
 .poker-table-layout {
-  width: min(96vw, 1160px);
-  display: grid;
-  grid-template-columns: 1.7fr 0.9fr;
-  gap: 18px;
-  align-items: flex-start;
+  width: min(96vw, 860px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
 }
 
 .seat-grid {
@@ -892,6 +912,7 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
   display: flex;
   flex-direction: column;
   gap: 16px;
+  width: min(96vw, 420px);
 }
 
 .poker-sidebar section {
@@ -1128,11 +1149,11 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
 }
 
 .poker-table-layout {
-  width: min(96vw, 1160px);
-  display: grid;
-  grid-template-columns: 1.7fr 0.9fr;
-  gap: 18px;
-  align-items: flex-start;
+  width: min(96vw, 860px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
 }
 
 .seat-grid {
@@ -1205,6 +1226,7 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
   display: flex;
   flex-direction: column;
   gap: 16px;
+  width: min(96vw, 420px);
 }
 
 .poker-sidebar section {
@@ -1311,15 +1333,11 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
 }
 
 @media (max-width: 1024px) {
-  .poker-table-layout {
-    grid-template-columns: 1fr;
-  }
   .poker-sidebar {
-    flex-direction: row;
-    flex-wrap: wrap;
+    width: min(96vw, 520px);
   }
   .poker-sidebar section {
-    flex: 1 1 280px;
+    flex: 1 1 100%;
   }
 }
 

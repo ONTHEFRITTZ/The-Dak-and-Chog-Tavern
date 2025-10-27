@@ -58,6 +58,7 @@ export default function HomePage() {
           height={220}
           style={{ width: "min(320px, 60vw)", height: "auto" }}
           priority
+          unoptimized
         />
 
         <section>

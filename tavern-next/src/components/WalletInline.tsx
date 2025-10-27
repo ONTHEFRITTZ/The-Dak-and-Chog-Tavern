@@ -4,7 +4,6 @@ import Image from "next/image";
 import { useCallback, useMemo } from "react";
 import { ethers } from "ethers";
 import { useWallet } from "../context/WalletContext";
-import { formatDcmon, useBankrollState } from "@/modules/bankroll";
 
 type WalletTypeIconMap = {
   [key: string]: string;
@@ -41,14 +40,7 @@ function truncateAddress(addr: string | null): string {
 
 export const WalletInline = () => {
   const { address, connect, disconnect, isConnecting, walletType } = useWallet();
-  const { dcmonBalance, loading: bankrollLoading } = useBankrollState();
-
   const label = useMemo(() => truncateAddress(address), [address]);
-  const balanceLabel = useMemo(() => {
-    if (!address) return "DCMon: --";
-    if (bankrollLoading) return "DCMon: ...";
-    return `DCMon: ${formatDcmon(dcmonBalance, 2)}`;
-  }, [address, bankrollLoading, dcmonBalance]);
 
   const walletIcon = useMemo(() => {
     if (!address) return null;
@@ -82,7 +74,6 @@ export const WalletInline = () => {
         </div>
       )}
       <span id="wi-address">{label}</span>
-      <span className="wi-balance-badge">{balanceLabel}</span>
       <button
         id="wi-wallet-btn"
         type="button"

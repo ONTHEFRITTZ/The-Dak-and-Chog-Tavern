@@ -13,7 +13,7 @@ import { usePageBackdrop } from "@/hooks/usePageBackdrop";
 const MIN_BET = 0.001;
 const SHELL_IMAGES = [
   "/assets/images/cup.png",
-  "/assets/images/cup2.png",
+  "/assets/images/cup.png",
   "/assets/images/cup.png",
 ] as const;
 

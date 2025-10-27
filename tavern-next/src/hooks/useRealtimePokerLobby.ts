@@ -255,7 +255,12 @@ export function useRealtimePokerLobby(
         if (table) normalized.push(table);
       }
       normalized.sort((a, b) => a.id.localeCompare(b.id));
-      setTables(normalized);
+      const filtered = normalized.filter((table) => {
+        const id = table.id.toLowerCase();
+        const typeKey = table.meta?.typeKey?.toLowerCase();
+        return !id.startsWith("faro") && typeKey !== "faro";
+      });
+      setTables(filtered);
       setStatus(null);
     };
 
