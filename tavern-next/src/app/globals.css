@@ -2485,7 +2485,7 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding-left: clamp(220px, 18vw, 320px);
+  padding-left: 0;
 }
 
 .sidebar {
@@ -2547,15 +2547,8 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
   transform: translateX(2px);
 }
 
-@media (max-width: 900px) {
-  .content-frame {
-    padding-left: clamp(64px, 20vw, 200px);
-  }
-}
-
 @media (max-width: 720px) {
   .content-frame {
-    padding-left: 0;
     width: 100%;
   }
   .sidebar {

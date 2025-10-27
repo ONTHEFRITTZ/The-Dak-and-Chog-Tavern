@@ -1,6 +1,5 @@
 'use client';
 
-import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo } from "react";
 import { useRealtimePokerLobby } from "@/hooks/useRealtimePokerLobby";
@@ -35,12 +34,6 @@ function resolveBlinds(meta?: { blinds?: { sb?: string; bb?: string } } | null) 
   return `${sb} / ${bb}`;
 }
 
-function shortAddress(addr: string | null | undefined) {
-  if (!addr) return "-";
-  const value = addr.toLowerCase();
-  return `${value.slice(0, 6)}...${value.slice(-4)}`;
-}
-
 function categorizeTables(
   tables: ReturnType<typeof useRealtimePokerLobby>["tables"]
 ): Record<LobbySectionKey, ReturnType<typeof useRealtimePokerLobby>["tables"]> {
@@ -69,7 +62,7 @@ function categorizeTables(
 export default function PokerLobbyPage() {
   usePageBackdrop("poker-floor");
 
-  const { address, connect, disconnect, isConnecting } = useWallet();
+  const { address } = useWallet();
   const lobby = useRealtimePokerLobby();
 
   useEffect(() => {
@@ -111,37 +104,7 @@ export default function PokerLobbyPage() {
 
   return (
     <main className="game poker-lobby">
-      <div className="lobby-hero">
-        <Image
-          src="/assets/images/texas-holdem-logo.png"
-          alt="Dak & Chog Poker"
-          width={360}
-          height={180}
-          priority
-        />
-        <div className="wallet-chip">
-          <span>{shortAddress(address)}</span>
-          {address ? (
-            <button type="button" onClick={disconnect}>
-              Disconnect
-            </button>
-          ) : (
-            <button type="button" onClick={() => connect().catch(() => void 0)} disabled={isConnecting}>
-              {isConnecting ? "Connecting..." : "Connect Wallet"}
-            </button>
-          )}
-        </div>
-      </div>
-
       <div className="lobby-wrap">
-        <div className="lobby-header">
-          <h1>Poker Lobby</h1>
-          <div className="lobby-actions">
-                        {lobby.status && <span className="lobby-status">{lobby.status}</span>}
-            {lobby.error && <span className="lobby-error">{lobby.error}</span>}
-          </div>
-        </div>
-
         {sections.map((section) => (
           <section key={section.key} className="lobby-card">
             <header className="section-head">
