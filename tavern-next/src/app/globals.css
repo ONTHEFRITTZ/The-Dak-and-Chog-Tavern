@@ -1464,7 +1464,7 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
   aspect-ratio: 1000 / 680;
   background: url('/assets/images/poker-table.png') center/cover no-repeat;
   border-radius: 32px;
-  box-shadow: 0 32px 64px rgba(0, 0, 0, 0.45);
+  box-shadow: none;
   overflow: hidden;
 }
 
@@ -1675,7 +1675,7 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
 }
 
 .table-canvas.poker-table {
-  box-shadow: 0 32px 64px rgba(0, 0, 0, 0.45);
+  box-shadow: none;
   border: none;
   border-radius: 0;
   overflow: visible;
@@ -1734,7 +1734,7 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
   width: min(96vw, 1100px);
   max-width: 1100px;
   background: url('/assets/images/poker-table.png') center/contain no-repeat;
-  box-shadow: 0 32px 64px rgba(0, 0, 0, 0.45);
+  box-shadow: none;
   border: none;
   border-radius: 0;
   overflow: visible;
