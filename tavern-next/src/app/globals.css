@@ -140,72 +140,92 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
   position: absolute;
   z-index: 3;
   transform: translate(-50%, -50%);
-  border: 0;
-  box-shadow: none;
-  padding: 0;
-  width: var(--seat-w);
-  height: var(--seat-h);
+  min-width: clamp(140px, 18vw, 210px);
+  padding: clamp(10px, 1.5vw, 16px);
+  border-radius: 16px;
+  backdrop-filter: blur(6px);
+  background: rgba(12, 20, 32, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.14);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   text-align: center;
+  color: #f4e6d3;
+  pointer-events: auto;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
 }
-.seat .name {
-  font-size: 13px;
-  font-weight: 800;
-  max-width: 180px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+
+.seat.pending {
+  border-style: dashed;
+  border-color: rgba(255, 255, 255, 0.35);
+  background: rgba(8, 16, 28, 0.7);
 }
-.seat .stack {
+
+.seat.occupied {
+  background: rgba(12, 20, 32, 0.62);
+}
+
+.seat.me {
+  border-color: rgba(255, 210, 120, 0.75);
+  box-shadow: 0 0 18px rgba(255, 210, 120, 0.25);
+}
+
+.seat .seat-name {
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  font-size: clamp(0.7rem, 0.6rem + 0.3vw, 0.85rem);
+}
+
+.seat .seat-info {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  font-size: 12px;
+  gap: 4px;
+  font-size: clamp(0.7rem, 0.62rem + 0.25vw, 0.82rem);
+  opacity: 0.92;
 }
-.seat .stack span {
+
+.seat .seat-info span {
   display: block;
 }
-.seat .status {
-  font-size: 12px;
-  opacity: 0.9;
-  min-height: 14px;
+
+.seat .seat-status {
+  font-size: clamp(0.68rem, 0.6rem + 0.25vw, 0.8rem);
+  opacity: 0.82;
+  min-height: 16px;
 }
-.seat .btns {
+
+.seat .seat-actions {
   display: flex;
-  gap: 6px;
-  justify-content: center;
-  margin-top: 6px;
-  pointer-events: auto;
+  gap: 8px;
 }
-.seat .btns button {
-  padding: 4px 8px;
-  font-size: 12px;
-  border-radius: 6px;
-}
-.seat.empty-seat {
-  justify-content: center;
-}
-.seat.empty-seat .stack,
-.seat.empty-seat .status {
-  display: none;
-}
-.seat.empty-seat .btns {
-  margin-top: 0;
-  flex: 1;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-}
-.seat.me {
-  outline: 0;
+
+.seat .seat-actions button {
+  padding: 6px 12px;
   border-radius: 10px;
-  filter: none;
+  font-size: 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.08);
+  color: inherit;
+  cursor: pointer;
+  transition: transform 0.12s ease, background 0.12s ease;
 }
-.seat:hover {
-  filter: none;
+
+.seat .seat-actions button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.16);
+  transform: translateY(-1px);
+}
+
+.seat .seat-actions button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.seat .seat-hint {
+  font-size: 0.75rem;
+  opacity: 0.75;
+  max-width: 180px;
 }
 @media (min-width: 1400px) {
   :root {
@@ -223,9 +243,9 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
 }
 .seat.turn,
 .seat.pkr-turn {
-  filter: drop-shadow(0 0 12px rgba(255, 215, 120, 0.6));
-  transform: translate(-50%, -50%) scale(1.03);
-  transition: transform 0.18s ease, filter 0.18s ease;
+  box-shadow: 0 0 24px rgba(255, 215, 120, 0.4);
+  transform: translate(-50%, -50%) scale(1.04);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
 }
 .seat.winner {
   animation: seatWinnerFlash 1s ease-in-out 2;
@@ -244,7 +264,7 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
 /* For now we reuse the addr line to show your chosen display name */
 
 /* Hide game UI until seated */
-.table-canvas.pre-seat .seat .btns { display:none !important; }
+.table-canvas.pre-seat .seat .seat-actions { display:none !important; }
 .table-canvas.pre-seat #board { display:none !important; }
 .table-canvas.pre-seat .action-bar { display:none !important; }
 .table-canvas.pre-seat .cards { opacity:0.2; }
@@ -1476,10 +1496,11 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
 }
 
 .table-surface {
-  position: relative;
+  position: absolute;
+  inset: 0;
   width: 100%;
   aspect-ratio: 1000 / 680;
-  background: url('/assets/images/poker-table.png') center/cover no-repeat;
+  background: url('/assets/images/poker-table.png') center/contain no-repeat;
   border-radius: 32px;
   box-shadow: none;
   overflow: hidden;

@@ -52,7 +52,7 @@ function computeSeatPositions(total: number) {
   const rx = 42;
   const ry = 34;
   return Array.from({ length: total }, (_, idx) => {
-    const angleDeg = -90 + (360 / total) * idx;
+    const angleDeg = 90 + (360 / total) * idx;
     const rad = (angleDeg * Math.PI) / 180;
     const left = 50 + rx * Math.cos(rad);
     const top = 50 + ry * Math.sin(rad);
@@ -584,12 +584,9 @@ export default function PokerTablePage({ params }: TablePageProps) {
                     "seat",
                     "seat-node",
                     seat.isUser && "me",
-                    seat.isUser && "seat-me",
-                    seat.isEmpty && "empty-seat",
-                    seat.isEmpty && "seat-empty",
-                    !seat.isEmpty && "seat-occupied",
-                    seat.isTurn && "turn",
-                    seat.hasFolded && "folded",
+                    seat.isEmpty ? "pending" : "occupied",
+                    seat.isTurn && !seat.isEmpty && "turn",
+                    seat.hasFolded && !seat.isEmpty && "folded",
                     seat.isWinner && "winner"
                   )}
                   style={{ top: seat.position.top, left: seat.position.left }}
@@ -597,40 +594,39 @@ export default function PokerTablePage({ params }: TablePageProps) {
                   {seat.markerLabel && (
                     <div className={cx("marker", seat.markerClass, "show")}>{seat.markerLabel}</div>
                   )}
-                  <div className="seat-name name">{seat.label}</div>
-                  {!seat.isEmpty && (
+                  <div className="seat-name">{seat.label}</div>
+                  {seat.isEmpty ? (
+                    seat.displayIndex === 0 && !isSeated ? (
+                      <>
+                        <button
+                          type="button"
+                          className="bj-sit-btn"
+                          onClick={handleOpenSitModal}
+                          disabled={actionBusy || preferredSeatId < 0}
+                        >
+                          Sit
+                        </button>
+                        <span className="seat-hint">Take this seat to play.</span>
+                      </>
+                    ) : (
+                      <div className="seat-info seat-hint">{seat.statusLabel ?? "Seat Open"}</div>
+                    )
+                  ) : (
                     <>
-                      <div className="seat-stack stack">
+                      <div className="seat-info">
                         {seat.stackLabel && <span>{seat.stackLabel}</span>}
                         {seat.dcmonStack && <span>{seat.dcmonStack}</span>}
                       </div>
-                      {seat.statusLabel && (
-                        <div className="seat-status status">{seat.statusLabel}</div>
+                      {seat.statusLabel && <div className="seat-status">{seat.statusLabel}</div>}
+                      {seat.isUser && (
+                        <div className="seat-actions">
+                          <button type="button" onClick={handleLeaveSeat} disabled={actionBusy}>
+                            Leave
+                          </button>
+                        </div>
                       )}
                     </>
                   )}
-                  <div className="seat-actions btns">
-                    {seat.isEmpty && seat.displayIndex === 0 && !isSeated && (
-                      <button
-                        type="button"
-                        className="seat-sit-btn"
-                        onClick={handleOpenSitModal}
-                        disabled={actionBusy || preferredSeatId < 0}
-                      >
-                        Sit
-                      </button>
-                    )}
-                    {seat.isUser && !seat.isEmpty && (
-                      <button
-                        type="button"
-                        className="seat-leave-btn"
-                        onClick={handleLeaveSeat}
-                        disabled={actionBusy}
-                      >
-                        Leave
-                      </button>
-                    )}
-                  </div>
                 </div>
               ))}
             </div>
