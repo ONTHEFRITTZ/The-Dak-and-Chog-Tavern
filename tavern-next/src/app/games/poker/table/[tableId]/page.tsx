@@ -122,11 +122,16 @@ export default function PokerTablePage({ params }: TablePageProps) {
   const [playerName, setPlayerName] = useState("");
   const [nameInput, setNameInput] = useState("");
   const [isSitModalOpen, setSitModalOpen] = useState(false);
+  const [activePanel, setActivePanel] = useState<"info" | "history" | "log" | null>(null);
   const nameInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     realtime.identify(address);
   }, [address, realtime]);
+
+  const togglePanel = useCallback((panel: "info" | "history" | "log") => {
+    setActivePanel((prev) => (prev === panel ? null : panel));
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -144,6 +149,17 @@ export default function PokerTablePage({ params }: TablePageProps) {
       nameInputRef.current?.select();
     });
   }, [isSitModalOpen]);
+
+  useEffect(() => {
+    if (!activePanel) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setActivePanel(null);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [activePanel]);
 
   const chipValueDcmon = useMemo(() => {
     if (isSimulatedTable) return 0;
@@ -508,6 +524,153 @@ export default function PokerTablePage({ params }: TablePageProps) {
   const stackLabel = `${myStackChips.toFixed(2)} chips`;
   const actionButtonsDisabled = !isSeated || !isMyTurn || actionBusy;
   const canAllIn = !actionButtonsDisabled && myStackChips > 0.0001;
+  const latestHand = realtime.handSummary;
+  const rngCommit = realtime.state?.rng?.commit ?? latestHand?.rng?.commit ?? undefined;
+  const tableModeLabel = isSimulatedTable
+    ? "Free to Play"
+    : (realtime.table?.tableMode ?? "On-chain").toUpperCase();
+  const messages = realtime.messages;
+  const blinds = realtime.table?.meta?.blinds;
+  const blindsLabel =
+    !blinds || (isSimulatedTable && !blinds?.sb && !blinds?.bb)
+      ? "—"
+      : `${blinds?.sb ?? "-"} / ${blinds?.bb ?? "-"}`;
+  const seatCapacity = totalSeats;
+  const seatedCount = seatEntries.reduce((count, entry) => (entry.rawAddress ? count + 1 : count), 0);
+  const dealerSeatLabel = dealerSeatId >= 0 ? `Seat ${dealerSeatId + 1}` : "—";
+  const turnSeatLabel = currentTurnSeatLabel ?? (turnSeatId >= 0 ? `Seat ${turnSeatId + 1}` : "—");
+  const formatChipLabel = useCallback(
+    (chips: number) =>
+      isSimulatedTable ? `${chips.toFixed(2)} chips` : formatPot(chips, chipValueDcmon),
+    [chipValueDcmon, isSimulatedTable]
+  );
+  const infoItems = useMemo(
+    () => [
+      { label: "Stage", value: stageKey ? stageKey.charAt(0).toUpperCase() + stageKey.slice(1) : "Waiting" },
+      { label: "Mode", value: tableModeLabel },
+      { label: "Players", value: `${seatedCount}/${seatCapacity}` },
+      { label: "Dealer", value: dealerSeatLabel },
+      { label: "Turn", value: turnSeatLabel },
+      { label: "Blinds", value: blindsLabel },
+      { label: "Pot", value: formatChipLabel(potChips) },
+      { label: "Connection", value: realtime.connected ? "Online" : "Offline" },
+      ...(rngCommit ? [{ label: "RNG Commit", value: `${rngCommit.slice(0, 10)}…` }] : []),
+      { label: "Table ID", value: realtime.table?.id ?? tableId },
+    ],
+    [
+      stageKey,
+      tableModeLabel,
+      seatedCount,
+      seatCapacity,
+      dealerSeatLabel,
+      turnSeatLabel,
+      blindsLabel,
+      formatChipLabel,
+      potChips,
+      realtime.connected,
+      rngCommit,
+      realtime.table?.id,
+      tableId,
+    ]
+  );
+  const panelData = useMemo(() => {
+    if (!activePanel) return null;
+    if (activePanel === "info") {
+      return {
+        title: "Table Info",
+        content: (
+          <div className="table-panel-info">
+            {infoItems.map((item) => (
+              <div key={item.label}>
+                <span>{item.label}</span>
+                <span>{item.value}</span>
+              </div>
+            ))}
+            {realtime.status && (
+              <div>
+                <span>Status</span>
+                <span>{realtime.status}</span>
+              </div>
+            )}
+            {realtime.error && (
+              <div>
+                <span>Error</span>
+                <span>{realtime.error}</span>
+              </div>
+            )}
+          </div>
+        ),
+      };
+    }
+    if (activePanel === "history") {
+      if (!latestHand) {
+        return {
+          title: "Last Hand",
+          content: <p>No completed hands yet.</p>,
+        };
+      }
+      return {
+        title: "Last Hand",
+        content: (
+          <>
+            <div className="table-panel-info">
+              <div>
+                <span>Pot</span>
+                <span>{formatChipLabel(latestHand.pot ?? 0)}</span>
+              </div>
+              <div>
+                <span>Board</span>
+                <span>{(latestHand.community ?? []).join(" ") || "--"}</span>
+              </div>
+            </div>
+            <ul>
+              {(latestHand.winners ?? []).map((winner) => (
+                <li key={`${winner.addr}-${winner.seatId ?? 0}`}>
+                  <strong>{short(winner.addr)}</strong>
+                  {winner.amount != null && (
+                    <span>{` Wins ${formatChipLabel(winner.amount)}`}</span>
+                  )}
+                  {winner.combo && winner.combo.length > 0 && (
+                    <span>{` (${winner.combo.join(" ")})`}</span>
+                  )}
+                </li>
+              ))}
+              {(latestHand.winners ?? []).length === 0 && <li>No winner data provided.</li>}
+            </ul>
+          </>
+        ),
+      };
+    }
+    const logEntries = messages;
+    return {
+      title: "Table Messages",
+      content:
+        logEntries.length === 0 && !realtime.status && !realtime.error ? (
+          <p>No messages yet.</p>
+        ) : (
+          <ul>
+            {logEntries.map((entry) => (
+              <li key={entry.id}>
+                <strong>{entry.from ? `${entry.from}: ` : ""}</strong>
+                <span>{entry.text}</span>
+              </li>
+            ))}
+            {realtime.status && (
+              <li>
+                <strong>Status: </strong>
+                <span>{realtime.status}</span>
+              </li>
+            )}
+            {realtime.error && (
+              <li>
+                <strong>Error: </strong>
+                <span>{realtime.error}</span>
+              </li>
+            )}
+          </ul>
+        ),
+    };
+  }, [activePanel, infoItems, realtime.status, realtime.error, latestHand, formatChipLabel, messages]);
 
   const runAction = useCallback(
     async (initialMessage: string, task: () => Promise<void>) => {
@@ -558,6 +721,7 @@ export default function PokerTablePage({ params }: TablePageProps) {
         sessionStorage.setItem("poker:name", finalName);
       }
       setSitModalOpen(false);
+      setActivePanel(null);
     });
   }, [preferredSeatId, nameInput, runAction, holdem, realtime, isSimulatedTable]);
 
@@ -577,6 +741,7 @@ export default function PokerTablePage({ params }: TablePageProps) {
         });
       }
       realtime.leaveSeat();
+      setActivePanel(null);
     });
   }, [mySeatId, isSimulatedTable, holdem, isInHand, realtime, runAction]);
 
@@ -773,22 +938,22 @@ export default function PokerTablePage({ params }: TablePageProps) {
           </div>
 
         </div>
-        <div className="poker-actions-wrapper">
+        <div className="table-dock-wrapper">
           <div
             className={cx(
-              "poker-action-bar",
+              "table-dock",
               isMyTurn && isSeated && !actionBusy && "active",
               !isSeated && "disabled"
             )}
           >
-            <div className="action-info">{actionInfo}</div>
-            <div className="action-stats">
+            <div className="dock-info">{actionInfo}</div>
+            <div className="dock-stats">
               <span>Pot {potLabel}</span>
               {isSeated && <span>Your stack: {stackLabel}</span>}
               {isSeated && <span>Your contribution: {contributionLabel}</span>}
               {isSeated && callAmountChips > 0 && <span>Call: {callAmountLabel}</span>}
             </div>
-            <div className="action-controls">
+            <div className="dock-controls">
               <button type="button" onClick={handleFold} disabled={actionButtonsDisabled}>
                 Fold
               </button>
@@ -820,9 +985,50 @@ export default function PokerTablePage({ params }: TablePageProps) {
                 </button>
               )}
             </div>
+            <div className="dock-secondary" role="group" aria-label="Additional table details">
+              <button
+                type="button"
+                className={activePanel === "info" ? "active" : undefined}
+                onClick={() => togglePanel("info")}
+              >
+                Table Info
+              </button>
+              <button
+                type="button"
+                className={activePanel === "history" ? "active" : undefined}
+                onClick={() => togglePanel("history")}
+              >
+                Last Hand
+              </button>
+              <button
+                type="button"
+                className={activePanel === "log" ? "active" : undefined}
+                onClick={() => togglePanel("log")}
+              >
+                Messages{messages.length > 0 ? ` (${messages.length})` : ""}
+              </button>
+            </div>
           </div>
         </div>
       </section>
+
+      {activePanel && panelData && (
+        <div className="table-panel" role="dialog" aria-modal="true">
+          <div className="table-panel-content">
+            <div className="table-panel-header">
+              <h3>{panelData.title}</h3>
+              <button
+                type="button"
+                className="table-panel-close"
+                onClick={() => setActivePanel(null)}
+              >
+                Close
+              </button>
+            </div>
+            <div className="table-panel-body">{panelData.content}</div>
+          </div>
+        </div>
+      )}
 
       {isSitModalOpen && (
         <div className="poker-modal-backdrop">
