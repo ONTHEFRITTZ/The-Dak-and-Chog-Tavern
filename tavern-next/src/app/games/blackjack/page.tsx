@@ -360,7 +360,7 @@ export default function BlackjackPage() {
               <li key={entry.id}>
                 <strong>{entry.result.toUpperCase()}</strong>
                 <span>
-                  Wager {entry.wager.toFixed(2)} � {net >= 0 ? "+" : ""}
+                  Wager {entry.wager.toFixed(2)} - {net >= 0 ? "+" : ""}
                   {net.toFixed(3)} DCMon
                 </span>
               </li>

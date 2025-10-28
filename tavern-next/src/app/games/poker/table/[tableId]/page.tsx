@@ -936,8 +936,6 @@ export default function PokerTablePage({ params }: TablePageProps) {
               </div>
             )}
           </div>
-
-        </div>
         <div className="table-dock-wrapper">
           <div
             className={cx(
