@@ -13,10 +13,68 @@ type NavItem = {
   exact?: boolean;
 };
 
+type LogoChoice = {
+  src: string;
+  alt: string;
+  width: number;
+  height: number;
+};
+
+function resolveLogo(pathname: string | null | undefined): LogoChoice {
+  const path = pathname ?? "/";
+  if (path.startsWith("/games/poker")) {
+    return {
+      src: "/assets/images/texas-holdem-logo.png",
+      alt: "Dak & Chog Poker",
+      width: 220,
+      height: 120,
+    };
+  }
+  if (path.startsWith("/games/blackjack")) {
+    return {
+      src: "/assets/images/blackjack-logo.png",
+      alt: "Dak & Chog Blackjack",
+      width: 220,
+      height: 120,
+    };
+  }
+  if (path.startsWith("/games/shell")) {
+    return {
+      src: "/assets/images/shell-game-logo.png",
+      alt: "Shell Game",
+      width: 220,
+      height: 120,
+    };
+  }
+  if (path.startsWith("/games/hazard")) {
+    return {
+      src: "/assets/images/hazard-logo.png",
+      alt: "Hazard",
+      width: 220,
+      height: 120,
+    };
+  }
+  if (path.startsWith("/games/dakchog")) {
+    return {
+      src: "/assets/images/dakandchog-logo.png",
+      alt: "Dak & Chog Coin Flip",
+      width: 220,
+      height: 120,
+    };
+  }
+  return {
+    src: "/assets/images/d-and-c-logo.png",
+    alt: "The Dak & Chog Tavern",
+    width: 180,
+    height: 80,
+  };
+}
+
 export const AppNav = () => {
   const pathname = usePathname();
   const { address } = useWallet();
   const [collapsed, setCollapsed] = useState(false);
+  const logo = useMemo(() => resolveLogo(pathname), [pathname]);
 
   const navItems = useMemo<NavItem[]>(() => {
     const base: NavItem[] = [
@@ -56,7 +114,7 @@ export const AppNav = () => {
       </button>
 
       <Link className="sidebar-logo" href="/">
-        <Image src="/assets/images/d-and-c-logo.png" alt="Dak & Chog Tavern" width={180} height={80} priority />
+        <Image src={logo.src} alt={logo.alt} width={logo.width} height={logo.height} priority />
       </Link>
 
       <ul className="sidebar-links">

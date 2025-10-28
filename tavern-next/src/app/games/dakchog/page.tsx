@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
-import Image from "next/image";
 import { Contract, Interface, parseEther } from "ethers";
 import { DakChogABI } from "@/abi/dakChog";
 import { CONTRACTS } from "@/lib/config";
@@ -197,18 +196,6 @@ export default function DakChogPage() {
 
   return (
     <main className="game dakchog-page">
-      <div className="game-header">
-        <Image
-          className="game-logo"
-          src="/assets/images/dakandchog-logo.png"
-          alt="Dak & Chog"
-          width={540}
-          height={220}
-          priority
-          style={{ width: "min(360px, 60vw)", height: "auto" }}
-        />
-      </div>
-
       <section className="dakchog-content">
         <div id="coin" ref={coinRef} className={`coin ${isFlipping ? "spin" : ""}`} aria-live="polite" />
 

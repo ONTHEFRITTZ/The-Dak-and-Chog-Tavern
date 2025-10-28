@@ -1,7 +1,6 @@
 'use client';
 
 import { useMemo, useState, useEffect, useCallback, useRef } from "react";
-import Script from "next/script";
 import { notFound } from "next/navigation";
 import { useRealtimePokerTable } from "@/hooks/useRealtimePokerTable";
 import { useWallet } from "@/context/WalletContext";
@@ -9,20 +8,6 @@ import { useHoldemPokerActions } from "@/modules/poker/useHoldemPokerActions";
 import { usePageBackdrop } from "@/hooks/usePageBackdrop";
 
 const cx = (...args: Array<string | false | null | undefined>) => args.filter(Boolean).join(" ");
-
-type PokerOverlay = {
-  ready?: () => boolean;
-  refreshSeats?: () => void;
-  setContext?: (ctx: { address?: string | null; seatId?: number }) => void;
-  applyState?: (state: unknown) => void;
-  applyPrivate?: (payload: unknown) => void;
-  applyHand?: (summary: unknown) => void;
-};
-
-const getPokerOverlay = (): PokerOverlay | null => {
-  if (typeof window === "undefined") return null;
-  return (window as typeof window & { __PokerOverlay?: PokerOverlay }).__PokerOverlay ?? null;
-};
 
 type TablePageProps = {
   params: { tableId: string };
@@ -34,12 +19,10 @@ function short(addr: string | null | undefined) {
   return `${lower.slice(0, 6)}...${lower.slice(-4)}`;
 }
 
-function formatCommunity(community: string[]) {
-  if (!community?.length) return "--";
-  return community.join(" ");
-}
-
 function formatPot(chips: number, chipValue: number) {
+  if (chipValue <= 0) {
+    return `${chips.toFixed(2)} chips`;
+  }
   const dcmon = chips * chipValue;
   if (!Number.isFinite(dcmon)) return "0.000";
   if (dcmon >= 1_000_000) return `${(dcmon / 1_000_000).toFixed(2)}M DCMon`;
@@ -60,6 +43,61 @@ function computeSeatPositions(total: number) {
   });
 }
 
+const CARD_RANK_LABEL: Record<string, string> = {
+  A: "ace",
+  K: "king",
+  Q: "queen",
+  J: "jack",
+  T: "ten",
+  "9": "nine",
+  "8": "eight",
+  "7": "seven",
+  "6": "six",
+  "5": "five",
+  "4": "four",
+  "3": "three",
+  "2": "two",
+};
+
+const CARD_SUIT_LABEL: Record<string, string> = {
+  s: "spades",
+  h: "hearts",
+  d: "diamonds",
+  c: "clubs",
+};
+
+const pokerCardImageUrl = (code: string) => {
+  if (!code || code.length < 2) {
+    return "/assets/images/chog_cards/dak-and-chog-cardback.png";
+  }
+  const rank = CARD_RANK_LABEL[code[0].toUpperCase()] ?? "ace";
+  const suit = CARD_SUIT_LABEL[code[1].toLowerCase()] ?? "spades";
+  return `/assets/images/chog_cards/chog-${rank}-of-${suit}.png`;
+};
+
+type SeatCard = {
+  code: string;
+  hidden: boolean;
+};
+
+const renderPokerCard = (card: SeatCard, key: string) => {
+  if (card.hidden) {
+    return (
+      <span key={key} className="poker-card poker-card-hidden">
+        ??
+      </span>
+    );
+  }
+  return (
+    <span
+      key={key}
+      className="poker-card poker-card-image"
+      style={{ backgroundImage: `url("${pokerCardImageUrl(card.code)}")` }}
+      aria-label={card.code}
+    />
+  );
+};
+
 export default function PokerTablePage({ params }: TablePageProps) {
   usePageBackdrop("poker-table");
 
@@ -73,6 +111,10 @@ export default function PokerTablePage({ params }: TablePageProps) {
   const realtime = useRealtimePokerTable(tableId);
   const holdem = useHoldemPokerActions();
   const addressLower = useMemo(() => (address ?? "").toLowerCase(), [address]);
+  const isSimulatedTable = useMemo(
+    () => realtime.table?.tableMode === "f2p" || Boolean(realtime.table?.simulated),
+    [realtime.table?.tableMode, realtime.table?.simulated]
+  );
 
   const [betAmount, setBetAmount] = useState("1");
   const [actionStatus, setActionStatus] = useState<string | null>(null);
@@ -103,22 +145,8 @@ export default function PokerTablePage({ params }: TablePageProps) {
     });
   }, [isSitModalOpen]);
 
-  useEffect(() => {
-    const overlay = getPokerOverlay();
-    overlay?.applyState?.(realtime.state ?? null);
-  }, [realtime]);
-
-  useEffect(() => {
-    const overlay = getPokerOverlay();
-    overlay?.applyPrivate?.(realtime.privateCards ?? null);
-  }, [realtime.privateCards]);
-
-  useEffect(() => {
-    const overlay = getPokerOverlay();
-    overlay?.applyHand?.(realtime.handSummary ?? null);
-  }, [realtime.handSummary]);
-
   const chipValueDcmon = useMemo(() => {
+    if (isSimulatedTable) return 0;
     const meta = realtime.table?.meta;
     if (!meta) return 1;
     const direct = Number(meta.chipValueDcmon);
@@ -126,7 +154,7 @@ export default function PokerTablePage({ params }: TablePageProps) {
     const sb = Number(meta.blinds?.sb);
     if (Number.isFinite(sb) && sb > 0) return sb;
     return 1;
-  }, [realtime.table?.meta]);
+  }, [isSimulatedTable, realtime.table?.meta]);
 
   const mySeatId = useMemo(() => {
     const seats = realtime.table?.seats ?? [];
@@ -135,12 +163,6 @@ export default function PokerTablePage({ params }: TablePageProps) {
     }
     return -1;
   }, [realtime.table?.seats, addressLower]);
-
-  useEffect(() => {
-    const overlay = getPokerOverlay();
-    if (!overlay?.setContext) return;
-    overlay.setContext({ address: addressLower, seatId: mySeatId });
-  }, [addressLower, mySeatId]);
 
   const myActor = useMemo(() => {
     if (!realtime.state) return null;
@@ -224,8 +246,41 @@ export default function PokerTablePage({ params }: TablePageProps) {
     return ["preflop", "flop", "turn", "river", "showdown"].includes(stage);
   }, [realtime.state?.stage]);
 
-  const isSimulatedTable = Boolean(realtime.table?.simulated);
+  const stageKey = (realtime.state?.stage ?? "").toLowerCase();
+
   const totalSeats = realtime.table?.capacity ?? 6;
+
+  const exposedCardsBySeat = useMemo(() => {
+    const map = new Map<number, string[]>();
+    const exposures = realtime.handSummary?.exposures ?? [];
+    for (const exposure of exposures) {
+      if (!exposure) continue;
+      const seatId = Number((exposure as { seatId?: unknown }).seatId);
+      if (!Number.isFinite(seatId) || seatId < 0) continue;
+      const cards = Array.isArray(exposure.cards)
+        ? exposure.cards.filter((card): card is string => typeof card === "string" && card.length >= 2)
+        : [];
+      if (cards.length > 0) {
+        map.set(seatId, cards);
+      }
+    }
+    return map;
+  }, [realtime.handSummary?.exposures]);
+
+  const privateCardsBySeat = useMemo(() => {
+    const map = new Map<number, string[]>();
+    const info = realtime.privateCards;
+    if (info && Number.isFinite(Number(info.seatId))) {
+      const seatId = Number(info.seatId);
+      const cards = Array.isArray(info.cards)
+        ? info.cards.filter((card): card is string => typeof card === "string" && card.length >= 2)
+        : [];
+      if (cards.length > 0) {
+        map.set(seatId, cards);
+      }
+    }
+    return map;
+  }, [realtime.privateCards]);
 
   const seatEntries = useMemo(() => {
     return Array.from({ length: totalSeats }, (_, seatId) => {
@@ -268,17 +323,6 @@ export default function PokerTablePage({ params }: TablePageProps) {
     return base.slice(pivot).concat(base.slice(0, pivot));
   }, [totalSeats, preferredSeatId]);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const overlay = getPokerOverlay();
-    const refresh = overlay?.refreshSeats;
-    if (!refresh) return;
-    const raf = window.requestAnimationFrame(() => {
-      refresh();
-    });
-    return () => window.cancelAnimationFrame(raf);
-  }, [orderedSeatIndices, seatPositions]);
-
   const orderedSeats = useMemo(() => {
     return orderedSeatIndices.map((seatId, displayIndex) => {
       const entry = seatEntries[seatId];
@@ -300,7 +344,7 @@ export default function PokerTablePage({ params }: TablePageProps) {
       const stackChips = entry.stack;
       const stackLabel = Number.isFinite(stackChips) ? `${stackChips.toFixed(2)} chips` : null;
       const dcmonStack =
-        Number.isFinite(stackChips) && chipValueDcmon > 0
+        !isSimulatedTable && Number.isFinite(stackChips) && chipValueDcmon > 0
           ? `${(stackChips * chipValueDcmon).toFixed(3)} DCMon`
           : null;
       let statusLabel: string | null = null;
@@ -316,8 +360,27 @@ export default function PokerTablePage({ params }: TablePageProps) {
         statusLabel = `In Pot: ${entry.contrib.toFixed(2)} chips`;
       } else if (hasActed) {
         statusLabel = "Acted";
-      } else if (realtime.state?.stage) {
-        statusLabel = realtime.state.stage === "preflop" ? "Waiting to act" : "Live";
+      } else if (stageKey === "waiting" || stageKey === "betting") {
+        statusLabel = "Ready";
+      } else if (isInHand) {
+        statusLabel = "Live";
+      }
+
+      const knownPrivate = privateCardsBySeat.get(seatId) ?? null;
+      const knownExposed = exposedCardsBySeat.get(seatId) ?? null;
+      const visibleCards =
+        knownPrivate && knownPrivate.length > 0 ? knownPrivate : knownExposed ?? [];
+      const cards: SeatCard[] = [];
+
+      if (visibleCards.length > 0) {
+        visibleCards.forEach((card) => {
+          cards.push({ code: card, hidden: false });
+        });
+      } else if (!isEmpty && isInHand && !hasFolded) {
+        const placeholderCount = 2;
+        for (let idx = 0; idx < placeholderCount; idx += 1) {
+          cards.push({ code: "??", hidden: true });
+        }
       }
 
       const markerTokens: string[] = [];
@@ -348,6 +411,7 @@ export default function PokerTablePage({ params }: TablePageProps) {
         hasActed,
         markerLabel,
         markerClass,
+        cards,
       };
     });
   }, [
@@ -357,13 +421,23 @@ export default function PokerTablePage({ params }: TablePageProps) {
     playerName,
     address,
     chipValueDcmon,
+    isSimulatedTable,
+    isInHand,
+    stageKey,
     turnSeatId,
     dealerSeatId,
     sbSeatId,
     bbSeatId,
-    realtime.state?.stage,
     winnerSeatIds,
+    privateCardsBySeat,
+    exposedCardsBySeat,
   ]);
+
+  const currentTurnSeatLabel = useMemo(() => {
+    if (turnSeatId < 0) return null;
+    const currentSeat = orderedSeats.find((seat) => seat.seatId === turnSeatId);
+    return currentSeat?.label ?? null;
+  }, [orderedSeats, turnSeatId]);
 
   const isSeated = mySeatId >= 0;
   const tableCanvasClassName = useMemo(
@@ -376,29 +450,64 @@ export default function PokerTablePage({ params }: TablePageProps) {
       ),
     [isSeated, isSimulatedTable]
   );
-  const centerBannerMessage = actionStatus ?? realtime.status ?? null;
+  const centerBannerMessage = useMemo(() => {
+    if (actionStatus) return actionStatus;
+    if (realtime.status) return realtime.status;
+    if (!isSeated) return "Take a seat to join the action.";
+    if (!realtime.state) return "Waiting for game state...";
+    if (isMyTurn) return "Your move.";
+    if (currentTurnSeatLabel) return `Waiting on ${currentTurnSeatLabel}`;
+    switch (stageKey) {
+      case "":
+      case "waiting":
+        return "Waiting for the next hand...";
+      case "betting":
+        return "Preparing the next deal...";
+      case "preflop":
+        return "Dealing preflop cards.";
+      case "flop":
+        return "Flop on the felt.";
+      case "turn":
+        return "Turn card in play.";
+      case "river":
+        return "River card in play.";
+      case "showdown":
+        return "Showdown!";
+      default:
+        return stageKey.charAt(0).toUpperCase() + stageKey.slice(1);
+    }
+  }, [actionStatus, realtime.status, isSeated, realtime.state, isMyTurn, currentTurnSeatLabel, stageKey]);
   const centerBannerClassName = cx("center-banner", centerBannerMessage && "show");
   const actionInfo = useMemo(() => {
     if (actionStatus) return actionStatus;
     if (!isSeated) return "Take a seat to begin playing.";
     if (!isMyTurn) return "Waiting for your turn...";
     if (callAmountChips > 0) {
-      return `Call ${callAmountChips.toFixed(2)} chips (~${callAmountDcmon.toFixed(3)} DCMon) or raise.`;
+      const callLabel = isSimulatedTable
+        ? `${callAmountChips.toFixed(2)} chips`
+        : `${callAmountChips.toFixed(2)} chips (~${callAmountDcmon.toFixed(3)} DCMon)`;
+      return `Call ${callLabel} or raise.`;
     }
-    return "Check or set your bet to act.";
-  }, [actionStatus, isSeated, isMyTurn, callAmountChips, callAmountDcmon]);
+    return isSimulatedTable ? "Check or set your wager in chips." : "Check or set your bet to act.";
+  }, [actionStatus, isSeated, isMyTurn, callAmountChips, callAmountDcmon, isSimulatedTable]);
   const potChips = Number(realtime.state?.pot || 0);
-  const potLabel = formatPot(potChips, chipValueDcmon);
+  const potLabel = isSimulatedTable
+    ? `${potChips.toFixed(2)} chips`
+    : formatPot(potChips, chipValueDcmon);
   const myContributionChips = Number(myActor?.contrib || 0);
-  const myContributionDcmon = myContributionChips * chipValueDcmon;
-  const myPrivateCards = useMemo(() => {
-    if (!realtime.privateCards) return [];
-    if (realtime.privateCards.seatId !== mySeatId) return [];
-    return realtime.privateCards.cards ?? [];
-  }, [mySeatId, realtime.privateCards]);
-  const latestHand = realtime.handSummary;
+  const myContributionDcmon = isSimulatedTable ? 0 : myContributionChips * chipValueDcmon;
+  const myStackChips = Number(myActor?.stack || 0);
   const communityCards = realtime.state?.community ?? [];
-  const stageLabel = realtime.state?.stage ?? "Waiting";
+  const boardCards = communityCards.map((card) => ({ code: card, hidden: false }));
+  const callAmountLabel = isSimulatedTable
+    ? `${callAmountChips.toFixed(2)} chips`
+    : `${callAmountChips.toFixed(2)} chips (~${callAmountDcmon.toFixed(3)} DCMon)`;
+  const contributionLabel = isSimulatedTable
+    ? `${myContributionChips.toFixed(2)} chips`
+    : `${myContributionChips.toFixed(2)} chips (~${myContributionDcmon.toFixed(3)} DCMon)`;
+  const stackLabel = `${myStackChips.toFixed(2)} chips`;
+  const actionButtonsDisabled = !isSeated || !isMyTurn || actionBusy;
+  const canAllIn = !actionButtonsDisabled && myStackChips > 0.0001;
 
   const runAction = useCallback(
     async (initialMessage: string, task: () => Promise<void>) => {
@@ -504,10 +613,16 @@ export default function PokerTablePage({ params }: TablePageProps) {
 
   const handleBet = useCallback(() => {
     if (mySeatId < 0) return;
-    const target = Number(betAmount);
-    if (!Number.isFinite(target) || target <= 0) return;
+    const targetRaw = Number(betAmount);
+    if (!Number.isFinite(targetRaw) || targetRaw <= 0) return;
     const already = Number(myActor?.contrib || 0);
+    const maxTarget = already + Math.max(myStackChips, 0);
+    const target = Math.max(already, Math.min(targetRaw, maxTarget));
     const deltaChips = Math.max(0, target - already);
+    if (deltaChips <= 0) {
+      setActionStatus("Enter an amount above your current contribution.");
+      return;
+    }
     const action = callAmountChips > 0 ? "raise" : "bet";
     runAction(action === "raise" ? "Raising..." : "Betting...", async () => {
       if (!isSimulatedTable && deltaChips > 0) {
@@ -530,43 +645,45 @@ export default function PokerTablePage({ params }: TablePageProps) {
     chipValueDcmon,
     realtime,
     myActor?.contrib,
+    myStackChips,
+  ]);
+
+  const handleAllIn = useCallback(() => {
+    if (mySeatId < 0) return;
+    if (!Number.isFinite(myStackChips) || myStackChips <= 0) return;
+    const already = Number(myActor?.contrib || 0);
+    const target = already + myStackChips;
+    const action = callAmountChips > 0 ? "raise" : "bet";
+    runAction("All-in...", async () => {
+      if (!isSimulatedTable && myStackChips > 0) {
+        await holdem.contributeChips({
+          seatId: mySeatId,
+          chips: myStackChips,
+          chipValueDcmon,
+          onProgress: setActionStatus,
+        });
+      }
+      realtime.sendAction(action, target);
+    });
+  }, [
+    mySeatId,
+    myStackChips,
+    myActor?.contrib,
+    callAmountChips,
+    runAction,
+    isSimulatedTable,
+    holdem,
+    chipValueDcmon,
+    realtime,
   ]);
 
   const handleRebuy = useCallback(() => {
     realtime.requestRebuy();
   }, [realtime]);
 
-  const handleRefreshOverlay = useCallback(() => {
-    const overlay = getPokerOverlay();
-    if (!overlay) return;
-    overlay.refreshSeats?.();
-    overlay.applyState?.(realtime.state ?? null);
-    overlay.applyHand?.(realtime.handSummary ?? null);
-  }, [realtime.state, realtime.handSummary]);
-
-  const rngCommit =
-    realtime.state?.rng?.commit ?? realtime.handSummary?.rng?.commit ?? undefined;
-  const tableModeLabel =
-    realtime.table?.tableMode ??
-    (realtime.table?.simulated ? "f2p" : realtime.table ? "onchain" : undefined);
-
   return (
-    <>
-      <Script
-        src="/js/poker/cards-overlay.js"
-        strategy="afterInteractive"
-        onLoad={() => {
-          const overlay = getPokerOverlay();
-          if (!overlay) return;
-          overlay?.refreshSeats?.();
-          overlay?.setContext?.({ address: addressLower, seatId: mySeatId });
-          overlay?.applyState?.(realtime.state ?? null);
-          overlay?.applyPrivate?.(realtime.privateCards ?? null);
-          overlay?.applyHand?.(realtime.handSummary ?? null);
-        }}
-      />
-      <main className="poker-page">
-        <section className="poker-stage">
+    <main className="poker-page">
+      <section className="poker-stage">
           <div className={tableCanvasClassName}>
             <div className="table-surface" role="presentation" aria-hidden="true" />
             {centerBannerMessage && (
@@ -574,6 +691,17 @@ export default function PokerTablePage({ params }: TablePageProps) {
                 <span>{centerBannerMessage}</span>
               </div>
             )}
+            <div className="poker-board">
+              {boardCards.length === 0 ? (
+                <span className="poker-board-hint">
+                  {stageKey === "waiting" || stageKey === "betting"
+                    ? "Waiting for the shuffle..."
+                    : "Board cards pending"}
+                </span>
+              ) : (
+                boardCards.map((card, idx) => renderPokerCard(card, `board-${idx}`))
+              )}
+            </div>
             <div className="pot-indicator">Pot {potLabel}</div>
             <div className="seat-layer">
               {orderedSeats.map((seat) => (
@@ -595,6 +723,13 @@ export default function PokerTablePage({ params }: TablePageProps) {
                     <div className={cx("marker", seat.markerClass, "show")}>{seat.markerLabel}</div>
                   )}
                   <div className="seat-name">{seat.label}</div>
+                  {seat.cards.length > 0 && (
+                    <div className="seat-cards">
+                      {seat.cards.map((card, idx) =>
+                        renderPokerCard(card, `seat-${seat.seatId}-card-${idx}`)
+                      )}
+                    </div>
+                  )}
                   {seat.isEmpty ? (
                     seat.displayIndex === 0 && !isSeated ? (
                       <>
@@ -609,7 +744,7 @@ export default function PokerTablePage({ params }: TablePageProps) {
                         <span className="seat-hint">Take this seat to play.</span>
                       </>
                     ) : (
-                      <div className="seat-info seat-hint">{seat.statusLabel ?? "Seat Open"}</div>
+                      <span className="seat-hint">{seat.statusLabel ?? "Seat Open"}</span>
                     )
                   ) : (
                     <>
@@ -620,7 +755,7 @@ export default function PokerTablePage({ params }: TablePageProps) {
                       {seat.statusLabel && <div className="seat-status">{seat.statusLabel}</div>}
                       {seat.isUser && (
                         <div className="seat-actions">
-                          <button type="button" onClick={handleLeaveSeat} disabled={actionBusy}>
+                          <button type="button" onClick={handleLeaveSeat} disabled={leaveDisabled}>
                             Leave
                           </button>
                         </div>
@@ -637,213 +772,90 @@ export default function PokerTablePage({ params }: TablePageProps) {
             )}
           </div>
 
-          <aside className="poker-sidebar">
-            <section className="panel poker-status">
-              <h2>Table Status</h2>
-              <p className="muted">
-                Stage: <span className="highlight">{stageLabel}</span>
-              </p>
-              <p className="muted">
-                Pot: <span className="highlight">{potLabel}</span>
-              </p>
-              <p className="muted">
-                Community cards:{" "}
-                <span className="highlight">{formatCommunity(communityCards)}</span>
-              </p>
-              <p className="muted">
-                Mode:{" "}
-                <span className="highlight">{(tableModeLabel ?? "unknown").toUpperCase()}</span>
-              </p>
-              <p className="muted">
-                Connection:{" "}
-                <span className={realtime.connected ? "status-online" : "status-offline"}>
-                  {realtime.connected ? "Online" : "Offline"}
-                </span>
-              </p>
-              {realtime.status && <p className="muted">{realtime.status}</p>}
-              {realtime.error && <p className="error">{realtime.error}</p>}
-              {realtime.table?.simulated && (
-                <button type="button" className="rebuy-btn" onClick={handleRebuy}>
-                  Free Rebuy (100 chips)
-                </button>
-              )}
-            </section>
-
-            <section className="panel poker-controls">
-              <h2>Action</h2>
-              <p className="muted">Use the table controls when it is your turn.</p>
-              <p className="muted">{actionInfo}</p>
-              <p className="muted">
-                Call amount:{" "}
-                <span className="highlight">
-                  {callAmountChips.toFixed(2)} chips (~{callAmountDcmon.toFixed(3)} DCMon)
-                </span>
-              </p>
-              <p className="muted">
-                Your contribution:{" "}
-                <span className="highlight">
-                  {myContributionChips.toFixed(2)} chips (~{myContributionDcmon.toFixed(3)} DCMon)
-                </span>
-              </p>
-              <div className="action-grid">
-                <button
-                  type="button"
-                  onClick={handleFold}
-                  disabled={!isMyTurn || actionBusy || !isSeated}
-                >
-                  Fold
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCheckOrCall}
-                  disabled={!isMyTurn || actionBusy || !isSeated}
-                >
-                  {callAmountChips > 0
-                    ? `Call ${callAmountChips.toFixed(2)} chips`
-                    : "Check"}
-                </button>
-              </div>
-              <div className="bet-input-row">
+        </div>
+        <div className="poker-actions-wrapper">
+          <div
+            className={cx(
+              "poker-action-bar",
+              isMyTurn && isSeated && !actionBusy && "active",
+              !isSeated && "disabled"
+            )}
+          >
+            <div className="action-info">{actionInfo}</div>
+            <div className="action-stats">
+              <span>Pot {potLabel}</span>
+              {isSeated && <span>Your stack: {stackLabel}</span>}
+              {isSeated && <span>Your contribution: {contributionLabel}</span>}
+              {isSeated && callAmountChips > 0 && <span>Call: {callAmountLabel}</span>}
+            </div>
+            <div className="action-controls">
+              <button type="button" onClick={handleFold} disabled={actionButtonsDisabled}>
+                Fold
+              </button>
+              <button type="button" onClick={handleCheckOrCall} disabled={actionButtonsDisabled}>
+                {callAmountChips > 0 ? `Call ${callAmountLabel}` : "Check"}
+              </button>
+              <div className="bet-input-group">
                 <input
                   type="number"
                   min="0"
+                  max={Math.max(myContributionChips + myStackChips, 0)}
                   step="0.01"
                   value={betAmount}
                   onChange={(event) => setBetAmount(event.target.value)}
-                  disabled={!isMyTurn || actionBusy || !isSeated}
+                  disabled={actionButtonsDisabled}
                   aria-label="Bet amount in chips"
                   className="bet-input"
                 />
-                <button
-                  type="button"
-                  onClick={handleBet}
-                  disabled={!isMyTurn || actionBusy || !isSeated}
-                >
+                <button type="button" onClick={handleBet} disabled={actionButtonsDisabled}>
                   {callAmountChips > 0 ? "Raise" : "Bet"}
                 </button>
               </div>
-            </section>
-
-          <section className="panel poker-messages">
-            <h2>Table Log</h2>
-            <div className="message-list">
-              {realtime.messages.map((message) => (
-                <div key={message.id} className={`message ${message.level}`}>
-                  {message.from && <span className="from">{message.from}: </span>}
-                  <span>{message.text}</span>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section className="panel poker-hand">
-            <h2>Private Cards</h2>
-            {myPrivateCards.length > 0 ? (
-              <div className="card-row">
-                {myPrivateCards.map((card, idx) => (
-                  <span key={`${card}-${idx}`} className="card-pill">
-                    {card}
-                  </span>
-                ))}
-              </div>
-            ) : (
-              <p className="muted">Cards appear when you are in hand.</p>
-            )}
-          </section>
-
-          <section className="panel poker-admin">
-            <h2>Dealer Tools</h2>
-            <p className="muted">
-              Mode:{" "}
-              <span className="highlight">
-                {(tableModeLabel ?? "unknown").toUpperCase()}
-              </span>
-            </p>
-            <p className="muted">
-              Dealer seat:{" "}
-              <span className="highlight">
-                {dealerSeatId >= 0 ? `#${dealerSeatId + 1}` : "Unassigned"}
-              </span>
-            </p>
-            <p className="muted">
-              Turn seat:{" "}
-              <span className="highlight">{turnSeatId >= 0 ? `#${turnSeatId + 1}` : "Waiting"}</span>
-            </p>
-            {rngCommit && (
-              <p className="muted">
-                RNG commit: <span className="highlight">{rngCommit.slice(0, 12)}…</span>
-              </p>
-            )}
-            <div className="admin-actions">
-              <button type="button" onClick={handleRefreshOverlay}>
-                Refresh Overlay
+              <button type="button" onClick={handleAllIn} disabled={!canAllIn}>
+                All In
               </button>
-              <button type="button" onClick={realtime.reconnect}>
-                Reconnect Socket
-              </button>
-            </div>
-          </section>
-
-          {latestHand && (
-            <section className="panel poker-summary">
-              <h2>Last Hand</h2>
-              <p className="muted">
-                Pot: <span className="highlight">{formatPot(latestHand.pot, chipValueDcmon)}</span>
-              </p>
-              <p className="muted">
-                Board:{" "}
-                <span className="highlight">{formatCommunity(latestHand.community ?? [])}</span>
-              </p>
-              <ul>
-                {latestHand.winners.map((winner) => (
-                  <li key={`${winner.addr}-${winner.seatId ?? 0}`}>
-                    <span>{short(winner.addr)}</span>
-                    {winner.amount != null && (
-                      <span>
-                        {" "}- {formatPot(winner.amount, chipValueDcmon)} ({winner.amount.toFixed(2)} chips)
-                      </span>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
-        </aside>
-        </section>
-
-        {isSitModalOpen && (
-          <div className="poker-modal-backdrop">
-            <div className="poker-modal">
-              <h3>Take Your Seat</h3>
-              <p className="muted">
-                Enter the name you want other players to see when you act at the table.
-              </p>
-              <input
-                ref={nameInputRef}
-                type="text"
-                maxLength={16}
-                value={nameInput}
-                onChange={(event) => setNameInput(event.target.value)}
-                placeholder="Dak & Chog Regular"
-                disabled={actionBusy}
-              />
-              <div className="modal-actions">
-                <button type="button" onClick={handleCancelSit} disabled={actionBusy}>
-                  Cancel
+              {isSimulatedTable && (
+                <button type="button" onClick={handleRebuy} disabled={actionBusy || !isSeated}>
+                  Rebuy 100 Chips
                 </button>
-                <button
-                  type="button"
-                  onClick={handleConfirmSit}
-                  disabled={actionBusy || preferredSeatId < 0}
-                >
-                  Take Seat
-                </button>
-              </div>
+              )}
             </div>
           </div>
-        )}
-      </main>
-    </>
+        </div>
+      </section>
+
+      {isSitModalOpen && (
+        <div className="poker-modal-backdrop">
+          <div className="poker-modal">
+            <h3>Take Your Seat</h3>
+            <p className="muted">
+              Enter the name you want other players to see when you act at the table.
+            </p>
+            <input
+              ref={nameInputRef}
+              type="text"
+              maxLength={16}
+              value={nameInput}
+              onChange={(event) => setNameInput(event.target.value)}
+              placeholder="Dak & Chog Regular"
+              disabled={actionBusy}
+            />
+            <div className="modal-actions">
+              <button type="button" onClick={handleCancelSit} disabled={actionBusy}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmSit}
+                disabled={actionBusy || preferredSeatId < 0}
+              >
+                Take Seat
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </main>
   );
 }
 

@@ -251,17 +251,6 @@ export default function ShellGamePage() {
 
   return (
     <main className="game shell-page">
-      <div className="game-header">
-        <Image
-          className="game-logo"
-          src="/assets/images/shell-game-logo.png"
-          alt="Shell Game"
-          width={320}
-          height={150}
-          priority
-        />
-      </div>
-
       <section className="shell-content">
         <div
           id="shell-result"
