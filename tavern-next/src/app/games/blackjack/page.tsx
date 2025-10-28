@@ -282,8 +282,6 @@ export default function BlackjackPage() {
     switch (blackjack.phase) {
       case "betting":
         return isSeated ? "Set your wager and deal the next hand." : "Take a seat to begin.";
-      case "dealing":
-        return "Dealing cards...";
       case "player":
         return canAct ? "Choose your action." : "Waiting for the next card.";
       case "dealer":
@@ -321,7 +319,7 @@ export default function BlackjackPage() {
       blackjack.history.length,
       isSeated,
       displayName,
-      wagerInput,
+      wagerDisplay,
       dealerTotalLabel,
       playerTotalLabel,
     ]
