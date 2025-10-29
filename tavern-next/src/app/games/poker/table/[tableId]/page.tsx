@@ -458,7 +458,7 @@ export default function PokerTablePage({ params }: TablePageProps) {
       const actor = actorBySeat.get(seatId) ?? null;
       const rawAddress = seatInfo?.addr ?? actor?.addr ?? null;
       const normalized = rawAddress ? rawAddress.toLowerCase() : null;
-      const stack = Number(actor?.stack ?? seatInfo?.chips ?? seatInfo?.balance ?? 0);
+      const stack = Number(actor?.stack ?? seatInfo?.balance ?? 0);
       const contrib = Number(actor?.contrib ?? seatInfo?.balance ?? 0);
       const baseEntry = {
         seatId,
@@ -495,9 +495,10 @@ export default function PokerTablePage({ params }: TablePageProps) {
 
   const preferredSeatId = useMemo(() => {
     if (mySeatId >= 0) return mySeatId;
+    if (pendingSeatId != null) return pendingSeatId;
     if (emptySeatIds.length > 0) return emptySeatIds[0];
     return -1;
-  }, [mySeatId, emptySeatIds]);
+  }, [mySeatId, pendingSeatId, emptySeatIds]);
 
   const seatPositions = useMemo(() => computeSeatPositions(totalSeats), [totalSeats]);
 
@@ -625,12 +626,6 @@ export default function PokerTablePage({ params }: TablePageProps) {
     exposedCardsBySeat,
   ]);
 
-  const currentTurnSeatLabel = useMemo(() => {
-    if (turnSeatId < 0) return null;
-    const currentSeat = orderedSeats.find((seat) => seat.seatId === turnSeatId);
-    return currentSeat?.label ?? null;
-  }, [orderedSeats, turnSeatId]);
-
   const hasPendingSeat = pendingSeatId != null;
   const isActuallySeated = mySeatId >= 0;
   const isSeated = isActuallySeated || hasPendingSeat;
@@ -652,34 +647,6 @@ export default function PokerTablePage({ params }: TablePageProps) {
       ),
     [isSeated, isSimulatedTable]
   );
-  const centerBannerMessage = useMemo(() => {
-    if (!isSeated) return null;
-    if (actionStatus) return actionStatus;
-    if (realtime.status) return realtime.status;
-    if (!realtime.state) return "Waiting for game state...";
-    if (isMyTurn) return "Your move.";
-    if (currentTurnSeatLabel) return `Waiting on ${currentTurnSeatLabel}`;
-    switch (stageKey) {
-      case "":
-      case "waiting":
-        return "Waiting for the next hand...";
-      case "betting":
-        return "Preparing the next deal...";
-      case "preflop":
-        return "Dealing preflop cards.";
-      case "flop":
-        return "Flop on the felt.";
-      case "turn":
-        return "Turn card in play.";
-      case "river":
-        return "River card in play.";
-      case "showdown":
-        return "Showdown!";
-      default:
-        return stageKey.charAt(0).toUpperCase() + stageKey.slice(1);
-    }
-  }, [actionStatus, realtime.status, isSeated, realtime.state, isMyTurn, currentTurnSeatLabel, stageKey]);
-  const centerBannerClassName = cx("center-banner", centerBannerMessage && "show");
   const actionInfo = useMemo(() => {
     if (actionStatus) return actionStatus;
     if (!isSeated) return "Take a seat to begin playing.";
@@ -1047,11 +1014,6 @@ export default function PokerTablePage({ params }: TablePageProps) {
       <section className="poker-stage">
           <div className={tableCanvasClassName}>
             <div className="table-surface" role="presentation" aria-hidden="true" />
-            {centerBannerMessage && (
-              <div className={centerBannerClassName}>
-                <span>{centerBannerMessage}</span>
-              </div>
-            )}
             <div className="poker-board">
               {boardCards.length === 0 ? (
                 boardHint ? <span className="poker-board-hint">{boardHint}</span> : null
