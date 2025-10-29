@@ -418,6 +418,17 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
   cursor: not-allowed;
 }
 
+.wi-blinds-line {
+  margin-top: 4px;
+  font-size: 11px;
+  line-height: 1.2;
+  color: #ffdca2;
+  opacity: 0.85;
+  display: none;
+  width: 100%;
+  text-align: right;
+}
+
 .wi-modal-action {
   display: inline-flex;
   align-items: center;
@@ -3214,3 +3225,4 @@ body.home {
   width: 38px;
   height: auto;
 }
+

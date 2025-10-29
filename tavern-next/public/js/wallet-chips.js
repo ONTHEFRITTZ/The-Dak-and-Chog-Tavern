@@ -6,6 +6,41 @@
 
   const OPEN_HISTORY_EVENT = "tavern:poker:openHistory";
   const CHANGE_NAME_EVENT = "tavern:poker:changeName";
+  const BLINDS_EVENT = "poker:blinds";
+  let blindsLabelCache = "";
+
+  const getGamePage = () =>
+    (document.body && document.body.dataset && document.body.dataset.gamePage) || "";
+
+  function ensureBlindsLine() {
+    const pill = document.getElementById('wallet-inline');
+    if (!pill) return null;
+    let line = document.getElementById('wi-blinds-line');
+    if (!line) {
+      line = document.createElement('div');
+      line.id = 'wi-blinds-line';
+      line.className = 'wi-blinds-line';
+      pill.appendChild(line);
+    }
+    return line;
+  }
+
+  function updateBlindsIndicator(label, contextPage) {
+    blindsLabelCache = label || "";
+    const page = contextPage || getGamePage();
+    const line = ensureBlindsLine();
+    if (!line) return;
+    if (page === 'poker-table' && blindsLabelCache) {
+      line.textContent = `Blinds ${blindsLabelCache}`;
+      line.style.display = 'block';
+    } else if (page === 'poker-table') {
+      line.textContent = '';
+      line.style.display = 'none';
+    } else {
+      line.textContent = '';
+      line.style.display = 'none';
+    }
+  }
 
   function ensureBalanceBadges() {
     const pill = document.getElementById('wallet-inline');
@@ -33,6 +68,8 @@
     }
     badge('wi-mon-balance-pill', 'MON');
     badge('wi-dcmon-balance-pill', 'DCMon');
+    ensureBlindsLine();
+    updateBlindsIndicator(blindsLabelCache);
   }
 
   function buildBankrollMarkup(container) {
@@ -146,6 +183,7 @@
         window.dispatchEvent(new CustomEvent(CHANGE_NAME_EVENT));
       } catch {}
     });
+    updateBlindsIndicator(blindsLabelCache, gamePage);
   }
 
   function createModal() {
@@ -205,6 +243,7 @@
   function init() {
     try { if (!window.openWalletChipsModal) window.openWalletChipsModal = openModal; } catch {}
     ensureBalanceBadges();
+    updateBlindsIndicator(blindsLabelCache);
     const pill = document.getElementById('wallet-inline');
     if (pill && !document.getElementById('wi-wallet-btn')) {
       const btn = document.createElement('button'); btn.id = 'wi-wallet-btn'; btn.type = 'button'; btn.textContent = 'Wallet';
@@ -214,6 +253,12 @@
     }
     document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && document.body.dataset.chipsModalOpen) closeModal(); });
     createModal();
+    window.addEventListener(BLINDS_EVENT, (ev) => {
+      try {
+        const label = ev && ev.detail && typeof ev.detail.label === 'string' ? ev.detail.label : '';
+        updateBlindsIndicator(label, getGamePage());
+      } catch {}
+    });
 
     // Gasless indicator: flip the pill address background when gasless is active
     try {

@@ -99,7 +99,6 @@ const renderPokerCard = (card: SeatCard, key: string) => {
 };
 
 const OPEN_HISTORY_EVENT = "tavern:poker:openHistory";
-const OPEN_MESSAGES_EVENT = "tavern:poker:openMessages";
 const CHANGE_NAME_EVENT = "tavern:poker:changeName";
 const LEAVE_SEAT_EVENT = "tavern:poker:leaveSeat";
 
@@ -139,7 +138,7 @@ export default function PokerTablePage({ params }: TablePageProps) {
   const [playerName, setPlayerName] = useState("");
   const [nameInput, setNameInput] = useState("");
   const [isSitModalOpen, setSitModalOpen] = useState(false);
-  const [tableModal, setTableModal] = useState<"history" | "messages" | null>(null);
+  const [tableModal, setTableModal] = useState<"history" | null>(null);
   const nameInputRef = useRef<HTMLInputElement | null>(null);
 
   const updatePlayerName = useCallback((value: string) => {
@@ -584,22 +583,32 @@ export default function PokerTablePage({ params }: TablePageProps) {
   const showReadyButton = isSeated && !isInHand && isReadyStage;
   const showActionButtons = isSeated && isMyTurn && isInHand && !actionBusy;
   const latestHand = realtime.handSummary;
-  const tableModeLabel = isSimulatedTable
-    ? "Free to Play"
-    : (realtime.table?.tableMode ?? "On-chain").toUpperCase();
-  const messages = realtime.messages;
   const blinds = realtime.table?.meta?.blinds;
   const blindsLabel =
     !blinds || (isSimulatedTable && !blinds?.sb && !blinds?.bb)
       ? "--"
       : `${blinds?.sb ?? "-"} / ${blinds?.bb ?? "-"}`;
-  const seatCapacity = totalSeats;
-  const seatedCount = seatEntries.reduce((count, entry) => (entry.rawAddress ? count + 1 : count), 0);
   const formatChipLabel = useCallback(
     (chips: number) =>
       isSimulatedTable ? `${chips.toFixed(2)} chips` : formatPot(chips, chipValueDcmon),
     [chipValueDcmon, isSimulatedTable]
   );
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.dispatchEvent(new CustomEvent("poker:blinds", { detail: { label: blindsLabel } }));
+    } catch {
+      // ignore dispatch errors
+    }
+    return () => {
+      try {
+        window.dispatchEvent(new CustomEvent("poker:blinds", { detail: { label: null } }));
+      } catch {
+        // ignore cleanup errors
+      }
+    };
+  }, [blindsLabel]);
   const runAction = useCallback(
     async (initialMessage: string, task: () => Promise<void>) => {
       if (actionBusy) return;
@@ -789,16 +798,13 @@ export default function PokerTablePage({ params }: TablePageProps) {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const openHistory = () => setTableModal("history");
-    const openMessages = () => setTableModal("messages");
     const requestRename = () => handleRenamePlayer();
     const requestLeave = () => handleLeaveSeat();
     window.addEventListener(OPEN_HISTORY_EVENT, openHistory);
-    window.addEventListener(OPEN_MESSAGES_EVENT, openMessages);
     window.addEventListener(CHANGE_NAME_EVENT, requestRename);
     window.addEventListener(LEAVE_SEAT_EVENT, requestLeave);
     return () => {
       window.removeEventListener(OPEN_HISTORY_EVENT, openHistory);
-      window.removeEventListener(OPEN_MESSAGES_EVENT, openMessages);
       window.removeEventListener(CHANGE_NAME_EVENT, requestRename);
       window.removeEventListener(LEAVE_SEAT_EVENT, requestLeave);
     };
@@ -877,24 +883,6 @@ export default function PokerTablePage({ params }: TablePageProps) {
               )}
             </div>
             <div className="pot-indicator">Pot {potLabel}</div>
-            <div className="table-toolbar">
-              <div className="table-tags">
-                <span className="table-tag">{tableModeLabel}</span>
-                <span className="table-tag">Blinds {blindsLabel}</span>
-                <span className="table-tag">
-                  {seatedCount}/{seatCapacity} Seated
-                </span>
-              </div>
-              <div className="table-toolbar-actions">
-                <button
-                  type="button"
-                  className="table-toolbar-btn"
-                  onClick={() => setTableModal("messages")}
-                >
-                  Messages{messages.length > 0 ? ` (${messages.length})` : ""}
-                </button>
-              </div>
-            </div>
             <div className="seat-layer">
               {orderedSeats.map((seat) => (
                 <div
@@ -1089,49 +1077,6 @@ export default function PokerTablePage({ params }: TablePageProps) {
         </div>
       )}
 
-      {tableModal === "messages" && (
-        <div className="table-panel" role="dialog" aria-modal="true">
-          <div className="table-panel-content">
-            <div className="table-panel-header">
-              <h3>Table Messages</h3>
-              <button
-                type="button"
-                className="table-panel-close"
-                onClick={() => setTableModal(null)}
-              >
-                Close
-              </button>
-            </div>
-            <div className="table-panel-body">
-              {messages.length === 0 && !realtime.status && !realtime.error ? (
-                <p>No messages yet.</p>
-              ) : (
-                <ul>
-                  {messages.map((entry) => (
-                    <li key={entry.id}>
-                      <strong>{entry.from ? `${entry.from}: ` : ""}</strong>
-                      <span>{entry.text}</span>
-                    </li>
-                  ))}
-                  {realtime.status && (
-                    <li>
-                      <strong>Status: </strong>
-                      <span>{realtime.status}</span>
-                    </li>
-                  )}
-                  {realtime.error && (
-                    <li>
-                      <strong>Error: </strong>
-                      <span>{realtime.error}</span>
-                    </li>
-                  )}
-                </ul>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
       {isSitModalOpen && (
         <div className="poker-modal-backdrop">
           <div className="poker-modal">
@@ -1166,6 +1111,7 @@ export default function PokerTablePage({ params }: TablePageProps) {
     </main>
   );
 }
+
 
 
 
