@@ -13,10 +13,8 @@ type Stage = "age" | "wallet";
 export const AgeGate = () => {
   const { address, connect, isConnecting } = useWallet();
   const delegation = useDelegationToolkitAA();
-  const [open, setOpen] = useState(false);
-  const [stage, setStage] = useState<Stage>("age");
   const [error, setError] = useState<string | null>(null);
-  const [ageConfirmed, setAgeConfirmed] = useState<boolean>(false);
+  const [ageConfirmed, setAgeConfirmed] = useState<boolean | null>(null);
 
   useEffect(() => {
     try {
@@ -27,19 +25,9 @@ export const AgeGate = () => {
     }
   }, []);
 
-  useEffect(() => {
-    if (!ageConfirmed) {
-      setStage("age");
-      setOpen(true);
-      return;
-    }
-    if (!address) {
-      setStage("wallet");
-      setOpen(true);
-      return;
-    }
-    setOpen(false);
-  }, [ageConfirmed, address]);
+  const resolvedAgeConfirmed = Boolean(ageConfirmed);
+  const stage: Stage = resolvedAgeConfirmed ? "wallet" : "age";
+  const shouldShow = ageConfirmed === null ? false : !resolvedAgeConfirmed || !address;
 
   const confirmAge = () => {
     try {
@@ -48,9 +36,7 @@ export const AgeGate = () => {
       // ignore storage issues
     }
     setAgeConfirmed(true);
-    setStage("wallet");
     setError(null);
-    setOpen(true);
   };
 
   const connectWithProvider = async (providerKey: "metamask" | "phantom") => {
@@ -103,14 +89,13 @@ export const AgeGate = () => {
           }
         }
       }
-      setOpen(false);
     } catch (err: any) {
       console.warn("[age-gate] wallet connect failed", err);
       setError(err?.message ?? "Wallet connection failed.");
     }
   };
 
-  if (!open) return null;
+  if (!shouldShow) return null;
 
   return (
     <div
