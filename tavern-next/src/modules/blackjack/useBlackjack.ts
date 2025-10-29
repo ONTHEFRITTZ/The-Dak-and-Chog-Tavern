@@ -288,18 +288,30 @@ export function useBlackjack(): BlackjackHook {
 
       const signer = await provider.getSigner();
 
-      try {
-        const hash = await delegation.sendTransaction({
-          to: blackjackAddress,
-          data,
-          value: 0n,
-        });
-        if (hash) {
-          const receipt = await provider.waitForTransaction(hash);
-          if (receipt) return receipt;
+      let aaReady = false;
+      if (typeof delegation?.ensureReady === "function") {
+        try {
+          await delegation.ensureReady();
+          aaReady = true;
+        } catch (err) {
+          console.warn("[blackjack] AA ensureReady failed", err);
         }
-      } catch (err) {
-        console.warn("[blackjack] AA send failed", err);
+      }
+
+      if (aaReady) {
+        try {
+          const hash = await delegation.sendTransaction({
+            to: blackjackAddress,
+            data,
+            value: 0n,
+          });
+          if (hash) {
+            const receipt = await provider.waitForTransaction(hash);
+            if (receipt) return receipt;
+          }
+        } catch (err) {
+          console.warn("[blackjack] AA send failed", err);
+        }
       }
 
       const tx = await signer.sendTransaction({
