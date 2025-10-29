@@ -138,6 +138,21 @@ const netDcmon = (payout: bigint, wager: bigint): number => {
   return totalReturned - stake;
 };
 
+const toUserMessage = (reason: unknown, fallback: string): string => {
+  const clamp = (input: string) => {
+    const compact = input.trim().replace(/\s+/g, " ");
+    if (!compact) return fallback;
+    return compact.length > 120 ? `${compact.slice(0, 117)}…` : compact;
+  };
+  if (reason instanceof Error) {
+    return clamp(reason.message ?? "");
+  }
+  if (typeof reason === "string") {
+    return clamp(reason);
+  }
+  return fallback;
+};
+
 export function useBlackjack(): BlackjackHook {
   const [state, setState] = useState<BlackjackState>(() => {
     let storedWager = TABLE_LIMITS.min;
@@ -385,7 +400,7 @@ export function useBlackjack(): BlackjackHook {
       setState((prev) => ({
         ...prev,
         isBusy: false,
-        error: err instanceof Error ? err.message : "Failed to start hand.",
+        error: toUserMessage(err, "Failed to start hand."),
       }));
     }
   }, [
@@ -420,7 +435,7 @@ export function useBlackjack(): BlackjackHook {
         setState((prev) => ({
           ...prev,
           isBusy: false,
-          error: err instanceof Error ? err.message : "Action failed.",
+          error: toUserMessage(err, "Action failed."),
         }));
       }
     },

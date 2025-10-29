@@ -116,10 +116,22 @@ export default function PokerTablePage({ params }: TablePageProps) {
   const realtime = useRealtimePokerTable(tableId);
   const holdem = useHoldemPokerActions();
   const addressLower = useMemo(() => (address ?? "").toLowerCase(), [address]);
-  const isSimulatedTable = useMemo(
-    () => realtime.table?.tableMode === "f2p" || Boolean(realtime.table?.simulated),
-    [realtime.table?.tableMode, realtime.table?.simulated]
-  );
+  const isSimulatedTable = useMemo(() => {
+    const modeSources: Array<unknown> = [
+      realtime.table?.tableMode,
+      realtime.table?.meta && (realtime.table.meta as Record<string, unknown>)?.tableMode,
+      realtime.table?.meta && (realtime.table.meta as Record<string, unknown>)?.mode,
+      realtime.table?.meta && (realtime.table.meta as Record<string, unknown>)?.typeKey,
+    ];
+    const normalizedMode = modeSources
+      .map((value) => (typeof value === "string" ? value.toLowerCase() : null))
+      .find((value) => value);
+    if (normalizedMode && ["f2p", "simulated", "free", "freeplay"].includes(normalizedMode)) {
+      return true;
+    }
+    if (Boolean(realtime.table?.simulated)) return true;
+    return false;
+  }, [realtime.table?.tableMode, realtime.table?.meta, realtime.table?.simulated]);
 
   const [betAmount, setBetAmount] = useState("1");
   const [actionStatus, setActionStatus] = useState<string | null>(null);
