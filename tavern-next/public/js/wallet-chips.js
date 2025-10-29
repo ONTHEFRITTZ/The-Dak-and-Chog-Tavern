@@ -4,6 +4,9 @@
   if (window.__WalletChipsMounted) return;
   window.__WalletChipsMounted = true;
 
+  const OPEN_HISTORY_EVENT = "tavern:poker:openHistory";
+  const CHANGE_NAME_EVENT = "tavern:poker:changeName";
+
   function ensureBalanceBadges() {
     const pill = document.getElementById('wallet-inline');
     if (!pill) return;
@@ -87,6 +90,62 @@
       disconnect.style.padding = '8px 0';
       actions.appendChild(disconnect);
     }
+
+    const gamePage = (document.body && document.body.dataset && document.body.dataset.gamePage) || '';
+    const supportsHistory = gamePage === 'poker-table' || gamePage === 'blackjack';
+    const supportsName = supportsHistory;
+
+    const applyButtonStyles = (btn) => {
+      if (!btn.classList.contains('wi-modal-action')) {
+        btn.classList.add('wi-modal-action');
+      }
+    };
+
+    const ensureButton = (id, label, handler) => {
+      const shouldShow =
+        (id === 'wi-open-history' && supportsHistory) ||
+        (id === 'wi-change-name' && supportsName);
+      if (!shouldShow) {
+        const existing = document.getElementById(id);
+        if (existing && existing.parentElement === actions) {
+          existing.onclick = null;
+          existing.remove();
+        }
+        return null;
+      }
+      let btn = document.getElementById(id);
+      if (!btn || btn.parentElement !== actions) {
+        btn = btn && btn.parentElement ? btn : document.createElement('button');
+        btn.id = id;
+        btn.type = 'button';
+        btn.textContent = label;
+        applyButtonStyles(btn);
+        if (disconnect && disconnect.parentElement === actions) {
+          actions.insertBefore(btn, disconnect);
+        } else {
+          actions.appendChild(btn);
+        }
+      } else {
+        btn.textContent = label;
+        applyButtonStyles(btn);
+      }
+      btn.onclick = handler;
+      return btn;
+    };
+
+    ensureButton('wi-open-history', 'Recent Hands', () => {
+      closeModal();
+      try {
+        window.dispatchEvent(new CustomEvent(OPEN_HISTORY_EVENT));
+      } catch {}
+    });
+
+    ensureButton('wi-change-name', 'Change Table Name', () => {
+      closeModal();
+      try {
+        window.dispatchEvent(new CustomEvent(CHANGE_NAME_EVENT));
+      } catch {}
+    });
   }
 
   function createModal() {

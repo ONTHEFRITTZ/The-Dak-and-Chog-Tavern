@@ -98,6 +98,11 @@ const renderPokerCard = (card: SeatCard, key: string) => {
   );
 };
 
+const OPEN_HISTORY_EVENT = "tavern:poker:openHistory";
+const OPEN_MESSAGES_EVENT = "tavern:poker:openMessages";
+const CHANGE_NAME_EVENT = "tavern:poker:changeName";
+const LEAVE_SEAT_EVENT = "tavern:poker:leaveSeat";
+
 export default function PokerTablePage({ params }: TablePageProps) {
   usePageBackdrop("poker-table");
 
@@ -122,25 +127,56 @@ export default function PokerTablePage({ params }: TablePageProps) {
   const [playerName, setPlayerName] = useState("");
   const [nameInput, setNameInput] = useState("");
   const [isSitModalOpen, setSitModalOpen] = useState(false);
-  const [activePanel, setActivePanel] = useState<"info" | "history" | "log" | null>(null);
+  const [tableModal, setTableModal] = useState<"history" | "messages" | null>(null);
   const nameInputRef = useRef<HTMLInputElement | null>(null);
+
+  const updatePlayerName = useCallback((value: string) => {
+    const trimmed = value.trim().slice(0, 16);
+    const finalName = trimmed || "Player";
+    setPlayerName(finalName);
+    setNameInput(finalName);
+    if (typeof window !== "undefined") {
+      try {
+        sessionStorage.setItem("poker:name", finalName);
+      } catch {
+        // ignore storage failures
+      }
+    }
+    return finalName;
+  }, []);
 
   useEffect(() => {
     realtime.identify(address);
   }, [address, realtime]);
 
-  const togglePanel = useCallback((panel: "info" | "history" | "log") => {
-    setActivePanel((prev) => (prev === panel ? null : panel));
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const previous = document.body.dataset.gamePage;
+    document.body.dataset.gamePage = "poker-table";
+    return () => {
+      if (previous) {
+        document.body.dataset.gamePage = previous;
+      } else {
+        delete document.body.dataset.gamePage;
+      }
+    };
   }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     const stored = sessionStorage.getItem("poker:name");
     if (stored) {
-      setPlayerName(stored);
-      setNameInput(stored);
+      updatePlayerName(stored);
     }
-  }, []);
+  }, [updatePlayerName]);
+
+  const promptForPlayerName = useCallback(() => {
+    const fallback = playerName || (address ? short(address) : "Player");
+    if (typeof window === "undefined") return fallback;
+    const response = window.prompt("Choose your table name", fallback);
+    if (response === null) return fallback;
+    return updatePlayerName(response);
+  }, [address, playerName, updatePlayerName]);
 
   useEffect(() => {
     if (!isSitModalOpen) return;
@@ -151,15 +187,15 @@ export default function PokerTablePage({ params }: TablePageProps) {
   }, [isSitModalOpen]);
 
   useEffect(() => {
-    if (!activePanel) return;
+    if (!tableModal) return;
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        setActivePanel(null);
+        setTableModal(null);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [activePanel]);
+  }, [tableModal]);
 
   const chipValueDcmon = useMemo(() => {
     if (isSimulatedTable) return 0;
@@ -377,7 +413,7 @@ export default function PokerTablePage({ params }: TablePageProps) {
       } else if (hasActed) {
         statusLabel = "Acted";
       } else if (stageKey === "waiting" || stageKey === "betting") {
-        statusLabel = "Ready";
+        statusLabel = hasActed ? "Ready" : "Waiting";
       } else if (isInHand) {
         statusLabel = "Live";
       }
@@ -456,6 +492,14 @@ export default function PokerTablePage({ params }: TablePageProps) {
   }, [orderedSeats, turnSeatId]);
 
   const isSeated = mySeatId >= 0;
+  const handleRenamePlayer = useCallback(() => {
+    if (!isSeated) {
+      setNameInput(playerName);
+      setSitModalOpen(true);
+      return;
+    }
+    promptForPlayerName();
+  }, [isSeated, promptForPlayerName, playerName]);
   const tableCanvasClassName = useMemo(
     () =>
       cx(
@@ -524,8 +568,10 @@ export default function PokerTablePage({ params }: TablePageProps) {
   const stackLabel = `${myStackChips.toFixed(2)} chips`;
   const actionButtonsDisabled = !isSeated || !isMyTurn || actionBusy;
   const canAllIn = !actionButtonsDisabled && myStackChips > 0.0001;
+  const isReadyStage = ["", "waiting", "betting", "showdown"].includes(stageKey);
+  const showReadyButton = isSeated && !isInHand && isReadyStage;
+  const showActionButtons = isSeated && isMyTurn && isInHand && !actionBusy;
   const latestHand = realtime.handSummary;
-  const rngCommit = realtime.state?.rng?.commit ?? latestHand?.rng?.commit ?? undefined;
   const tableModeLabel = isSimulatedTable
     ? "Free to Play"
     : (realtime.table?.tableMode ?? "On-chain").toUpperCase();
@@ -533,145 +579,15 @@ export default function PokerTablePage({ params }: TablePageProps) {
   const blinds = realtime.table?.meta?.blinds;
   const blindsLabel =
     !blinds || (isSimulatedTable && !blinds?.sb && !blinds?.bb)
-      ? "—"
+      ? "--"
       : `${blinds?.sb ?? "-"} / ${blinds?.bb ?? "-"}`;
   const seatCapacity = totalSeats;
   const seatedCount = seatEntries.reduce((count, entry) => (entry.rawAddress ? count + 1 : count), 0);
-  const dealerSeatLabel = dealerSeatId >= 0 ? `Seat ${dealerSeatId + 1}` : "—";
-  const turnSeatLabel = currentTurnSeatLabel ?? (turnSeatId >= 0 ? `Seat ${turnSeatId + 1}` : "—");
   const formatChipLabel = useCallback(
     (chips: number) =>
       isSimulatedTable ? `${chips.toFixed(2)} chips` : formatPot(chips, chipValueDcmon),
     [chipValueDcmon, isSimulatedTable]
   );
-  const infoItems = useMemo(
-    () => [
-      { label: "Stage", value: stageKey ? stageKey.charAt(0).toUpperCase() + stageKey.slice(1) : "Waiting" },
-      { label: "Mode", value: tableModeLabel },
-      { label: "Players", value: `${seatedCount}/${seatCapacity}` },
-      { label: "Dealer", value: dealerSeatLabel },
-      { label: "Turn", value: turnSeatLabel },
-      { label: "Blinds", value: blindsLabel },
-      { label: "Pot", value: formatChipLabel(potChips) },
-      { label: "Connection", value: realtime.connected ? "Online" : "Offline" },
-      ...(rngCommit ? [{ label: "RNG Commit", value: `${rngCommit.slice(0, 10)}…` }] : []),
-      { label: "Table ID", value: realtime.table?.id ?? tableId },
-    ],
-    [
-      stageKey,
-      tableModeLabel,
-      seatedCount,
-      seatCapacity,
-      dealerSeatLabel,
-      turnSeatLabel,
-      blindsLabel,
-      formatChipLabel,
-      potChips,
-      realtime.connected,
-      rngCommit,
-      realtime.table?.id,
-      tableId,
-    ]
-  );
-  const panelData = useMemo(() => {
-    if (!activePanel) return null;
-    if (activePanel === "info") {
-      return {
-        title: "Table Info",
-        content: (
-          <div className="table-panel-info">
-            {infoItems.map((item) => (
-              <div key={item.label}>
-                <span>{item.label}</span>
-                <span>{item.value}</span>
-              </div>
-            ))}
-            {realtime.status && (
-              <div>
-                <span>Status</span>
-                <span>{realtime.status}</span>
-              </div>
-            )}
-            {realtime.error && (
-              <div>
-                <span>Error</span>
-                <span>{realtime.error}</span>
-              </div>
-            )}
-          </div>
-        ),
-      };
-    }
-    if (activePanel === "history") {
-      if (!latestHand) {
-        return {
-          title: "Last Hand",
-          content: <p>No completed hands yet.</p>,
-        };
-      }
-      return {
-        title: "Last Hand",
-        content: (
-          <>
-            <div className="table-panel-info">
-              <div>
-                <span>Pot</span>
-                <span>{formatChipLabel(latestHand.pot ?? 0)}</span>
-              </div>
-              <div>
-                <span>Board</span>
-                <span>{(latestHand.community ?? []).join(" ") || "--"}</span>
-              </div>
-            </div>
-            <ul>
-              {(latestHand.winners ?? []).map((winner) => (
-                <li key={`${winner.addr}-${winner.seatId ?? 0}`}>
-                  <strong>{short(winner.addr)}</strong>
-                  {winner.amount != null && (
-                    <span>{` Wins ${formatChipLabel(winner.amount)}`}</span>
-                  )}
-                  {winner.combo && winner.combo.length > 0 && (
-                    <span>{` (${winner.combo.join(" ")})`}</span>
-                  )}
-                </li>
-              ))}
-              {(latestHand.winners ?? []).length === 0 && <li>No winner data provided.</li>}
-            </ul>
-          </>
-        ),
-      };
-    }
-    const logEntries = messages;
-    return {
-      title: "Table Messages",
-      content:
-        logEntries.length === 0 && !realtime.status && !realtime.error ? (
-          <p>No messages yet.</p>
-        ) : (
-          <ul>
-            {logEntries.map((entry) => (
-              <li key={entry.id}>
-                <strong>{entry.from ? `${entry.from}: ` : ""}</strong>
-                <span>{entry.text}</span>
-              </li>
-            ))}
-            {realtime.status && (
-              <li>
-                <strong>Status: </strong>
-                <span>{realtime.status}</span>
-              </li>
-            )}
-            {realtime.error && (
-              <li>
-                <strong>Error: </strong>
-                <span>{realtime.error}</span>
-              </li>
-            )}
-          </ul>
-        ),
-    };
-  }, [activePanel, infoItems, realtime.status, realtime.error, latestHand, formatChipLabel, messages]);
-
   const runAction = useCallback(
     async (initialMessage: string, task: () => Promise<void>) => {
       if (actionBusy) return;
@@ -716,14 +632,19 @@ export default function PokerTablePage({ params }: TablePageProps) {
         await holdem.joinSeat({ seatId: preferredSeatId, onProgress: setActionStatus });
       }
       realtime.setSeat(preferredSeatId);
-      setPlayerName(finalName);
-      if (typeof window !== "undefined") {
-        sessionStorage.setItem("poker:name", finalName);
-      }
+      updatePlayerName(finalName);
       setSitModalOpen(false);
-      setActivePanel(null);
+      setTableModal(null);
     });
-  }, [preferredSeatId, nameInput, runAction, holdem, realtime, isSimulatedTable]);
+  }, [
+    preferredSeatId,
+    nameInput,
+    runAction,
+    holdem,
+    realtime,
+    isSimulatedTable,
+    updatePlayerName,
+  ]);
 
   const handleCancelSit = useCallback(() => {
     setSitModalOpen(false);
@@ -741,7 +662,7 @@ export default function PokerTablePage({ params }: TablePageProps) {
         });
       }
       realtime.leaveSeat();
-      setActivePanel(null);
+      setTableModal(null);
     });
   }, [mySeatId, isSimulatedTable, holdem, isInHand, realtime, runAction]);
 
@@ -846,6 +767,82 @@ export default function PokerTablePage({ params }: TablePageProps) {
     realtime.requestRebuy();
   }, [realtime]);
 
+  const handleReady = useCallback(() => {
+    if (!isSeated) return;
+    runAction("Ready...", async () => {
+      realtime.sendAction("ready");
+    });
+  }, [isSeated, runAction, realtime]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const openHistory = () => setTableModal("history");
+    const openMessages = () => setTableModal("messages");
+    const requestRename = () => handleRenamePlayer();
+    const requestLeave = () => handleLeaveSeat();
+    window.addEventListener(OPEN_HISTORY_EVENT, openHistory);
+    window.addEventListener(OPEN_MESSAGES_EVENT, openMessages);
+    window.addEventListener(CHANGE_NAME_EVENT, requestRename);
+    window.addEventListener(LEAVE_SEAT_EVENT, requestLeave);
+    return () => {
+      window.removeEventListener(OPEN_HISTORY_EVENT, openHistory);
+      window.removeEventListener(OPEN_MESSAGES_EVENT, openMessages);
+      window.removeEventListener(CHANGE_NAME_EVENT, requestRename);
+      window.removeEventListener(LEAVE_SEAT_EVENT, requestLeave);
+    };
+  }, [handleRenamePlayer, handleLeaveSeat]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    let disposed = false;
+    let button: HTMLButtonElement | null = null;
+    let timeout: number | null = null;
+
+    const handleClick = (event: Event) => {
+      event.preventDefault();
+      handleLeaveSeat();
+    };
+
+    const ensureButton = () => {
+      if (disposed) return;
+      const pill = document.getElementById("wallet-inline");
+      if (!pill) {
+        timeout = window.setTimeout(ensureButton, 200);
+        return;
+      }
+      button = document.getElementById("wi-leave-table") as HTMLButtonElement | null;
+      if (!button) {
+        button = document.createElement("button");
+        button.id = "wi-leave-table";
+        button.type = "button";
+        button.className = "wi-leave-table";
+        button.dataset.origin = "poker-table";
+        button.textContent = "Leave Table";
+      }
+      button.removeEventListener("click", handleClick);
+      button.addEventListener("click", handleClick);
+      button.disabled = actionBusy;
+      pill.insertAdjacentElement("afterend", button);
+    };
+
+    ensureButton();
+
+    return () => {
+      disposed = true;
+      if (timeout != null) {
+        window.clearTimeout(timeout);
+      }
+      if (button && button.dataset.origin === "poker-table") {
+        button.removeEventListener("click", handleClick);
+        if (button.parentElement) {
+          button.parentElement.removeChild(button);
+        }
+      } else if (button) {
+        button.removeEventListener("click", handleClick);
+      }
+    };
+  }, [handleLeaveSeat, actionBusy]);
+
   return (
     <main className="poker-page">
       <section className="poker-stage">
@@ -868,6 +865,24 @@ export default function PokerTablePage({ params }: TablePageProps) {
               )}
             </div>
             <div className="pot-indicator">Pot {potLabel}</div>
+            <div className="table-toolbar">
+              <div className="table-tags">
+                <span className="table-tag">{tableModeLabel}</span>
+                <span className="table-tag">Blinds {blindsLabel}</span>
+                <span className="table-tag">
+                  {seatedCount}/{seatCapacity} Seated
+                </span>
+              </div>
+              <div className="table-toolbar-actions">
+                <button
+                  type="button"
+                  className="table-toolbar-btn"
+                  onClick={() => setTableModal("messages")}
+                >
+                  Messages{messages.length > 0 ? ` (${messages.length})` : ""}
+                </button>
+              </div>
+            </div>
             <div className="seat-layer">
               {orderedSeats.map((seat) => (
                 <div
@@ -919,10 +934,85 @@ export default function PokerTablePage({ params }: TablePageProps) {
                       </div>
                       {seat.statusLabel && <div className="seat-status">{seat.statusLabel}</div>}
                       {seat.isUser && (
-                        <div className="seat-actions">
-                          <button type="button" onClick={handleLeaveSeat} disabled={actionBusy}>
-                            Leave
-                          </button>
+                        <div className="seat-console">
+                          <div className="seat-console-top">
+                            <div className="seat-hud">
+                              <span>Pot {potLabel}</span>
+                              <span>Stack {stackLabel}</span>
+                              <span>Contribution {contributionLabel}</span>
+                              {callAmountChips > 0 && <span>Call {callAmountLabel}</span>}
+                            </div>
+                            <div className="seat-prompt">{actionInfo}</div>
+                          </div>
+                          <div className="seat-controls">
+                            <div className="seat-rail seat-rail-left">
+                              {showReadyButton && (
+                                <button
+                                  type="button"
+                                  onClick={handleReady}
+                                  disabled={actionBusy || seat.statusLabel === "Ready"}
+                                >
+                                  {seat.statusLabel === "Ready" ? "Ready" : "Ready Up"}
+                                </button>
+                              )}
+                              {showActionButtons && (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={handleFold}
+                                    disabled={actionButtonsDisabled}
+                                  >
+                                    Fold
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={handleCheckOrCall}
+                                    disabled={actionButtonsDisabled}
+                                  >
+                                    {callAmountChips > 0 ? `Call ${callAmountLabel}` : "Check"}
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                            <div className="seat-rail seat-rail-right">
+                              {showActionButtons && (
+                                <>
+                                  <div className="bet-input-inline">
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      max={Math.max(myContributionChips + myStackChips, 0)}
+                                      step="0.01"
+                                      value={betAmount}
+                                      onChange={(event) => setBetAmount(event.target.value)}
+                                      disabled={actionButtonsDisabled}
+                                      aria-label="Bet amount in chips"
+                                      className="bet-input"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={handleBet}
+                                      disabled={actionButtonsDisabled}
+                                    >
+                                      {callAmountChips > 0 ? "Raise" : "Bet"}
+                                    </button>
+                                  </div>
+                                  <button type="button" onClick={handleAllIn} disabled={!canAllIn}>
+                                    All In
+                                  </button>
+                                </>
+                              )}
+                              {isSimulatedTable && (
+                                <button
+                                  type="button"
+                                  onClick={handleRebuy}
+                                  disabled={actionBusy || !isSeated}
+                                >
+                                  Rebuy 100 Chips
+                                </button>
+                              )}
+                            </div>
+                          </div>
                         </div>
                       )}
                     </>
@@ -936,94 +1026,96 @@ export default function PokerTablePage({ params }: TablePageProps) {
               </div>
             )}
           </div>
-        <div className="table-dock-wrapper">
-          <div
-            className={cx(
-              "table-dock",
-              isMyTurn && isSeated && !actionBusy && "active",
-              !isSeated && "disabled"
-            )}
-          >
-            <div className="dock-info">{actionInfo}</div>
-            <div className="dock-stats">
-              <span>Pot {potLabel}</span>
-              {isSeated && <span>Your stack: {stackLabel}</span>}
-              {isSeated && <span>Your contribution: {contributionLabel}</span>}
-              {isSeated && callAmountChips > 0 && <span>Call: {callAmountLabel}</span>}
-            </div>
-            <div className="dock-controls">
-              <button type="button" onClick={handleFold} disabled={actionButtonsDisabled}>
-                Fold
-              </button>
-              <button type="button" onClick={handleCheckOrCall} disabled={actionButtonsDisabled}>
-                {callAmountChips > 0 ? `Call ${callAmountLabel}` : "Check"}
-              </button>
-              <div className="bet-input-group">
-                <input
-                  type="number"
-                  min="0"
-                  max={Math.max(myContributionChips + myStackChips, 0)}
-                  step="0.01"
-                  value={betAmount}
-                  onChange={(event) => setBetAmount(event.target.value)}
-                  disabled={actionButtonsDisabled}
-                  aria-label="Bet amount in chips"
-                  className="bet-input"
-                />
-                <button type="button" onClick={handleBet} disabled={actionButtonsDisabled}>
-                  {callAmountChips > 0 ? "Raise" : "Bet"}
-                </button>
-              </div>
-              <button type="button" onClick={handleAllIn} disabled={!canAllIn}>
-                All In
-              </button>
-              {isSimulatedTable && (
-                <button type="button" onClick={handleRebuy} disabled={actionBusy || !isSeated}>
-                  Rebuy 100 Chips
-                </button>
-              )}
-            </div>
-            <div className="dock-secondary" role="group" aria-label="Additional table details">
-              <button
-                type="button"
-                className={activePanel === "info" ? "active" : undefined}
-                onClick={() => togglePanel("info")}
-              >
-                Table Info
-              </button>
-              <button
-                type="button"
-                className={activePanel === "history" ? "active" : undefined}
-                onClick={() => togglePanel("history")}
-              >
-                Last Hand
-              </button>
-              <button
-                type="button"
-                className={activePanel === "log" ? "active" : undefined}
-                onClick={() => togglePanel("log")}
-              >
-                Messages{messages.length > 0 ? ` (${messages.length})` : ""}
-              </button>
-            </div>
-          </div>
-        </div>
       </section>
 
-      {activePanel && panelData && (
+      {tableModal === "history" && (
         <div className="table-panel" role="dialog" aria-modal="true">
           <div className="table-panel-content">
             <div className="table-panel-header">
-              <h3>{panelData.title}</h3>
+              <h3>Recent Hand</h3>
               <button
                 type="button"
                 className="table-panel-close"
-                onClick={() => setActivePanel(null)}
+                onClick={() => setTableModal(null)}
               >
                 Close
               </button>
             </div>
-            <div className="table-panel-body">{panelData.content}</div>
+            <div className="table-panel-body">
+              {latestHand ? (
+                <>
+                  <div className="table-panel-info">
+                    <div>
+                      <span>Pot</span>
+                      <span>{formatChipLabel(latestHand.pot ?? 0)}</span>
+                    </div>
+                    <div>
+                      <span>Board</span>
+                      <span>{(latestHand.community ?? []).join(" ") || "--"}</span>
+                    </div>
+                  </div>
+                  <ul>
+                    {(latestHand.winners ?? []).map((winner) => (
+                      <li key={`${winner.addr}-${winner.seatId ?? 0}`}>
+                        <strong>{short(winner.addr)}</strong>
+                        {winner.amount != null && (
+                          <span>{` Wins ${formatChipLabel(winner.amount)}`}</span>
+                        )}
+                        {winner.combo && winner.combo.length > 0 && (
+                          <span>{` (${winner.combo.join(" ")})`}</span>
+                        )}
+                      </li>
+                    ))}
+                    {(latestHand.winners ?? []).length === 0 && <li>No winner data provided.</li>}
+                  </ul>
+                </>
+              ) : (
+                <p>No completed hands yet.</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {tableModal === "messages" && (
+        <div className="table-panel" role="dialog" aria-modal="true">
+          <div className="table-panel-content">
+            <div className="table-panel-header">
+              <h3>Table Messages</h3>
+              <button
+                type="button"
+                className="table-panel-close"
+                onClick={() => setTableModal(null)}
+              >
+                Close
+              </button>
+            </div>
+            <div className="table-panel-body">
+              {messages.length === 0 && !realtime.status && !realtime.error ? (
+                <p>No messages yet.</p>
+              ) : (
+                <ul>
+                  {messages.map((entry) => (
+                    <li key={entry.id}>
+                      <strong>{entry.from ? `${entry.from}: ` : ""}</strong>
+                      <span>{entry.text}</span>
+                    </li>
+                  ))}
+                  {realtime.status && (
+                    <li>
+                      <strong>Status: </strong>
+                      <span>{realtime.status}</span>
+                    </li>
+                  )}
+                  {realtime.error && (
+                    <li>
+                      <strong>Error: </strong>
+                      <span>{realtime.error}</span>
+                    </li>
+                  )}
+                </ul>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -1062,4 +1154,6 @@ export default function PokerTablePage({ params }: TablePageProps) {
     </main>
   );
 }
+
+
 

@@ -6,8 +6,6 @@ import { useBlackjack } from "@/modules/blackjack/useBlackjack";
 import type { Card } from "@/modules/blackjack/engine";
 import { usePageBackdrop } from "@/hooks/usePageBackdrop";
 
-const cx = (...args: Array<string | false | null | undefined>) => args.filter(Boolean).join(" ");
-
 const RANK_LABEL: Record<string, string> = {
   A: "ace",
   K: "king",
@@ -66,6 +64,10 @@ const renderCard = (card: Card, hidden = false, key?: string | number) => {
   );
 };
 
+const OPEN_HISTORY_EVENT = "tavern:poker:openHistory";
+const CHANGE_NAME_EVENT = "tavern:poker:changeName";
+const LEAVE_SEAT_EVENT = "tavern:poker:leaveSeat";
+
 export default function BlackjackPage() {
   usePageBackdrop("blackjack");
 
@@ -74,7 +76,7 @@ export default function BlackjackPage() {
   const [wagerInput, setWagerInput] = useState(() => blackjack.baseWager.toFixed(2));
   const [isSeated, setIsSeated] = useState(false);
   const [playerName, setPlayerName] = useState("");
-  const [activePanel, setActivePanel] = useState<"info" | "history" | null>(null);
+  const [tableModal, setTableModal] = useState<"history" | null>(null);
 
   const activeHand = blackjack.playerHands[blackjack.activeHandIndex] ?? null;
   const canAct =
@@ -90,10 +92,6 @@ export default function BlackjackPage() {
     return trimmed.length > 0 ? trimmed : shortAddress;
   }, [playerName, shortAddress]);
 
-  const togglePanel = useCallback((panel: "info" | "history") => {
-    setActivePanel((prev) => (prev === panel ? null : panel));
-  }, []);
-
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
@@ -107,6 +105,19 @@ export default function BlackjackPage() {
   }, []);
 
   useEffect(() => {
+    if (typeof document === "undefined") return;
+    const previous = document.body.dataset.gamePage;
+    document.body.dataset.gamePage = "blackjack";
+    return () => {
+      if (previous) {
+        document.body.dataset.gamePage = previous;
+      } else {
+        delete document.body.dataset.gamePage;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     if (blackjack.playerHands.length > 0 && !isSeated) {
       setIsSeated(true);
     }
@@ -115,7 +126,7 @@ export default function BlackjackPage() {
   useEffect(() => {
     if (!address && blackjack.playerHands.length === 0 && blackjack.phase === "betting") {
       setIsSeated(false);
-      setActivePanel(null);
+      setTableModal(null);
     }
   }, [address, blackjack.phase, blackjack.playerHands.length]);
 
@@ -169,85 +180,122 @@ export default function BlackjackPage() {
       promptForTableName(shortAddress);
     }
     setIsSeated(true);
-    setActivePanel(null);
   }, [playerName, promptForTableName, shortAddress]);
 
-  const seatNodes = useMemo(() => {
-    return SEAT_POSITIONS.map((pos, idx) => {
-      const style = { top: pos.top, left: pos.left };
-      if (idx === PLAYER_SEAT_INDEX) {
-        if (!isSeated) {
-          return (
-            <div key="player-seat" className="bj-seat me pending" style={style}>
-              <button type="button" className="bj-sit-btn" onClick={handleSit}>
-                Sit
-              </button>
-              <span className="seat-hint">Anchor this table to play.</span>
-            </div>
-          );
-        }
-        if (!activeHand) {
-          return (
-            <div key="player-seat" className="bj-seat me waiting" style={style}>
-              <div className="seat-name">{displayName}</div>
-              <div className="card-group bj-card-placeholder">
-                <span className="bj-placeholder">Waiting for deal…</span>
-              </div>
-            </div>
-          );
-        }
-        return (
-          <div
-            key="player-seat"
-            className={`bj-seat me ${blackjack.phase === "player" ? "active" : ""}`}
-            style={style}
-          >
-            <div className="seat-name">{displayName}</div>
-            <div className="card-group">
-              {activeHand.cards.map((card, i) => renderCard(card, false, i))}
-            </div>
-            <div className="seat-info">
-              <span>Total {activeHand.score.bestTotal}</span>
-              {typeof activeHand.payout === "number" && blackjack.phase === "payout" && (
-                <span className={activeHand.payout >= 0 ? "bj-win" : "bj-loss"}>
-                  {activeHand.payout >= 0 ? "+" : ""}
-                  {activeHand.payout.toFixed(3)} DCMon
-                </span>
-              )}
-            </div>
-          </div>
-        );
-      }
-
-      const occupant = isSeated ? spectatorAssignments.get(idx) : null;
-      return (
-        <div key={`seat-${idx}`} className={`bj-seat${occupant ? " occupied" : ""}`} style={style}>
-          <div className="seat-name">{occupant ?? "Open Seat"}</div>
-          {occupant && (
-            <div className="card-group bj-card-placeholder">
-              <span className="bj-placeholder">Watching the action</span>
-            </div>
-          )}
-        </div>
-      );
-    });
-  }, [activeHand, blackjack.phase, displayName, handleSit, isSeated, spectatorAssignments]);
-
-  const handleWagerChange = (value: string) => {
+  const handleWagerChange = useCallback((value: string) => {
     setWagerInput(value);
     const parsed = Number(value);
     if (!Number.isNaN(parsed)) {
       blackjack.setWager(parsed);
     }
-  };
+  }, [blackjack]);
 
   const handleLeaveTable = useCallback(() => {
     blackjack.nextHand();
     blackjack.resetError();
     setIsSeated(false);
     setWagerInput(blackjack.baseWager.toFixed(2));
-    setActivePanel(null);
+    setTableModal(null);
   }, [blackjack, setWagerInput]);
+
+  const handleReady = useCallback(() => {
+    blackjack.startHand().catch(() => void 0);
+  }, [blackjack]);
+
+  const handlePlayAgain = useCallback(() => {
+    blackjack.nextHand();
+  }, [blackjack]);
+
+  const handleHit = useCallback(() => {
+    blackjack.hit().catch(() => void 0);
+  }, [blackjack]);
+
+  const handleStand = useCallback(() => {
+    blackjack.stand().catch(() => void 0);
+  }, [blackjack]);
+
+  const handleDouble = useCallback(() => {
+    blackjack.doubleDown().catch(() => void 0);
+  }, [blackjack]);
+
+  const handleSplit = useCallback(() => {
+    if (typeof blackjack.split === "function") {
+      blackjack.split().catch(() => void 0);
+    }
+  }, [blackjack]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const openHistory = () => setTableModal("history");
+    const requestRename = () => handleRename();
+    const requestLeave = () => handleLeaveTable();
+    window.addEventListener(OPEN_HISTORY_EVENT, openHistory);
+    window.addEventListener(CHANGE_NAME_EVENT, requestRename);
+    window.addEventListener(LEAVE_SEAT_EVENT, requestLeave);
+    return () => {
+      window.removeEventListener(OPEN_HISTORY_EVENT, openHistory);
+      window.removeEventListener(CHANGE_NAME_EVENT, requestRename);
+      window.removeEventListener(LEAVE_SEAT_EVENT, requestLeave);
+    };
+  }, [handleRename, handleLeaveTable]);
+
+  useEffect(() => {
+    if (!tableModal) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setTableModal(null);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [tableModal]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    let disposed = false;
+    let button: HTMLButtonElement | null = null;
+    let timeoutId: number | null = null;
+
+    const handleClick = (event: Event) => {
+      event.preventDefault();
+      handleLeaveTable();
+    };
+
+    const ensureButton = () => {
+      if (disposed) return;
+      const pill = document.getElementById("wallet-inline");
+      if (!pill) {
+        timeoutId = window.setTimeout(ensureButton, 200);
+        return;
+      }
+      button = document.getElementById("wi-leave-table") as HTMLButtonElement | null;
+      if (!button) {
+        button = document.createElement("button");
+        button.id = "wi-leave-table";
+        button.type = "button";
+      }
+      button.className = "wi-leave-table";
+      button.dataset.origin = "blackjack";
+      button.textContent = "Leave Table";
+      button.removeEventListener("click", handleClick);
+      button.addEventListener("click", handleClick);
+      button.disabled = blackjack.isBusy;
+      pill.insertAdjacentElement("afterend", button);
+    };
+
+    ensureButton();
+
+    return () => {
+      disposed = true;
+      if (timeoutId !== null) window.clearTimeout(timeoutId);
+      if (button && button.dataset.origin === "blackjack") {
+        button.removeEventListener("click", handleClick);
+        button.remove();
+      } else if (button) {
+        button.removeEventListener("click", handleClick);
+      }
+    };
+  }, [handleLeaveTable, blackjack.isBusy]);
 
   const dealerContent = useMemo(() => {
     if (dealerCards.length === 0) {
@@ -257,6 +305,7 @@ export default function BlackjackPage() {
   }, [dealerCards, revealHole]);
 
   const enableDeal = blackjack.phase === "betting" && !blackjack.isBusy && isSeated;
+  const canReady = enableDeal;
 
   const playerScore = activeHand?.score;
   const playerBestTotal = playerScore?.bestTotal ?? null;
@@ -270,7 +319,6 @@ export default function BlackjackPage() {
       : isSeated
       ? "Awaiting deal"
       : "--";
-  const canDeal = enableDeal && !blackjack.isBusy;
   const canPlayAgain = blackjack.phase === "payout" && !blackjack.isBusy && isSeated;
   const canDouble = canAct && Boolean(activeHand?.canDouble);
   const canSplit = canAct && Boolean(activeHand?.canSplit);
@@ -293,92 +341,153 @@ export default function BlackjackPage() {
     }
   }, [blackjack.error, blackjack.message, blackjack.phase, isSeated, canAct]);
 
-  const infoItems = useMemo(
-    () => [
-      { label: "Phase", value: blackjack.phase.toUpperCase() },
-      {
-        label: "Seat",
-        value: isSeated ? displayName : "Open",
-      },
-      { label: "Current Wager", value: `${wagerDisplay} DCMon` },
-      {
-        label: "Limits",
-        value: `${blackjack.minBet.toFixed(2)} / ${blackjack.maxBet.toFixed(2)} DCMon`,
-      },
-      { label: "Dealer Total", value: dealerTotalLabel },
-      { label: "Your Total", value: playerTotalLabel },
-      {
-        label: "Hands Played",
-        value: `${blackjack.history.length}`,
-      },
-    ],
-    [
-      blackjack.phase,
-      blackjack.minBet,
-      blackjack.maxBet,
-      blackjack.history.length,
-      isSeated,
-      displayName,
-      wagerDisplay,
-      dealerTotalLabel,
-      playerTotalLabel,
-    ]
-  );
-
-  const panelData = useMemo(() => {
-    if (!activePanel) return null;
-    if (activePanel === "info") {
-      return {
-        title: "Table Info",
-        content: (
-          <div className="table-panel-info">
-            {infoItems.map((item) => (
-              <div key={item.label}>
-                <span>{item.label}</span>
-                <span>{item.value}</span>
+  const seatNodes = useMemo(() => {
+    return SEAT_POSITIONS.map((pos, idx) => {
+      const style = { top: pos.top, left: pos.left };
+      if (idx !== PLAYER_SEAT_INDEX) {
+        const occupant = isSeated ? spectatorAssignments.get(idx) : null;
+        return (
+          <div key={`seat-${idx}`} className={`bj-seat${occupant ? " occupied" : ""}`} style={style}>
+            <div className="seat-name">{occupant ?? "Open Seat"}</div>
+            {occupant && (
+              <div className="card-group bj-card-placeholder">
+                <span className="bj-placeholder">Watching the action</span>
               </div>
-            ))}
+            )}
           </div>
-        ),
-      };
-    }
-    if (blackjack.history.length === 0) {
-      return {
-        title: "Recent Hands",
-        content: <p>No hands yet. Ready when you are.</p>,
-      };
-    }
-    return {
-      title: "Recent Hands",
-      content: (
-        <ul>
-          {blackjack.history.map((entry) => {
-            const net = entry.payout - entry.wager;
-            return (
-              <li key={entry.id}>
-                <strong>{entry.result.toUpperCase()}</strong>
-                <span>
-                  Wager {entry.wager.toFixed(2)} - {net >= 0 ? "+" : ""}
-                  {net.toFixed(3)} DCMon
-                </span>
-              </li>
-            );
-          })}
-        </ul>
-      ),
-    };
-  }, [activePanel, blackjack.history, infoItems]);
-
-  useEffect(() => {
-    if (!activePanel) return;
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setActivePanel(null);
+        );
       }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [activePanel]);
+
+      if (!isSeated) {
+        return (
+          <div key="player-seat" className="bj-seat me pending" style={style}>
+            <button type="button" className="bj-sit-btn" onClick={handleSit}>
+              Sit
+            </button>
+            <span className="seat-hint">Anchor this table to play.</span>
+          </div>
+        );
+      }
+
+      const seatState =
+        blackjack.phase === "player" ? "active" : blackjack.phase === "betting" ? "waiting" : "";
+      const payout =
+        typeof activeHand?.payout === "number" && blackjack.phase === "payout"
+          ? activeHand.payout
+          : null;
+
+      return (
+        <div key="player-seat" className={`bj-seat me ${seatState}`} style={style}>
+          <div className="seat-name">{displayName}</div>
+          <div className="card-group">
+            {activeHand ? (
+              activeHand.cards.map((card, i) => renderCard(card, false, i))
+            ) : (
+              <div className="bj-card-placeholder">
+                <span className="bj-placeholder">Ready for the next shoe.</span>
+              </div>
+            )}
+          </div>
+          <div className="seat-info">
+            <span>Total {activeHand ? activeHand.score.bestTotal : playerTotalLabel}</span>
+            {payout != null && (
+              <span className={payout >= 0 ? "bj-win" : "bj-loss"}>
+                {payout >= 0 ? "+" : ""}
+                {payout.toFixed(3)} DCMon
+              </span>
+            )}
+          </div>
+          <div className="seat-console">
+            <div className="seat-console-top">
+              <div className="seat-hud">
+                <span>Dealer {dealerTotalLabel}</span>
+                <span>You {playerTotalLabel}</span>
+                <span>Wager {wagerDisplay} DCMon</span>
+                <span>Hands {blackjack.history.length}</span>
+              </div>
+              <div className="seat-prompt">{dockMessage}</div>
+            </div>
+            <div className="seat-controls">
+              <div className="seat-rail seat-rail-left">
+                {canAct && (
+                  <>
+                    <button type="button" onClick={handleHit} disabled={!canAct}>
+                      Hit
+                    </button>
+                    <button type="button" onClick={handleStand} disabled={!canAct}>
+                      Stand
+                    </button>
+                    {canDouble && (
+                      <button type="button" onClick={handleDouble} disabled={!canDouble}>
+                        Double
+                      </button>
+                    )}
+                    {canSplit && (
+                      <button type="button" onClick={handleSplit} disabled={!canSplit}>
+                        Split
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+              <div className="seat-rail seat-rail-right">
+                {blackjack.phase === "betting" && (
+                  <div className="bet-input-inline">
+                    <input
+                      type="number"
+                      step="0.1"
+                      min={blackjack.minBet}
+                      max={blackjack.maxBet}
+                      value={wagerInput}
+                      onChange={(event) => handleWagerChange(event.target.value)}
+                      disabled={!canReady}
+                      aria-label="Wager amount in DCMon"
+                      className="bet-input"
+                    />
+                    <button type="button" onClick={handleReady} disabled={!canReady}>
+                      Ready
+                    </button>
+                  </div>
+                )}
+                {canPlayAgain && (
+                  <button type="button" onClick={handlePlayAgain} disabled={!canPlayAgain}>
+                    Play Again
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    });
+  }, [
+    activeHand,
+    blackjack.history,
+    blackjack.maxBet,
+    blackjack.minBet,
+    blackjack.phase,
+    canAct,
+    canDouble,
+    canPlayAgain,
+    canReady,
+    canSplit,
+    dealerTotalLabel,
+    displayName,
+    dockMessage,
+    handleDouble,
+    handleHit,
+    handlePlayAgain,
+    handleReady,
+    handleSit,
+    handleSplit,
+    handleStand,
+    isSeated,
+    playerTotalLabel,
+    spectatorAssignments,
+    handleWagerChange,
+    wagerInput,
+    wagerDisplay,
+  ]);
 
   return (
     <main className="blackjack-page">
@@ -401,108 +510,62 @@ export default function BlackjackPage() {
           </div>
         </div>
       </section>
-
-      <div className="table-dock-wrapper">
-        <div
-          className={cx(
-            "table-dock",
-            canAct && isSeated && !blackjack.isBusy && "active",
-            !isSeated && "disabled"
-          )}
-        >
-          <div className="dock-info">{dockMessage}</div>
-          <div className="dock-stats">
-            <span>Dealer: {dealerTotalLabel}</span>
-            <span>You: {playerTotalLabel}</span>
-            <span>
-              Wager: {wagerDisplay} DCMon (Min {blackjack.minBet.toFixed(2)} / Max{" "}
-              {blackjack.maxBet.toFixed(2)})
-            </span>
-          </div>
-          <div className="dock-controls">
-            <div className="bet-input-group">
-              <input
-                type="number"
-                step="0.1"
-                min={blackjack.minBet}
-                max={blackjack.maxBet}
-                value={wagerInput}
-                onChange={(event) => handleWagerChange(event.target.value)}
-                disabled={!canDeal}
-                aria-label="Wager amount in DCMon"
-                className="bet-input"
-              />
-              <button type="button" onClick={() => blackjack.startHand().catch(() => void 0)} disabled={!canDeal}>
-                Deal
-              </button>
-              <button type="button" onClick={blackjack.nextHand} disabled={!canPlayAgain}>
-                Play Again
-              </button>
-            </div>
-            <button type="button" onClick={() => blackjack.hit().catch(() => void 0)} disabled={!canAct}>
-              Hit
-            </button>
-            <button type="button" onClick={() => blackjack.stand().catch(() => void 0)} disabled={!canAct}>
-              Stand
-            </button>
-            <button
-              type="button"
-              onClick={() => blackjack.doubleDown().catch(() => void 0)}
-              disabled={!canDouble}
-            >
-              Double
-            </button>
-            <button type="button" disabled={!canSplit}>
-              Split
-            </button>
-            <button type="button" onClick={handleRename} disabled={!isSeated || blackjack.isBusy}>
-              Change Name
-            </button>
-            <button type="button" onClick={handleLeaveTable} disabled={!isSeated || blackjack.isBusy}>
-              Leave Table
-            </button>
-          </div>
-          <div className="dock-secondary" role="group" aria-label="Additional table details">
-            <button
-              type="button"
-              className={activePanel === "info" ? "active" : undefined}
-              onClick={() => togglePanel("info")}
-            >
-              Table Info
-            </button>
-            <button
-              type="button"
-              className={activePanel === "history" ? "active" : undefined}
-              onClick={() => togglePanel("history")}
-            >
-              Recent Hands{blackjack.history.length > 0 ? ` (${blackjack.history.length})` : ""}
-            </button>
-            {blackjack.error && (
-              <button type="button" onClick={blackjack.resetError}>
-                Dismiss Error
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {activePanel && panelData && (
+      {tableModal === "history" && (
         <div className="table-panel" role="dialog" aria-modal="true">
           <div className="table-panel-content">
             <div className="table-panel-header">
-              <h3>{panelData.title}</h3>
+              <h3>Recent Hands</h3>
               <button
                 type="button"
                 className="table-panel-close"
-                onClick={() => setActivePanel(null)}
+                onClick={() => setTableModal(null)}
               >
                 Close
               </button>
             </div>
-            <div className="table-panel-body">{panelData.content}</div>
+            <div className="table-panel-body">
+              {blackjack.history.length === 0 ? (
+                <p>No hands yet. Ready when you are.</p>
+              ) : (
+                <ul>
+                  {blackjack.history.map((entry) => {
+                    const net = entry.payout - entry.wager;
+                    return (
+                      <li key={entry.id}>
+                        <strong>{entry.result.toUpperCase()}</strong>
+                        <span>
+                          Wager {entry.wager.toFixed(2)} - {net >= 0 ? "+" : ""}
+                          {net.toFixed(3)} DCMon
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
           </div>
         </div>
       )}
     </main>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

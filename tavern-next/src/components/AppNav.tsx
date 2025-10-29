@@ -79,11 +79,11 @@ export const AppNav = () => {
   const navItems = useMemo<NavItem[]>(() => {
     const base: NavItem[] = [
       { label: "Home", href: "/" },
+      { label: "Blackjack", href: "/games/blackjack" },
       { label: "Poker", href: "/games/poker" },
       { label: "Hazard", href: "/games/hazard" },
       { label: "Shell Game", href: "/games/shell" },
       { label: "Dak & Chog", href: "/games/dakchog" },
-      { label: "Blackjack", href: "/games/blackjack" },
       { label: "Rules", href: "/rules" },
     ];
     const isOwner =
