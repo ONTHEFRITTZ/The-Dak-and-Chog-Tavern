@@ -1657,10 +1657,7 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
   inset: 0;
   width: 100%;
   aspect-ratio: 1000 / 680;
-  background-image: url('/assets/images/poker-table.png'), url('/assets/images/games-room.png');
-  background-position: center, center;
-  background-repeat: no-repeat, no-repeat;
-  background-size: contain, cover;
+  background: url('/assets/images/poker-table.png') center/contain no-repeat;
   border-radius: 32px;
   box-shadow: none;
   overflow: hidden;
@@ -2193,10 +2190,7 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
   aspect-ratio: 1000 / 680;
   width: min(96vw, 1100px);
   max-width: 1100px;
-  background-image: url('/assets/images/poker-table.png'), url('/assets/images/games-room.png');
-  background-position: center, center;
-  background-repeat: no-repeat, no-repeat;
-  background-size: contain, cover;
+  background: url('/assets/images/poker-table.png') center/contain no-repeat;
   box-shadow: none;
   border: none;
   border-radius: 0;
