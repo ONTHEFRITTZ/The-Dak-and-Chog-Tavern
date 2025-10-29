@@ -1,6 +1,6 @@
 'use client';
 
-import { createPublicClient, createWalletClient, custom, http, type Chain, type PublicClient, type WalletClient } from "viem";
+import { createPublicClient, createWalletClient, custom, http, type Address, type Chain, type PublicClient, type WalletClient } from "viem";
 import { MONAD, MONAD_CHAIN } from "@/lib/config";
 import { MONAD_DELEGATION_ENV, type DelegationEnvironment } from "./delegationEnvironment";
 
@@ -123,11 +123,30 @@ export async function ensureDelegationToolkitContext(): Promise<DelegationToolki
       transport: http(MONAD.rpcHttp),
     });
 
+    const ownerAddress = ownerAccount as Address;
+    const walletAccount = viem.toAccount(ownerAddress);
+
     const walletClient = createWalletClient({
       chain: MONAD_CHAIN,
       transport: custom(provider as any),
-      account: ownerAccount as any,
+      account: walletAccount,
     });
+    if (!(walletClient as any).account?.address) {
+      try {
+        (walletClient as any).account = walletAccount;
+      } catch {
+        try {
+          Object.defineProperty(walletClient, "account", {
+            configurable: true,
+            enumerable: true,
+            value: walletAccount,
+            writable: true,
+          });
+        } catch {
+          // ignore assignment failures (viem versions may freeze clients)
+        }
+      }
+    }
 
     const context: DelegationToolkitContext = {
       provider,

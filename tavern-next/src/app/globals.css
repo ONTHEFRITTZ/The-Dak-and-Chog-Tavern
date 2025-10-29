@@ -407,7 +407,7 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
 #wallet-inline #wi-wallet-btn:hover {  background: #7a00d2;  box-shadow: 0 0 16px rgba(146,0,250,0.58);  transform: translateY(-1px);}
 #wallet-inline #wi-wallet-btn.active {  background: #5f00a8;  border-color: rgba(146,0,250,0.45);  box-shadow: 0 0 18px rgba(146,0,250,0.65);}
 #wi-leave-table {
-  margin: 6px auto 0;
+  margin: 6px 0 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -3193,3 +3193,4 @@ body.home {
   border: 1px solid rgba(255, 255, 255, 0.08);
   gap: 4px;
 }
+

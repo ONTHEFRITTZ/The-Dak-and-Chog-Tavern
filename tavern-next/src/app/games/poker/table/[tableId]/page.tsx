@@ -974,18 +974,29 @@ export default function PokerTablePage({ params }: TablePageProps) {
         timeout = window.setTimeout(ensureButton, 200);
         return;
       }
+      if (!isSeated) {
+        if (button && button.dataset.origin === "poker-table") {
+          button.removeEventListener("click", handleClick);
+          if (button.parentElement === pill) {
+            pill.removeChild(button);
+          }
+          button = null;
+        }
+        return;
+      }
       button = document.getElementById("wi-leave-table") as HTMLButtonElement | null;
       if (!button) {
         button = document.createElement("button");
         button.id = "wi-leave-table";
         button.type = "button";
-        button.className = "wi-leave-table";
-        button.dataset.origin = "poker-table";
-        button.textContent = "Leave Table";
       }
+      button.className = "wi-leave-table";
+      button.dataset.origin = "poker-table";
+      button.textContent = "Leave Table";
       button.removeEventListener("click", handleClick);
       button.addEventListener("click", handleClick);
       button.disabled = actionBusy;
+      button.style.display = "inline-flex";
       if (button.parentElement !== pill) {
         pill.appendChild(button);
       }
@@ -1007,7 +1018,7 @@ export default function PokerTablePage({ params }: TablePageProps) {
         button.removeEventListener("click", handleClick);
       }
     };
-  }, [handleLeaveSeat, actionBusy]);
+  }, [handleLeaveSeat, actionBusy, isSeated]);
 
   return (
     <main className="poker-page">
@@ -1256,6 +1267,7 @@ export default function PokerTablePage({ params }: TablePageProps) {
     </main>
   );
 }
+
 
 
 

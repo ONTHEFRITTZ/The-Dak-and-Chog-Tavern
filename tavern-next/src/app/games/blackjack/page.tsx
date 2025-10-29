@@ -311,10 +311,6 @@ export default function BlackjackPage() {
 
   const playerScore = activeHand?.score;
   const playerBestTotal = playerScore?.bestTotal ?? null;
-  const dealerBestTotal =
-    blackjack.revealDealer && blackjack.dealerScore ? blackjack.dealerScore.bestTotal : null;
-  const dealerTotalLabel =
-    dealerBestTotal != null ? `${dealerBestTotal}` : dealerCards.length > 0 ? "Face Down" : "--";
   const playerTotalLabel =
     playerBestTotal != null
       ? `${playerBestTotal}${playerScore?.isSoft ? " (Soft)" : ""}`
@@ -402,10 +398,7 @@ export default function BlackjackPage() {
           <div className="seat-console">
             <div className="seat-console-top">
               <div className="seat-hud">
-                <span>Dealer {dealerTotalLabel}</span>
-                <span>You {playerTotalLabel}</span>
                 <span>Wager {wagerDisplay} DCMon</span>
-                <span>Hands {blackjack.history.length}</span>
               </div>
               <div className="seat-prompt">{dockMessage}</div>
             </div>
@@ -464,7 +457,6 @@ export default function BlackjackPage() {
     });
   }, [
     activeHand,
-    blackjack.history,
     blackjack.maxBet,
     blackjack.minBet,
     blackjack.phase,
@@ -473,7 +465,6 @@ export default function BlackjackPage() {
     canPlayAgain,
     canReady,
     canSplit,
-    dealerTotalLabel,
     displayName,
     dockMessage,
     handleDouble,
