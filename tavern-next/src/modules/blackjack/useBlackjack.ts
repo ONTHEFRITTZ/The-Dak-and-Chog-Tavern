@@ -139,18 +139,28 @@ const netDcmon = (payout: bigint, wager: bigint): number => {
 };
 
 const toUserMessage = (reason: unknown, fallback: string): string => {
-  const clamp = (input: string) => {
-    const compact = input.trim().replace(/\s+/g, " ");
-    if (!compact) return fallback;
-    return compact.length > 120 ? `${compact.slice(0, 117)}…` : compact;
-  };
-  if (reason instanceof Error) {
-    return clamp(reason.message ?? "");
+  const normalize = (input: string) => input.replace(/\s+/g, " ").trim();
+  const raw =
+    reason instanceof Error
+      ? reason.message ?? ""
+      : typeof reason === "string"
+      ? reason
+      : "";
+  const normalized = normalize(raw);
+  const lower = normalized.toLowerCase();
+
+  if (lower.includes("user rejected")) return "Transaction rejected in wallet.";
+  if (lower.includes("not authorized")) return "Not authorized for this action.";
+  if (lower.includes("insufficient funds")) return "Insufficient funds for this action.";
+  if (lower.includes("smart account") || lower.includes("aa ensure")) {
+    return "Smart account unavailable. Using wallet directly.";
   }
-  if (typeof reason === "string") {
-    return clamp(reason);
+  if (lower.includes("execution reverted") && lower.includes("not authorized")) {
+    return "Not authorized for this action.";
   }
-  return fallback;
+
+  const base = normalized || fallback;
+  return base.length > 96 ? `${base.slice(0, 93)}...` : base;
 };
 
 export function useBlackjack(): BlackjackHook {
@@ -303,38 +313,55 @@ export function useBlackjack(): BlackjackHook {
 
       const signer = await provider.getSigner();
 
+      const aaSender = delegation?.sendTransaction;
+      const ensureAA = delegation?.ensureReady;
       let aaReady = false;
-      if (typeof delegation?.ensureReady === "function") {
-        try {
-          await delegation.ensureReady();
+
+      if (typeof aaSender === "function") {
+        if (typeof ensureAA === "function") {
+          try {
+            await ensureAA();
+            aaReady = true;
+          } catch (err) {
+            console.warn("[blackjack] AA ensureReady failed", err);
+          }
+        } else {
           aaReady = true;
-        } catch (err) {
-          console.warn("[blackjack] AA ensureReady failed", err);
         }
       }
 
-      if (aaReady) {
+      if (aaReady && typeof aaSender === "function") {
         try {
-          const hash = await delegation.sendTransaction({
+          const hash = await aaSender({
             to: blackjackAddress,
             data,
             value: 0n,
           });
           if (hash) {
+            setState((prev) => ({ ...prev, message: "Waiting for confirmation..." }));
             const receipt = await provider.waitForTransaction(hash);
-            if (receipt) return receipt;
+            if (receipt) {
+              return receipt;
+            }
           }
         } catch (err) {
           console.warn("[blackjack] AA send failed", err);
         }
       }
 
-      const tx = await signer.sendTransaction({
-        to: blackjackAddress,
-        data,
-        value: 0n,
-      });
-      return await tx.wait();
+      try {
+        const tx = await signer.sendTransaction({
+          to: blackjackAddress,
+          data,
+          value: 0n,
+        });
+        setState((prev) => ({ ...prev, message: "Waiting for confirmation..." }));
+        return await tx.wait();
+      } catch (err) {
+        const friendly = toUserMessage(err, "Transaction failed.");
+        setState((prev) => ({ ...prev, isBusy: false, error: friendly }));
+        throw new Error(friendly);
+      }
     },
     [delegation, provider, blackjackAddress]
   );
@@ -507,3 +534,4 @@ export function useBlackjack(): BlackjackHook {
     resetError,
   };
 }
+

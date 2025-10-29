@@ -34,12 +34,33 @@ export default function DakChogPage() {
   const [isFlipping, setIsFlipping] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const coinRef = useRef<HTMLDivElement | null>(null);
+  const flipTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     const el = coinRef.current;
     if (!el) return;
     el.style.backgroundImage = `url(${coinFace === "chog" ? IMG_CHOG : IMG_DAK})`;
   }, [coinFace]);
+
+  useEffect(() => {
+    if (isFlipping) {
+      if (flipTimerRef.current != null) {
+        window.clearInterval(flipTimerRef.current);
+      }
+      flipTimerRef.current = window.setInterval(() => {
+        setCoinFace((prev) => (prev === "dak" ? "chog" : "dak"));
+      }, 180);
+    } else if (flipTimerRef.current != null) {
+      window.clearInterval(flipTimerRef.current);
+      flipTimerRef.current = null;
+    }
+    return () => {
+      if (flipTimerRef.current != null) {
+        window.clearInterval(flipTimerRef.current);
+        flipTimerRef.current = null;
+      }
+    };
+  }, [isFlipping]);
 
   const formattedBet = useMemo(() => {
     const num = Number(bet);
@@ -88,6 +109,10 @@ export default function DakChogPage() {
     const contract = new Contract(target, DakChogABI, signer);
     const face = choice === "chog";
 
+    if (flipTimerRef.current != null) {
+      window.clearInterval(flipTimerRef.current);
+      flipTimerRef.current = null;
+    }
     setIsSubmitting(true);
     setIsFlipping(true);
     coinRef.current?.classList.add("spin");
@@ -154,6 +179,10 @@ export default function DakChogPage() {
         }
       }
 
+      if (flipTimerRef.current != null) {
+        window.clearInterval(flipTimerRef.current);
+        flipTimerRef.current = null;
+      }
       coinRef.current?.classList.remove("spin");
       if (parsed) {
         const resultChog = Boolean(parsed.args?.resultChog);
@@ -180,6 +209,10 @@ export default function DakChogPage() {
         "Transaction failed.";
       setStatus(msg);
     } finally {
+      if (flipTimerRef.current != null) {
+        window.clearInterval(flipTimerRef.current);
+        flipTimerRef.current = null;
+      }
       coinRef.current?.classList.remove("spin");
       setIsFlipping(false);
       setIsSubmitting(false);

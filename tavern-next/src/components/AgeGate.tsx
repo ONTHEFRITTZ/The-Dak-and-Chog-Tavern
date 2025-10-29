@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useWallet } from "@/context/WalletContext";
+import { useDelegationToolkitAA } from "@/modules/aa/useDelegationToolkitAA";
 
 const AGE_KEY = "tavern:ageConfirmed";
 
@@ -11,6 +12,7 @@ type Stage = "age" | "wallet";
 
 export const AgeGate = () => {
   const { address, connect, isConnecting } = useWallet();
+  const delegation = useDelegationToolkitAA();
   const [open, setOpen] = useState(false);
   const [stage, setStage] = useState<Stage>("age");
   const [error, setError] = useState<string | null>(null);
@@ -69,6 +71,38 @@ export const AgeGate = () => {
       }
       window.__walletProvider = provider;
       await connect();
+      if (providerKey === "metamask") {
+        if (typeof delegation?.ensureReady === "function") {
+          try {
+            await new Promise((resolve) => setTimeout(resolve, 100));
+            await delegation.ensureReady();
+            try {
+              window.dispatchEvent(
+                new CustomEvent("aa:ready", { detail: { provider: "metamask", active: true } })
+              );
+            } catch {
+              // ignore dispatch issues
+            }
+          } catch (err) {
+            console.warn("[age-gate] delegation ensureReady failed", err);
+            try {
+              window.dispatchEvent(
+                new CustomEvent("aa:fallback", { detail: { provider: "metamask" } })
+              );
+            } catch {
+              // ignore dispatch issues
+            }
+          }
+        } else {
+          try {
+            window.dispatchEvent(
+              new CustomEvent("aa:fallback", { detail: { provider: "metamask" } })
+            );
+          } catch {
+            // ignore dispatch issues
+          }
+        }
+      }
       setOpen(false);
     } catch (err: any) {
       console.warn("[age-gate] wallet connect failed", err);

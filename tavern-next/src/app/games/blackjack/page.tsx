@@ -280,7 +280,9 @@ export default function BlackjackPage() {
       button.removeEventListener("click", handleClick);
       button.addEventListener("click", handleClick);
       button.disabled = blackjack.isBusy;
-      pill.insertAdjacentElement("afterend", button);
+      if (button.parentElement !== pill) {
+        pill.appendChild(button);
+      }
     };
 
     ensureButton();

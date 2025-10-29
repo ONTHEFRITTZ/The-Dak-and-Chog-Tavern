@@ -116,21 +116,95 @@ export default function PokerTablePage({ params }: TablePageProps) {
   const holdem = useHoldemPokerActions();
   const addressLower = useMemo(() => (address ?? "").toLowerCase(), [address]);
   const isSimulatedTable = useMemo(() => {
-    const modeSources: Array<unknown> = [
-      realtime.table?.tableMode,
-      realtime.table?.meta && (realtime.table.meta as Record<string, unknown>)?.tableMode,
-      realtime.table?.meta && (realtime.table.meta as Record<string, unknown>)?.mode,
-      realtime.table?.meta && (realtime.table.meta as Record<string, unknown>)?.typeKey,
-    ];
-    const normalizedMode = modeSources
-      .map((value) => (typeof value === "string" ? value.toLowerCase() : null))
-      .find((value) => value);
-    if (normalizedMode && ["f2p", "simulated", "free", "freeplay"].includes(normalizedMode)) {
-      return true;
+    const table = realtime.table;
+    const metaRecord = (table?.meta ?? null) as Record<string, unknown> | null;
+
+    const tokens: string[] = [];
+    const pushToken = (value: string | null | undefined) => {
+      if (!value) return;
+      const trimmed = value.trim();
+      if (trimmed) {
+        tokens.push(trimmed.toLowerCase());
+      }
+    };
+
+    const readMetaValue = (key: string) => (metaRecord ? metaRecord[key] : undefined);
+    const metaString = (key: string) => {
+      const value = readMetaValue(key);
+      return typeof value === "string" ? value : null;
+    };
+    const metaBoolean = (key: string) => {
+      const value = readMetaValue(key);
+      return typeof value === "boolean" ? value : null;
+    };
+
+    const tableModeRaw = typeof table?.tableMode === "string" ? table.tableMode : null;
+    const normalizedMode = tableModeRaw?.trim().toLowerCase() ?? null;
+    const metaModeRaw = metaString("tableMode");
+    const normalizedMetaMode = metaModeRaw?.trim().toLowerCase() ?? null;
+
+    pushToken(tableModeRaw);
+    pushToken(metaModeRaw);
+    pushToken(metaString("mode"));
+    pushToken(metaString("typeKey"));
+    pushToken(metaString("category"));
+    pushToken(metaString("kind"));
+    pushToken(metaString("stakes"));
+    pushToken(metaString("name"));
+    pushToken(metaString("label"));
+    pushToken(metaString("displayName"));
+    pushToken(metaString("slug"));
+    pushToken(typeof table?.id === "string" ? table.id : null);
+    pushToken(typeof table?.limit === "string" ? table.limit : null);
+    pushToken(typeof table?.stakes === "string" ? table.stakes : null);
+
+    const metaTags = readMetaValue("tags");
+    if (Array.isArray(metaTags)) {
+      for (const entry of metaTags) {
+        if (typeof entry === "string") {
+          pushToken(entry);
+        }
+      }
     }
-    if (Boolean(realtime.table?.simulated)) return true;
+
+    const offchainMatches = ["f2p", "free", "freeplay", "offchain", "sim", "simulated", "practice", "demo", "sandbox"];
+    const onchainMatches = ["onchain", "on-chain", "real", "cash"];
+
+    const includesKeyword = (value: string | null, keywords: string[]) =>
+      Boolean(value && keywords.some((keyword) => value.includes(keyword)));
+
+    if (includesKeyword(normalizedMode, offchainMatches)) return true;
+    if (includesKeyword(normalizedMode, onchainMatches)) return false;
+    if (includesKeyword(normalizedMetaMode, offchainMatches)) return true;
+    if (includesKeyword(normalizedMetaMode, onchainMatches)) return false;
+
+    const metaOffchain = metaBoolean("offchain");
+    if (metaOffchain != null) return metaOffchain;
+
+    const metaSimulated = metaBoolean("simulated");
+    if (metaSimulated != null) return metaSimulated;
+
+    const metaOnchain = metaBoolean("onchain");
+    if (metaOnchain != null) return !metaOnchain;
+
+    if (typeof table?.simulated === "boolean") return table.simulated;
+
+    const tokensContain = (keywords: string[]) =>
+      tokens.some((token) => keywords.some((keyword) => token.includes(keyword)));
+
+    if (tokensContain(offchainMatches)) return true;
+    if (tokensContain(onchainMatches)) return false;
+
+    const chipValueRaw =
+      readMetaValue("chipValueDcmon") ?? readMetaValue("chipValue") ?? readMetaValue("dcmonValue");
+    const chipValue = Number(chipValueRaw);
+    if (Number.isFinite(chipValue)) {
+      if (chipValue <= 0) return true;
+      if (chipValue > 0) return false;
+    }
+
     return false;
-  }, [realtime.table?.tableMode, realtime.table?.meta, realtime.table?.simulated]);
+  }, [realtime.table]);
 
   const [betAmount, setBetAmount] = useState("1");
   const [actionStatus, setActionStatus] = useState<string | null>(null);
@@ -172,6 +246,37 @@ export default function PokerTablePage({ params }: TablePageProps) {
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const root = document.documentElement;
+    const previous = root.dataset.tableMode;
+    const mode = isSimulatedTable ? "f2p" : "onchain";
+    root.dataset.tableMode = mode;
+    if (typeof window !== "undefined") {
+      try {
+        window.dispatchEvent(new CustomEvent("poker:tableMode", { detail: { mode } }));
+      } catch {
+        // ignore dispatch failures
+      }
+    }
+    return () => {
+      if (previous) {
+        root.dataset.tableMode = previous;
+      } else {
+        delete root.dataset.tableMode;
+      }
+      if (typeof window !== "undefined") {
+        try {
+          window.dispatchEvent(
+            new CustomEvent("poker:tableMode", { detail: { mode: previous ?? null } })
+          );
+        } catch {
+          // ignore dispatch failures
+        }
+      }
+    };
+  }, [isSimulatedTable]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -582,6 +687,23 @@ export default function PokerTablePage({ params }: TablePageProps) {
   const isReadyStage = ["", "waiting", "betting", "showdown"].includes(stageKey);
   const showReadyButton = isSeated && !isInHand && isReadyStage;
   const showActionButtons = isSeated && isMyTurn && isInHand && !actionBusy;
+  const boardHint = useMemo(() => {
+    if (boardCards.length > 0) return null;
+    if (!isSeated) return "Take a seat to join the table.";
+    if (isReadyStage) return "Hit ready to begin play.";
+    switch (stageKey) {
+      case "preflop":
+        return "Dealing preflop cards...";
+      case "flop":
+        return "Flop incoming...";
+      case "turn":
+        return "Waiting on the turn card.";
+      case "river":
+        return "Waiting on the river card.";
+      default:
+        return "Board cards pending...";
+    }
+  }, [boardCards.length, isSeated, isReadyStage, stageKey]);
   const latestHand = realtime.handSummary;
   const blinds = realtime.table?.meta?.blinds;
   const blindsLabel =
@@ -610,10 +732,12 @@ export default function PokerTablePage({ params }: TablePageProps) {
     };
   }, [blindsLabel]);
   const runAction = useCallback(
-    async (initialMessage: string, task: () => Promise<void>) => {
+    async (initialMessage: string | null, task: () => Promise<void>) => {
       if (actionBusy) return;
       setActionBusy(true);
-      setActionStatus(initialMessage);
+      if (initialMessage) {
+        setActionStatus(initialMessage);
+      }
       try {
         await task();
         setActionStatus(null);
@@ -648,7 +772,7 @@ export default function PokerTablePage({ params }: TablePageProps) {
     }
     const trimmed = nameInput.trim().slice(0, 16);
     const finalName = trimmed || "Player";
-    runAction("Joining seat...", async () => {
+    runAction(null, async () => {
       if (!isSimulatedTable) {
         await holdem.joinSeat({ seatId: preferredSeatId, onProgress: setActionStatus });
       }
@@ -674,7 +798,7 @@ export default function PokerTablePage({ params }: TablePageProps) {
 
   const handleLeaveSeat = useCallback(() => {
     if (mySeatId < 0) return;
-    runAction("Leaving seat...", async () => {
+    runAction(null, async () => {
       if (!isSimulatedTable) {
         await holdem.leaveSeat({
           seatId: mySeatId,
@@ -840,7 +964,9 @@ export default function PokerTablePage({ params }: TablePageProps) {
       button.removeEventListener("click", handleClick);
       button.addEventListener("click", handleClick);
       button.disabled = actionBusy;
-      pill.insertAdjacentElement("afterend", button);
+      if (button.parentElement !== pill) {
+        pill.appendChild(button);
+      }
     };
 
     ensureButton();
@@ -873,11 +999,7 @@ export default function PokerTablePage({ params }: TablePageProps) {
             )}
             <div className="poker-board">
               {boardCards.length === 0 ? (
-                <span className="poker-board-hint">
-                  {stageKey === "waiting" || stageKey === "betting"
-                    ? "Waiting for the shuffle..."
-                    : "Board cards pending"}
-                </span>
+                boardHint ? <span className="poker-board-hint">{boardHint}</span> : null
               ) : (
                 boardCards.map((card, idx) => renderPokerCard(card, `board-${idx}`))
               )}
