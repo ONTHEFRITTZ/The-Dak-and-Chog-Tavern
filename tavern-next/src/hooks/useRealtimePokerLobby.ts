@@ -199,7 +199,7 @@ export type UseRealtimePokerLobbyResult = {
 };
 
 export function useRealtimePokerLobby(
-  options: UseRealtimePokerLobbyOptions = {}
+  options?: UseRealtimePokerLobbyOptions
 ): UseRealtimePokerLobbyResult {
   const [tables, setTables] = useState<PokerLobbyTable[]>([]);
   const [state, setState] = useState<RealtimeState | null>(null);
@@ -211,15 +211,16 @@ export function useRealtimePokerLobby(
   const connectingRef = useRef(false);
 
   const connecting = useMemo(() => connectingRef.current && !connected, [connected]);
+  const autoConnect = options?.autoConnect ?? true;
+  const endpointUrl = options?.url ?? null;
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const { autoConnect = true } = options;
-    const endpoint = resolveRealtimeEndpoint(options.url);
+    const endpoint = resolveRealtimeEndpoint(endpointUrl);
     const connectionOptions = {
       path: endpoint.socketPath,
       transports: ["polling", "websocket"],
-      autoConnect: autoConnect,
+      autoConnect,
       reconnection: true,
       reconnectionAttempts: Infinity,
     };
@@ -295,7 +296,7 @@ export function useRealtimePokerLobby(
       socketRef.current = null;
       setConnected(false);
     };
-  }, [options]);
+  }, [autoConnect, endpointUrl]);
 
   const joinTable = useCallback((tableId: string) => {
     if (!tableId) return;

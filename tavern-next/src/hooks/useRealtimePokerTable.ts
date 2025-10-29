@@ -424,7 +424,7 @@ function normalizeHandSummary(payload: unknown): PokerHandSummary | null {
 
 export function useRealtimePokerTable(
   tableId: string,
-  options: UseRealtimePokerTableOptions = {}
+  options?: UseRealtimePokerTableOptions
 ): UseRealtimePokerTableResult {
   const [table, setTable] = useState<PokerTableSnapshot | null>(null);
   const [state, setState] = useState<PokerState | null>(null);
@@ -441,11 +441,12 @@ export function useRealtimePokerTable(
   const connectingRef = useRef(false);
 
   const connecting = useMemo(() => connectingRef.current && !connected, [connected]);
+  const autoConnect = options?.autoConnect ?? true;
+  const endpointUrl = options?.url ?? null;
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const { autoConnect = true } = options;
-    const endpoint = resolveRealtimeEndpoint(options.url);
+    const endpoint = resolveRealtimeEndpoint(endpointUrl);
     const connectionOptions = {
       path: endpoint.socketPath,
       transports: ["polling", "websocket"],
@@ -587,7 +588,7 @@ export function useRealtimePokerTable(
       socketRef.current = null;
       setConnected(false);
     };
-  }, [options, tableId]);
+  }, [autoConnect, endpointUrl, tableId]);
 
   useEffect(() => {
     const socket = socketRef.current;
