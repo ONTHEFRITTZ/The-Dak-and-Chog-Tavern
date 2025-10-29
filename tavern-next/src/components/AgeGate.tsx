@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useWallet } from "@/context/WalletContext";
 import { useDelegationToolkitAA } from "@/modules/aa/useDelegationToolkitAA";
 
@@ -11,10 +11,11 @@ const AGE_KEY = "tavern:ageConfirmed";
 type Stage = "age" | "wallet";
 
 export const AgeGate = () => {
-  const { address, connect, isConnecting } = useWallet();
+  const { address, connect, isConnecting, walletType } = useWallet();
   const delegation = useDelegationToolkitAA();
   const [error, setError] = useState<string | null>(null);
   const [ageConfirmed, setAgeConfirmed] = useState<boolean | null>(null);
+  const announcedAAStatus = useRef<"ready" | "fallback" | null>(null);
 
   useEffect(() => {
     try {
@@ -57,43 +58,57 @@ export const AgeGate = () => {
       }
       window.__walletProvider = provider;
       await connect();
-      if (providerKey === "metamask") {
-        if (typeof delegation?.ensureReady === "function") {
-          try {
-            await new Promise((resolve) => setTimeout(resolve, 100));
-            await delegation.ensureReady();
-            try {
-              window.dispatchEvent(
-                new CustomEvent("aa:ready", { detail: { provider: "metamask", active: true } })
-              );
-            } catch {
-              // ignore dispatch issues
-            }
-          } catch (err) {
-            console.warn("[age-gate] delegation ensureReady failed", err);
-            try {
-              window.dispatchEvent(
-                new CustomEvent("aa:fallback", { detail: { provider: "metamask" } })
-              );
-            } catch {
-              // ignore dispatch issues
-            }
-          }
-        } else {
-          try {
-            window.dispatchEvent(
-              new CustomEvent("aa:fallback", { detail: { provider: "metamask" } })
-            );
-          } catch {
-            // ignore dispatch issues
-          }
-        }
-      }
     } catch (err: any) {
       console.warn("[age-gate] wallet connect failed", err);
       setError(err?.message ?? "Wallet connection failed.");
     }
   };
+
+  useEffect(() => {
+    if (walletType !== "metamask" || !address) {
+      announcedAAStatus.current = null;
+      return;
+    }
+    let cancelled = false;
+
+    const announceAA = (status: "ready" | "fallback") => {
+      if (announcedAAStatus.current === status) return;
+      announcedAAStatus.current = status;
+      try {
+        const detail =
+          status === "ready"
+            ? { provider: "metamask", active: true }
+            : { provider: "metamask" };
+        window.dispatchEvent(new CustomEvent(status === "ready" ? "aa:ready" : "aa:fallback", { detail }));
+      } catch {
+        // ignore dispatch issues
+      }
+    };
+
+    const initialiseDelegation = async () => {
+      if (typeof delegation?.ensureReady !== "function") {
+        announceAA("fallback");
+        return;
+      }
+      try {
+        await delegation.ensureReady();
+        if (!cancelled) {
+          announceAA("ready");
+        }
+      } catch (err) {
+        console.warn("[age-gate] delegation ensureReady failed", err);
+        if (!cancelled) {
+          announceAA("fallback");
+        }
+      }
+    };
+
+    initialiseDelegation();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [address, walletType, delegation]);
 
   if (!shouldShow) return null;
 
