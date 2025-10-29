@@ -1657,7 +1657,10 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
   inset: 0;
   width: 100%;
   aspect-ratio: 1000 / 680;
-  background: url('/assets/images/games-room.png') center/cover no-repeat;
+  background-image: url('/assets/images/poker-table.png'), url('/assets/images/games-room.png');
+  background-position: center, center;
+  background-repeat: no-repeat, no-repeat;
+  background-size: contain, cover;
   border-radius: 32px;
   box-shadow: none;
   overflow: hidden;
@@ -2190,7 +2193,10 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
   aspect-ratio: 1000 / 680;
   width: min(96vw, 1100px);
   max-width: 1100px;
-  background: url('/assets/images/games-room.png') center/cover no-repeat;
+  background-image: url('/assets/images/poker-table.png'), url('/assets/images/games-room.png');
+  background-position: center, center;
+  background-repeat: no-repeat, no-repeat;
+  background-size: contain, cover;
   box-shadow: none;
   border: none;
   border-radius: 0;
@@ -2376,6 +2382,7 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
   background: rgba(0, 0, 0, 0.45);
   color: rgba(255, 255, 255, 0.65);
   border: 1px dashed rgba(255, 255, 255, 0.15);
+  white-space: nowrap;
 }
 
 .bj-win {
