@@ -1,6 +1,7 @@
 'use client';
 
 import { createPublicClient, createWalletClient, custom, http, type Address, type Chain, type PublicClient, type WalletClient } from "viem";
+import { toAccount } from "viem/accounts";
 import { MONAD, MONAD_CHAIN } from "@/lib/config";
 import { MONAD_DELEGATION_ENV, type DelegationEnvironment } from "./delegationEnvironment";
 
@@ -124,7 +125,7 @@ export async function ensureDelegationToolkitContext(): Promise<DelegationToolki
     });
 
     const ownerAddress = ownerAccount as Address;
-    const walletAccount = viem.toAccount(ownerAddress);
+    const walletAccount = toAccount(ownerAddress);
 
     const walletClient = createWalletClient({
       chain: MONAD_CHAIN,
