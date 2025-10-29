@@ -209,6 +209,7 @@ export default function PokerTablePage({ params }: TablePageProps) {
   const [betAmount, setBetAmount] = useState("1");
   const [actionStatus, setActionStatus] = useState<string | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
+  const [readySubmitted, setReadySubmitted] = useState(false);
   const [playerName, setPlayerName] = useState("");
   const [nameInput, setNameInput] = useState("");
   const [isSitModalOpen, setSitModalOpen] = useState(false);
@@ -515,6 +516,7 @@ export default function PokerTablePage({ params }: TablePageProps) {
         !isSimulatedTable && Number.isFinite(stackChips) && chipValueDcmon > 0
           ? `${(stackChips * chipValueDcmon).toFixed(3)} DCMon`
           : null;
+      const balanceLabel = isEmpty ? null : dcmonStack ?? stackLabel;
       let statusLabel: string | null = null;
       if (isEmpty) {
         statusLabel = "Seat Open";
@@ -569,6 +571,7 @@ export default function PokerTablePage({ params }: TablePageProps) {
         isEmpty,
         stackLabel,
         dcmonStack,
+        balanceLabel,
         statusLabel,
         isTurn,
         isDealer,
@@ -671,22 +674,22 @@ export default function PokerTablePage({ params }: TablePageProps) {
     ? `${potChips.toFixed(2)} chips`
     : formatPot(potChips, chipValueDcmon);
   const myContributionChips = Number(myActor?.contrib || 0);
-  const myContributionDcmon = isSimulatedTable ? 0 : myContributionChips * chipValueDcmon;
   const myStackChips = Number(myActor?.stack || 0);
   const communityCards = realtime.state?.community ?? [];
   const boardCards = communityCards.map((card) => ({ code: card, hidden: false }));
   const callAmountLabel = isSimulatedTable
     ? `${callAmountChips.toFixed(2)} chips`
     : `${callAmountChips.toFixed(2)} chips (~${callAmountDcmon.toFixed(3)} DCMon)`;
-  const contributionLabel = isSimulatedTable
-    ? `${myContributionChips.toFixed(2)} chips`
-    : `${myContributionChips.toFixed(2)} chips (~${myContributionDcmon.toFixed(3)} DCMon)`;
-  const stackLabel = `${myStackChips.toFixed(2)} chips`;
   const actionButtonsDisabled = !isSeated || !isMyTurn || actionBusy;
   const canAllIn = !actionButtonsDisabled && myStackChips > 0.0001;
   const isReadyStage = ["", "waiting", "betting", "showdown"].includes(stageKey);
   const showReadyButton = isSeated && !isInHand && isReadyStage;
   const showActionButtons = isSeated && isMyTurn && isInHand && !actionBusy;
+  useEffect(() => {
+    if (!showReadyButton || !isSeated) {
+      setReadySubmitted(false);
+    }
+  }, [showReadyButton, isSeated]);
   const boardHint = useMemo(() => {
     if (boardCards.length > 0) return null;
     if (!isSeated) return "Take a seat to join the table.";
@@ -914,8 +917,14 @@ export default function PokerTablePage({ params }: TablePageProps) {
 
   const handleReady = useCallback(() => {
     if (!isSeated) return;
+    setReadySubmitted(true);
     runAction("Ready...", async () => {
-      realtime.sendAction("ready");
+      try {
+        realtime.sendAction("ready");
+      } catch (err) {
+        setReadySubmitted(false);
+        throw err;
+      }
     });
   }, [isSeated, runAction, realtime]);
 
@@ -1006,141 +1015,150 @@ export default function PokerTablePage({ params }: TablePageProps) {
             </div>
             <div className="pot-indicator">Pot {potLabel}</div>
             <div className="seat-layer">
-              {orderedSeats.map((seat) => (
-                <div
-                  key={seat.seatId}
-                  data-seat-id={seat.seatId}
-                  className={cx(
-                    "seat",
-                    "seat-node",
-                    seat.isUser && "me",
-                    seat.isEmpty ? "pending" : "occupied",
-                    seat.isTurn && !seat.isEmpty && "turn",
-                    seat.hasFolded && !seat.isEmpty && "folded",
-                    seat.isWinner && "winner"
-                  )}
-                  style={{ top: seat.position.top, left: seat.position.left }}
-                >
-                  {seat.markerLabel && (
-                    <div className={cx("marker", seat.markerClass, "show")}>{seat.markerLabel}</div>
-                  )}
-                  <div className="seat-name">{seat.label}</div>
-                  {seat.cards.length > 0 && (
-                    <div className="seat-cards">
-                      {seat.cards.map((card, idx) =>
-                        renderPokerCard(card, `seat-${seat.seatId}-card-${idx}`)
-                      )}
-                    </div>
-                  )}
-                  {seat.isEmpty ? (
-                    seat.displayIndex === 0 && !isSeated ? (
-                      <>
-                        <button
-                          type="button"
-                          className="bj-sit-btn"
-                          onClick={handleOpenSitModal}
-                          disabled={actionBusy || preferredSeatId < 0}
-                        >
-                          Sit
-                        </button>
-                        <span className="seat-hint">Take this seat to play.</span>
-                      </>
-                    ) : (
-                      <span className="seat-hint">{seat.statusLabel ?? "Seat Open"}</span>
-                    )
-                  ) : (
-                    <>
-                      <div className="seat-info">
-                        {seat.stackLabel && <span>{seat.stackLabel}</span>}
-                        {seat.dcmonStack && <span>{seat.dcmonStack}</span>}
+              {orderedSeats.map((seat) => {
+                const isMySeat = seat.isUser;
+                const baseStatus = seat.statusLabel;
+                const derivedStatus =
+                  isMySeat && showReadyButton && readySubmitted && baseStatus !== "Ready"
+                    ? "Ready"
+                    : baseStatus;
+
+                return (
+                  <div
+                    key={seat.seatId}
+                    data-seat-id={seat.seatId}
+                    className={cx(
+                      "seat",
+                      "seat-node",
+                      seat.isUser && "me",
+                      seat.isEmpty ? "pending" : "occupied",
+                      seat.isTurn && !seat.isEmpty && "turn",
+                      seat.hasFolded && !seat.isEmpty && "folded",
+                      seat.isWinner && "winner"
+                    )}
+                    style={{ top: seat.position.top, left: seat.position.left }}
+                  >
+                    {seat.markerLabel && (
+                      <div className={cx("marker", seat.markerClass, "show")}>{seat.markerLabel}</div>
+                    )}
+                    <div className="seat-name">{seat.label}</div>
+                    {seat.cards.length > 0 && (
+                      <div className="seat-cards">
+                        {seat.cards.map((card, idx) =>
+                          renderPokerCard(card, `seat-${seat.seatId}-card-${idx}`)
+                        )}
                       </div>
-                      {seat.statusLabel && <div className="seat-status">{seat.statusLabel}</div>}
-                      {seat.isUser && (
-                        <div className="seat-console">
-                          <div className="seat-console-top">
-                            <div className="seat-hud">
-                              <span>Pot {potLabel}</span>
-                              <span>Stack {stackLabel}</span>
-                              <span>Contribution {contributionLabel}</span>
-                              {callAmountChips > 0 && <span>Call {callAmountLabel}</span>}
-                            </div>
-                            <div className="seat-prompt">{actionInfo}</div>
+                    )}
+                    {seat.isEmpty ? (
+                      seat.displayIndex === 0 && !isSeated ? (
+                        <>
+                          <button
+                            type="button"
+                            className="bj-sit-btn"
+                            onClick={handleOpenSitModal}
+                            disabled={actionBusy || preferredSeatId < 0}
+                          >
+                            Sit
+                          </button>
+                          <span className="seat-hint">Take this seat to play.</span>
+                        </>
+                      ) : (
+                        <span className="seat-hint">{seat.statusLabel ?? "Seat Open"}</span>
+                      )
+                    ) : (
+                      <>
+                        {seat.balanceLabel && (
+                          <div className="seat-info">
+                            <span>{seat.balanceLabel}</span>
                           </div>
-                          <div className="seat-controls">
-                            <div className="seat-rail seat-rail-left">
-                              {showReadyButton && (
+                        )}
+                        {derivedStatus && <div className="seat-status">{derivedStatus}</div>}
+                        {isMySeat && (
+                          <div className="seat-console">
+                            <div className="seat-console-top">
+                              {actionInfo && <div className="seat-prompt">{actionInfo}</div>}
+                            </div>
+                            {showReadyButton && (
+                              <div className="seat-ready">
                                 <button
                                   type="button"
+                                  className="seat-ready-button"
                                   onClick={handleReady}
-                                  disabled={actionBusy || seat.statusLabel === "Ready"}
+                                  disabled={actionBusy || derivedStatus === "Ready"}
                                 >
-                                  {seat.statusLabel === "Ready" ? "Ready" : "Ready Up"}
+                                  {derivedStatus === "Ready" ? "Ready" : "Ready Up"}
                                 </button>
-                              )}
-                              {showActionButtons && (
-                                <>
-                                  <button
-                                    type="button"
-                                    onClick={handleFold}
-                                    disabled={actionButtonsDisabled}
-                                  >
-                                    Fold
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={handleCheckOrCall}
-                                    disabled={actionButtonsDisabled}
-                                  >
-                                    {callAmountChips > 0 ? `Call ${callAmountLabel}` : "Check"}
-                                  </button>
-                                </>
-                              )}
-                            </div>
-                            <div className="seat-rail seat-rail-right">
-                              {showActionButtons && (
-                                <>
-                                  <div className="bet-input-inline">
-                                    <input
-                                      type="number"
-                                      min="0"
-                                      max={Math.max(myContributionChips + myStackChips, 0)}
-                                      step="0.01"
-                                      value={betAmount}
-                                      onChange={(event) => setBetAmount(event.target.value)}
-                                      disabled={actionButtonsDisabled}
-                                      aria-label="Bet amount in chips"
-                                      className="bet-input"
-                                    />
+                              </div>
+                            )}
+                            {(showActionButtons || isSimulatedTable) && (
+                              <div className="seat-controls">
+                                <div className="seat-rail seat-rail-left">
+                                  {showActionButtons && (
+                                    <>
+                                      <button
+                                        type="button"
+                                        onClick={handleFold}
+                                        disabled={actionButtonsDisabled}
+                                      >
+                                        Fold
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={handleCheckOrCall}
+                                        disabled={actionButtonsDisabled}
+                                      >
+                                        {callAmountChips > 0 ? `Call ${callAmountLabel}` : "Check"}
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
+                                <div className="seat-rail seat-rail-right">
+                                  {showActionButtons && (
+                                    <>
+                                      <div className="bet-input-inline">
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          max={Math.max(myContributionChips + myStackChips, 0)}
+                                          step="0.01"
+                                          value={betAmount}
+                                          onChange={(event) => setBetAmount(event.target.value)}
+                                          disabled={actionButtonsDisabled}
+                                          aria-label="Bet amount in chips"
+                                          className="bet-input"
+                                        />
+                                        <button
+                                          type="button"
+                                          onClick={handleBet}
+                                          disabled={actionButtonsDisabled}
+                                        >
+                                          {callAmountChips > 0 ? "Raise" : "Bet"}
+                                        </button>
+                                      </div>
+                                      <button type="button" onClick={handleAllIn} disabled={!canAllIn}>
+                                        All In
+                                      </button>
+                                    </>
+                                  )}
+                                  {isSimulatedTable && (
                                     <button
                                       type="button"
-                                      onClick={handleBet}
-                                      disabled={actionButtonsDisabled}
+                                      onClick={handleRebuy}
+                                      disabled={actionBusy || !isSeated}
                                     >
-                                      {callAmountChips > 0 ? "Raise" : "Bet"}
+                                      Rebuy 100 Chips
                                     </button>
-                                  </div>
-                                  <button type="button" onClick={handleAllIn} disabled={!canAllIn}>
-                                    All In
-                                  </button>
-                                </>
-                              )}
-                              {isSimulatedTable && (
-                                <button
-                                  type="button"
-                                  onClick={handleRebuy}
-                                  disabled={actionBusy || !isSeated}
-                                >
-                                  Rebuy 100 Chips
-                                </button>
-                              )}
-                            </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
                           </div>
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-              ))}
+                        )}
+                      </>
+                    )}
+                  </div>
+                );
+              })}
             </div>
             {!isSeated && (
               <div className="poker-callout">

@@ -471,7 +471,7 @@ export function useRealtimePokerTable(
       const pendingTable = pendingJoinRef.current ?? tableId;
       if (pendingTable) {
         socket.emit("join_table", { table: pendingTable });
-        setStatus(`Joined table ${pendingTable}`);
+        setStatus(null);
       }
       socket.emit("lobby:get");
     };
@@ -598,7 +598,6 @@ export function useRealtimePokerTable(
     }
     if (socket.connected) {
       socket.emit("join_table", { table: tableId });
-      setStatus(`Joined table ${tableId}`);
     } else {
       pendingJoinRef.current = tableId;
     }
@@ -617,7 +616,7 @@ export function useRealtimePokerTable(
     const socket = socketRef.current;
     if (socket?.connected) {
       socket.emit("join_table", { table: targetTable });
-      setStatus(`Joined table ${targetTable}`);
+      setStatus(null);
     } else {
       pendingJoinRef.current = targetTable;
     }

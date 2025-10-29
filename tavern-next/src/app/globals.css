@@ -210,29 +210,41 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
   gap: 6px;
 }
 
-.seat .seat-hud {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 12px;
-  font-size: clamp(0.68rem, 0.6rem + 0.2vw, 0.85rem);
-  opacity: 0.88;
-}
-
-.seat .seat-hud span {
-  display: inline-flex;
-  align-items: center;
-  padding: 4px 8px;
-  border-radius: 12px;
-  background: rgba(12, 20, 32, 0.55);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  gap: 4px;
-}
-
 .seat .seat-prompt {
   font-size: clamp(0.7rem, 0.63rem + 0.2vw, 0.88rem);
   opacity: 0.9;
   text-align: center;
 }
+
+.seat .seat-ready {
+  display: flex;
+  justify-content: center;
+  margin-top: 6px;
+}
+
+.seat .seat-ready-button {
+  margin: 0;
+  padding: 10px 28px;
+  min-width: 160px;
+  font-weight: 700;
+  color: #1c1208;
+  background: linear-gradient(135deg, rgba(225, 170, 90, 0.95), rgba(200, 120, 50, 0.95));
+  border-radius: 999px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.25);
+  transition: transform 0.12s ease, box-shadow 0.12s ease, opacity 0.12s ease;
+}
+
+.seat .seat-ready-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.32);
+}
+
+.seat .seat-ready-button:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
 
 .seat .seat-controls {
   display: flex;
@@ -1743,14 +1755,16 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
 .pot-indicator {
   position: absolute;
   left: 50%;
-  top: 36%;
+  top: 60%;
   transform: translate(-50%, -50%);
-  padding: 4px 10px;
-  border-radius: 12px;
-  background: rgba(0, 0, 0, 0.4);
-  font-size: 12px;
+  padding: 6px 16px;
+  border-radius: 18px;
+  background: rgba(0, 0, 0, 0.5);
+  font-size: 0.9rem;
   color: #ffdc8f;
   font-weight: 600;
+  letter-spacing: 0.5px;
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.35);
 }
 
 .poker-board {
@@ -3161,3 +3175,20 @@ body.home {
 }
 
 
+.seat .seat-hud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  font-size: clamp(0.68rem, 0.6rem + 0.2vw, 0.85rem);
+  opacity: 0.88;
+}
+
+.seat .seat-hud span {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  border-radius: 12px;
+  background: rgba(12, 20, 32, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  gap: 4px;
+}
