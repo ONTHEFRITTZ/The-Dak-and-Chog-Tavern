@@ -920,7 +920,7 @@ export default function PokerTablePage({ params }: TablePageProps) {
                       {seat.statusLabel && <div className="seat-status">{seat.statusLabel}</div>}
                       {seat.isUser && (
                         <div className="seat-actions">
-                          <button type="button" onClick={handleLeaveSeat} disabled={leaveDisabled}>
+                          <button type="button" onClick={handleLeaveSeat} disabled={actionBusy}>
                             Leave
                           </button>
                         </div>
