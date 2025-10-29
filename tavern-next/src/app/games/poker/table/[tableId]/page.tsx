@@ -214,6 +214,7 @@ export default function PokerTablePage({ params }: TablePageProps) {
   const [nameInput, setNameInput] = useState("");
   const [isSitModalOpen, setSitModalOpen] = useState(false);
   const [tableModal, setTableModal] = useState<"history" | null>(null);
+  const [pendingSeatId, setPendingSeatId] = useState<number | null>(null);
   const nameInputRef = useRef<HTMLInputElement | null>(null);
 
   const updatePlayerName = useCallback((value: string) => {
@@ -459,7 +460,7 @@ export default function PokerTablePage({ params }: TablePageProps) {
       const normalized = rawAddress ? rawAddress.toLowerCase() : null;
       const stack = Number(actor?.stack ?? seatInfo?.chips ?? seatInfo?.balance ?? 0);
       const contrib = Number(actor?.contrib ?? seatInfo?.balance ?? 0);
-      return {
+      const baseEntry = {
         seatId,
         rawAddress,
         addr: normalized,
@@ -467,9 +468,25 @@ export default function PokerTablePage({ params }: TablePageProps) {
         stack: Number.isFinite(stack) ? stack : 0,
         contrib: Number.isFinite(contrib) ? contrib : 0,
         actor,
+        pending: false,
       };
+      if (
+        pendingSeatId != null &&
+        seatId === pendingSeatId &&
+        !baseEntry.rawAddress &&
+        addressLower
+      ) {
+        return {
+          ...baseEntry,
+          rawAddress: addressLower,
+          addr: addressLower,
+          isUser: true,
+          pending: true,
+        };
+      }
+      return baseEntry;
     });
-  }, [totalSeats, realtime.table?.seats, actorBySeat, addressLower]);
+  }, [totalSeats, realtime.table?.seats, actorBySeat, addressLower, pendingSeatId]);
 
   const emptySeatIds = useMemo(
     () => seatEntries.filter((entry) => !entry.rawAddress).map((entry) => entry.seatId),
@@ -495,6 +512,7 @@ export default function PokerTablePage({ params }: TablePageProps) {
   const orderedSeats = useMemo(() => {
     return orderedSeatIndices.map((seatId, displayIndex) => {
       const entry = seatEntries[seatId];
+      const isPending = entry.pending;
       const isEmpty = !entry.rawAddress;
       const isUser = entry.isUser;
       const actor = entry.actor;
@@ -509,7 +527,7 @@ export default function PokerTablePage({ params }: TablePageProps) {
         ? playerName || (address ? short(address) : "You")
         : entry.rawAddress
         ? short(entry.rawAddress)
-        : "Open Seat";
+        : "Empty Seat";
       const stackChips = entry.stack;
       const stackLabel = Number.isFinite(stackChips) ? `${stackChips.toFixed(2)} chips` : null;
       const dcmonStack =
@@ -518,7 +536,9 @@ export default function PokerTablePage({ params }: TablePageProps) {
           : null;
       const balanceLabel = isEmpty ? null : dcmonStack ?? stackLabel;
       let statusLabel: string | null = null;
-      if (isEmpty) {
+      if (isPending) {
+        statusLabel = "Joining...";
+      } else if (isEmpty) {
         statusLabel = "Seat Open";
       } else if (isWinner) {
         statusLabel = "Winner";
@@ -583,6 +603,7 @@ export default function PokerTablePage({ params }: TablePageProps) {
         markerLabel,
         markerClass,
         cards,
+        isPending,
       };
     });
   }, [
@@ -610,7 +631,9 @@ export default function PokerTablePage({ params }: TablePageProps) {
     return currentSeat?.label ?? null;
   }, [orderedSeats, turnSeatId]);
 
-  const isSeated = mySeatId >= 0;
+  const hasPendingSeat = pendingSeatId != null;
+  const isActuallySeated = mySeatId >= 0;
+  const isSeated = isActuallySeated || hasPendingSeat;
   const handleRenamePlayer = useCallback(() => {
     if (!isSeated) {
       setNameInput(playerName);
@@ -776,10 +799,22 @@ export default function PokerTablePage({ params }: TablePageProps) {
     const trimmed = nameInput.trim().slice(0, 16);
     const finalName = trimmed || "Player";
     runAction(null, async () => {
+      const targetSeat = preferredSeatId;
+      setPendingSeatId(targetSeat);
       if (!isSimulatedTable) {
-        await holdem.joinSeat({ seatId: preferredSeatId, onProgress: setActionStatus });
+        try {
+          await holdem.joinSeat({ seatId: preferredSeatId, onProgress: setActionStatus });
+        } catch (err) {
+          setPendingSeatId((current) => (current === targetSeat ? null : current));
+          throw err;
+        }
       }
-      realtime.setSeat(preferredSeatId);
+      try {
+        realtime.setSeat(preferredSeatId);
+      } catch (err) {
+        setPendingSeatId((current) => (current === targetSeat ? null : current));
+        throw err;
+      }
       updatePlayerName(finalName);
       setSitModalOpen(false);
       setTableModal(null);
@@ -811,8 +846,19 @@ export default function PokerTablePage({ params }: TablePageProps) {
       }
       realtime.leaveSeat();
       setTableModal(null);
+      setPendingSeatId(null);
     });
   }, [mySeatId, isSimulatedTable, holdem, isInHand, realtime, runAction]);
+
+  useEffect(() => {
+    if (pendingSeatId == null) return;
+    const seat = realtime.table?.seats?.[pendingSeatId] ?? null;
+    if (seat && seat.addr && seat.addr.toLowerCase() === addressLower) {
+      setPendingSeatId(null);
+    } else if (mySeatId >= 0) {
+      setPendingSeatId(null);
+    }
+  }, [pendingSeatId, realtime.table?.seats, addressLower, mySeatId]);
 
   const handleFold = useCallback(() => {
     realtime.sendAction("fold");
@@ -1038,10 +1084,12 @@ export default function PokerTablePage({ params }: TablePageProps) {
                     )}
                     style={{ top: seat.position.top, left: seat.position.left }}
                   >
-                    {seat.markerLabel && (
+                    {seat.markerLabel ? (
                       <div className={cx("marker", seat.markerClass, "show")}>{seat.markerLabel}</div>
+                    ) : null}
+                    {!(seat.isPending && seat.isEmpty) && !(seat.isEmpty && seat.displayIndex === 0 && !isSeated) && (
+                      <div className="seat-name">{seat.label}</div>
                     )}
-                    {(!seat.isEmpty || seat.isUser) && <div className="seat-name">{seat.label}</div>}
                     {seat.cards.length > 0 && (
                       <div className="seat-cards">
                         {seat.cards.map((card, idx) =>
@@ -1079,7 +1127,7 @@ export default function PokerTablePage({ params }: TablePageProps) {
                                 type="button"
                                 className="seat-ready-button"
                                 onClick={handleReady}
-                                disabled={actionBusy || derivedStatus === "Ready"}
+                                disabled={actionBusy || derivedStatus === "Ready" || !isActuallySeated}
                               >
                                 {derivedStatus === "Ready" ? "Ready" : "Ready Up"}
                               </button>
