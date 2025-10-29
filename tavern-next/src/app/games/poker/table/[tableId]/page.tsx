@@ -1041,7 +1041,7 @@ export default function PokerTablePage({ params }: TablePageProps) {
                     {seat.markerLabel && (
                       <div className={cx("marker", seat.markerClass, "show")}>{seat.markerLabel}</div>
                     )}
-                    <div className="seat-name">{seat.label}</div>
+                    {(!seat.isEmpty || seat.isUser) && <div className="seat-name">{seat.label}</div>}
                     {seat.cards.length > 0 && (
                       <div className="seat-cards">
                         {seat.cards.map((card, idx) =>
@@ -1050,8 +1050,7 @@ export default function PokerTablePage({ params }: TablePageProps) {
                       </div>
                     )}
                     {seat.isEmpty ? (
-                    seat.displayIndex === 0 && !isSeated ? (
-                      <>
+                      seat.displayIndex === 0 && !isSeated ? (
                         <button
                           type="button"
                           className="bj-sit-btn"
@@ -1060,65 +1059,61 @@ export default function PokerTablePage({ params }: TablePageProps) {
                         >
                           Sit
                         </button>
-                        <span className="seat-hint">Take this seat to play.</span>
-                      </>
+                      ) : null
                     ) : (
-                      <span className="seat-hint">{seat.statusLabel ?? "Seat Open"}</span>
-                    )
-                  ) : (
                     <>
                       {seat.balanceLabel && (
                         <div className="seat-info">
-                            <span>{seat.balanceLabel}</span>
+                          <span>{seat.balanceLabel}</span>
+                        </div>
+                      )}
+                      {derivedStatus && <div className="seat-status">{derivedStatus}</div>}
+                      {isMySeat && (
+                        <div className="seat-console">
+                          <div className="seat-console-top">
+                            {actionInfo && <div className="seat-prompt">{actionInfo}</div>}
                           </div>
-                        )}
-                        {derivedStatus && <div className="seat-status">{derivedStatus}</div>}
-                        {isMySeat && (
-                          <div className="seat-console">
-                            <div className="seat-console-top">
-                              {actionInfo && <div className="seat-prompt">{actionInfo}</div>}
+                          {showReadyButton && (
+                            <div className="seat-ready">
+                              <button
+                                type="button"
+                                className="seat-ready-button"
+                                onClick={handleReady}
+                                disabled={actionBusy || derivedStatus === "Ready"}
+                              >
+                                {derivedStatus === "Ready" ? "Ready" : "Ready Up"}
+                              </button>
                             </div>
-                            {showReadyButton && (
-                              <div className="seat-ready">
-                                <button
-                                  type="button"
-                                  className="seat-ready-button"
-                                  onClick={handleReady}
-                                  disabled={actionBusy || derivedStatus === "Ready"}
-                                >
-                                  {derivedStatus === "Ready" ? "Ready" : "Ready Up"}
-                                </button>
+                          )}
+                          {(showActionButtons || isSimulatedTable) && (
+                            <div className="seat-controls">
+                              <div className="seat-rail seat-rail-left">
+                                {showActionButtons && (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={handleFold}
+                                      disabled={actionButtonsDisabled}
+                                    >
+                                      Fold
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={handleCheckOrCall}
+                                      disabled={actionButtonsDisabled}
+                                    >
+                                      {callAmountChips > 0 ? `Call ${callAmountLabel}` : "Check"}
+                                    </button>
+                                  </>
+                                )}
                               </div>
-                            )}
-                            {(showActionButtons || isSimulatedTable) && (
-                              <div className="seat-controls">
-                                <div className="seat-rail seat-rail-left">
-                                  {showActionButtons && (
-                                    <>
-                                      <button
-                                        type="button"
-                                        onClick={handleFold}
-                                        disabled={actionButtonsDisabled}
-                                      >
-                                        Fold
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={handleCheckOrCall}
-                                        disabled={actionButtonsDisabled}
-                                      >
-                                        {callAmountChips > 0 ? `Call ${callAmountLabel}` : "Check"}
-                                      </button>
-                                    </>
-                                  )}
-                                </div>
-                                <div className="seat-rail seat-rail-right">
-                                  {showActionButtons && (
-                                    <>
-                                      <div className="bet-input-inline">
-                                        <input
-                                          type="number"
-                                          min="0"
+                              <div className="seat-rail seat-rail-right">
+                                {showActionButtons && (
+                                  <>
+                                    <div className="bet-input-inline">
+                                      <input
+                                        type="number"
+                                        min="0"
                                           max={Math.max(myContributionChips + myStackChips, 0)}
                                           step="0.01"
                                           value={betAmount}
