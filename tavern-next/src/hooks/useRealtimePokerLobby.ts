@@ -218,7 +218,7 @@ export function useRealtimePokerLobby(
     const endpoint = resolveRealtimeEndpoint(options.url);
     const connectionOptions = {
       path: endpoint.socketPath,
-      transports: ["polling", "websocket"] as const,
+      transports: ["polling", "websocket"],
       autoConnect: autoConnect,
       reconnection: true,
       reconnectionAttempts: Infinity,
