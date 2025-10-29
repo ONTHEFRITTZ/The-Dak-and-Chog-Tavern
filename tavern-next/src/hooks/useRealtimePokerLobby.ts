@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Socket } from "socket.io-client";
 import { io } from "socket.io-client";
+import { resolveRealtimeEndpoint } from "@/lib/realtime";
 
 export type PokerLobbyMeta = {
   typeLabel?: string;
@@ -214,14 +215,17 @@ export function useRealtimePokerLobby(
   useEffect(() => {
     if (typeof window === "undefined") return;
     const { autoConnect = true } = options;
-    const baseUrl = options.url || window.location.origin;
-    const socket = io(baseUrl, {
-      path: "/poker.io/",
-      transports: ["polling", "websocket"],
+    const endpoint = resolveRealtimeEndpoint(options.url);
+    const connectionOptions = {
+      path: endpoint.socketPath,
+      transports: ["polling", "websocket"] as const,
       autoConnect: autoConnect,
       reconnection: true,
       reconnectionAttempts: Infinity,
-    });
+    };
+    const socket = endpoint.baseUrl
+      ? io(endpoint.baseUrl, connectionOptions)
+      : io(connectionOptions);
 
     socketRef.current = socket;
 
