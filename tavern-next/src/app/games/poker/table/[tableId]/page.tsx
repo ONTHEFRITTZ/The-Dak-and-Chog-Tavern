@@ -630,9 +630,9 @@ export default function PokerTablePage({ params }: TablePageProps) {
     [isSeated, isSimulatedTable]
   );
   const centerBannerMessage = useMemo(() => {
+    if (!isSeated) return null;
     if (actionStatus) return actionStatus;
     if (realtime.status) return realtime.status;
-    if (!isSeated) return "Take a seat to join the action.";
     if (!realtime.state) return "Waiting for game state...";
     if (isMyTurn) return "Your move.";
     if (currentTurnSeatLabel) return `Waiting on ${currentTurnSeatLabel}`;
@@ -692,7 +692,7 @@ export default function PokerTablePage({ params }: TablePageProps) {
   }, [showReadyButton, isSeated]);
   const boardHint = useMemo(() => {
     if (boardCards.length > 0) return null;
-    if (!isSeated) return "Take a seat to join the table.";
+    if (!isSeated) return null;
     if (isReadyStage) return "Hit ready to begin play.";
     switch (stageKey) {
       case "preflop":
@@ -1050,25 +1050,25 @@ export default function PokerTablePage({ params }: TablePageProps) {
                       </div>
                     )}
                     {seat.isEmpty ? (
-                      seat.displayIndex === 0 && !isSeated ? (
-                        <>
-                          <button
-                            type="button"
-                            className="bj-sit-btn"
-                            onClick={handleOpenSitModal}
-                            disabled={actionBusy || preferredSeatId < 0}
-                          >
-                            Sit
-                          </button>
-                          <span className="seat-hint">Take this seat to play.</span>
-                        </>
-                      ) : (
-                        <span className="seat-hint">{seat.statusLabel ?? "Seat Open"}</span>
-                      )
-                    ) : (
+                    seat.displayIndex === 0 && !isSeated ? (
                       <>
-                        {seat.balanceLabel && (
-                          <div className="seat-info">
+                        <button
+                          type="button"
+                          className="bj-sit-btn"
+                          onClick={handleOpenSitModal}
+                          disabled={actionBusy || preferredSeatId < 0}
+                        >
+                          Sit
+                        </button>
+                        <span className="seat-hint">Take this seat to play.</span>
+                      </>
+                    ) : (
+                      <span className="seat-hint">{seat.statusLabel ?? "Seat Open"}</span>
+                    )
+                  ) : (
+                    <>
+                      {seat.balanceLabel && (
+                        <div className="seat-info">
                             <span>{seat.balanceLabel}</span>
                           </div>
                         )}
