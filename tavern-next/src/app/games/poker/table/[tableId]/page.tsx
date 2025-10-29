@@ -35,7 +35,7 @@ function computeSeatPositions(total: number) {
   const rx = 42;
   const ry = 34;
   return Array.from({ length: total }, (_, idx) => {
-    const angleDeg = 90 + (360 / total) * idx;
+    const angleDeg = 270 + (360 / total) * idx;
     const rad = (angleDeg * Math.PI) / 180;
     const left = 50 + rx * Math.cos(rad);
     const top = 50 + ry * Math.sin(rad);

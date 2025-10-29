@@ -35,6 +35,8 @@ export default function DakChogPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const coinRef = useRef<HTMLDivElement | null>(null);
   const flipTimerRef = useRef<number | null>(null);
+  const swapTimerRef = useRef<number | null>(null);
+  const swapCleanupRef = useRef<number | null>(null);
 
   useEffect(() => {
     const el = coinRef.current;
@@ -59,6 +61,14 @@ export default function DakChogPage() {
         window.clearInterval(flipTimerRef.current);
         flipTimerRef.current = null;
       }
+      if (swapTimerRef.current != null) {
+        window.clearTimeout(swapTimerRef.current);
+        swapTimerRef.current = null;
+      }
+      if (swapCleanupRef.current != null) {
+        window.clearTimeout(swapCleanupRef.current);
+        swapCleanupRef.current = null;
+      }
     };
   }, [isFlipping]);
 
@@ -67,9 +77,31 @@ export default function DakChogPage() {
     return Number.isFinite(num) ? num.toFixed(3) : "0.000";
   }, [bet]);
 
+  const applyCoinFace = useCallback(
+    (face: CoinSide, duration = 800) => {
+      const el = coinRef.current;
+      if (!el) {
+        setCoinFace(face);
+        return;
+      }
+      el.classList.add("flip");
+      if (swapTimerRef.current != null) window.clearTimeout(swapTimerRef.current);
+      if (swapCleanupRef.current != null) window.clearTimeout(swapCleanupRef.current);
+      swapTimerRef.current = window.setTimeout(() => {
+        setCoinFace(face);
+      }, Math.max(50, duration * 0.25));
+      swapCleanupRef.current = window.setTimeout(() => {
+        el.classList.remove("flip");
+        swapTimerRef.current = null;
+        swapCleanupRef.current = null;
+      }, duration);
+    },
+    []
+  );
+
   const handleChoice = (side: CoinSide) => {
     setChoice(side);
-    setCoinFace(side);
+    applyCoinFace(side, 600);
   };
 
   const ensureConnected = useCallback(async () => {
@@ -187,16 +219,14 @@ export default function DakChogPage() {
       if (parsed) {
         const resultChog = Boolean(parsed.args?.resultChog);
         const won = Boolean(parsed.args?.won);
-        setCoinFace(resultChog ? "chog" : "dak");
-        coinRef.current?.classList.add("flip");
-        setTimeout(() => coinRef.current?.classList.remove("flip"), 900);
+        applyCoinFace(resultChog ? "chog" : "dak");
         setStatus(
           won
             ? `On-chain: ${resultChog ? "CHOG" : "DAK"} - you won!`
             : `On-chain: ${resultChog ? "CHOG" : "DAK"} - you lost.`
         );
       } else {
-        setCoinFace(choice);
+        applyCoinFace(choice);
         setStatus("Confirmed. Check wallet or explorer for result.");
       }
     } catch (err: any) {
@@ -225,6 +255,7 @@ export default function DakChogPage() {
     hasDcmonBalance,
     ensureAllowance,
     delegation,
+    applyCoinFace,
   ]);
 
   return (

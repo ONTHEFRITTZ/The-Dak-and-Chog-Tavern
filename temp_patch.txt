@@ -1,0 +1,26 @@
+*** Begin Patch
+*** Update File: tavern-next/src/app/games/dakchog/page.tsx
+@@
+-    return () => {
+-      if (flipTimerRef.current != null) {
+-        window.clearInterval(flipTimerRef.current);
+-        flipTimerRef.current = null;
+-      }
+-    };
++    return () => {
++      if (flipTimerRef.current != null) {
++        window.clearInterval(flipTimerRef.current);
++        flipTimerRef.current = null;
++      }
++      if (swapTimerRef.current != null) {
++        window.clearTimeout(swapTimerRef.current);
++        swapTimerRef.current = null;
++      }
++      if (swapCleanupRef.current != null) {
++        window.clearTimeout(swapCleanupRef.current);
++        swapCleanupRef.current = null;
++      }
++    };
+   }, [isFlipping]);
+*** End Patch
+
