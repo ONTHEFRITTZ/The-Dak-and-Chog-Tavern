@@ -12,9 +12,12 @@ export interface BlackjackHand {
   originalWager: number;
   canSplit: boolean;
   canDouble: boolean;
+  canSurrender: boolean;
   isStanding: boolean;
   isFinished: boolean;
   isDouble: boolean;
+  isSplitAces: boolean;
+  isSurrendered: boolean;
   result?: HandOutcome;
   payout?: number;
   score: Score;
@@ -41,6 +44,10 @@ export interface BlackjackState {
   baseWager: number;
   minBet: number;
   maxBet: number;
+  insuranceOffered: boolean;
+  insuranceTaken: boolean;
+  insuranceResolved: boolean;
+  insuranceBet: number;
   message: string | null;
   revealDealer: boolean;
   isBusy: boolean;
@@ -56,6 +63,8 @@ export interface BlackjackControls {
   stand: () => Promise<void>;
   doubleDown: () => Promise<void>;
   split: () => Promise<void>;
+  takeInsurance: () => Promise<void>;
+  surrender: () => Promise<void>;
   nextHand: () => void;
   setMode: (mode: BlackjackMode) => void;
   resetError: () => void;

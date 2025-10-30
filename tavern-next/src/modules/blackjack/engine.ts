@@ -158,7 +158,7 @@ export function shouldDealerHit(hand: Card[]): boolean {
   return false;
 }
 
-export type HandOutcome = "blackjack" | "win" | "push" | "lose" | "bust";
+export type HandOutcome = "blackjack" | "win" | "push" | "lose" | "bust" | "surrender";
 
 export function getOutcome(playerCards: Card[], dealerCards: Card[]): HandOutcome {
   const playerScore = scoreHand(playerCards);

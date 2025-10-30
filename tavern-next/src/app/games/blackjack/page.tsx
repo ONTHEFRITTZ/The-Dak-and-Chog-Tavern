@@ -224,6 +224,18 @@ export default function BlackjackPage() {
     }
   }, [blackjack]);
 
+  const handleInsurance = useCallback(() => {
+    if (typeof blackjack.takeInsurance === "function") {
+      blackjack.takeInsurance().catch(() => void 0);
+    }
+  }, [blackjack]);
+
+  const handleSurrender = useCallback(() => {
+    if (typeof blackjack.surrender === "function") {
+      blackjack.surrender().catch(() => void 0);
+    }
+  }, [blackjack]);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     const openHistory = () => setTableModal("history");
@@ -320,8 +332,22 @@ export default function BlackjackPage() {
   const canPlayAgain = blackjack.phase === "payout" && !blackjack.isBusy && isSeated;
   const canDouble = canAct && Boolean(activeHand?.canDouble);
   const canSplit = canAct && Boolean(activeHand?.canSplit);
+  const insurancePending = blackjack.insuranceOffered && !blackjack.insuranceResolved;
+  const rawInsurance = insurancePending
+    ? (blackjack.insuranceBet > 0
+      ? blackjack.insuranceBet
+      : activeHand
+      ? activeHand.wager / 2
+      : Number.parseFloat(wagerInput) / 2)
+    : 0;
+  const insuranceAmount = insurancePending && Number.isFinite(rawInsurance) ? Math.max(0, rawInsurance) : 0;
+  const totalHands = blackjack.playerHands.length;
   const wagerNumeric = Number.parseFloat(wagerInput);
   const wagerDisplay = Number.isFinite(wagerNumeric) ? wagerNumeric.toFixed(2) : wagerInput;
+  const activeWagerDisplay = activeHand ? activeHand.wager.toFixed(2) : wagerDisplay;
+  const activeHandLabel = activeHand
+    ? `Hand ${blackjack.activeHandIndex + 1} of ${Math.max(totalHands, 1)}`
+    : "Hand";
   const dockMessage = useMemo(() => {
     if (blackjack.error) return blackjack.error;
     if (blackjack.message) return blackjack.message;
@@ -329,6 +355,11 @@ export default function BlackjackPage() {
       case "betting":
         return isSeated ? "Set your wager and deal the next hand." : "Take a seat to begin.";
       case "player":
+        if (insurancePending) {
+          return blackjack.insuranceTaken
+            ? "Insurance locked in. Continue your hand."
+            : "Dealer shows an Ace. Decide on insurance.";
+        }
         return canAct ? "Choose your action." : "Waiting for the next card.";
       case "dealer":
         return "Dealer is drawing to 17.";
@@ -337,7 +368,7 @@ export default function BlackjackPage() {
       default:
         return "Shuffling the shoe...";
     }
-  }, [blackjack.error, blackjack.message, blackjack.phase, isSeated, canAct]);
+  }, [blackjack.error, blackjack.message, blackjack.phase, isSeated, canAct, insurancePending, blackjack.insuranceTaken]);
 
   const seatNodes = useMemo(() => {
     return SEAT_POSITIONS.map((pos, idx) => {
@@ -377,17 +408,42 @@ export default function BlackjackPage() {
       return (
         <div key="player-seat" className={`bj-seat me ${seatState}`} style={style}>
           <div className="seat-name">{displayName}</div>
-          <div className="card-group">
-            {activeHand ? (
-              activeHand.cards.map((card, i) => renderCard(card, false, i))
-            ) : (
+          <div
+            className="card-group"
+            style={{ flexDirection: "column", alignItems: "center", gap: "12px" }}
+          >
+            {blackjack.playerHands.length === 0 ? (
               <div className="bj-card-placeholder">
                 <span className="bj-placeholder">Ready for the next shoe.</span>
               </div>
+            ) : (
+              blackjack.playerHands.map((hand, handIdx) => (
+                <div
+                  key={hand.id}
+                  className={`bj-hand-row${handIdx === blackjack.activeHandIndex ? " active" : ""}`}
+                  style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "6px" }}
+                >
+                  <div className="bj-hand-meta" style={{ fontSize: "12px", opacity: 0.85 }}>
+                    Hand {handIdx + 1}
+                    {hand.isSurrendered
+                      ? " — Surrendered"
+                      : hand.result
+                      ? ` — ${hand.result.toUpperCase()}`
+                      : handIdx === blackjack.activeHandIndex
+                      ? " — Active"
+                      : ""}
+                  </div>
+                  <div className="card-group">
+                    {hand.cards.map((card, i) => renderCard(card, false, `${hand.id}-${i}`))}
+                  </div>
+                </div>
+              ))
             )}
           </div>
           <div className="seat-info">
-            <span>Total {activeHand ? activeHand.score.bestTotal : playerTotalLabel}</span>
+            <span>
+              {activeHandLabel}: {activeHand ? activeHand.score.bestTotal : playerTotalLabel}
+            </span>
             {payout != null && (
               <span className={payout >= 0 ? "bj-win" : "bj-loss"}>
                 {payout >= 0 ? "+" : ""}
@@ -395,22 +451,43 @@ export default function BlackjackPage() {
               </span>
             )}
           </div>
-          <div className="seat-console">
-            <div className="seat-console-top">
-              <div className="seat-hud">
-                <span>Wager {wagerDisplay} DCMon</span>
+            <div className="seat-console">
+              <div className="seat-console-top">
+                <div className="seat-hud">
+                  <span>Wager {activeWagerDisplay} DCMon</span>
+                  {totalHands > 1 && (
+                    <span>
+                      {blackjack.activeHandIndex + 1}/{totalHands}
+                    </span>
+                  )}
+                </div>
+                <div className="seat-prompt">{dockMessage}</div>
+                {insurancePending && (
+                  <div className="seat-insurance">
+                    <button
+                      type="button"
+                      onClick={handleInsurance}
+                      disabled={blackjack.isBusy || blackjack.insuranceTaken}
+                    >
+                      {blackjack.insuranceTaken
+                        ? `Insurance ${insuranceAmount.toFixed(2)} DCMon placed`
+                        : `Take Insurance (${insuranceAmount.toFixed(2)} DCMon)`}
+                    </button>
+                  </div>
+                )}
               </div>
-              <div className="seat-prompt">{dockMessage}</div>
-            </div>
-            <div className="seat-controls">
-              <div className="seat-rail seat-rail-left">
-                {canAct && (
-                  <>
+              <div className="seat-controls">
+                <div className="seat-rail seat-rail-left">
+                  {canAct && (
+                    <>
                     <button type="button" onClick={handleHit} disabled={!canAct}>
                       Hit
                     </button>
                     <button type="button" onClick={handleStand} disabled={!canAct}>
                       Stand
+                    </button>
+                    <button type="button" onClick={handleSurrender} disabled={!canSurrender}>
+                      Surrender
                     </button>
                     {canDouble && (
                       <button type="button" onClick={handleDouble} disabled={!canDouble}>
@@ -457,9 +534,15 @@ export default function BlackjackPage() {
     });
   }, [
     activeHand,
+    activeHandLabel,
+    activeWagerDisplay,
+    blackjack.activeHandIndex,
+    blackjack.insuranceTaken,
+    blackjack.isBusy,
     blackjack.maxBet,
     blackjack.minBet,
     blackjack.phase,
+    blackjack.playerHands,
     canAct,
     canDouble,
     canPlayAgain,
@@ -469,17 +552,21 @@ export default function BlackjackPage() {
     dockMessage,
     handleDouble,
     handleHit,
+    handleInsurance,
     handlePlayAgain,
     handleReady,
     handleSit,
     handleSplit,
     handleStand,
+    handleSurrender,
+    insuranceAmount,
+    insurancePending,
     isSeated,
     playerTotalLabel,
     spectatorAssignments,
     handleWagerChange,
+    totalHands,
     wagerInput,
-    wagerDisplay,
   ]);
 
   return (
@@ -542,6 +629,9 @@ export default function BlackjackPage() {
     </main>
   );
 }
+
+
+
 
 
 

@@ -8,7 +8,13 @@ import { useWallet } from "@/context/WalletContext";
 import { useDelegationToolkitAA } from "@/modules/aa/useDelegationToolkitAA";
 import { useBankroll, formatDcmon } from "@/modules/bankroll";
 import { scoreHand, type Card, type HandOutcome } from "./engine";
-import type { BlackjackHistoryEntry, BlackjackHook, BlackjackMode, BlackjackState } from "./types";
+import type {
+  BlackjackHand,
+  BlackjackHistoryEntry,
+  BlackjackHook,
+  BlackjackMode,
+  BlackjackState,
+} from "./types";
 
 const blackjackInterface = new Interface(BlackjackABI);
 
@@ -35,9 +41,11 @@ const OUTCOME_MAP: Record<number, HandOutcome | undefined> = {
   3: "push",
   4: "lose",
   5: "bust",
+  6: "surrender",
 };
 
 const TABLE_LIMITS = { min: 0.1, max: 10 };
+const MAX_ACTIVE_HANDS = 4;
 
 const initialState: BlackjackState = {
   phase: "betting",
@@ -50,6 +58,10 @@ const initialState: BlackjackState = {
   baseWager: TABLE_LIMITS.min,
   minBet: TABLE_LIMITS.min,
   maxBet: TABLE_LIMITS.max,
+  insuranceOffered: false,
+  insuranceTaken: false,
+  insuranceResolved: true,
+  insuranceBet: 0,
   message: "Place your wager to begin.",
   revealDealer: false,
   isBusy: false,
@@ -91,51 +103,99 @@ const outcomeMessage = (outcome: HandOutcome | undefined, net: number) => {
       return "Dealer wins.";
     case "bust":
       return "Busted.";
+    case "surrender":
+      return "Hand surrendered. Half wager returned.";
     default:
       return "Choose your action.";
   }
 };
 
-type ContractGameStruct = {
-  player: string;
-  wager: bigint;
-  additionalWager: bigint;
-  finished: boolean;
+type ContractHandStruct = {
+  cards: readonly bigint[];
+  stake: bigint;
   doubled: boolean;
-  playerCards: readonly bigint[];
-  dealerCards: readonly bigint[];
+  surrendered: boolean;
+  finished: boolean;
+  isSplitAces: boolean;
   outcome: bigint;
   payout: bigint;
 };
 
+type ContractGameStruct = {
+  player: string;
+  finished: boolean;
+  activeHand: bigint;
+  handCount: bigint;
+  baseBet: bigint;
+  baseStake: bigint;
+  insuranceBet: bigint;
+  insuranceAvailable: boolean;
+  insuranceResolved: boolean;
+  dealerCards: readonly bigint[];
+  finalOutcome: bigint;
+  totalPayout: bigint;
+  hands: readonly ContractHandStruct[];
+};
+
+type NormalizedHand = {
+  cards: Card[];
+  stake: bigint;
+  doubled: boolean;
+  surrendered: boolean;
+  finished: boolean;
+  isSplitAces: boolean;
+  outcome?: HandOutcome;
+  payout: bigint;
+};
+
+type NormalizedGame = {
+  gameId: bigint;
+  finished: boolean;
+  activeHand: number;
+  baseBet: bigint;
+  baseStake: bigint;
+  insuranceBet: bigint;
+  insuranceAvailable: boolean;
+  insuranceResolved: boolean;
+  dealerCards: Card[];
+  finalOutcome?: HandOutcome;
+  totalPayout: bigint;
+  hands: NormalizedHand[];
+};
+
 const normalizeGame = (gameId: bigint, raw: ContractGameStruct): NormalizedGame => {
-  const wager = BigInt(raw?.wager ?? 0n);
-  const additionalWager = BigInt(raw?.additionalWager ?? 0n);
-  const finished = Boolean(raw?.finished);
-  const doubled = Boolean(raw?.doubled);
-  const playerCards = (raw?.playerCards ?? []).map((card: bigint) => decodeCard(card));
   const dealerCards = (raw?.dealerCards ?? []).map((card: bigint) => decodeCard(card));
-  const outcomeValue = Number(raw?.outcome ?? 0);
-  const outcome = OUTCOME_MAP[outcomeValue];
-  const payout = BigInt(raw?.payout ?? 0n);
+  const hands = (raw?.hands ?? []).map((hand) => ({
+    cards: (hand?.cards ?? []).map((card: bigint) => decodeCard(card)),
+    stake: BigInt(hand?.stake ?? 0n),
+    doubled: Boolean(hand?.doubled),
+    surrendered: Boolean(hand?.surrendered),
+    finished: Boolean(hand?.finished),
+    isSplitAces: Boolean(hand?.isSplitAces),
+    outcome: OUTCOME_MAP[Number(hand?.outcome ?? 0)] ?? undefined,
+    payout: BigInt(hand?.payout ?? 0n),
+  }));
 
   return {
     gameId,
-    wager,
-    additionalWager,
-    finished,
-    doubled,
-    playerCards,
+    finished: Boolean(raw?.finished),
+    activeHand: Number(raw?.activeHand ?? 0n),
+    baseBet: BigInt(raw?.baseBet ?? 0n),
+    baseStake: BigInt(raw?.baseStake ?? 0n),
+    insuranceBet: BigInt(raw?.insuranceBet ?? 0n),
+    insuranceAvailable: Boolean(raw?.insuranceAvailable),
+    insuranceResolved: Boolean(raw?.insuranceResolved),
     dealerCards,
-    outcome,
-    payout,
+    finalOutcome: OUTCOME_MAP[Number(raw?.finalOutcome ?? 0)] ?? undefined,
+    totalPayout: BigInt(raw?.totalPayout ?? 0n),
+    hands,
   };
 };
 
-const netDcmon = (payout: bigint, wager: bigint): number => {
+const netDcmon = (payout: bigint, stake: bigint): number => {
   const totalReturned = Number.parseFloat(formatEther(payout));
-  const stake = Number.parseFloat(formatEther(wager));
-  return totalReturned - stake;
+  const staked = Number.parseFloat(formatEther(stake));
+  return totalReturned - staked;
 };
 
 const toUserMessage = (reason: unknown, fallback: string): string => {
@@ -195,56 +255,99 @@ export function useBlackjack(): BlackjackHook {
 
   const applyGameState = useCallback(
     (normalized: NormalizedGame, includeHistory: boolean) => {
-      const playerScore = scoreHand(normalized.playerCards);
-      const dealerScore = scoreHand(normalized.dealerCards);
-      const hand = {
-        id: normalized.gameId.toString(),
-        cards: normalized.playerCards,
-        wager: Number.parseFloat(formatEther(normalized.wager)),
-        originalWager: Number.parseFloat(formatEther(normalized.wager + normalized.additionalWager)),
-        canSplit: false,
-        canDouble:
+      const insurancePending = normalized.insuranceAvailable && !normalized.insuranceResolved;
+      const activeHandIndex = normalized.finished
+        ? 0
+        : Math.min(
+            normalized.activeHand,
+            normalized.hands.length > 0 ? normalized.hands.length - 1 : 0
+          );
+
+      const playerHands = normalized.hands.map((hand, index) => {
+        const score = scoreHand(hand.cards);
+        const stakeNumber = Number.parseFloat(formatEther(hand.stake));
+        const payoutNet =
+          hand.outcome != null ? netDcmon(hand.payout, hand.stake) : undefined;
+        const canAct =
           !normalized.finished &&
-          !normalized.doubled &&
-          normalized.playerCards.length === 2 &&
-          normalized.outcome === undefined,
-        isStanding: normalized.finished,
-        isFinished: normalized.finished,
-        isDouble: normalized.doubled,
-        result: normalized.outcome,
-        payout: normalized.outcome ? netDcmon(normalized.payout, normalized.wager) : undefined,
-        score: playerScore,
-      };
+          !insurancePending &&
+          index === activeHandIndex &&
+          !hand.finished &&
+          !hand.surrendered;
+
+        return {
+          id: `${normalized.gameId.toString()}-${index}`,
+          cards: hand.cards,
+          wager: stakeNumber,
+          originalWager: stakeNumber,
+          canSplit:
+            canAct &&
+            !hand.isSplitAces &&
+            hand.cards.length === 2 &&
+            normalized.hands.length < MAX_ACTIVE_HANDS,
+          canDouble:
+            canAct &&
+            !hand.doubled &&
+            !hand.isSplitAces &&
+            hand.cards.length === 2,
+          canSurrender: canAct && !hand.doubled && hand.cards.length === 2,
+          isStanding: hand.finished && !hand.surrendered && hand.outcome == null,
+          isFinished: hand.finished,
+          isDouble: hand.doubled,
+          isSplitAces: hand.isSplitAces,
+          isSurrendered: hand.surrendered,
+          result: hand.outcome,
+          payout: payoutNet,
+          score,
+        } satisfies BlackjackHand;
+      });
+
+      const dealerScore = normalized.dealerCards.length > 0 ? scoreHand(normalized.dealerCards) : null;
+
+      const totalStake = normalized.hands.reduce((acc, hand) => acc + hand.stake, 0n);
+      const totalStakeNumber = Number.parseFloat(formatEther(totalStake));
+      const totalPayoutNumber = Number.parseFloat(formatEther(normalized.totalPayout));
+      const totalNet = totalPayoutNumber - totalStakeNumber;
+
+      const message = normalized.finished
+        ? outcomeMessage(normalized.finalOutcome, totalNet)
+        : insurancePending
+        ? normalized.insuranceBet > 0n
+          ? "Insurance placed. Resolve by revealing the dealer's hand."
+          : "Dealer shows an Ace. Take insurance or continue your hand."
+        : "Choose your action.";
 
       setState((prev) => {
-        let history: BlackjackHistoryEntry[] = prev.history;
-        if (includeHistory && normalized.finished && normalized.outcome) {
+        let history = prev.history;
+        if (includeHistory && normalized.finished) {
           const entry: BlackjackHistoryEntry = {
             id: `${normalized.gameId.toString()}-${Date.now()}`,
             timestamp: Date.now(),
-            cards: normalized.playerCards,
+            cards: playerHands[0]?.cards ?? [],
             dealer: normalized.dealerCards,
-            result: normalized.outcome,
-            wager: Number.parseFloat(formatEther(normalized.wager)),
-            payout: Number.parseFloat(formatEther(normalized.payout)),
+            result: normalized.finalOutcome ?? "push",
+            wager: totalStakeNumber,
+            payout: totalPayoutNumber,
           };
           history = [entry, ...history].slice(0, 12);
         }
 
         const nextPhase = normalized.finished ? "payout" : "player";
-        const message = normalized.finished
-          ? outcomeMessage(normalized.outcome, hand.payout ?? 0)
-          : "Choose your action.";
 
         return {
           ...prev,
           phase: nextPhase,
           dealerCards: normalized.dealerCards,
-          dealerScore: normalized.finished ? dealerScore : null,
-          playerHands: [hand],
-          activeHandIndex: 0,
+          dealerScore: normalized.finished || normalized.dealerCards.length > 0 ? dealerScore : null,
+          playerHands,
+          activeHandIndex: normalized.finished ? 0 : activeHandIndex,
+          baseWager: prev.baseWager,
+          insuranceOffered: normalized.insuranceAvailable,
+          insuranceTaken: normalized.insuranceBet > 0n,
+          insuranceResolved: normalized.insuranceResolved,
+          insuranceBet: Number.parseFloat(formatEther(normalized.insuranceBet)),
           message,
-          revealDealer: normalized.finished,
+          revealDealer: normalized.finished || normalized.dealerCards.length > 0,
           isBusy: false,
           error: null,
           history,
@@ -446,7 +549,10 @@ export function useBlackjack(): BlackjackHook {
   ]);
 
   const performAction = useCallback(
-    async (action: "hit" | "stand" | "doubleDown", label: string) => {
+    async (
+      action: "hit" | "stand" | "doubleDown" | "split" | "takeInsurance" | "surrender",
+      label: string
+    ) => {
       if (!(await ensureConnected())) {
         setState((prev) => ({ ...prev, error: "Connect wallet to play." }));
         return;
@@ -470,28 +576,57 @@ export function useBlackjack(): BlackjackHook {
   );
 
   const hit = useCallback(async () => {
+    const hand = state.playerHands[state.activeHandIndex];
+    if (!hand || hand.isFinished || hand.isSurrendered) {
+      setState((prev) => ({ ...prev, error: "No active hand available." }));
+      return;
+    }
     await performAction("hit", "Hitting...");
-  }, [performAction]);
+  }, [performAction, state.playerHands, state.activeHandIndex]);
 
   const stand = useCallback(async () => {
+    const hand = state.playerHands[state.activeHandIndex];
+    if (!hand || hand.isFinished || hand.isSurrendered) {
+      setState((prev) => ({ ...prev, error: "No active hand available." }));
+      return;
+    }
     await performAction("stand", "Standing...");
-  }, [performAction]);
+  }, [performAction, state.playerHands, state.activeHandIndex]);
 
   const doubleDown = useCallback(async () => {
-    const hand = state.playerHands[0];
+    const hand = state.playerHands[state.activeHandIndex];
     if (!hand?.canDouble) {
       setState((prev) => ({ ...prev, error: "Double down not available right now." }));
       return;
     }
     await performAction("doubleDown", "Doubling down...");
-  }, [performAction, state.playerHands]);
+  }, [performAction, state.playerHands, state.activeHandIndex]);
 
   const split = useCallback(async () => {
-    setState((prev) => ({
-      ...prev,
-      error: "Split is not available in this build.",
-    }));
-  }, []);
+    const hand = state.playerHands[state.activeHandIndex];
+    if (!hand?.canSplit) {
+      setState((prev) => ({ ...prev, error: "Split is not available right now." }));
+      return;
+    }
+    await performAction("split", "Splitting hand...");
+  }, [performAction, state.playerHands, state.activeHandIndex]);
+
+  const takeInsurance = useCallback(async () => {
+    if (!state.insuranceOffered || state.insuranceResolved) {
+      setState((prev) => ({ ...prev, error: "Insurance is not available." }));
+      return;
+    }
+    await performAction("takeInsurance", "Placing insurance...");
+  }, [performAction, state.insuranceOffered, state.insuranceResolved]);
+
+  const surrender = useCallback(async () => {
+    const hand = state.playerHands[state.activeHandIndex];
+    if (!hand?.canSurrender) {
+      setState((prev) => ({ ...prev, error: "Surrender is not available right now." }));
+      return;
+    }
+    await performAction("surrender", "Surrendering hand...");
+  }, [performAction, state.playerHands, state.activeHandIndex]);
 
   const nextHand = useCallback(() => {
     setState((prev) => ({
@@ -501,6 +636,10 @@ export function useBlackjack(): BlackjackHook {
       dealerScore: null,
       playerHands: [],
       activeHandIndex: 0,
+      insuranceOffered: false,
+      insuranceTaken: false,
+      insuranceResolved: true,
+      insuranceBet: 0,
       message: "Place your wager to begin.",
       revealDealer: false,
       isBusy: false,
@@ -529,6 +668,8 @@ export function useBlackjack(): BlackjackHook {
     stand,
     doubleDown,
     split,
+    takeInsurance,
+    surrender,
     nextHand,
     setMode,
     resetError,
