@@ -218,7 +218,7 @@ contract Blackjack {
         _dealCardToHand(gameId, game, hand);
 
         (, , bool bust) = _score(hand.cards);
-        if (bust) {
+        if (playerBust) {
             hand.finished = true;
             hand.outcome = Outcome.Bust;
             hand.payout = 0;
@@ -258,7 +258,7 @@ contract Blackjack {
         _dealCardToHand(gameId, game, hand);
 
         (, , bool bust) = _score(hand.cards);
-        if (bust) {
+        if (playerBust) {
             hand.outcome = Outcome.Bust;
             hand.payout = 0;
         }
@@ -497,7 +497,7 @@ contract Blackjack {
                 continue;
             }
             (, , bool bust) = _score(hand.cards);
-            if (bust) {
+            if (playerBust) {
                 hand.finished = true;
                 hand.outcome = Outcome.Bust;
                 hand.payout = 0;
@@ -536,10 +536,8 @@ contract Blackjack {
                 sawPush = false;
                 continue;
             }
-
-            bool bust;
-            (uint8 playerTotal, , bust) = _score(hand.cards);
-            if (bust) {
+            (uint8 playerTotal,, bool playerBust) = _score(hand.cards);
+            if (playerBust) {
                 hand.outcome = Outcome.Bust;
                 hand.payout = 0;
                 total += hand.payout;
