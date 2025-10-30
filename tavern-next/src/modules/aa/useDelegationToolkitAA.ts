@@ -34,7 +34,13 @@ type DelegationModule = any;
 function pickImplementation(module: DelegationModule) {
   const { Implementation } = module;
   if (!Implementation) return null;
-  return Implementation.MultiSig ?? Implementation.Stateless7702 ?? Implementation.Hybrid ?? null;
+  // Prefer Hybrid when available, then fallback to Stateless7702, then MultiSig.
+  return (
+    Implementation.Hybrid ??
+    Implementation.Stateless7702 ??
+    Implementation.MultiSig ??
+    null
+  );
 }
 
 function deriveAlchemyRpcBase(url?: string | null) {
