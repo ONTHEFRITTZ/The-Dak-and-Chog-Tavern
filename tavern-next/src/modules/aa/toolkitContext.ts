@@ -134,6 +134,15 @@ export async function ensureDelegationToolkitContext(): Promise<DelegationToolki
     });
     if (!(walletClient as any).account?.address) {
       try {
+        const addresses = await walletClient.getAddresses?.();
+        if (addresses && addresses.length > 0) {
+          const first = addresses[0] as Address;
+          (walletClient as any).account = { address: first, type: "json-rpc" };
+        }
+      } catch {
+        // ignore getAddresses failures
+      }
+      try {
         (walletClient as any).account = walletAccount;
       } catch {
         try {
@@ -149,6 +158,10 @@ export async function ensureDelegationToolkitContext(): Promise<DelegationToolki
       }
     }
 
+    if (process.env.NODE_ENV !== "production") {
+      console.debug("[aa:toolkitContext] walletClient.account", (walletClient as any).account);
+    }
+
     const context: DelegationToolkitContext = {
       provider,
       accounts,
@@ -160,6 +173,13 @@ export async function ensureDelegationToolkitContext(): Promise<DelegationToolki
       environment: normalizeEnvironment(MONAD_DELEGATION_ENV),
       viem,
     };
+    if (process.env.NODE_ENV !== "production") {
+      console.debug("[aa:toolkitContext] context snapshot", {
+        accounts,
+        ownerAccount,
+        walletClientAccount: (walletClient as any).account,
+      });
+    }
 
     try {
       (window as any).__aaToolkitContext = context;

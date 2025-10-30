@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AlchemySmartAccountClient } from "@account-kit/infra";
 import { createAlchemySmartAccountClient, alchemy } from "@account-kit/infra";
 import { getEntryPoint, type SmartContractAccount } from "@aa-sdk/core";
-import { type Chain, type Hex } from "viem";
+import { type Address, type Chain, type Hex, hexToBytes, isHex } from "viem";
 import { useWallet } from "@/context/WalletContext";
 import {
   ALCHEMY_API_KEY,
@@ -123,10 +123,41 @@ export function useDelegationToolkitAA(): DelegationToolkitAA {
         throw new Error("MetaMask Delegation Toolkit implementation unavailable");
       }
 
+      const ethersSigner = await provider.getSigner(ownerAccount);
+      const accountSigner = {
+        address: ownerAccount as Address,
+        signMessage: async ({ message }: { message: string | { raw: string | Uint8Array } }) => {
+          const raw = typeof message === "string" ? message : message.raw;
+          const payload =
+            typeof raw === "string"
+              ? isHex(raw)
+                ? hexToBytes(raw)
+                : raw
+              : raw;
+          return ethersSigner.signMessage(payload);
+        },
+        signTypedData: async (typedData: any) => {
+          const { domain, types, message } = typedData;
+          const sanitizedDomain = Object.fromEntries(
+            Object.entries(domain ?? {}).filter(([, value]) => value != null)
+          );
+          return ethersSigner.signTypedData(sanitizedDomain as any, types, message);
+        },
+      };
+
       const signerConfig =
         implementation === module.Implementation.MultiSig
-          ? [{ walletClient }]
-          : { walletClient };
+          ? [{ account: accountSigner }]
+          : { account: accountSigner };
+      if (process.env.NODE_ENV !== "production") {
+        console.debug("[useDelegationToolkitAA] signerConfig", {
+          implementation,
+          signerConfig,
+          hasWalletClient: Array.isArray(signerConfig)
+            ? signerConfig.some((entry) => "walletClient" in entry)
+            : "walletClient" in (signerConfig as Record<string, unknown>),
+        });
+      }
 
       const storedAddress = loadSmartAccountAddress(publicClient.chain?.id ?? MONAD.id);
       const multiSigDeployParams: [string[], bigint] = [[ownerAccount], 1n];
