@@ -640,7 +640,7 @@ contract Blackjack {
         return !bust && total == 21;
     }
 
-    function _canSplit(uint8[] storage cards) internal pure returns (bool) {
+    function _canSplit(uint8[] storage cards) internal view returns (bool) {
         if (cards.length != 2) return false;
         uint8 rankA = cards[0] % 13;
         uint8 rankB = cards[1] % 13;
