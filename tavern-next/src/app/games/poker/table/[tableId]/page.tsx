@@ -6,6 +6,7 @@ import { useRealtimePokerTable } from "@/hooks/useRealtimePokerTable";
 import { useWallet } from "@/context/WalletContext";
 import { useHoldemPokerActions } from "@/modules/poker/useHoldemPokerActions";
 import { usePageBackdrop } from "@/hooks/usePageBackdrop";
+import { useBankroll, formatDcmon } from "@/modules/bankroll";
 
 const cx = (...args: Array<string | false | null | undefined>) => args.filter(Boolean).join(" ");
 
@@ -114,6 +115,7 @@ export default function PokerTablePage({ params }: TablePageProps) {
   const { address } = useWallet();
   const realtime = useRealtimePokerTable(tableId);
   const holdem = useHoldemPokerActions();
+  const { dcmonBalance } = useBankroll();
   const addressLower = useMemo(() => (address ?? "").toLowerCase(), [address]);
   const isSimulatedTable = useMemo(() => {
     const table = realtime.table;
@@ -675,6 +677,10 @@ export default function PokerTablePage({ params }: TablePageProps) {
   const isReadyStage = ["", "waiting", "betting", "showdown"].includes(stageKey);
   const showReadyButton = isSeated && !isInHand && isReadyStage;
   const showActionButtons = isSeated && isMyTurn && isInHand && !actionBusy;
+  const myDcmonBalanceLabel = useMemo(
+    () => `${formatDcmon(dcmonBalance)} DCMon`,
+    [dcmonBalance]
+  );
   useEffect(() => {
     if (!showReadyButton || !isSeated) {
       setReadySubmitted(false);
@@ -996,8 +1002,13 @@ export default function PokerTablePage({ params }: TablePageProps) {
       button.removeEventListener("click", handleClick);
       button.addEventListener("click", handleClick);
       button.disabled = actionBusy;
-      button.style.display = "inline-flex";
-      if (button.parentElement !== pill) {
+      button.style.removeProperty("display");
+      const disconnectButton = pill.querySelector("#wi-disconnect");
+      if (disconnectButton && button.nextSibling !== disconnectButton) {
+        pill.insertBefore(button, disconnectButton);
+      } else if (!disconnectButton && button.parentElement !== pill) {
+        pill.appendChild(button);
+      } else if (button.parentElement !== pill) {
         pill.appendChild(button);
       }
     };
@@ -1041,6 +1052,7 @@ export default function PokerTablePage({ params }: TablePageProps) {
                   isMySeat && showReadyButton && readySubmitted && baseStatus !== "Ready"
                     ? "Ready"
                     : baseStatus;
+                const balanceDisplay = seat.isUser ? myDcmonBalanceLabel : seat.balanceLabel;
 
                 return (
                   <div
@@ -1083,9 +1095,9 @@ export default function PokerTablePage({ params }: TablePageProps) {
                       ) : null
                     ) : (
                     <>
-                      {seat.balanceLabel && (
+                      {balanceDisplay && (
                         <div className="seat-info">
-                          <span>{seat.balanceLabel}</span>
+                          <span>{balanceDisplay}</span>
                         </div>
                       )}
                       {derivedStatus && <div className="seat-status">{derivedStatus}</div>}
