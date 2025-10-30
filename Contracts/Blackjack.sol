@@ -218,7 +218,7 @@ contract Blackjack {
         _dealCardToHand(gameId, game, hand);
 
         (, , bool bust) = _score(hand.cards);
-        if (playerBust) {
+        if (bust) {
             hand.finished = true;
             hand.outcome = Outcome.Bust;
             hand.payout = 0;
@@ -258,7 +258,7 @@ contract Blackjack {
         _dealCardToHand(gameId, game, hand);
 
         (, , bool bust) = _score(hand.cards);
-        if (playerBust) {
+        if (bust) {
             hand.outcome = Outcome.Bust;
             hand.payout = 0;
         }
@@ -451,9 +451,7 @@ contract Blackjack {
             if (_isNaturalBlackjack(hand)) {
                 hand.outcome = Outcome.Push;
                 hand.payout = int256(hand.stake);
-                total += hand.payout;
-                aggregate = Outcome.Push;
-                sawPush = true;
+                total += hand.payout;                sawPush = true;
             } else {
                 hand.outcome = Outcome.Lose;
                 hand.payout = 0;
@@ -497,7 +495,7 @@ contract Blackjack {
                 continue;
             }
             (, , bool bust) = _score(hand.cards);
-            if (playerBust) {
+            if (bust) {
                 hand.finished = true;
                 hand.outcome = Outcome.Bust;
                 hand.payout = 0;
@@ -536,8 +534,8 @@ contract Blackjack {
                 sawPush = false;
                 continue;
             }
-            (uint8 playerTotal,, bool playerBust) = _score(hand.cards);
-            if (playerBust) {
+            (uint8 playerTotal,, bool bust) = _score(hand.cards);
+            if (bust) {
                 hand.outcome = Outcome.Bust;
                 hand.payout = 0;
                 total += hand.payout;
