@@ -4,7 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AlchemySmartAccountClient } from "@account-kit/infra";
 import { createAlchemySmartAccountClient, alchemy } from "@account-kit/infra";
 import { getEntryPoint, type SmartContractAccount } from "@aa-sdk/core";
-import { type Chain, type Hex } from "viem";
+import { type Chain, type Hex, type Address, type WalletClient } from "viem";
+import { useWalletClient } from "wagmi";
 import { useWallet } from "@/context/WalletContext";
 import {
   ALCHEMY_API_KEY,
@@ -13,7 +14,7 @@ import {
   MONAD_CHAIN,
 } from "@/lib/config";
 import { ensureDelegationToolkitContext, resetDelegationToolkitContext } from "./toolkitContext";
-import type { DelegationToolkitContext } from "./toolkitContext";
+import type { DelegationToolkitContext, PickedProvider } from "./toolkitContext";
 import { loadSmartAccountAddress, storeSmartAccountAddress } from "./storage";
 
 type SendTransactionParams = {
@@ -79,6 +80,7 @@ export function useDelegationToolkitAA(): DelegationToolkitAA {
   const { provider, address } = useWallet();
   const [initializing, setInitializing] = useState(false);
   const [ready, setReady] = useState(false);
+  const { data: wagmiWalletClient } = useWalletClient();
 
   const alchemyClientRef = useRef<AlchemySmartAccountClient | null>(null);
   const smartAccountRef = useRef<SmartContractAccount | null>(null);
@@ -113,9 +115,21 @@ export function useDelegationToolkitAA(): DelegationToolkitAA {
       if (!provider || !address) {
         throw new Error("Connect wallet to continue.");
       }
+      if (!wagmiWalletClient) {
+        throw new Error("Wallet client unavailable");
+      }
       setInitializing(true);
 
-      const ctx = await ensureDelegationToolkitContext();
+      const rawProvider =
+        ((wagmiWalletClient.transport as any)?.value as PickedProvider | undefined) ??
+        (provider as any)?.provider ??
+        (provider as any);
+
+      const ctx = await ensureDelegationToolkitContext({
+        ownerAccount: address as Address,
+        walletClient: wagmiWalletClient as unknown as WalletClient,
+        provider: rawProvider ?? null,
+      });
       contextRef.current = ctx;
 
       const { publicClient, walletClient, environment, ownerAccount } = ctx;
@@ -325,7 +339,7 @@ export function useDelegationToolkitAA(): DelegationToolkitAA {
 
     initPromiseRef.current = promise;
     await promise;
-  }, [address, provider, ready, resetState]);
+  }, [address, provider, ready, resetState, wagmiWalletClient]);
 
   const sendTransaction = useCallback(
     async ({ to, data, value = 0n }: SendTransactionParams) => {

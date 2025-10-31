@@ -4,7 +4,7 @@ import { createPublicClient, createWalletClient, custom, http, type Address, typ
 import { toAccount } from "viem/accounts";
 import { MONAD, MONAD_CHAIN } from "@/lib/config";
 import { MONAD_DELEGATION_ENV, type DelegationEnvironment } from "./delegationEnvironment";
-import { getAccount, getWalletClient } from "@wagmi/core";
+import { getWalletClient } from "@wagmi/core";
 import { wagmiConfig } from "@/wagmi/config";
 
 export type PickedProvider = {
@@ -42,6 +42,14 @@ function pickProvider(): PickedProvider | null {
   const phantom = (window as any).phantom?.ethereum;
   if (phantom?.request) return phantom;
   return null;
+}
+
+async function requestAccounts(provider: PickedProvider): Promise<string[]> {
+  const accounts = await provider.request({ method: "eth_requestAccounts" });
+  if (!Array.isArray(accounts) || accounts.length === 0) {
+    throw new Error("Wallet connection required");
+  }
+  return accounts.map((address) => String(address).toLowerCase());
 }
 
 async function switchToMonad(provider: PickedProvider): Promise<void> {
@@ -165,7 +173,11 @@ function normalizeEnvironment(source: DelegationEnvironment) {
   return env;
 }
 
-export async function ensureDelegationToolkitContext(): Promise<DelegationToolkitContext> {
+export async function ensureDelegationToolkitContext(overrides?: {
+  ownerAccount?: Address;
+  walletClient?: WalletClient | null;
+  provider?: PickedProvider | null;
+}): Promise<DelegationToolkitContext> {
   if (contextPromise) return contextPromise;
 
   contextPromise = (async () => {
@@ -173,32 +185,43 @@ export async function ensureDelegationToolkitContext(): Promise<DelegationToolki
       throw new Error("Delegation Toolkit requires a browser environment");
     }
 
-    const wagmiAccount = getAccount(wagmiConfig);
-    const ownerAccount = wagmiAccount?.address;
-    if (!ownerAccount) {
-      throw new Error("Wallet connection required");
+    let providerOverride = overrides?.provider ?? null;
+    let ownerAccount = overrides?.ownerAccount ?? null;
+    let walletClient = overrides?.walletClient ?? null;
+    let accounts: string[] | null = null;
+
+    if (ownerAccount && walletClient) {
+      providerOverride =
+        providerOverride ??
+        ((walletClient.transport as any)?.value as PickedProvider | undefined) ??
+        pickProvider();
+      if (!providerOverride?.request) {
+        throw new Error("EVM provider not detected");
+      }
+      await switchToMonad(providerOverride);
+      accounts = [ownerAccount.toLowerCase()];
+    } else {
+      const provider = providerOverride ?? pickProvider();
+      if (!provider) {
+        throw new Error("EVM provider not detected");
+      }
+      await switchToMonad(provider);
+      const requestedAccounts = await requestAccounts(provider);
+      ownerAccount = requestedAccounts[0] as Address;
+      accounts = requestedAccounts;
+      walletClient = (await getWalletClient(wagmiConfig, {
+        chainId: MONAD.id,
+        account: ownerAccount,
+      })) as WalletClient | null;
+      if (!walletClient) {
+        throw new Error("Wallet client unavailable");
+      }
+      providerOverride = provider;
     }
-
-    const walletClient = (await getWalletClient(wagmiConfig, {
-      chainId: MONAD.id,
-      account: ownerAccount,
-    })) as WalletClient | null;
-
-    if (!walletClient) {
-      throw new Error("Wallet client unavailable");
-    }
-
-    const transportProvider =
-      ((walletClient.transport as any)?.value as PickedProvider | undefined) ?? pickProvider();
-
-    if (!transportProvider?.request) {
-      throw new Error("EVM provider not detected");
-    }
-
-    await switchToMonad(transportProvider);
 
     const ownerAddress = ownerAccount as Address;
-    const hydratedWalletClient = await ensureWalletClientAccount(walletClient, ownerAddress, transportProvider);
+    const baseProvider = providerOverride as PickedProvider;
+    const hydratedWalletClient = await ensureWalletClientAccount(walletClient, ownerAddress, baseProvider);
     const usedWagmiClient = walletClient === hydratedWalletClient && !!(walletClient as any)?.account?.address;
     const finalWalletClient = hydratedWalletClient;
     if (!(finalWalletClient as any)?.account?.address) {
@@ -212,17 +235,16 @@ export async function ensureDelegationToolkitContext(): Promise<DelegationToolki
       transport: http(MONAD.rpcHttp),
     });
 
-    let accounts: string[] = [];
     try {
       const addresses = await finalWalletClient.getAddresses?.();
       if (addresses?.length) {
         accounts = addresses.map((addr) => String(addr).toLowerCase());
       }
     } catch {
-      // ignore
+      // ignore getAddresses errors
     }
-    if (accounts.length === 0) {
-      accounts = [ownerAccount.toLowerCase()];
+    if (!accounts || accounts.length === 0) {
+      accounts = [ownerAccount!.toLowerCase()];
     }
 
     if (process.env.NODE_ENV !== "production") {
@@ -232,10 +254,10 @@ export async function ensureDelegationToolkitContext(): Promise<DelegationToolki
     }
 
     const context: DelegationToolkitContext = {
-      provider: transportProvider,
+      provider: baseProvider,
       accounts,
-      account: ownerAccount,
-      ownerAccount,
+      account: ownerAccount!,
+      ownerAccount: ownerAccount!,
       publicClient,
       walletClient: finalWalletClient,
       walletChain: MONAD_CHAIN,
@@ -246,7 +268,7 @@ export async function ensureDelegationToolkitContext(): Promise<DelegationToolki
       console.debug("[aa:toolkitContext] context snapshot", {
         accounts,
         ownerAccount,
-        walletClientAccount: (walletClient as any).account,
+        walletClientAccount: (finalWalletClient as any).account,
       });
     }
 
