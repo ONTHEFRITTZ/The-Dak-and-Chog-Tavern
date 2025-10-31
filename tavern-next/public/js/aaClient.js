@@ -1301,6 +1301,7 @@ async function buildAA4337Account(injected, { bundlerUrl, paymasterUrl }) {
 try {
   if (typeof window !== 'undefined') {
     window.AA = AA;
+    window.AAClient = client;
   }
 } catch {}
 

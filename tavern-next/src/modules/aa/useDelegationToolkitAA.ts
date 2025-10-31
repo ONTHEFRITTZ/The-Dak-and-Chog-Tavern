@@ -21,6 +21,7 @@ type SendTransactionParams = {
   to: string;
   data?: Hex | string;
   value?: bigint;
+  useFallback?: boolean;
 };
 
 export type DelegationToolkitAA = {
@@ -355,7 +356,7 @@ export function useDelegationToolkitAA(): DelegationToolkitAA {
   }, [address, provider, ready, resetState, wagmiWalletClient]);
 
   const sendTransaction = useCallback(
-    async ({ to, data, value = 0n }: SendTransactionParams) => {
+    async ({ to, data, value = 0n, useFallback = true }: SendTransactionParams) => {
       if (!to) {
         throw new Error("Transaction target missing");
       }
@@ -382,6 +383,9 @@ export function useDelegationToolkitAA(): DelegationToolkitAA {
         return txHash;
       } catch (err) {
         console.warn("[useDelegationToolkitAA] sendTransaction via AA failed", err);
+        if (!useFallback) {
+          throw err;
+        }
         if (!provider) throw err;
         const signer = await provider.getSigner();
         const txResponse = await signer.sendTransaction({

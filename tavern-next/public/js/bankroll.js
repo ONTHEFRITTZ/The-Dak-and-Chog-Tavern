@@ -28,6 +28,8 @@
     'function allowance(address owner, address spender) view returns (uint256)',
     'function approve(address spender, uint256 amount) returns (bool)'
   ];
+  const SMART_ACCOUNT_KEY_PREFIX = 'aa:toolkit:account:';
+  const HEX40 = /^0x[0-9a-fA-F]{40}$/i;
   try {
     if (!Array.isArray(window.DCMonABI)) window.DCMonABI = FALLBACK_DCMON_ABI;
   } catch {}
@@ -403,6 +405,93 @@
       return '';
     }
   
+    function normalizeAddress(value) {
+      if (!value) return '';
+      const str = String(value).trim();
+      return HEX40.test(str) ? str : '';
+    }
+
+    function storedSmartAccount(chainId) {
+      const key = `${SMART_ACCOUNT_KEY_PREFIX}${chainId || ''}`;
+      try {
+        const val = localStorage.getItem(key) || sessionStorage.getItem(key);
+        return normalizeAddress(val);
+      } catch {
+        return '';
+      }
+    }
+
+    async function resolveSmartAccountAddress() {
+      const prefer = (addr) => {
+        const normalized = normalizeAddress(addr);
+        return normalized || null;
+      };
+      try {
+        const aaDirect = prefer(window.AA?.smartAccountAddress);
+        if (aaDirect) return aaDirect;
+      } catch {}
+      try {
+        const clientAddr = prefer(window.AAClient?.smartAccountAddress);
+        if (clientAddr) return clientAddr;
+      } catch {}
+      try {
+        const smartAddr = prefer(window.smartAccount?.address);
+        if (smartAddr) return smartAddr;
+      } catch {}
+      const mon = await loadMonConfig();
+      const stored = storedSmartAccount(mon?.id || 0) || storedSmartAccount((window.MONAD && window.MONAD.id) || 0);
+      return stored || null;
+    }
+
+    async function ensureAAClient() {
+      if (window.AAClient && typeof window.AAClient.sendTransaction === 'function') {
+        return window.AAClient;
+      }
+      try {
+        if (window.AA && typeof window.AA.init === 'function') {
+          await window.AA.init();
+        }
+      } catch (err) {
+        console.warn('bankroll: AA init failed', err);
+      }
+      if (window.AAClient && typeof window.AAClient.sendTransaction === 'function') {
+        return window.AAClient;
+      }
+      try {
+        if (typeof window.enableSmartAccountNow === 'function') {
+          await window.enableSmartAccountNow();
+        }
+      } catch {}
+      return (window.AAClient && typeof window.AAClient.sendTransaction === 'function') ? window.AAClient : null;
+    }
+
+    async function waitForTransaction(hash) {
+      if (!hash) return null;
+      const base = rpcProvider || await getProvider();
+      if (!base) return null;
+      try {
+        if (typeof base.waitForTransaction === 'function') {
+          return await base.waitForTransaction(hash);
+        }
+        if (base.provider && typeof base.provider.waitForTransaction === 'function') {
+          return await base.provider.waitForTransaction(hash);
+        }
+        if (typeof base.getTransactionReceipt === 'function') {
+          let receipt = null;
+          let attempts = 0;
+          while (!receipt && attempts < 40) {
+            attempts += 1;
+            receipt = await base.getTransactionReceipt(hash).catch(() => null);
+            if (receipt) break;
+            await new Promise((resolve) => setTimeout(resolve, 750));
+          }
+          return receipt;
+        }
+      } catch (err) {
+        console.warn('bankroll: waitForTransaction failed', err);
+      }
+      return null;
+    }
     let providerCache = null;
     let injectedProvider = null;
     function getRequestFn(src) {
@@ -856,8 +945,28 @@
         await ensureWrap(amountWei, addr);
         await ensureWmonAllowance(amountWei, addr);
         setStatus('Minting DCMon...', 'info');
-        const tx = await dcmonWrite.deposit(numeric.toBigNumberish(amountWei), addr);
-        await tx.wait();
+        const depositTx = await dcmonWrite.deposit(numeric.toBigNumberish(amountWei), addr);
+        await depositTx.wait();
+
+        let smartAddr = null;
+        try {
+          smartAddr = await resolveSmartAccountAddress();
+        } catch {}
+        const ownerLower = addr.toLowerCase();
+        const smartLower = smartAddr ? smartAddr.toLowerCase() : '';
+        if (smartAddr && smartLower !== ownerLower) {
+          try {
+            setStatus('Funding smart account...', 'info');
+            const transferTx = await dcmonWrite.transfer(smartAddr, numeric.toBigNumberish(amountWei));
+            await transferTx.wait();
+          } catch (transferErr) {
+            console.error('bankroll: smart account funding failed', transferErr);
+            const msg = transferErr?.error?.message || transferErr?.data?.message || transferErr?.reason || transferErr?.message || 'Failed to fund smart account.';
+            setStatus(msg, 'error');
+            return;
+          }
+        }
+
         clearInput(controlTargets.buyInputs);
         setStatus('Buy-in complete.', 'success');
         await refreshBalance(addr);
@@ -889,6 +998,52 @@
       }
   
       try {
+        const smartAddr = await resolveSmartAccountAddress();
+        const ownerLower = addr.toLowerCase();
+        const smartLower = smartAddr ? smartAddr.toLowerCase() : '';
+        if (smartAddr && smartLower !== ownerLower) {
+          try {
+            const smartBalRaw = await dcmonRead.balanceOf(smartAddr);
+            const smartBal = numeric.from(smartBalRaw);
+            if (!numeric.gte(smartBal, amountWei)) {
+              const readable = formatEther(smartBal);
+              setStatus(`Smart account balance is ${readable} DCMon. Adjust cash-out amount.`, 'error');
+              return;
+            }
+          } catch (balErr) {
+            console.error('bankroll: smart account balance lookup failed', balErr);
+            setStatus('Unable to read smart account balance. Try again.', 'error');
+            return;
+          }
+          const aaClient = await ensureAAClient();
+          if (!aaClient) {
+            setStatus('Smart account client unavailable. Enable gasless mode and try again.', 'error');
+            return;
+          }
+          setStatus('Moving DCMon to your wallet...', 'info');
+          let saHash = null;
+          try {
+            const encoded = dcmonWrite.interface.encodeFunctionData('transfer', [addr, numeric.toBigNumberish(amountWei)]);
+            saHash = await aaClient.sendTransaction({
+              to: dcmonAddress,
+              data: encoded,
+              value: 0n,
+              noSignerFallback: true,
+            });
+          } catch (transferErr) {
+            console.error('bankroll: smart account cash-out transfer failed', transferErr);
+            const msg = transferErr?.error?.message || transferErr?.data?.message || transferErr?.reason || transferErr?.message || 'Failed to pull DCMon from smart account.';
+            setStatus(msg, 'error');
+            return;
+          }
+          const finalHash = typeof saHash === 'string' ? saHash : (saHash?.hash || saHash?.transactionHash);
+          if (!finalHash) {
+            setStatus('Smart account transfer blocked.', 'error');
+            return;
+          }
+          await waitForTransaction(finalHash);
+        }
+
         setStatus('Redeeming DCMon...', 'info');
         const tx = await dcmonWrite.redeem(numeric.toBigNumberish(amountWei), addr);
         await tx.wait();
@@ -1029,9 +1184,3 @@
 
   document.addEventListener('wallet:ethers-ready', handleReady);
 })();
-
-
-
-
-
-
