@@ -28,6 +28,8 @@ export type DelegationToolkitAA = {
   initializing: boolean;
   sendTransaction: (params: SendTransactionParams) => Promise<string | null>;
   ensureReady: () => Promise<void>;
+  smartAccountAddress: Address | null;
+  ownerAddress: Address | null;
 };
 
 type DelegationModule = any;
@@ -81,6 +83,8 @@ export function useDelegationToolkitAA(): DelegationToolkitAA {
   const [initializing, setInitializing] = useState(false);
   const [ready, setReady] = useState(false);
   const { data: wagmiWalletClient } = useWalletClient();
+  const [smartAccountAddress, setSmartAccountAddress] = useState<Address | null>(null);
+  const [ownerAddress, setOwnerAddress] = useState<Address | null>(null);
 
   const alchemyClientRef = useRef<AlchemySmartAccountClient | null>(null);
   const smartAccountRef = useRef<SmartContractAccount | null>(null);
@@ -93,6 +97,8 @@ export function useDelegationToolkitAA(): DelegationToolkitAA {
     contextRef.current = null;
     initPromiseRef.current = null;
     setReady(false);
+    setSmartAccountAddress(null);
+    setOwnerAddress(null);
   }, []);
 
   useEffect(() => {
@@ -133,6 +139,7 @@ export function useDelegationToolkitAA(): DelegationToolkitAA {
       contextRef.current = ctx;
 
       const { publicClient, walletClient, environment, ownerAccount } = ctx;
+      setOwnerAddress(ownerAccount as Address);
       if (!walletClient || !publicClient) {
         throw new Error("Delegation Toolkit context incomplete");
       }
@@ -184,8 +191,14 @@ export function useDelegationToolkitAA(): DelegationToolkitAA {
       });
 
       const accountLike = smartAccount as any;
-      const smartAccountAddress = typeof accountLike.getAddress === "function" ? await accountLike.getAddress() : accountLike.address;
-      storeSmartAccountAddress(publicClient.chain?.id ?? MONAD.id, smartAccountAddress);
+      const derivedSmartAccountAddress =
+        typeof accountLike.getAddress === "function"
+          ? await accountLike.getAddress()
+          : accountLike.address;
+      if (derivedSmartAccountAddress) {
+        setSmartAccountAddress(derivedSmartAccountAddress as Address);
+        storeSmartAccountAddress(publicClient.chain?.id ?? MONAD.id, derivedSmartAccountAddress);
+      }
 
       const alchemyBase = deriveAlchemyRpcBase(MONAD_BUNDLER_RPC);
       const chain: Chain = (alchemyBase
@@ -389,9 +402,13 @@ export function useDelegationToolkitAA(): DelegationToolkitAA {
       initializing,
       sendTransaction,
       ensureReady,
+      smartAccountAddress,
+      ownerAddress,
     }),
-    [ready, initializing, sendTransaction, ensureReady]
+    [ready, initializing, sendTransaction, ensureReady, smartAccountAddress, ownerAddress]
   );
 }
+
+
 
 

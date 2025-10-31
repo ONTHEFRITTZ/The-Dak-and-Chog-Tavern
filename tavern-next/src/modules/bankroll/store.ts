@@ -5,6 +5,9 @@ export type BankrollSnapshot = {
   monBalance: bigint;
   loading: boolean;
   lastUpdated: number | null;
+  activeAddress: string | null;
+  ownerAddress: string | null;
+  smartAccountAddress: string | null;
 };
 
 type Listener = () => void;
@@ -16,6 +19,9 @@ let state: BankrollSnapshot = {
   monBalance: 0n,
   loading: false,
   lastUpdated: null,
+  activeAddress: null,
+  ownerAddress: null,
+  smartAccountAddress: null,
 };
 
 function emit() {

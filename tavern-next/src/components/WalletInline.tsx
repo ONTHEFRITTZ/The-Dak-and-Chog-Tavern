@@ -4,6 +4,9 @@ import Image from "next/image";
 import { useCallback, useMemo } from "react";
 import { ethers } from "ethers";
 import { useWallet } from "../context/WalletContext";
+import { useBankroll } from "@/modules/bankroll/useBankroll";
+import { useBankrollState } from "@/modules/bankroll/store";
+import { formatDcmon } from "@/modules/bankroll";
 
 type WalletTypeIconMap = {
   [key: string]: string;
@@ -40,6 +43,8 @@ function truncateAddress(addr: string | null): string {
 
 export const WalletInline = () => {
   const { address, connect, disconnect, isConnecting, walletType } = useWallet();
+  const { refresh } = useBankroll();
+  const { dcmonBalance, monBalance, loading } = useBankrollState();
   const label = useMemo(() => truncateAddress(address), [address]);
 
   const walletIcon = useMemo(() => {
@@ -66,6 +71,13 @@ export const WalletInline = () => {
     }
   }, [address]);
 
+  const handleRefreshBalances = useCallback(() => {
+    refresh().catch(() => void 0);
+  }, [refresh]);
+
+  const dcmonLabel = useMemo(() => formatDcmon(dcmonBalance, 3), [dcmonBalance]);
+  const monLabel = useMemo(() => formatDcmon(monBalance, 3), [monBalance]);
+
   return (
     <div id="wallet-inline">
       {walletIcon && (
@@ -74,6 +86,23 @@ export const WalletInline = () => {
         </div>
       )}
       <span id="wi-address">{label}</span>
+      <div className="wallet-balances" aria-live="polite">
+        <span className="wallet-balance">
+          DCMon: <strong>{dcmonLabel}</strong>
+        </span>
+        <span className="wallet-balance">
+          MON: <strong>{monLabel}</strong>
+        </span>
+        <button
+          type="button"
+          className="wallet-refresh"
+          onClick={handleRefreshBalances}
+          disabled={loading}
+          aria-label="Refresh wallet balances"
+        >
+          {loading ? "Refreshing..." : "Refresh"}
+        </button>
+      </div>
       <button
         id="wi-wallet-btn"
         type="button"
