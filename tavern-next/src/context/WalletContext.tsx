@@ -203,7 +203,7 @@ declare global {
   interface Window {
     __walletProvider?: PickedProvider;
     __getSelectedProvider?: (hint?: string) => any;
-    ethereum?: PickedProvider;
+    ethereum?: any;
     phantom?: { ethereum?: PickedProvider };
   }
 }
