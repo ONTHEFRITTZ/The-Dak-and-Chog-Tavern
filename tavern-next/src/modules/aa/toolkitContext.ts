@@ -88,27 +88,72 @@ async function switchToMonad(provider: PickedProvider): Promise<void> {
 
 function createWalletClientWithAccount(provider: PickedProvider, address: Address): WalletClient {
   const account = toAccount(address);
-  const baseClient = createWalletClient({
+  const client = createWalletClient({
     chain: MONAD_CHAIN,
     transport: custom(provider as any),
     account,
-  });
-  const supplyAddresses = async () => [account.address as Address];
-  return new Proxy(baseClient, {
-    get(target, prop, receiver) {
-      if (prop === "account") return account;
-      if (prop === "getAddresses" || prop === "requestAddresses") {
-        return supplyAddresses;
-      }
-      return Reflect.get(target, prop, receiver);
-    },
-    set(target, prop, value, receiver) {
-      if (prop === "account") {
-        return true;
-      }
-      return Reflect.set(target, prop, value, receiver);
-    },
   }) as WalletClient;
+  return assignAccountToWalletClient(client, account);
+}
+
+function assignAccountToWalletClient(walletClient: WalletClient, account: ReturnType<typeof toAccount>): WalletClient {
+  const supplyAddresses = async () => [account.address as Address];
+  try {
+    Object.defineProperty(walletClient, "account", {
+      configurable: true,
+      enumerable: true,
+      value: account,
+      writable: false,
+    });
+  } catch {
+    (walletClient as any).account = account;
+  }
+  if (!(walletClient as any).getAddresses) {
+    (walletClient as any).getAddresses = supplyAddresses;
+  }
+  if (!(walletClient as any).requestAddresses) {
+    (walletClient as any).requestAddresses = supplyAddresses;
+  }
+  return walletClient;
+}
+
+async function ensureWalletClientAccount(
+  walletClient: WalletClient | null,
+  ownerAddress: Address,
+  provider: PickedProvider
+): Promise<WalletClient> {
+  if (!walletClient) {
+    return createWalletClientWithAccount(provider, ownerAddress);
+  }
+
+  const currentAddress = (walletClient as any)?.account?.address as Address | undefined;
+  if (currentAddress) {
+    return walletClient;
+  }
+
+  let discoveredAddress: Address | undefined;
+  try {
+    const fromClient = await walletClient.getAddresses?.();
+    if (fromClient && fromClient.length > 0) {
+      discoveredAddress = fromClient[0] as Address;
+    }
+  } catch {
+    // ignore getAddresses errors
+  }
+
+  if (!discoveredAddress) {
+    try {
+      const fromProvider = await provider.request({ method: "eth_accounts" });
+      if (Array.isArray(fromProvider) && fromProvider.length > 0) {
+        discoveredAddress = fromProvider[0] as Address;
+      }
+    } catch {
+      // ignore provider lookup failures
+    }
+  }
+
+  const account = toAccount((discoveredAddress ?? ownerAddress) as Address);
+  return assignAccountToWalletClient(walletClient, account);
 }
 function normalizeEnvironment(source: DelegationEnvironment) {
   const env = JSON.parse(JSON.stringify(source)) as DelegationEnvironment;
@@ -164,16 +209,22 @@ export async function ensureDelegationToolkitContext(): Promise<DelegationToolki
     const normalizedAccounts = Array.from(new Set([ownerAccount.toLowerCase(), ...accounts]));
     let walletClient: WalletClient | null = null;
     try {
-      walletClient = (await getWalletClient(wagmiConfig, { chainId: MONAD.id })) as WalletClient | null;
+      walletClient = (await getWalletClient(wagmiConfig, {
+        chainId: MONAD.id,
+        account: ownerAddress,
+      })) as WalletClient | null;
     } catch {
       walletClient = null;
     }
-    if (!walletClient || !(walletClient as any)?.account?.address) {
-      walletClient = createWalletClientWithAccount(provider, ownerAddress);
-    }
+
+    const hydratedWalletClient = await ensureWalletClientAccount(walletClient, ownerAddress, provider);
+    const usedWagmiClient = walletClient === hydratedWalletClient && !!(walletClient as any)?.account?.address;
+    const finalWalletClient = hydratedWalletClient;
 
     if (process.env.NODE_ENV !== "production") {
-      console.debug("[aa:toolkitContext] walletClient.account", (walletClient as any).account);
+      console.debug("[aa:toolkitContext] walletClient.account", (finalWalletClient as any).account);
+    } else if (!usedWagmiClient) {
+      console.info("[aa:toolkitContext] using fallback viem wallet client");
     }
 
     const context: DelegationToolkitContext = {
@@ -182,7 +233,7 @@ export async function ensureDelegationToolkitContext(): Promise<DelegationToolki
       account: ownerAccount,
       ownerAccount,
       publicClient,
-      walletClient,
+      walletClient: finalWalletClient,
       walletChain: MONAD_CHAIN,
       environment: normalizeEnvironment(MONAD_DELEGATION_ENV),
       viem,
