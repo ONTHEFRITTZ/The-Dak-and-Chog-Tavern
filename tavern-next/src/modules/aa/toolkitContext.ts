@@ -185,6 +185,16 @@ export async function ensureDelegationToolkitContext(overrides?: {
       throw new Error("Delegation Toolkit requires a browser environment");
     }
 
+    const cached = (window as any).__aaToolkitContext as DelegationToolkitContext | undefined;
+    if (
+      cached &&
+      (!overrides?.ownerAccount ||
+        cached.ownerAccount?.toLowerCase() === overrides.ownerAccount.toLowerCase()) &&
+      cached.walletClient?.account?.address
+    ) {
+      return cached;
+    }
+
     let providerOverride = overrides?.provider ?? null;
     let ownerAccount = overrides?.ownerAccount ?? null;
     let walletClient = overrides?.walletClient ?? null;

@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { useWalletClient } from "wagmi";
 import { useWallet } from "@/context/WalletContext";
 import { useDelegationToolkitAA } from "@/modules/aa/useDelegationToolkitAA";
 
@@ -12,6 +13,7 @@ type Stage = "age" | "wallet";
 
 export const AgeGate = () => {
   const { address, connect, isConnecting, walletType, provider } = useWallet();
+  const { data: wagmiWalletClient } = useWalletClient();
   const delegation = useDelegationToolkitAA();
   const [error, setError] = useState<string | null>(null);
   const [ageConfirmed, setAgeConfirmed] = useState<boolean | null>(null);
@@ -65,7 +67,7 @@ export const AgeGate = () => {
   };
 
   useEffect(() => {
-    if (walletType !== "metamask" || !address || !provider) {
+    if (walletType !== "metamask" || !address || !provider || !wagmiWalletClient) {
       announcedAAStatus.current = null;
       return;
     }
@@ -108,7 +110,7 @@ export const AgeGate = () => {
     return () => {
       cancelled = true;
     };
-  }, [address, walletType, provider, delegation]);
+  }, [address, walletType, provider, wagmiWalletClient, delegation]);
 
   if (!shouldShow) return null;
 
