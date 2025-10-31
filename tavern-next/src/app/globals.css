@@ -39,8 +39,8 @@ body[data-backdrop="dakchog"] {
   background-image: url('/assets/images/Dak-Chog-Coinflip-bg.png');
   background-repeat: no-repeat;
   background-attachment: fixed;
-  background-position: center bottom;
-  background-size: contain;
+  background-position: center center;
+  background-size: cover;
 }
 body[data-backdrop="none"] {
   background: #0b141e;
