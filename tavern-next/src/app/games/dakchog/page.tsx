@@ -15,6 +15,12 @@ const IMG_CHOG = "/assets/images/coin-chog.png";
 
 type CoinSide = "dak" | "chog";
 
+const FLIP_DURATION_MS = 800;
+const QUICK_FLIP_DURATION_MS = Math.round(FLIP_DURATION_MS * 0.75);
+const SPIN_CYCLE_MS = 600;
+const SPIN_SEGMENT_MS = SPIN_CYCLE_MS / 4;
+const MID_TURN_RATIO = 0.25;
+
 const clampBet = (value: string) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed < MIN_BET) return MIN_BET;
@@ -49,9 +55,13 @@ export default function DakChogPage() {
       if (flipTimerRef.current != null) {
         window.clearInterval(flipTimerRef.current);
       }
+      let step = 0;
       flipTimerRef.current = window.setInterval(() => {
-        setCoinFace((prev) => (prev === "dak" ? "chog" : "dak"));
-      }, 180);
+        step = (step + 1) % 4;
+        if (step === 1 || step === 3) {
+          setCoinFace((prev) => (prev === "dak" ? "chog" : "dak"));
+        }
+      }, SPIN_SEGMENT_MS);
     } else if (flipTimerRef.current != null) {
       window.clearInterval(flipTimerRef.current);
       flipTimerRef.current = null;
@@ -78,7 +88,7 @@ export default function DakChogPage() {
   }, [bet]);
 
   const applyCoinFace = useCallback(
-    (face: CoinSide, duration = 800) => {
+    (face: CoinSide, duration = FLIP_DURATION_MS) => {
       const el = coinRef.current;
       if (!el) {
         setCoinFace(face);
@@ -89,7 +99,7 @@ export default function DakChogPage() {
       if (swapCleanupRef.current != null) window.clearTimeout(swapCleanupRef.current);
       swapTimerRef.current = window.setTimeout(() => {
         setCoinFace(face);
-      }, Math.max(50, duration * 0.25));
+      }, Math.max(50, duration * MID_TURN_RATIO));
       swapCleanupRef.current = window.setTimeout(() => {
         el.classList.remove("flip");
         swapTimerRef.current = null;
@@ -101,7 +111,7 @@ export default function DakChogPage() {
 
   const handleChoice = (side: CoinSide) => {
     setChoice(side);
-    applyCoinFace(side, 600);
+    applyCoinFace(side, QUICK_FLIP_DURATION_MS);
   };
 
   const ensureConnected = useCallback(async () => {

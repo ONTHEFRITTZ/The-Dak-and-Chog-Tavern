@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { WalletProvider } from "../context/WalletContext";
 import { WalletInline } from "../components/WalletInline";
-import { FooterMeta } from "../components/FooterMeta";
 import { AppNav } from "../components/AppNav";
 import Script from "next/script";
 
@@ -42,7 +41,6 @@ export default function RootLayout({
           <WalletInline />
           <AppNav />
           <div className="content-frame">{children}</div>
-          <FooterMeta />
         </WalletProvider>
         <Script
           id="ethers-umd"

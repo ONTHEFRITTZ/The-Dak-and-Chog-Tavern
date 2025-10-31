@@ -1,7 +1,6 @@
 'use client';
 
 import { createPublicClient, createWalletClient, custom, http, type Address, type Chain, type PublicClient, type WalletClient } from "viem";
-import { toAccount } from "viem/accounts";
 import { MONAD, MONAD_CHAIN } from "@/lib/config";
 import { MONAD_DELEGATION_ENV, type DelegationEnvironment } from "./delegationEnvironment";
 
@@ -83,6 +82,24 @@ async function switchToMonad(provider: PickedProvider): Promise<void> {
   }
 }
 
+
+function createWalletClientWithAccount(provider: PickedProvider, address: Address): WalletClient {
+  const baseClient = createWalletClient({
+    chain: MONAD_CHAIN,
+    transport: custom(provider as any),
+  });
+  const account = Object.freeze({ address, type: "json-rpc" as const });
+  const supplyAddresses = async () => [account.address] as Address[];
+  return new Proxy(baseClient, {
+    get(target, prop, receiver) {
+      if (prop === "account") return account;
+      if (prop === "getAddresses" || prop === "requestAddresses") {
+        return supplyAddresses;
+      }
+      return Reflect.get(target, prop, receiver);
+    },
+  }) as WalletClient;
+}
 function normalizeEnvironment(source: DelegationEnvironment) {
   const env = JSON.parse(JSON.stringify(source)) as DelegationEnvironment;
   try {
@@ -125,38 +142,7 @@ export async function ensureDelegationToolkitContext(): Promise<DelegationToolki
     });
 
     const ownerAddress = ownerAccount as Address;
-    const walletAccount = toAccount(ownerAddress);
-
-    const walletClient = createWalletClient({
-      chain: MONAD_CHAIN,
-      transport: custom(provider as any),
-      account: walletAccount,
-    });
-    if (!(walletClient as any).account?.address) {
-      try {
-        const addresses = await walletClient.getAddresses?.();
-        if (addresses && addresses.length > 0) {
-          const first = addresses[0] as Address;
-          (walletClient as any).account = { address: first, type: "json-rpc" };
-        }
-      } catch {
-        // ignore getAddresses failures
-      }
-      try {
-        (walletClient as any).account = walletAccount;
-      } catch {
-        try {
-          Object.defineProperty(walletClient, "account", {
-            configurable: true,
-            enumerable: true,
-            value: walletAccount,
-            writable: true,
-          });
-        } catch {
-          // ignore assignment failures (viem versions may freeze clients)
-        }
-      }
-    }
+    const walletClient = createWalletClientWithAccount(provider, ownerAddress);
 
     if (process.env.NODE_ENV !== "production") {
       console.debug("[aa:toolkitContext] walletClient.account", (walletClient as any).account);

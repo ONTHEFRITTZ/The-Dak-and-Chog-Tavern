@@ -747,7 +747,7 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
 }
 
 .coin.flip {
-  animation: coin-flip 0.8s ease;
+  animation: coin-flip 0.8s linear;
 }
 
 @keyframes coin-flip {
