@@ -8,6 +8,7 @@
   const FALLBACK_DCMON_ABI = [
     'function deposit(uint256 amount, address receiver) returns (uint256)',
     'function redeem(uint256 amount, address receiver) returns (uint256)',
+    'function transfer(address to, uint256 amount) returns (bool)',
     'function exchangeRate() view returns (uint256 numerator, uint256 denominator)',
     'function previewDeposit(uint256 amountUnderlying) view returns (uint256 mintedShares)',
     'function previewRedeem(uint256 shares) view returns (uint256 amountUnderlying)',
