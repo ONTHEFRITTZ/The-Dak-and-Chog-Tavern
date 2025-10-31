@@ -35,8 +35,12 @@ body[data-backdrop="blackjack"] {
   background-size: cover;
 }
 body[data-backdrop="dakchog"] {
-  background: #0b141e url('/assets/images/Dak-Chog-Coinflip-bg.png') no-repeat center center fixed;
-  background-size: cover;
+  background-color: #0b141e;
+  background-image: url('/assets/images/Dak-Chog-Coinflip-bg.png');
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  background-position: center bottom;
+  background-size: contain;
 }
 body[data-backdrop="none"] {
   background: #0b141e;
