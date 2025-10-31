@@ -44,14 +44,6 @@ function pickProvider(): PickedProvider | null {
   return null;
 }
 
-async function requestAccounts(provider: PickedProvider): Promise<string[]> {
-  const accounts = await provider.request({ method: "eth_requestAccounts" });
-  if (!Array.isArray(accounts) || accounts.length === 0) {
-    throw new Error("Wallet connection required");
-  }
-  return accounts.map((address) => String(address).toLowerCase());
-}
-
 async function switchToMonad(provider: PickedProvider): Promise<void> {
   const targetChainHex = `0x${MONAD.id.toString(16)}`;
   try {
@@ -181,22 +173,37 @@ export async function ensureDelegationToolkitContext(): Promise<DelegationToolki
       throw new Error("Delegation Toolkit requires a browser environment");
     }
 
-    const provider = pickProvider();
-    if (!provider) {
+    const wagmiAccount = getAccount(wagmiConfig);
+    const ownerAccount = wagmiAccount?.address;
+    if (!ownerAccount) {
+      throw new Error("Wallet connection required");
+    }
+
+    const walletClient = (await getWalletClient(wagmiConfig, {
+      chainId: MONAD.id,
+      account: ownerAccount,
+    })) as WalletClient | null;
+
+    if (!walletClient) {
+      throw new Error("Wallet client unavailable");
+    }
+
+    const transportProvider =
+      ((walletClient.transport as any)?.value as PickedProvider | undefined) ?? pickProvider();
+
+    if (!transportProvider?.request) {
       throw new Error("EVM provider not detected");
     }
 
-    await switchToMonad(provider);
-    const accounts = await requestAccounts(provider);
-    let ownerAccount = accounts[0];
+    await switchToMonad(transportProvider);
 
-    try {
-      const wagmiAccount = getAccount(wagmiConfig);
-      if (wagmiAccount?.address) {
-        ownerAccount = wagmiAccount.address;
-      }
-    } catch {
-      // ignore wagmi account access failures
+    const ownerAddress = ownerAccount as Address;
+    const hydratedWalletClient = await ensureWalletClientAccount(walletClient, ownerAddress, transportProvider);
+    const usedWagmiClient = walletClient === hydratedWalletClient && !!(walletClient as any)?.account?.address;
+    const finalWalletClient = hydratedWalletClient;
+    if (!(finalWalletClient as any)?.account?.address) {
+      console.error("[aa:toolkitContext] wallet client missing account", finalWalletClient);
+      throw new Error("Delegation Toolkit wallet client lacks an account address");
     }
 
     const viem = await import("viem");
@@ -205,21 +212,18 @@ export async function ensureDelegationToolkitContext(): Promise<DelegationToolki
       transport: http(MONAD.rpcHttp),
     });
 
-    const ownerAddress = ownerAccount as Address;
-    const normalizedAccounts = Array.from(new Set([ownerAccount.toLowerCase(), ...accounts]));
-    let walletClient: WalletClient | null = null;
+    let accounts: string[] = [];
     try {
-      walletClient = (await getWalletClient(wagmiConfig, {
-        chainId: MONAD.id,
-        account: ownerAddress,
-      })) as WalletClient | null;
+      const addresses = await finalWalletClient.getAddresses?.();
+      if (addresses?.length) {
+        accounts = addresses.map((addr) => String(addr).toLowerCase());
+      }
     } catch {
-      walletClient = null;
+      // ignore
     }
-
-    const hydratedWalletClient = await ensureWalletClientAccount(walletClient, ownerAddress, provider);
-    const usedWagmiClient = walletClient === hydratedWalletClient && !!(walletClient as any)?.account?.address;
-    const finalWalletClient = hydratedWalletClient;
+    if (accounts.length === 0) {
+      accounts = [ownerAccount.toLowerCase()];
+    }
 
     if (process.env.NODE_ENV !== "production") {
       console.debug("[aa:toolkitContext] walletClient.account", (finalWalletClient as any).account);
@@ -228,8 +232,8 @@ export async function ensureDelegationToolkitContext(): Promise<DelegationToolki
     }
 
     const context: DelegationToolkitContext = {
-      provider,
-      accounts: normalizedAccounts,
+      provider: transportProvider,
+      accounts,
       account: ownerAccount,
       ownerAccount,
       publicClient,
