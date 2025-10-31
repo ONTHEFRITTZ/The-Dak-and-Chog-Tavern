@@ -70,17 +70,6 @@ const initialState: BlackjackState = {
   gameId: null,
 };
 
-type NormalizedGame = {
-  gameId: bigint;
-  wager: bigint;
-  additionalWager: bigint;
-  finished: boolean;
-  doubled: boolean;
-  playerCards: Card[];
-  dealerCards: Card[];
-  outcome: HandOutcome | undefined;
-  payout: bigint;
-};
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 
