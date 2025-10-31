@@ -1,6 +1,7 @@
 'use client';
 
 import { createPublicClient, createWalletClient, custom, http, type Address, type Chain, type PublicClient, type WalletClient } from "viem";
+import { toAccount } from "viem/accounts";
 import { MONAD, MONAD_CHAIN } from "@/lib/config";
 import { MONAD_DELEGATION_ENV, type DelegationEnvironment } from "./delegationEnvironment";
 
@@ -84,12 +85,13 @@ async function switchToMonad(provider: PickedProvider): Promise<void> {
 
 
 function createWalletClientWithAccount(provider: PickedProvider, address: Address): WalletClient {
+  const account = toAccount(address);
   const baseClient = createWalletClient({
     chain: MONAD_CHAIN,
     transport: custom(provider as any),
+    account,
   });
-  const account = Object.freeze({ address, type: "json-rpc" as const });
-  const supplyAddresses = async () => [account.address] as Address[];
+  const supplyAddresses = async () => [account.address as Address];
   return new Proxy(baseClient, {
     get(target, prop, receiver) {
       if (prop === "account") return account;
@@ -97,6 +99,12 @@ function createWalletClientWithAccount(provider: PickedProvider, address: Addres
         return supplyAddresses;
       }
       return Reflect.get(target, prop, receiver);
+    },
+    set(target, prop, value, receiver) {
+      if (prop === "account") {
+        return true;
+      }
+      return Reflect.set(target, prop, value, receiver);
     },
   }) as WalletClient;
 }
