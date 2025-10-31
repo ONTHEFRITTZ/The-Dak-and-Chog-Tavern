@@ -35,7 +35,7 @@ body[data-backdrop="blackjack"] {
   background-size: cover;
 }
 body[data-backdrop="dakchog"] {
-  background: #0b141e url('/assets/images/tavern-bg.webp') no-repeat center center fixed;
+  background: #0b141e url('/assets/images/Dak-Chog-Coinflip-bg.png') no-repeat center center fixed;
   background-size: cover;
 }
 body[data-backdrop="none"] {

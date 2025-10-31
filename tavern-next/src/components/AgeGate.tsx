@@ -67,7 +67,7 @@ export const AgeGate = () => {
   };
 
   useEffect(() => {
-    if (walletType !== "metamask" || !address || !provider || !wagmiWalletClient) {
+    if (walletType !== "metamask" || !address || !provider || !(wagmiWalletClient?.account?.address)) {
       announcedAAStatus.current = null;
       return;
     }
@@ -175,3 +175,4 @@ export const AgeGate = () => {
     </div>
   );
 };
+
