@@ -681,18 +681,20 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
 .hazard-page,
 .shell-page,
 .dakchog-page {
-  width: min(96vw, 680px);
-  margin: clamp(48px, 8vw, 96px) auto;
+  flex: 1;
+  width: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
+  padding: clamp(48px, 10vh, 128px) clamp(16px, 4vw, 36px);
   gap: clamp(18px, 3vw, 28px);
 }
 
 .hazard-content,
 .shell-content,
 .dakchog-content {
-  width: 100%;
+  width: min(96vw, 680px);
   display: flex;
   flex-direction: column;
   align-items: center;

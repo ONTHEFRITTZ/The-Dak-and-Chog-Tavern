@@ -17,9 +17,6 @@ type CoinSide = "dak" | "chog";
 
 const FLIP_DURATION_MS = 800;
 const QUICK_FLIP_DURATION_MS = Math.round(FLIP_DURATION_MS * 0.75);
-const SPIN_CYCLE_MS = 600;
-const SPIN_SEGMENT_MS = SPIN_CYCLE_MS / 4;
-const MID_TURN_RATIO = 0.25;
 
 const clampBet = (value: string) => {
   const parsed = Number(value);
@@ -40,9 +37,7 @@ export default function DakChogPage() {
   const [isFlipping, setIsFlipping] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const coinRef = useRef<HTMLDivElement | null>(null);
-  const flipTimerRef = useRef<number | null>(null);
-  const swapTimerRef = useRef<number | null>(null);
-  const swapCleanupRef = useRef<number | null>(null);
+  const flipCleanupRef = useRef<number | null>(null);
 
   useEffect(() => {
     const el = coinRef.current;
@@ -50,37 +45,31 @@ export default function DakChogPage() {
     el.style.backgroundImage = `url(${coinFace === "chog" ? IMG_CHOG : IMG_DAK})`;
   }, [coinFace]);
 
-  useEffect(() => {
-    if (isFlipping) {
-      if (flipTimerRef.current != null) {
-        window.clearInterval(flipTimerRef.current);
-      }
-      let step = 0;
-      flipTimerRef.current = window.setInterval(() => {
-        step = (step + 1) % 4;
-        if (step === 1 || step === 3) {
-          setCoinFace((prev) => (prev === "dak" ? "chog" : "dak"));
-        }
-      }, SPIN_SEGMENT_MS);
-    } else if (flipTimerRef.current != null) {
-      window.clearInterval(flipTimerRef.current);
-      flipTimerRef.current = null;
+  const clearFlipAnimation = useCallback(() => {
+    if (flipCleanupRef.current != null) {
+      window.clearTimeout(flipCleanupRef.current);
+      flipCleanupRef.current = null;
     }
-    return () => {
-      if (flipTimerRef.current != null) {
-        window.clearInterval(flipTimerRef.current);
-        flipTimerRef.current = null;
-      }
-      if (swapTimerRef.current != null) {
-        window.clearTimeout(swapTimerRef.current);
-        swapTimerRef.current = null;
-      }
-      if (swapCleanupRef.current != null) {
-        window.clearTimeout(swapCleanupRef.current);
-        swapCleanupRef.current = null;
-      }
-    };
-  }, [isFlipping]);
+    const el = coinRef.current;
+    if (el) {
+      el.classList.remove("flip");
+    }
+  }, []);
+
+  const stopSpin = useCallback(() => {
+    const el = coinRef.current;
+    if (el) {
+      el.classList.remove("spin");
+    }
+  }, []);
+
+  useEffect(
+    () => () => {
+      clearFlipAnimation();
+      stopSpin();
+    },
+    [clearFlipAnimation, stopSpin]
+  );
 
   const formattedBet = useMemo(() => {
     const num = Number(bet);
@@ -90,23 +79,32 @@ export default function DakChogPage() {
   const applyCoinFace = useCallback(
     (face: CoinSide, duration = FLIP_DURATION_MS) => {
       const el = coinRef.current;
+      const imageUrl = face === "chog" ? IMG_CHOG : IMG_DAK;
+      if (el) {
+        el.style.backgroundImage = `url(${imageUrl})`;
+      }
+      setCoinFace(face);
       if (!el) {
-        setCoinFace(face);
         return;
       }
-      el.classList.add("flip");
-      if (swapTimerRef.current != null) window.clearTimeout(swapTimerRef.current);
-      if (swapCleanupRef.current != null) window.clearTimeout(swapCleanupRef.current);
-      swapTimerRef.current = window.setTimeout(() => {
-        setCoinFace(face);
-      }, Math.max(50, duration * MID_TURN_RATIO));
-      swapCleanupRef.current = window.setTimeout(() => {
-        el.classList.remove("flip");
-        swapTimerRef.current = null;
-        swapCleanupRef.current = null;
-      }, duration);
+      const begin = () => {
+        const node = coinRef.current;
+        if (!node) return;
+        clearFlipAnimation();
+        void node.offsetWidth;
+        node.classList.add("flip");
+        flipCleanupRef.current = window.setTimeout(() => {
+          node.classList.remove("flip");
+          flipCleanupRef.current = null;
+        }, duration);
+      };
+      if (typeof window !== "undefined" && typeof window.requestAnimationFrame === "function") {
+        window.requestAnimationFrame(begin);
+      } else {
+        begin();
+      }
     },
-    []
+    [clearFlipAnimation]
   );
 
   const handleChoice = (side: CoinSide) => {
@@ -151,12 +149,9 @@ export default function DakChogPage() {
     const contract = new Contract(target, DakChogABI, signer);
     const face = choice === "chog";
 
-    if (flipTimerRef.current != null) {
-      window.clearInterval(flipTimerRef.current);
-      flipTimerRef.current = null;
-    }
     setIsSubmitting(true);
     setIsFlipping(true);
+    clearFlipAnimation();
     coinRef.current?.classList.add("spin");
     setStatus("Checking balance...");
 
@@ -221,11 +216,7 @@ export default function DakChogPage() {
         }
       }
 
-      if (flipTimerRef.current != null) {
-        window.clearInterval(flipTimerRef.current);
-        flipTimerRef.current = null;
-      }
-      coinRef.current?.classList.remove("spin");
+      stopSpin();
       if (parsed) {
         const resultChog = Boolean(parsed.args?.resultChog);
         const won = Boolean(parsed.args?.won);
@@ -249,11 +240,7 @@ export default function DakChogPage() {
         "Transaction failed.";
       setStatus(msg);
     } finally {
-      if (flipTimerRef.current != null) {
-        window.clearInterval(flipTimerRef.current);
-        flipTimerRef.current = null;
-      }
-      coinRef.current?.classList.remove("spin");
+      stopSpin();
       setIsFlipping(false);
       setIsSubmitting(false);
     }
@@ -266,6 +253,8 @@ export default function DakChogPage() {
     ensureAllowance,
     delegation,
     applyCoinFace,
+    clearFlipAnimation,
+    stopSpin,
   ]);
 
   return (
