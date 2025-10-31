@@ -1,7 +1,9 @@
 'use client';
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { BrowserProvider, getAddress } from "ethers";
+import { useAccount, useConnect, useDisconnect, useWalletClient } from "wagmi";
+import type { Connector } from "wagmi";
 import type { PickedProvider } from "@/modules/aa/toolkitContext";
 
 type WalletType = "metamask" | "phantom" | "unknown" | null;
@@ -16,14 +18,6 @@ type WalletContextValue = {
 };
 
 const WalletContext = createContext<WalletContextValue | undefined>(undefined);
-
-function getInjectedProvider(): PickedProvider | null {
-  if (typeof window === "undefined") return null;
-  if (window.__walletProvider) return window.__walletProvider;
-  if (window.ethereum) return window.ethereum;
-  if (window.phantom?.ethereum) return window.phantom.ethereum;
-  return null;
-}
 
 const STORAGE_KEY = "tavern:wallet:remember";
 const WALLET_TYPE_KEY = "tavern:wallet:type";
@@ -43,126 +37,160 @@ function detectWalletType(provider: PickedProvider | null): WalletType {
   return "unknown";
 }
 
+function getFallbackProvider(): PickedProvider | null {
+  if (typeof window === "undefined") return null;
+  return (
+    (window.__walletProvider as PickedProvider | undefined) ??
+    (window.ethereum as PickedProvider | undefined) ??
+    (window.phantom?.ethereum as PickedProvider | undefined) ??
+    null
+  );
+}
+
+function pickConnector(connectors: readonly Connector[]): Connector | null {
+  return (
+    connectors.find((connector) => connector.id === "metaMask") ??
+    connectors.find((connector) => connector.id === "injected") ??
+    connectors[0] ??
+    null
+  );
+}
+
 export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { address: wagmiAddress, status } = useAccount();
+  const { connectAsync, connectors, isPending: connectPending } = useConnect();
+  const { disconnectAsync, isPending: disconnectPending } = useDisconnect();
+  const { data: walletClient } = useWalletClient();
+
   const [provider, setProvider] = useState<BrowserProvider | null>(null);
-  const [address, setAddress] = useState<string | null>(null);
-  const [isConnecting, setIsConnecting] = useState(false);
   const [walletType, setWalletType] = useState<WalletType>(null);
+  const [manualConnecting, setManualConnecting] = useState(false);
+  const providerSourceRef = useRef<PickedProvider | null>(null);
 
-  const reset = useCallback(async () => {
-    setProvider(null);
-    setAddress(null);
-    setWalletType(null);
-    if (typeof window !== "undefined") {
-      sessionStorage.removeItem(STORAGE_KEY);
-       sessionStorage.removeItem(WALLET_TYPE_KEY);
-      try { delete window.__walletProvider; } catch { window.__walletProvider = undefined; }
-    }
-  }, []);
-
-  const disconnect = useCallback(async () => {
-    await reset();
-  }, [reset]);
+  const syncSelectedProvider = useCallback(
+    (rawProvider: PickedProvider | null, remember = true) => {
+      if (!rawProvider?.request) return;
+      if (providerSourceRef.current === rawProvider && provider) return;
+      providerSourceRef.current = rawProvider;
+      const nextType = detectWalletType(rawProvider);
+      setWalletType(nextType);
+      setProvider(new BrowserProvider(rawProvider as any));
+      if (typeof window !== "undefined") {
+        window.__walletProvider = rawProvider;
+        if (typeof window.__getSelectedProvider !== "function") {
+          window.__getSelectedProvider = () =>
+            window.__walletProvider ?? window.ethereum ?? window.phantom?.ethereum ?? null;
+        }
+        if (remember) {
+          sessionStorage.setItem(STORAGE_KEY, "true");
+          sessionStorage.setItem(WALLET_TYPE_KEY, nextType ?? "unknown");
+        }
+      }
+    },
+    [provider]
+  );
 
   const connect = useCallback(async () => {
-    if (isConnecting) return;
-    setIsConnecting(true);
+    if (manualConnecting) return;
+    const connector = pickConnector(connectors);
+    if (!connector) {
+      throw new Error("No wallet connector available");
+    }
+    setManualConnecting(true);
     try {
-      const injected = getInjectedProvider();
-      if (!injected?.request) {
-        throw new Error("No EVM wallet detected");
-      }
-      const accounts: string[] = await injected.request({ method: "eth_requestAccounts" });
-      if (!accounts?.length) {
-        throw new Error("No accounts returned");
-      }
-      const primary = getAddress(accounts[0]);
-      const browserProvider = new BrowserProvider(injected);
-      const type = detectWalletType(injected);
-      setProvider(browserProvider);
-      setAddress(primary);
-      setWalletType(type);
-      if (typeof window !== "undefined") {
-        sessionStorage.setItem(STORAGE_KEY, "true");
-        sessionStorage.setItem(WALLET_TYPE_KEY, type ?? "unknown");
-        window.__walletProvider = injected;
-        window.dispatchEvent(new CustomEvent("wallet:connected", { detail: { address: primary } }));
-      }
-    } catch (err) {
-      console.warn("[wallet] connect failed", err);
-      await reset();
-      throw err;
+      await connectAsync({ connector });
+      const rawProvider = (await connector.getProvider()) as PickedProvider;
+      syncSelectedProvider(rawProvider);
     } finally {
-      setIsConnecting(false);
+      setManualConnecting(false);
     }
-  }, [isConnecting, reset]);
+  }, [connectAsync, connectors, manualConnecting, syncSelectedProvider]);
 
-  useEffect(() => {
-    const injected = getInjectedProvider();
-    if (!injected?.on) return;
-    const handleAccountsChanged = (accounts: unknown) => {
-      if (!Array.isArray(accounts) || accounts.length === 0) {
-        reset();
-        return;
+  const disconnect = useCallback(async () => {
+    try {
+      await disconnectAsync();
+    } catch {
+      // ignore disconnect errors
+    } finally {
+      providerSourceRef.current = null;
+      setProvider(null);
+      setWalletType(null);
+      if (typeof window !== "undefined") {
+        sessionStorage.removeItem(STORAGE_KEY);
+        sessionStorage.removeItem(WALLET_TYPE_KEY);
+        try {
+          delete window.__walletProvider;
+        } catch {
+          (window as any).__walletProvider = undefined;
+        }
+        window.dispatchEvent(new CustomEvent("wallet:disconnected"));
       }
-      const primary = getAddress(String(accounts[0]));
-      setAddress(primary);
-    };
-    const handleDisconnect = () => reset();
-    injected.on("accountsChanged", handleAccountsChanged);
-    injected.on("disconnect", handleDisconnect);
-    return () => {
-      try { injected.removeListener?.("accountsChanged", handleAccountsChanged); } catch {}
-      try { injected.removeListener?.("disconnect", handleDisconnect); } catch {}
-    };
-  }, [reset]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const remember = sessionStorage.getItem(STORAGE_KEY) === "true";
-    if (!remember) return;
-    const injected = getInjectedProvider();
-    if (!injected?.request) return;
-    injected.request({ method: "eth_accounts" })
-      .then((accounts: string[]) => {
-        if (!accounts?.length) return;
-        const primary = getAddress(accounts[0]);
-        setProvider(new BrowserProvider(injected));
-        setAddress(primary);
-        const storedType = sessionStorage.getItem(WALLET_TYPE_KEY) as WalletType | null;
-        setWalletType(storedType ?? detectWalletType(injected));
-        window.__walletProvider = injected;
-      })
-      .catch(() => reset());
-  }, [reset]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const getSelected = () => window.__walletProvider ?? getInjectedProvider();
-    if (typeof window.__getSelectedProvider !== "function") {
-      window.__getSelectedProvider = getSelected;
     }
-    if (address) {
-      window.dispatchEvent(new CustomEvent("wallet:connected", { detail: { address } }));
+  }, [disconnectAsync]);
+
+  useEffect(() => {
+    if (!wagmiAddress) {
+      providerSourceRef.current = null;
+      setProvider(null);
+      setWalletType(null);
+      if (typeof window !== "undefined") {
+        sessionStorage.removeItem(STORAGE_KEY);
+        sessionStorage.removeItem(WALLET_TYPE_KEY);
+        try {
+          delete window.__walletProvider;
+        } catch {
+          (window as any).__walletProvider = undefined;
+        }
+      }
+      return;
+    }
+
+    const transportProvider = (walletClient as any)?.transport?.value as PickedProvider | undefined;
+    if (transportProvider?.request) {
+      syncSelectedProvider(transportProvider, false);
+      return;
+    }
+
+    const fallback = getFallbackProvider();
+    if (fallback) {
+      syncSelectedProvider(fallback);
+    }
+  }, [wagmiAddress, walletClient, syncSelectedProvider]);
+
+  const checksumAddress = useMemo(() => {
+    if (!wagmiAddress) return null;
+    try {
+      return getAddress(wagmiAddress);
+    } catch {
+      return wagmiAddress;
+    }
+  }, [wagmiAddress]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (checksumAddress) {
+      window.dispatchEvent(new CustomEvent("wallet:connected", { detail: { address: checksumAddress } }));
     } else {
       window.dispatchEvent(new CustomEvent("wallet:disconnected"));
     }
-  }, [address]);
+  }, [checksumAddress]);
 
-  const value = useMemo<WalletContextValue>(() => ({
-    address,
-    provider,
-    isConnecting,
-    connect,
-    disconnect,
-    walletType,
-  }), [address, provider, isConnecting, connect, disconnect, walletType]);
+  const isConnecting =
+    manualConnecting || connectPending || status === "connecting" || disconnectPending;
 
-  return (
-    <WalletContext.Provider value={value}>
-      {children}
-    </WalletContext.Provider>
+  const value = useMemo<WalletContextValue>(
+    () => ({
+      address: checksumAddress,
+      provider,
+      isConnecting,
+      connect,
+      disconnect,
+      walletType,
+    }),
+    [checksumAddress, provider, isConnecting, connect, disconnect, walletType]
   );
+
+  return <WalletContext.Provider value={value}>{children}</WalletContext.Provider>;
 };
 
 export const useWallet = (): WalletContextValue => {

@@ -778,7 +778,7 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
 }
 
 .choice button {
-  background: url('/assets/images/nav-gem.png') no-repeat center / 100% 100%;
+  background: linear-gradient(135deg, rgba(255, 210, 120, 0.85), rgba(146, 0, 250, 0.9));
   border: none;
   color: #fff;
   font-weight: 700;

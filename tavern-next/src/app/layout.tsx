@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { WalletProvider } from "../context/WalletContext";
 import { WalletInline } from "../components/WalletInline";
 import { AppNav } from "../components/AppNav";
 import Script from "next/script";
+import { Providers } from "./providers";
 
 const LEGACY_IMPORT_MAP = {
   imports: {
@@ -37,11 +37,11 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="home">
-        <WalletProvider>
+        <Providers>
           <WalletInline />
           <AppNav />
           <div className="content-frame">{children}</div>
-        </WalletProvider>
+        </Providers>
         <Script
           id="ethers-umd"
           src="https://cdn.jsdelivr.net/npm/ethers@6.15.0/dist/ethers.umd.min.js"

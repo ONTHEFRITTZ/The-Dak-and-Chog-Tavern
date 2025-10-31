@@ -4,6 +4,8 @@ import { createPublicClient, createWalletClient, custom, http, type Address, typ
 import { toAccount } from "viem/accounts";
 import { MONAD, MONAD_CHAIN } from "@/lib/config";
 import { MONAD_DELEGATION_ENV, type DelegationEnvironment } from "./delegationEnvironment";
+import { getAccount, getWalletClient } from "@wagmi/core";
+import { wagmiConfig } from "@/wagmi/config";
 
 export type PickedProvider = {
   request: (args: { method: string; params?: unknown[] }) => Promise<any>;
@@ -141,7 +143,16 @@ export async function ensureDelegationToolkitContext(): Promise<DelegationToolki
 
     await switchToMonad(provider);
     const accounts = await requestAccounts(provider);
-    const ownerAccount = accounts[0];
+    let ownerAccount = accounts[0];
+
+    try {
+      const wagmiAccount = getAccount(wagmiConfig);
+      if (wagmiAccount?.address) {
+        ownerAccount = wagmiAccount.address;
+      }
+    } catch {
+      // ignore wagmi account access failures
+    }
 
     const viem = await import("viem");
     const publicClient = createPublicClient({
@@ -150,7 +161,16 @@ export async function ensureDelegationToolkitContext(): Promise<DelegationToolki
     });
 
     const ownerAddress = ownerAccount as Address;
-    const walletClient = createWalletClientWithAccount(provider, ownerAddress);
+    const normalizedAccounts = Array.from(new Set([ownerAccount.toLowerCase(), ...accounts]));
+    let walletClient: WalletClient | null = null;
+    try {
+      walletClient = (await getWalletClient(wagmiConfig, { chainId: MONAD.id })) as WalletClient | null;
+    } catch {
+      walletClient = null;
+    }
+    if (!walletClient || !(walletClient as any)?.account?.address) {
+      walletClient = createWalletClientWithAccount(provider, ownerAddress);
+    }
 
     if (process.env.NODE_ENV !== "production") {
       console.debug("[aa:toolkitContext] walletClient.account", (walletClient as any).account);
@@ -158,7 +178,7 @@ export async function ensureDelegationToolkitContext(): Promise<DelegationToolki
 
     const context: DelegationToolkitContext = {
       provider,
-      accounts,
+      accounts: normalizedAccounts,
       account: ownerAccount,
       ownerAccount,
       publicClient,
