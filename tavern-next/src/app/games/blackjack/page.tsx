@@ -332,6 +332,7 @@ export default function BlackjackPage() {
   const canPlayAgain = blackjack.phase === "payout" && !blackjack.isBusy && isSeated;
   const canDouble = canAct && Boolean(activeHand?.canDouble);
   const canSplit = canAct && Boolean(activeHand?.canSplit);
+  const canSurrender = canAct && Boolean(activeHand?.canSurrender);
   const insurancePending = blackjack.insuranceOffered && !blackjack.insuranceResolved;
   const rawInsurance = insurancePending
     ? (blackjack.insuranceBet > 0
@@ -548,6 +549,7 @@ export default function BlackjackPage() {
     canPlayAgain,
     canReady,
     canSplit,
+    canSurrender,
     displayName,
     dockMessage,
     handleDouble,
