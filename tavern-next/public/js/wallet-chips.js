@@ -1,4 +1,4 @@
-// js/wallet-chips.js (fixed)
+﻿// js/wallet-chips.js (fixed)
 // Wallet pill: adds Wallet button, balance badges, and a simple bankroll modal.
 (function () {
   if (window.__WalletChipsMounted) return;
@@ -42,32 +42,18 @@
     }
   }
 
-  function ensureBalanceBadges() {
-    const pill = document.getElementById('wallet-inline');
-    if (!pill) return;
-    let wrap = document.getElementById('wi-balance-wrap');
-    if (!wrap) {
-      wrap = document.createElement('span');
-      wrap.id = 'wi-balance-wrap';
-      wrap.style.display = 'flex';
-      wrap.style.alignItems = 'center';
-      wrap.style.gap = '8px';
-      const anchor = pill.querySelector('#wi-wallet-btn') || pill.querySelector('#wi-disconnect');
-      pill.insertBefore(wrap, anchor || null);
+  function cleanupLegacyBalanceBadges() {
+    const wrap = document.getElementById('wi-balance-wrap');
+    if (wrap && wrap.parentElement) {
+      wrap.parentElement.removeChild(wrap);
     }
-    function badge(id, label) {
-      if (document.getElementById(id)) return;
-      const b = document.createElement('span');
-      b.className = 'wi-balance-badge';
-      b.style.display = 'flex'; b.style.alignItems = 'center'; b.style.gap = '4px';
-      b.style.fontSize = '12px'; b.style.background = 'rgba(0,0,0,0.35)';
-      b.style.borderRadius = '12px'; b.style.padding = '2px 6px';
-      const s = document.createElement('strong'); s.textContent = label;
-      const v = document.createElement('span'); v.id = id; v.textContent = '-';
-      b.appendChild(s); b.appendChild(v); wrap.appendChild(b);
-    }
-    badge('wi-mon-balance-pill', 'MON');
-    badge('wi-dcmon-balance-pill', 'DCMon');
+    const legacyIds = ['wi-mon-balance-pill', 'wi-dcmon-balance-pill', 'wi-mon-balance', 'wi-dcmon-balance', 'wi-mon-balance-modal', 'wi-dcmon-balance-modal'];
+    legacyIds.forEach((id) => {
+      const el = document.getElementById(id);
+      if (el && el.parentElement) {
+        el.parentElement.removeChild(el);
+      }
+    });
     ensureBlindsLine();
     updateBlindsIndicator(blindsLabelCache);
   }
@@ -75,13 +61,27 @@
   function buildBankrollMarkup(container) {
     container.innerHTML = '';
     container.insertAdjacentHTML('beforeend', `
-      <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;">
-        <span>MON Balance</span>
-        <span id="wi-mon-balance-modal">-</span>
+      <div class="wi-balance-section" style="display:flex;flex-direction:column;gap:6px;">
+        <div class="wi-balance-heading" style="font-weight:600;font-size:13px;opacity:0.85;">Owner Wallet (EOA)</div>
+        <div class="wi-balance-row" style="display:flex;justify-content:space-between;align-items:center;font-size:13px;">
+          <span>MON</span>
+          <span id="wi-mon-balance-eoa">-</span>
+        </div>
+        <div class="wi-balance-row" style="display:flex;justify-content:space-between;align-items:center;font-size:13px;">
+          <span>DCMon</span>
+          <span id="wi-dcmon-balance-eoa">-</span>
+        </div>
       </div>
-      <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;">
-        <span>DCMon Balance</span>
-        <span id="wi-dcmon-balance">-</span>
+      <div class="wi-balance-section" style="display:flex;flex-direction:column;gap:6px;">
+        <div class="wi-balance-heading" style="font-weight:600;font-size:13px;opacity:0.85;">Smart Account</div>
+        <div class="wi-balance-row" style="display:flex;justify-content:space-between;align-items:center;font-size:13px;">
+          <span>MON</span>
+          <span id="wi-mon-balance-smart">-</span>
+        </div>
+        <div class="wi-balance-row" style="display:flex;justify-content:space-between;align-items:center;font-size:13px;">
+          <span>DCMon</span>
+          <span id="wi-dcmon-balance-smart">-</span>
+        </div>
       </div>
       <div id="wi-exchange-rate-row" style="display:flex;justify-content:space-between;align-items:center;font-size:12px;opacity:0.9;">
         <span>Exchange Rate</span>
@@ -242,7 +242,7 @@
 
   function init() {
     try { if (!window.openWalletChipsModal) window.openWalletChipsModal = openModal; } catch {}
-    ensureBalanceBadges();
+    cleanupLegacyBalanceBadges();
     updateBlindsIndicator(blindsLabelCache);
     const pill = document.getElementById('wallet-inline');
     if (pill && !document.getElementById('wi-wallet-btn')) {

@@ -301,12 +301,14 @@
     const state = {
       lastStatus: null,
       statusTargets: new Set(['wi-bank-status']),
-      balances: { dcmonWei: null, monWei: null }
+      balances: { eoaDcmonWei: null, eoaMonWei: null, smartDcmonWei: null, smartMonWei: null }
     };
-  
+
     const balanceTargets = {
-      dcmon: new Set(['wi-dcmon-balance', 'wi-dcmon-balance-pill']),
-      mon: new Set(['wi-mon-balance-modal', 'wi-mon-balance-pill'])
+      eoaDcmon: new Set(['wi-dcmon-balance-eoa']),
+      eoaMon: new Set(['wi-mon-balance-eoa']),
+      smartDcmon: new Set(['wi-dcmon-balance-smart']),
+      smartMon: new Set(['wi-mon-balance-smart'])
     };
   
     const controlTargets = {
@@ -727,39 +729,53 @@
   
     async function refreshBalance(addr) {
       const address = addr || currentAddress();
+      const ownerLower = address ? address.toLowerCase() : '';
+      let smartAddr = null;
+      try {
+        smartAddr = await resolveSmartAccountAddress();
+      } catch {}
+      const smartLower = smartAddr ? smartAddr.toLowerCase() : '';
+      const hasSmartAccount = !!smartAddr && smartLower !== ownerLower;
+
+      const resetAll = () => {
+        state.balances.eoaDcmonWei = null;
+        state.balances.eoaMonWei = null;
+        state.balances.smartDcmonWei = null;
+        state.balances.smartMonWei = null;
+        updateTargetSet(balanceTargets.eoaDcmon, '-');
+        updateTargetSet(balanceTargets.eoaMon, '-');
+        updateTargetSet(balanceTargets.smartDcmon, '-');
+        updateTargetSet(balanceTargets.smartMon, '-');
+      };
+
       if (!address) {
-        state.balances.dcmonWei = null;
-        state.balances.monWei = null;
-        updateTargetSet(balanceTargets.dcmon, '-');
-        updateTargetSet(balanceTargets.mon, '-');
+        resetAll();
         return null;
       }
+
       const ok = await ensureReadContracts();
       if (!ok) {
-        state.balances.dcmonWei = null;
-        state.balances.monWei = null;
-        updateTargetSet(balanceTargets.dcmon, '-');
-        updateTargetSet(balanceTargets.mon, '-');
+        resetAll();
         return null;
       }
+
       try {
         const balRaw = await dcmonRead.balanceOf(address);
         const bal = numeric.from(balRaw);
-        state.balances.dcmonWei = numeric.toBigNumberish(bal);
-        updateTargetSet(balanceTargets.dcmon, formatEther(bal));
+        state.balances.eoaDcmonWei = numeric.toBigNumberish(bal);
+        updateTargetSet(balanceTargets.eoaDcmon, formatEther(bal));
         setStatus('');
       } catch (err) {
         console.error('bankroll: DCMon balance failed', err);
-        state.balances.dcmonWei = null;
-        updateTargetSet(balanceTargets.dcmon, '-');
+        state.balances.eoaDcmonWei = null;
+        updateTargetSet(balanceTargets.eoaDcmon, '-');
       }
-      // Update exchange rate display if element exists; degrade gracefully if unsupported
+
       {
         const rateEl = document.getElementById('wi-exchange-rate');
         const rateRow = document.getElementById('wi-exchange-rate-row');
         if (rateEl && dcmonRead) {
           let rateStr = '-';
-          // Attempt exchangeRate() first
           if (typeof dcmonRead.exchangeRate === 'function') {
             try {
               const res = await dcmonRead.exchangeRate();
@@ -768,9 +784,8 @@
                 const val = compat.formatUnits(num, 18);
                 if (val != null) rateStr = String(Number.parseFloat(val).toFixed(6));
               }
-            } catch (_) { /* silent: not all deployments expose exchangeRate */ }
+            } catch {}
           }
-          // Fallback: previewRedeem(1e18) -> MON per 1 DCMon
           if ((rateStr === '-' || rateStr == null) && typeof dcmonRead.previewRedeem === 'function' && compat.constants?.WeiPerEther != null) {
             try {
               const out = await dcmonRead.previewRedeem(numeric.toBigNumberish(compat.constants.WeiPerEther));
@@ -778,9 +793,8 @@
                 const val = compat.formatEther(out);
                 if (val != null) rateStr = String(Number.parseFloat(val).toFixed(6));
               }
-            } catch (_) { /* silent */ }
+            } catch {}
           }
-          // Fallback: compute from totalUnderlying/totalSupply if available
           if ((rateStr === '-' || rateStr == null)
               && typeof dcmonRead.totalUnderlying === 'function'
               && typeof dcmonRead.totalSupply === 'function'
@@ -795,10 +809,8 @@
                 const val = compat.formatUnits(numeric.toBigNumberish(ratio), 18);
                 if (val != null) rateStr = String(Number.parseFloat(val).toFixed(6));
               }
-            } catch (_) { /* silent */ }
+            } catch {}
           }
-
-          // Fallback: compute via underlying().balanceOf(this)/totalSupply if available
           if ((rateStr === '-' || rateStr == null)
               && typeof dcmonRead.underlying === 'function'
               && typeof dcmonRead.totalSupply === 'function'
@@ -821,31 +833,67 @@
                   }
                 }
               }
-            } catch (_) { /* silent */ }
+            } catch {}
           }
-
           const hasRate = !!(rateStr && rateStr !== '-');
           rateEl.textContent = hasRate ? `1 DCMon = ${rateStr} MON` : '-';
           if (rateRow) rateRow.style.display = hasRate ? 'flex' : 'none';
         }
       }
-      try {
-        const balanceProvider = rpcProvider || await getProvider();
-        if (balanceProvider) {
+
+      const balanceProvider = rpcProvider || await getProvider();
+      if (balanceProvider) {
+        try {
           const monWeiRaw = await balanceProvider.getBalance(address);
           const monWei = numeric.from(monWeiRaw);
-          state.balances.monWei = numeric.toBigNumberish(monWei);
-          updateTargetSet(balanceTargets.mon, formatEther(monWei));
+          state.balances.eoaMonWei = numeric.toBigNumberish(monWei);
+          updateTargetSet(balanceTargets.eoaMon, formatEther(monWei));
+        } catch (err) {
+          console.error('bankroll: MON balance failed', err);
+          state.balances.eoaMonWei = null;
+          updateTargetSet(balanceTargets.eoaMon, '-');
         }
-      } catch (err) {
-        console.error('bankroll: MON balance failed', err);
-        state.balances.monWei = null;
-        updateTargetSet(balanceTargets.mon, '-');
+      } else {
+        state.balances.eoaMonWei = null;
+        updateTargetSet(balanceTargets.eoaMon, '-');
       }
+
+      if (hasSmartAccount) {
+        try {
+          const smartBalRaw = await dcmonRead.balanceOf(smartAddr);
+          const smartBal = numeric.from(smartBalRaw);
+          state.balances.smartDcmonWei = numeric.toBigNumberish(smartBal);
+          updateTargetSet(balanceTargets.smartDcmon, formatEther(smartBal));
+        } catch (err) {
+          console.warn('bankroll: smart DCMon balance failed', err);
+          state.balances.smartDcmonWei = null;
+          updateTargetSet(balanceTargets.smartDcmon, '-');
+        }
+
+        if (balanceProvider) {
+          try {
+            const smartMonRaw = await balanceProvider.getBalance(smartAddr);
+            const smartMon = numeric.from(smartMonRaw);
+            state.balances.smartMonWei = numeric.toBigNumberish(smartMon);
+            updateTargetSet(balanceTargets.smartMon, formatEther(smartMon));
+          } catch (err) {
+            console.warn('bankroll: smart MON balance failed', err);
+            state.balances.smartMonWei = null;
+            updateTargetSet(balanceTargets.smartMon, '-');
+          }
+        } else {
+          state.balances.smartMonWei = null;
+          updateTargetSet(balanceTargets.smartMon, '-');
+        }
+      } else {
+        state.balances.smartDcmonWei = null;
+        state.balances.smartMonWei = null;
+        updateTargetSet(balanceTargets.smartDcmon, '-');
+        updateTargetSet(balanceTargets.smartMon, '-');
+      }
+
       return true;
-    }
-  
-    async function ensureWrap(amountWei, address) {
+    }    async function ensureWrap(amountWei, address) {
       if (!IS_ONCHAIN_MODE) return false;
       if (!await ensureWriteContracts()) return false;
       if (!wmonRead || !wmonWrite) return false;
@@ -1123,7 +1171,7 @@
       getSigner,
       getAddresses: () => ({ dcmon: dcmonAddress, wmon: wmonAddress }),
       getContracts: () => ({ dcmonRead, dcmonWrite, wmonRead, wmonWrite }),
-      getLastBalances: () => ({ dcmonWei: state.balances.dcmonWei, monWei: state.balances.monWei }),
+      getLastBalances: () => ({ dcmonWei: state.balances.eoaDcmonWei, monWei: state.balances.eoaMonWei, smartDcmonWei: state.balances.smartDcmonWei, smartMonWei: state.balances.smartMonWei }),
       ensureWrap,
       ensureWmonAllowance,
       ensureDcmonAllowance,
@@ -1131,8 +1179,8 @@
       cashOut,
       getLastStatus: () => state.lastStatus,
       registerBalanceTargets: (token, ids) => {
-        if (token === 'mon') registerToSet(balanceTargets.mon, ids);
-        else if (token === 'dcmon') registerToSet(balanceTargets.dcmon, ids);
+        if (token === 'mon') registerToSet(balanceTargets.eoaMon, ids);
+        else if (token === 'dcmon') registerToSet(balanceTargets.eoaDcmon, ids);
       },
       registerStatusTarget: (ids) => registerToSet(state.statusTargets, ids),
       registerControls: (type, ids) => {
@@ -1185,3 +1233,4 @@
 
   document.addEventListener('wallet:ethers-ready', handleReady);
 })();
+
