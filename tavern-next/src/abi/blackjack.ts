@@ -6,7 +6,7 @@ export const BlackjackABI = [
   "function split(uint256 gameId)",
   "function takeInsurance(uint256 gameId)",
   "function surrender(uint256 gameId)",
-"function getGame(uint256 gameId) view returns ((address player,bool finished,uint8 activeHand,uint8 handCount,uint256 baseBet,uint256 baseStake,uint256 insuranceBet,bool insuranceAvailable,bool insuranceResolved,uint8[] dealerCards,uint8 finalOutcome,int256 totalPayout,(uint8[] cards,uint256 stake,bool doubled,bool surrendered,bool finished,bool isSplitAces,uint8 outcome,int256 payout)[] hands))",
+  "function getGame(uint256 gameId) view returns ((address player,uint64 seed,uint64 deckMask,uint8 deckIndex,uint256 baseBet,uint256 baseStake,uint256 insuranceBet,bool insuranceAvailable,bool insuranceResolved,bool finished,uint8 activeHand,uint8[] dealerCards,(uint8[] cards,uint256 stake,bool doubled,bool surrendered,bool finished,bool isSplitAces,uint8 outcome,int256 payout)[] hands,uint8 finalOutcome,int256 totalPayout))",
   "function activeGame(address player) view returns (uint256)",
   "event HandStarted(uint256 indexed gameId, address indexed player, uint8 playerCard1, uint8 playerCard2, uint8 dealerUpCard, bool playerBlackjack)",
   "event CardDrawn(uint256 indexed gameId, address indexed player, uint8 card, bool dealer)",

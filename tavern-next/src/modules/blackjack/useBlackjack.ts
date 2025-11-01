@@ -112,9 +112,11 @@ type ContractHandStruct = {
 
 type ContractGameStruct = {
   player: string;
+  seed: bigint;
+  deckMask: bigint;
+  deckIndex: bigint;
   finished: boolean;
   activeHand: bigint;
-  handCount: bigint;
   baseBet: bigint;
   baseStake: bigint;
   insuranceBet: bigint;
