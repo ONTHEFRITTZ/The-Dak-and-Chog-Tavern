@@ -35,6 +35,17 @@ export type DelegationToolkitAA = {
 
 type DelegationModule = any;
 
+declare global {
+  interface Window {
+    AAClient?: {
+      sendTransaction: (params: Record<string, unknown>) => Promise<any>;
+      waitForUserOperationTransaction?: (params: Record<string, unknown>) => Promise<any>;
+      smartAccountAddress?: string | null;
+      __tavernClient?: boolean;
+    };
+  }
+}
+
 function pickImplementation(module: DelegationModule) {
   const { Implementation } = module;
   if (!Implementation) return null;
@@ -428,6 +439,78 @@ export function useDelegationToolkitAA(): DelegationToolkitAA {
       }
     });
   }, [provider, address, wagmiWalletClient, ready, initializing, ensureReady]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!ready || !alchemyClientRef.current) {
+      if (window.AAClient && window.AAClient.__tavernClient) {
+        delete window.AAClient;
+      }
+      return;
+    }
+
+    const client = alchemyClientRef.current;
+    window.AAClient = {
+      __tavernClient: true,
+      smartAccountAddress: smartAccountAddress ?? null,
+      sendTransaction: async (params: Record<string, unknown>) => {
+        const to = (params?.to as string) ?? (params?.target as string);
+        if (!to) {
+          throw new Error("Transaction target missing");
+        }
+        const data = (params?.data ?? params?.calldata) as Hex | string | undefined;
+        const noFallback = params?.noSignerFallback === true;
+
+        let valueBigInt: bigint = 0n;
+        const rawValue = params?.value ?? params?.valueHex ?? params?.valueWei;
+        if (typeof rawValue === "bigint") {
+          valueBigInt = rawValue;
+        } else if (typeof rawValue === "number") {
+          valueBigInt = BigInt(Math.trunc(rawValue));
+        } else if (typeof rawValue === "string" && rawValue) {
+          try {
+            valueBigInt = rawValue.startsWith("0x") ? BigInt(rawValue) : BigInt(rawValue);
+          } catch {
+            // ignore parse errors, default to zero
+          }
+        }
+
+        return await sendTransaction({
+          to,
+          data,
+          value: valueBigInt,
+          useFallback: !noFallback,
+        });
+      },
+      waitForUserOperationTransaction: async (params: Record<string, unknown>) => {
+        const hash = (params?.hash as Hex | string | undefined) ?? undefined;
+        if (!hash) return null;
+        const waitFn = (client as any)?.waitForUserOperationTransaction;
+        if (typeof waitFn === "function") {
+          return waitFn({ hash });
+        }
+        return null;
+      },
+    };
+
+    try {
+      window.dispatchEvent(
+        new CustomEvent("aa:client-ready", {
+          detail: {
+            address: smartAccountAddress ?? null,
+          },
+        })
+      );
+    } catch {
+      /* no-op */
+    }
+
+    return () => {
+      if (window.AAClient && window.AAClient.__tavernClient) {
+        delete window.AAClient;
+      }
+    };
+  }, [ready, smartAccountAddress, sendTransaction]);
 
   return useMemo(
     () => ({
