@@ -446,26 +446,125 @@
       return stored || null;
     }
 
+    let aaClientCache = null;
+    let aaClientInitPromise = null;
+
+    async function wait(ms) {
+      return new Promise((resolve) => setTimeout(resolve, ms));
+    }
+
+    async function waitForAAClient(maxAttempts = 20, delayMs = 200) {
+      for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+        if (window.AAClient && typeof window.AAClient.sendTransaction === 'function') {
+          return window.AAClient;
+        }
+        await wait(delayMs);
+      }
+      return null;
+    }
+
     async function ensureAAClient() {
-      if (window.AAClient && typeof window.AAClient.sendTransaction === 'function') {
-        return window.AAClient;
-      }
-      try {
-        if (window.AA && typeof window.AA.init === 'function') {
-          await window.AA.init();
-        }
-      } catch (err) {
-        console.warn('bankroll: AA init failed', err);
+      if (aaClientCache && typeof aaClientCache.sendTransaction === 'function') {
+        return aaClientCache;
       }
       if (window.AAClient && typeof window.AAClient.sendTransaction === 'function') {
-        return window.AAClient;
+        aaClientCache = window.AAClient;
+        return aaClientCache;
       }
-      try {
-        if (typeof window.enableSmartAccountNow === 'function') {
-          await window.enableSmartAccountNow();
+      if (aaClientInitPromise) {
+        await aaClientInitPromise;
+        return aaClientCache && typeof aaClientCache.sendTransaction === 'function' ? aaClientCache : null;
+      }
+
+      aaClientInitPromise = (async () => {
+        try {
+          if (!window.AAClient) {
+            try {
+              await import('/js/aaClient.js');
+            } catch (err) {
+              console.warn('bankroll: aaClient import failed', err);
+            }
+          }
+
+          if (window.AA && typeof window.AA.init === 'function') {
+            try {
+              await window.AA.init();
+            } catch (err) {
+              console.warn('bankroll: AA init failed', err);
+            }
+          }
+
+          const clientAfterInit = await waitForAAClient(15, 200);
+          if (clientAfterInit) {
+            aaClientCache = clientAfterInit;
+            return;
+          }
+
+          if (typeof window.enableSmartAccountNow === 'function') {
+            try {
+              await window.enableSmartAccountNow();
+            } catch (err) {
+              console.warn('bankroll: enableSmartAccountNow failed', err);
+            }
+          }
+
+          const clientAfterEnable = await waitForAAClient(20, 250);
+          if (clientAfterEnable) {
+            aaClientCache = clientAfterEnable;
+            return;
+          }
+
+          if (window.AA && typeof window.AA.initAA === 'function') {
+            try {
+              await window.AA.initAA({});
+            } catch (err) {
+              console.warn('bankroll: AA.initAA failed', err);
+            }
+          }
+
+          aaClientCache = await waitForAAClient(20, 250);
+        } finally {
+          aaClientInitPromise = null;
         }
+      })();
+
+      await aaClientInitPromise;
+      return aaClientCache && typeof aaClientCache.sendTransaction === 'function' ? aaClientCache : null;
+    }
+
+    async function resolveActiveSmartAccount(ownerAddress) {
+      if (!ownerAddress) return null;
+      const ownerLower = ownerAddress.toLowerCase();
+      let smartAddr = null;
+      try {
+        smartAddr = await resolveSmartAccountAddress();
       } catch {}
-      return (window.AAClient && typeof window.AAClient.sendTransaction === 'function') ? window.AAClient : null;
+      let smartLower = smartAddr ? smartAddr.toLowerCase() : '';
+      const considerCandidates = async () => {
+        const candidates = [];
+        const aaClient = await ensureAAClient();
+        if (aaClient && typeof aaClient.smartAccountAddress === 'string') {
+          candidates.push(aaClient.smartAccountAddress);
+        }
+        if (window.AA && typeof window.AA.smartAccountAddress === 'string') {
+          candidates.push(window.AA.smartAccountAddress);
+        }
+        return candidates;
+      };
+      if (!smartAddr || smartLower === ownerLower) {
+        const candidates = await considerCandidates();
+        for (const candidate of candidates) {
+          if (candidate && candidate.toLowerCase() !== ownerLower) {
+            smartAddr = candidate;
+            smartLower = candidate.toLowerCase();
+            break;
+          }
+        }
+      }
+      if (smartAddr && smartAddr.toLowerCase() !== ownerLower) {
+        return smartAddr;
+      }
+      return null;
     }
 
     async function waitForTransaction(hash) {
@@ -729,13 +828,8 @@
   
     async function refreshBalance(addr) {
       const address = addr || currentAddress();
-      const ownerLower = address ? address.toLowerCase() : '';
-      let smartAddr = null;
-      try {
-        smartAddr = await resolveSmartAccountAddress();
-      } catch {}
-      const smartLower = smartAddr ? smartAddr.toLowerCase() : '';
-      const hasSmartAccount = !!smartAddr && smartLower !== ownerLower;
+      const smartAddr = await resolveActiveSmartAccount(address || '');
+      const hasSmartAccount = !!smartAddr;
 
       const resetAll = () => {
         state.balances.eoaDcmonWei = null;
@@ -997,23 +1091,20 @@
         const depositTx = await dcmonWrite.deposit(numeric.toBigNumberish(amountWei), addr);
         await depositTx.wait();
 
-        let smartAddr = null;
+        const smartAddr = await resolveActiveSmartAccount(addr);
+        if (!smartAddr) {
+          setStatus('Smart account unavailable. Reconnect your wallet and try again.', 'error');
+          return;
+        }
         try {
-          smartAddr = await resolveSmartAccountAddress();
-        } catch {}
-        const ownerLower = addr.toLowerCase();
-        const smartLower = smartAddr ? smartAddr.toLowerCase() : '';
-        if (smartAddr && smartLower !== ownerLower) {
-          try {
-            setStatus('Funding smart account...', 'info');
-            const transferTx = await dcmonWrite.transfer(smartAddr, numeric.toBigNumberish(amountWei));
-            await transferTx.wait();
-          } catch (transferErr) {
-            console.error('bankroll: smart account funding failed', transferErr);
-            const msg = transferErr?.error?.message || transferErr?.data?.message || transferErr?.reason || transferErr?.message || 'Failed to fund smart account.';
-            setStatus(msg, 'error');
-            return;
-          }
+          setStatus('Funding smart account...', 'info');
+          const transferTx = await dcmonWrite.transfer(smartAddr, numeric.toBigNumberish(amountWei));
+          await transferTx.wait();
+        } catch (transferErr) {
+          console.error('bankroll: smart account funding failed', transferErr);
+          const msg = transferErr?.error?.message || transferErr?.data?.message || transferErr?.reason || transferErr?.message || 'Failed to fund smart account.';
+          setStatus(msg, 'error');
+          return;
         }
 
         clearInput(controlTargets.buyInputs);
@@ -1047,10 +1138,8 @@
       }
   
       try {
-        const smartAddr = await resolveSmartAccountAddress();
-        const ownerLower = addr.toLowerCase();
-        const smartLower = smartAddr ? smartAddr.toLowerCase() : '';
-        if (smartAddr && smartLower !== ownerLower) {
+        const smartAddr = await resolveActiveSmartAccount(addr);
+        if (smartAddr) {
           try {
             const smartBalRaw = await dcmonRead.balanceOf(smartAddr);
             const smartBal = numeric.from(smartBalRaw);
@@ -1066,7 +1155,7 @@
           }
           const aaClient = await ensureAAClient();
           if (!aaClient) {
-            setStatus('Smart account client unavailable. Enable gasless mode and try again.', 'error');
+            setStatus('Smart account client unavailable. Reconnect your wallet and try again.', 'error');
             return;
           }
           setStatus('Moving DCMon to your wallet...', 'info');
@@ -1110,7 +1199,74 @@
         setStatus(msg, 'error');
       }
     }
-  
+
+    async function transferDcmonOwnerToSmart(amountWei, opts = {}) {
+      const addr = currentAddress();
+      if (!addr) {
+        throw new Error('Connect wallet first.');
+      }
+      const smartAddr = await resolveActiveSmartAccount(addr);
+      if (!smartAddr) {
+        throw new Error('Smart account unavailable.');
+      }
+      if (!await ensureWriteContracts()) {
+        throw new Error('Unable to initialise contracts.');
+      }
+      const required = numeric.from(amountWei);
+      const walletBalRaw = await dcmonRead.balanceOf(addr);
+      const walletBal = numeric.from(walletBalRaw);
+      if (!numeric.gte(walletBal, required)) {
+        throw new Error('Insufficient DCMon in wallet.');
+      }
+      opts.onProgress?.('Transferring DCMon to smart account...');
+      const tx = await dcmonWrite.transfer(smartAddr, numeric.toBigNumberish(required));
+      await tx.wait();
+      await refreshBalance(addr);
+      return true;
+    }
+
+    async function transferDcmonSmartToOwner(amountWei, opts = {}) {
+      const addr = currentAddress();
+      if (!addr) {
+        throw new Error('Connect wallet first.');
+      }
+      const smartAddr = await resolveActiveSmartAccount(addr);
+      if (!smartAddr) {
+        throw new Error('Smart account unavailable.');
+      }
+      if (!await ensureWriteContracts()) {
+        throw new Error('Unable to initialise contracts.');
+      }
+      const required = numeric.from(amountWei);
+      const smartBalRaw = await dcmonRead.balanceOf(smartAddr);
+      const smartBal = numeric.from(smartBalRaw);
+      if (!numeric.gte(smartBal, required)) {
+        throw new Error('Insufficient DCMon in smart account.');
+      }
+      const aaClient = await ensureAAClient();
+      if (!aaClient) {
+        throw new Error('Smart account client unavailable.');
+      }
+      opts.onProgress?.('Transferring DCMon to wallet...');
+      const encoded = dcmonWrite.interface.encodeFunctionData('transfer', [
+        addr,
+        numeric.toBigNumberish(required),
+      ]);
+      const op = await aaClient.sendTransaction({
+        to: dcmonAddress,
+        data: encoded,
+        value: 0n,
+        noSignerFallback: true,
+      });
+      const finalHash = typeof op === 'string' ? op : (op?.hash || op?.transactionHash);
+      if (!finalHash) {
+        throw new Error('Transfer cancelled.');
+      }
+      await waitForTransaction(finalHash);
+      await refreshBalance(addr);
+      return true;
+    }
+
     function bindClick(el, handler) {
       if (!el || el.dataset.bankrollBound) return;
       el.dataset.bankrollBound = '1';
@@ -1172,15 +1328,24 @@
       getAddresses: () => ({ dcmon: dcmonAddress, wmon: wmonAddress }),
       getContracts: () => ({ dcmonRead, dcmonWrite, wmonRead, wmonWrite }),
       getLastBalances: () => ({ dcmonWei: state.balances.eoaDcmonWei, monWei: state.balances.eoaMonWei, smartDcmonWei: state.balances.smartDcmonWei, smartMonWei: state.balances.smartMonWei }),
+      getSmartAccountAddress: async () => {
+        const owner = currentAddress();
+        if (!owner) return null;
+        return await resolveActiveSmartAccount(owner);
+      },
       ensureWrap,
       ensureWmonAllowance,
       ensureDcmonAllowance,
       buyIn,
       cashOut,
+      transferDcmonOwnerToSmart,
+      transferDcmonSmartToOwner,
       getLastStatus: () => state.lastStatus,
       registerBalanceTargets: (token, ids) => {
         if (token === 'mon') registerToSet(balanceTargets.eoaMon, ids);
         else if (token === 'dcmon') registerToSet(balanceTargets.eoaDcmon, ids);
+        else if (token === 'smart-mon') registerToSet(balanceTargets.smartMon, ids);
+        else if (token === 'smart-dcmon') registerToSet(balanceTargets.smartDcmon, ids);
       },
       registerStatusTarget: (ids) => registerToSet(state.statusTargets, ids),
       registerControls: (type, ids) => {
