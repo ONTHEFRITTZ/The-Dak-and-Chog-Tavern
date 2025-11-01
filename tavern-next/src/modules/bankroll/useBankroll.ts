@@ -128,8 +128,22 @@ export function useBankroll() {
 
         for (const addr of candidates) {
           try {
-            const balance: bigint = await dcmonContract.balanceOf(addr);
-            if (balance >= required) {
+            const shareBalance: bigint = await dcmonContract.balanceOf(addr);
+            if (shareBalance <= 0n) {
+              continue;
+            }
+            let spendable = shareBalance;
+            if (typeof (dcmonContract as any).previewRedeem === "function") {
+              try {
+                const preview: bigint = await (dcmonContract as any).previewRedeem(shareBalance);
+                if (typeof preview === "bigint" && preview > 0n) {
+                  spendable = preview;
+                }
+              } catch (previewErr) {
+                console.warn("[useBankroll] previewRedeem failed for", addr, previewErr);
+              }
+            }
+            if (spendable >= required) {
               return true;
             }
           } catch (balanceErr) {
