@@ -4,8 +4,9 @@ import { useCallback, useEffect, useState } from "react";
 import { Contract, MaxUint256, formatEther } from "ethers";
 import { useWallet } from "@/context/WalletContext";
 import { useDelegationToolkitAA } from "@/modules/aa/useDelegationToolkitAA";
-import { CONTRACTS } from "@/lib/config";
+import { CONTRACTS, MONAD } from "@/lib/config";
 import { DCMonABI } from "@/abi/dcmon";
+import { loadSmartAccountAddress } from "@/modules/aa/storage";
 import { updateBankrollState } from "./store";
 
 export type EnsureAllowanceOptions = {
@@ -98,8 +99,9 @@ export function useBankroll() {
       if (!provider) return false;
       if (required <= 0n) return true;
       try {
+        let ensuredAddress: string | null = null;
         try {
-          await ensureReady();
+          ensuredAddress = await ensureReady();
         } catch (err) {
           if (process.env.NODE_ENV !== "production") {
             console.debug("[useBankroll] ensureReady during balance check failed", err);
@@ -116,9 +118,13 @@ export function useBankroll() {
           }
         };
 
-        pushCandidate(smartAccountAddress);
+        pushCandidate(ensuredAddress ?? smartAccountAddress);
         pushCandidate(ownerAddress);
         pushCandidate(activeAddress);
+        if (!candidates.length) {
+          const stored = loadSmartAccountAddress(MONAD.id);
+          pushCandidate(stored);
+        }
 
         for (const addr of candidates) {
           try {

@@ -28,7 +28,7 @@ export type DelegationToolkitAA = {
   ready: boolean;
   initializing: boolean;
   sendTransaction: (params: SendTransactionParams) => Promise<string | null>;
-  ensureReady: () => Promise<void>;
+  ensureReady: () => Promise<Address | null>;
   smartAccountAddress: Address | null;
   ownerAddress: Address | null;
 };
@@ -90,7 +90,7 @@ export function useDelegationToolkitAA(): DelegationToolkitAA {
   const alchemyClientRef = useRef<AlchemySmartAccountClient | null>(null);
   const smartAccountRef = useRef<SmartContractAccount | null>(null);
   const contextRef = useRef<DelegationToolkitContext | null>(null);
-  const initPromiseRef = useRef<Promise<void> | null>(null);
+  const initPromiseRef = useRef<Promise<Address | null> | null>(null);
 
   const resetState = useCallback(() => {
     alchemyClientRef.current = null;
@@ -109,16 +109,23 @@ export function useDelegationToolkitAA(): DelegationToolkitAA {
     }
   }, [provider, address, resetState]);
 
-  const ensureReady = useCallback(async () => {
+  const ensureReady = useCallback(async (): Promise<Address | null> => {
     if (ready && alchemyClientRef.current && smartAccountRef.current) {
-      return;
+      try {
+        const accountLike = smartAccountRef.current as any;
+        if (typeof accountLike.getAddress === "function") {
+          return (await accountLike.getAddress()) as Address;
+        }
+        return (accountLike?.address as Address) ?? smartAccountAddress ?? null;
+      } catch {
+        return smartAccountAddress ?? null;
+      }
     }
     if (initPromiseRef.current) {
-      await initPromiseRef.current;
-      return;
+      return initPromiseRef.current;
     }
 
-    const promise = (async () => {
+    const promise = (async (): Promise<Address | null> => {
       if (!provider || !address) {
         throw new Error("Connect wallet to continue.");
       }
@@ -341,19 +348,27 @@ export function useDelegationToolkitAA(): DelegationToolkitAA {
       smartAccountRef.current = smartAccount;
       alchemyClientRef.current = alchemyClient;
       setReady(true);
-    })()
-      .catch((err) => {
-        resetState();
-        throw err;
-      })
-      .finally(() => {
-        setInitializing(false);
-        initPromiseRef.current = null;
-      });
+      return derivedSmartAccountAddress as Address | null;
+    })().catch((err) => {
+      resetState();
+      throw err;
+    });
 
     initPromiseRef.current = promise;
-    await promise;
-  }, [address, provider, ready, resetState, wagmiWalletClient]);
+    try {
+      return await promise;
+    } finally {
+      setInitializing(false);
+      initPromiseRef.current = null;
+    }
+  }, [
+    address,
+    provider,
+    ready,
+    resetState,
+    wagmiWalletClient,
+    smartAccountAddress,
+  ]);
 
   const sendTransaction = useCallback(
     async ({ to, data, value = 0n, useFallback = true }: SendTransactionParams) => {
