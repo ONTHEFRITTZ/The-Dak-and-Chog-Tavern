@@ -18,6 +18,8 @@ export const AgeGate = () => {
   const [error, setError] = useState<string | null>(null);
   const [ageConfirmed, setAgeConfirmed] = useState<boolean | null>(null);
   const [forceWalletSelect, setForceWalletSelect] = useState(false);
+  const primeMetaMaskRef = useRef(false);
+  const [primeTick, setPrimeTick] = useState(0);
   const announcedAAStatus = useRef<"ready" | "fallback" | null>(null);
 
   useEffect(() => {
@@ -74,11 +76,10 @@ export const AgeGate = () => {
       await connect();
       setForceWalletSelect(false);
       if (providerKey === "metamask") {
-        try {
-          await delegation.ensureReady();
-        } catch (err: any) {
-          console.warn("[age-gate] delegation prime failed", err);
-        }
+        primeMetaMaskRef.current = true;
+        setPrimeTick((tick) => tick + 1);
+      } else {
+        primeMetaMaskRef.current = false;
       }
     } catch (err: any) {
       console.warn("[age-gate] wallet connect failed", err);
@@ -87,50 +88,60 @@ export const AgeGate = () => {
   };
 
   useEffect(() => {
-    if (walletType !== "metamask" || !address || !provider || !(wagmiWalletClient?.account?.address)) {
+    if (walletType !== "metamask" || !address) {
       announcedAAStatus.current = null;
       return;
     }
+    const status: "ready" | "fallback" = delegation.ready ? "ready" : "fallback";
+    if (announcedAAStatus.current === status) return;
+    announcedAAStatus.current = status;
+    try {
+      const detail =
+        status === "ready"
+          ? { provider: "metamask", active: true }
+          : { provider: "metamask" };
+      window.dispatchEvent(new CustomEvent(status === "ready" ? "aa:ready" : "aa:fallback", { detail }));
+    } catch {
+      // ignore dispatch issues
+    }
+  }, [address, walletType, delegation.ready]);
+
+  useEffect(() => {
+    if (!primeMetaMaskRef.current) return;
+    if (walletType !== "metamask" || !address || !provider || !(wagmiWalletClient?.account?.address)) {
+      return;
+    }
     let cancelled = false;
-
-    const announceAA = (status: "ready" | "fallback") => {
-      if (announcedAAStatus.current === status) return;
-      announcedAAStatus.current = status;
-      try {
-        const detail =
-          status === "ready"
-            ? { provider: "metamask", active: true }
-            : { provider: "metamask" };
-        window.dispatchEvent(new CustomEvent(status === "ready" ? "aa:ready" : "aa:fallback", { detail }));
-      } catch {
-        // ignore dispatch issues
-      }
-    };
-
-    const initialiseDelegation = async () => {
-      if (typeof delegation?.ensureReady !== "function") {
-        announceAA("fallback");
-        return;
-      }
+    const timer = setTimeout(async () => {
       try {
         await delegation.ensureReady();
         if (!cancelled) {
-          announceAA("ready");
+          primeMetaMaskRef.current = false;
         }
-      } catch (err) {
-        console.warn("[age-gate] delegation ensureReady failed", err);
-        if (!cancelled) {
-          announceAA("fallback");
+      } catch (err: any) {
+        if (cancelled) return;
+        const message = typeof err?.message === "string" ? err.message.toLowerCase() : "";
+        if (
+          message.includes("evm provider not detected") ||
+          message.includes("wallet client unavailable") ||
+          message.includes("connect wallet")
+        ) {
+          setTimeout(() => {
+            if (!cancelled) {
+              setPrimeTick((tick) => tick + 1);
+            }
+          }, 250);
+        } else {
+          console.warn("[age-gate] delegation prime failed", err);
+          primeMetaMaskRef.current = false;
         }
       }
-    };
-
-    initialiseDelegation();
-
+    }, 120);
     return () => {
       cancelled = true;
+      clearTimeout(timer);
     };
-  }, [address, walletType, provider, wagmiWalletClient, delegation]);
+  }, [walletType, address, provider, wagmiWalletClient, delegation, primeTick]);
 
   useEffect(() => {
     if (address) {

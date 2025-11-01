@@ -484,9 +484,14 @@
         await window.ensureDelegationToolkitReady();
       } catch (err) {
         const message = err && err.message ? String(err.message) : '';
-        if (message && message.toLowerCase().includes('wallet client unavailable')) {
+        const lower = message.toLowerCase();
+        if (
+          lower.includes('wallet client unavailable') ||
+          lower.includes('evm provider not detected') ||
+          lower.includes('connect wallet')
+        ) {
           if (process.env.NODE_ENV !== 'production') {
-            console.debug('bankroll: delegation toolkit not ready yet (wallet client unavailable)');
+            console.debug('bankroll: delegation toolkit not ready yet', message || err);
           }
         } else {
           console.warn('bankroll: ensureDelegationToolkitReady failed', err);
