@@ -95,17 +95,48 @@ export function useBankroll() {
 
   const hasDcmonBalance = useCallback(
     async (required: bigint) => {
-      if (!provider || !activeAddress) return false;
+      if (!provider) return false;
+      if (required <= 0n) return true;
       try {
+        try {
+          await ensureReady();
+        } catch (err) {
+          if (process.env.NODE_ENV !== "production") {
+            console.debug("[useBankroll] ensureReady during balance check failed", err);
+          }
+        }
+
         const dcmonContract = new Contract(CONTRACTS.dcmon, DCMonABI, provider);
-        const balance: bigint = await dcmonContract.balanceOf(activeAddress);
-        return balance >= required;
+        const candidates: string[] = [];
+        const pushCandidate = (addr: string | null | undefined) => {
+          if (!addr) return;
+          const lower = addr.toLowerCase();
+          if (!candidates.some((existing) => existing.toLowerCase() === lower)) {
+            candidates.push(addr);
+          }
+        };
+
+        pushCandidate(smartAccountAddress);
+        pushCandidate(ownerAddress);
+        pushCandidate(activeAddress);
+
+        for (const addr of candidates) {
+          try {
+            const balance: bigint = await dcmonContract.balanceOf(addr);
+            if (balance >= required) {
+              return true;
+            }
+          } catch (balanceErr) {
+            console.warn("[useBankroll] balance fetch failed for", addr, balanceErr);
+          }
+        }
+        return false;
       } catch (err) {
         console.warn("[useBankroll] balance check failed", err);
         return false;
       }
     },
-    [provider, activeAddress]
+    [provider, activeAddress, ownerAddress, smartAccountAddress, ensureReady]
   );
 
   const ensureAllowance = useCallback(

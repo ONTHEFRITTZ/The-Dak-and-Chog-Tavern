@@ -400,6 +400,20 @@ export function useDelegationToolkitAA(): DelegationToolkitAA {
     [ensureReady, provider]
   );
 
+  useEffect(() => {
+    if (!provider || !address || !wagmiWalletClient) {
+      return;
+    }
+    if (ready || initializing) {
+      return;
+    }
+    ensureReady().catch((err) => {
+      if (process.env.NODE_ENV !== "production") {
+        console.warn("[useDelegationToolkitAA] auto ensureReady failed", err);
+      }
+    });
+  }, [provider, address, wagmiWalletClient, ready, initializing, ensureReady]);
+
   return useMemo(
     () => ({
       ready,
