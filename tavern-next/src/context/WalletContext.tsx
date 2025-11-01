@@ -175,6 +175,32 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, [checksumAddress]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!checksumAddress || !walletClient) return;
+    const prime = async () => {
+      try {
+        if (typeof (window as any).ensureDelegationToolkitReady === "function") {
+          await (window as any).ensureDelegationToolkitReady();
+        }
+      } catch (err: any) {
+        const message = typeof err?.message === "string" ? err.message.toLowerCase() : "";
+        if (
+          message.includes("evm provider not detected") ||
+          message.includes("wallet client unavailable") ||
+          message.includes("connect wallet")
+        ) {
+          if (process.env.NODE_ENV !== "production") {
+            console.debug("[wallet] delegation toolkit not ready yet", err?.message || err);
+          }
+        } else {
+          console.warn("[wallet] delegation toolkit prime failed", err);
+        }
+      }
+    };
+    prime();
+  }, [checksumAddress, walletClient]);
+
   const isConnecting =
     manualConnecting || connectPending || status === "connecting" || disconnectPending;
 
