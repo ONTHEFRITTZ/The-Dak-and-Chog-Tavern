@@ -114,7 +114,7 @@ export const AppNav = () => {
       </button>
 
       <Link className="sidebar-logo" href="/">
-        <Image src={logo.src} alt={logo.alt} width={logo.width} height={logo.height} priority />
+        <Image src={logo.src} alt={logo.alt} width={logo.width} height={logo.height} />
       </Link>
 
       <ul className="sidebar-links">

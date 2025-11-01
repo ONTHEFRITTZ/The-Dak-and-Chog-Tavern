@@ -28,12 +28,19 @@ export type DelegationToolkitAA = {
   ready: boolean;
   initializing: boolean;
   sendTransaction: (params: SendTransactionParams) => Promise<string | null>;
-  ensureReady: () => Promise<Address | null>;
+  ensureReady: (options?: EnsureAAOptions) => Promise<Address | null>;
   smartAccountAddress: Address | null;
   ownerAddress: Address | null;
 };
 
 type DelegationModule = any;
+
+type EnsureAAOptions = {
+  ownerAddress?: string | null;
+  provider?: PickedProvider | null;
+  walletClient?: WalletClient | null;
+  force?: boolean;
+};
 
 declare global {
   interface Window {
@@ -120,42 +127,50 @@ export function useDelegationToolkitAA(): DelegationToolkitAA {
     }
   }, [provider, address, resetState]);
 
-  const ensureReady = useCallback(async (): Promise<Address | null> => {
-    if (ready && alchemyClientRef.current && smartAccountRef.current) {
-      try {
-        const accountLike = smartAccountRef.current as any;
-        if (typeof accountLike.getAddress === "function") {
-          return (await accountLike.getAddress()) as Address;
+  const ensureReady = useCallback(
+    async (options?: EnsureAAOptions): Promise<Address | null> => {
+      if (options?.force) {
+        resetDelegationToolkitContext();
+        resetState();
+      } else if (ready && alchemyClientRef.current && smartAccountRef.current) {
+        try {
+          const accountLike = smartAccountRef.current as any;
+          if (typeof accountLike.getAddress === "function") {
+            return (await accountLike.getAddress()) as Address;
+          }
+          return (accountLike?.address as Address) ?? smartAccountAddress ?? null;
+        } catch {
+          return smartAccountAddress ?? null;
         }
-        return (accountLike?.address as Address) ?? smartAccountAddress ?? null;
-      } catch {
-        return smartAccountAddress ?? null;
       }
-    }
-    if (initPromiseRef.current) {
-      return initPromiseRef.current;
-    }
-
-    const promise = (async (): Promise<Address | null> => {
-      if (!provider || !address) {
-        throw new Error("Connect wallet to continue.");
+      if (initPromiseRef.current) {
+        return initPromiseRef.current;
       }
-      if (!wagmiWalletClient) {
-        throw new Error("Wallet client unavailable");
-      }
-      setInitializing(true);
 
-      const rawProvider =
-        ((wagmiWalletClient.transport as any)?.value as PickedProvider | undefined) ??
-        (provider as any)?.provider ??
-        (provider as any);
+      const promise = (async (): Promise<Address | null> => {
+        const effectiveAddress = (options?.ownerAddress ?? address) as Address | null;
+        if (!effectiveAddress) {
+          throw new Error("Connect wallet to continue.");
+        }
+        const walletOverride =
+          (options?.walletClient as WalletClient | null) ?? (wagmiWalletClient as WalletClient | null);
+        if (!walletOverride) {
+          throw new Error("Wallet client unavailable");
+        }
+        setInitializing(true);
 
-      const ctx = await ensureDelegationToolkitContext({
-        ownerAccount: address as Address,
-        walletClient: wagmiWalletClient as unknown as WalletClient,
-        provider: rawProvider ?? null,
-      });
-      contextRef.current = ctx;
+        const rawProvider =
+          options?.provider ??
+          ((walletOverride.transport as any)?.value as PickedProvider | undefined) ??
+          (provider as any)?.provider ??
+          (provider as any);
+
+        const ctx = await ensureDelegationToolkitContext({
+          ownerAccount: effectiveAddress,
+          walletClient: walletOverride,
+          provider: rawProvider ?? null,
+        });
+        contextRef.current = ctx;
 
       const { publicClient, walletClient, environment, ownerAccount } = ctx;
       setOwnerAddress(ownerAccount as Address);
@@ -455,6 +470,11 @@ export function useDelegationToolkitAA(): DelegationToolkitAA {
       } catch {
         /* ignore */
       }
+      try {
+        window.dispatchEvent(new CustomEvent("aa:sponsored", { detail: { active: false } }));
+      } catch {
+        /* ignore */
+      }
     };
 
     if (!ready || !alchemyClientRef.current) {
@@ -521,6 +541,11 @@ export function useDelegationToolkitAA(): DelegationToolkitAA {
           },
         })
       );
+    } catch {
+      /* no-op */
+    }
+    try {
+      window.dispatchEvent(new CustomEvent("aa:sponsored", { detail: { active: true } }));
     } catch {
       /* no-op */
     }

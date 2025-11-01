@@ -67,7 +67,7 @@ export const WalletInline = () => {
   }, [address]);
 
   return (
-    <div id="wallet-inline">
+    <div id="wallet-inline" className={walletType === "metamask" ? "metamask" : ""}>
       {walletIcon && (
         <div className="wallet-icon" aria-hidden="true">
           {walletIcon}

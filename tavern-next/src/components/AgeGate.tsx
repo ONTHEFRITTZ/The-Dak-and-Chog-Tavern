@@ -12,7 +12,7 @@ const AGE_KEY = "tavern:ageConfirmed";
 type Stage = "age" | "wallet";
 
 export const AgeGate = () => {
-  const { address, connect, disconnect, isConnecting, walletType, provider } = useWallet();
+  const { address, connect, disconnect, isConnecting, walletType, rawProvider } = useWallet();
   const { data: wagmiWalletClient } = useWalletClient();
   const delegation = useDelegationToolkitAA();
   const [error, setError] = useState<string | null>(null);
@@ -88,33 +88,18 @@ export const AgeGate = () => {
   };
 
   useEffect(() => {
-    if (walletType !== "metamask" || !address) {
-      announcedAAStatus.current = null;
-      return;
-    }
-    const status: "ready" | "fallback" = delegation.ready ? "ready" : "fallback";
-    if (announcedAAStatus.current === status) return;
-    announcedAAStatus.current = status;
-    try {
-      const detail =
-        status === "ready"
-          ? { provider: "metamask", active: true }
-          : { provider: "metamask" };
-      window.dispatchEvent(new CustomEvent(status === "ready" ? "aa:ready" : "aa:fallback", { detail }));
-    } catch {
-      // ignore dispatch issues
-    }
-  }, [address, walletType, delegation.ready]);
-
-  useEffect(() => {
     if (!primeMetaMaskRef.current) return;
-    if (walletType !== "metamask" || !address || !provider || !(wagmiWalletClient?.account?.address)) {
+    if (walletType !== "metamask" || !address || !rawProvider || !(wagmiWalletClient?.account?.address)) {
       return;
     }
     let cancelled = false;
     const timer = setTimeout(async () => {
       try {
-        await delegation.ensureReady();
+        await delegation.ensureReady({
+          ownerAddress: address,
+          provider: rawProvider,
+          walletClient: wagmiWalletClient as any,
+        });
         if (!cancelled) {
           primeMetaMaskRef.current = false;
         }
@@ -131,7 +116,53 @@ export const AgeGate = () => {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [walletType, address, provider, wagmiWalletClient, delegation, primeTick]);
+  }, [walletType, address, rawProvider, wagmiWalletClient, delegation, primeTick]);
+
+  useEffect(() => {
+    if (walletType !== "metamask" || !address) {
+      if (announcedAAStatus.current !== null) {
+        announcedAAStatus.current = null;
+        try {
+          window.dispatchEvent(new CustomEvent("aa:sponsored", { detail: { active: false } }));
+        } catch {
+          // ignore dispatch issues
+        }
+        try {
+          window.dispatchEvent(new CustomEvent("aa:fallback", { detail: { provider: "metamask" } }));
+        } catch {
+          // ignore dispatch issues
+        }
+      }
+      return;
+    }
+    if (delegation.ready) {
+      if (announcedAAStatus.current !== "ready") {
+        announcedAAStatus.current = "ready";
+        try {
+          window.dispatchEvent(new CustomEvent("aa:ready", { detail: { provider: "metamask", active: true } }));
+        } catch {
+          // ignore dispatch issues
+        }
+        try {
+          window.dispatchEvent(new CustomEvent("aa:sponsored", { detail: { active: true } }));
+        } catch {
+          // ignore dispatch issues
+        }
+      }
+    } else if (announcedAAStatus.current !== "fallback") {
+      announcedAAStatus.current = "fallback";
+      try {
+        window.dispatchEvent(new CustomEvent("aa:fallback", { detail: { provider: "metamask" } }));
+      } catch {
+        // ignore dispatch issues
+      }
+      try {
+        window.dispatchEvent(new CustomEvent("aa:sponsored", { detail: { active: false } }));
+      } catch {
+        // ignore dispatch issues
+      }
+    }
+  }, [walletType, address, delegation.ready]);
 
   useEffect(() => {
     if (address) {

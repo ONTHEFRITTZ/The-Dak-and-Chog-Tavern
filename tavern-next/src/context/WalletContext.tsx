@@ -15,6 +15,7 @@ type WalletContextValue = {
   connect: () => Promise<void>;
   disconnect: () => Promise<void>;
   walletType: WalletType;
+  rawProvider: PickedProvider | null;
 };
 
 const WalletContext = createContext<WalletContextValue | undefined>(undefined);
@@ -178,10 +179,19 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (!checksumAddress || !walletClient) return;
+    const rawProvider =
+      providerSourceRef.current ??
+      ((walletClient.transport as any)?.value as PickedProvider | undefined) ??
+      null;
+    if (!rawProvider) return;
     const prime = async () => {
       try {
         if (typeof (window as any).ensureDelegationToolkitReady === "function") {
-          await (window as any).ensureDelegationToolkitReady();
+          await (window as any).ensureDelegationToolkitReady({
+            ownerAddress: checksumAddress,
+            walletClient: walletClient as any,
+            provider: rawProvider,
+          });
         }
       } catch (err: any) {
         const message = typeof err?.message === "string" ? err.message.toLowerCase() : "";
@@ -199,10 +209,11 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
     };
     prime();
-  }, [checksumAddress, walletClient]);
+  }, [checksumAddress, walletClient, provider]);
 
   const isConnecting =
     manualConnecting || connectPending || status === "connecting" || disconnectPending;
+  const rawProviderValue = providerSourceRef.current;
 
   const value = useMemo<WalletContextValue>(
     () => ({
@@ -212,8 +223,9 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       connect,
       disconnect,
       walletType,
+      rawProvider: rawProviderValue ?? null,
     }),
-    [checksumAddress, provider, isConnecting, connect, disconnect, walletType]
+    [checksumAddress, provider, isConnecting, connect, disconnect, walletType, rawProviderValue]
   );
 
   return <WalletContext.Provider value={value}>{children}</WalletContext.Provider>;
