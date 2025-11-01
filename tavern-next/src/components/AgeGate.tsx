@@ -118,23 +118,13 @@ export const AgeGate = () => {
         if (!cancelled) {
           primeMetaMaskRef.current = false;
         }
-      } catch (err: any) {
+      } catch {
         if (cancelled) return;
-        const message = typeof err?.message === "string" ? err.message.toLowerCase() : "";
-        if (
-          message.includes("evm provider not detected") ||
-          message.includes("wallet client unavailable") ||
-          message.includes("connect wallet")
-        ) {
-          setTimeout(() => {
-            if (!cancelled) {
-              setPrimeTick((tick) => tick + 1);
-            }
-          }, 250);
-        } else {
-          console.warn("[age-gate] delegation prime failed", err);
-          primeMetaMaskRef.current = false;
-        }
+        setTimeout(() => {
+          if (!cancelled) {
+            setPrimeTick((tick) => tick + 1);
+          }
+        }, 250);
       }
     }, 120);
     return () => {

@@ -490,9 +490,7 @@
           lower.includes('evm provider not detected') ||
           lower.includes('connect wallet')
         ) {
-          if (process.env.NODE_ENV !== 'production') {
-            console.debug('bankroll: delegation toolkit not ready yet', message || err);
-          }
+          console.debug?.('bankroll: delegation toolkit not ready yet', message || err);
         } else {
           console.warn('bankroll: ensureDelegationToolkitReady failed', err);
         }
