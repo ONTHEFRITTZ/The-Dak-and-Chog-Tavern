@@ -463,14 +463,43 @@
       return null;
     }
 
-    async function ensureAAClient() {
-      try {
-        if (typeof window.ensureDelegationToolkitReady === 'function') {
-          await window.ensureDelegationToolkitReady();
+    async function waitForToolkitClient(maxAttempts = 12, delayMs = 150) {
+      for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+        if (window.AAClient && typeof window.AAClient.sendTransaction === 'function') {
+          return window.AAClient;
         }
-      } catch (err) {
-        console.warn('bankroll: ensureDelegationToolkitReady failed', err);
+        await wait(delayMs);
       }
+      return null;
+    }
+
+    async function tryDelegationToolkitClient() {
+      if (window.AAClient && typeof window.AAClient.sendTransaction === 'function') {
+        return window.AAClient;
+      }
+      if (typeof window.ensureDelegationToolkitReady !== 'function') {
+        return null;
+      }
+      try {
+        await window.ensureDelegationToolkitReady();
+      } catch (err) {
+        const message = err && err.message ? String(err.message) : '';
+        if (message && message.toLowerCase().includes('wallet client unavailable')) {
+          if (process.env.NODE_ENV !== 'production') {
+            console.debug('bankroll: delegation toolkit not ready yet (wallet client unavailable)');
+          }
+        } else {
+          console.warn('bankroll: ensureDelegationToolkitReady failed', err);
+        }
+      }
+      const toolkitClient = await waitForToolkitClient(12, 150);
+      if (toolkitClient && typeof toolkitClient.sendTransaction === 'function') {
+        return toolkitClient;
+      }
+      return null;
+    }
+
+    async function ensureAAClient() {
       if (aaClientCache && typeof aaClientCache.sendTransaction === 'function') {
         return aaClientCache;
       }
@@ -478,6 +507,13 @@
         aaClientCache = window.AAClient;
         return aaClientCache;
       }
+
+      const toolkitFirst = await tryDelegationToolkitClient();
+      if (toolkitFirst && typeof toolkitFirst.sendTransaction === 'function') {
+        aaClientCache = toolkitFirst;
+        return aaClientCache;
+      }
+
       if (aaClientInitPromise) {
         await aaClientInitPromise;
         return aaClientCache && typeof aaClientCache.sendTransaction === 'function' ? aaClientCache : null;
@@ -485,6 +521,12 @@
 
       aaClientInitPromise = (async () => {
         try {
+          const toolkitDirect = await tryDelegationToolkitClient();
+          if (toolkitDirect && typeof toolkitDirect.sendTransaction === 'function') {
+            aaClientCache = toolkitDirect;
+            return;
+          }
+
           if (!window.AAClient) {
             try {
               await import('/js/aaClient.js');

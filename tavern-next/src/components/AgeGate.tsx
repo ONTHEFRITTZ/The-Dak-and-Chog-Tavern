@@ -12,11 +12,12 @@ const AGE_KEY = "tavern:ageConfirmed";
 type Stage = "age" | "wallet";
 
 export const AgeGate = () => {
-  const { address, connect, isConnecting, walletType, provider } = useWallet();
+  const { address, connect, disconnect, isConnecting, walletType, provider } = useWallet();
   const { data: wagmiWalletClient } = useWalletClient();
   const delegation = useDelegationToolkitAA();
   const [error, setError] = useState<string | null>(null);
   const [ageConfirmed, setAgeConfirmed] = useState<boolean | null>(null);
+  const [forceWalletSelect, setForceWalletSelect] = useState(false);
   const announcedAAStatus = useRef<"ready" | "fallback" | null>(null);
 
   useEffect(() => {
@@ -30,9 +31,12 @@ export const AgeGate = () => {
 
   const resolvedAgeConfirmed = Boolean(ageConfirmed);
   const stage: Stage = resolvedAgeConfirmed ? "wallet" : "age";
-  const shouldShow = ageConfirmed === null ? false : !resolvedAgeConfirmed || !address;
+  const shouldShow =
+    ageConfirmed === null
+      ? false
+      : !resolvedAgeConfirmed || forceWalletSelect || !address;
 
-  const confirmAge = () => {
+  const confirmAge = async () => {
     try {
       sessionStorage.setItem(AGE_KEY, "true");
     } catch {
@@ -40,6 +44,14 @@ export const AgeGate = () => {
     }
     setAgeConfirmed(true);
     setError(null);
+    setForceWalletSelect(true);
+    if (address) {
+      try {
+        await disconnect();
+      } catch {
+        // ignore disconnect errors
+      }
+    }
   };
 
   const connectWithProvider = async (providerKey: "metamask" | "phantom") => {
@@ -60,6 +72,14 @@ export const AgeGate = () => {
       }
       window.__walletProvider = provider;
       await connect();
+      setForceWalletSelect(false);
+      if (providerKey === "metamask") {
+        try {
+          await delegation.ensureReady();
+        } catch (err: any) {
+          console.warn("[age-gate] delegation prime failed", err);
+        }
+      }
     } catch (err: any) {
       console.warn("[age-gate] wallet connect failed", err);
       setError(err?.message ?? "Wallet connection failed.");
@@ -111,6 +131,12 @@ export const AgeGate = () => {
       cancelled = true;
     };
   }, [address, walletType, provider, wagmiWalletClient, delegation]);
+
+  useEffect(() => {
+    if (address) {
+      setForceWalletSelect(false);
+    }
+  }, [address]);
 
   if (!shouldShow) return null;
 
