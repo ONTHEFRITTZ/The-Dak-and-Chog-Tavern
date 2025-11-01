@@ -474,29 +474,39 @@
     }
 
     async function tryDelegationToolkitClient() {
-      if (window.AAClient && typeof window.AAClient.sendTransaction === 'function') {
+      if (window.AAClient && typeof window.AAClient.sendTransaction === "function") {
         return window.AAClient;
       }
-      if (typeof window.ensureDelegationToolkitReady !== 'function') {
+      if (typeof window.ensureDelegationToolkitReady !== "function") {
         return null;
       }
       try {
-        await window.ensureDelegationToolkitReady();
+        const ownerAddress = typeof currentAddress === "function" ? currentAddress() : null;
+        const selectedProvider =
+          (typeof window.__getSelectedProvider === "function"
+            ? window.__getSelectedProvider("metamask")
+            : window.__walletProvider) || null;
+        const wagmiClient = window.__wagmiWalletClient || null;
+        await window.ensureDelegationToolkitReady({
+          ownerAddress,
+          provider: selectedProvider,
+          walletClient: wagmiClient,
+        });
       } catch (err) {
-        const message = err && err.message ? String(err.message) : '';
+        const message = err && err.message ? String(err.message) : "";
         const lower = message.toLowerCase();
         if (
-          lower.includes('wallet client unavailable') ||
-          lower.includes('evm provider not detected') ||
-          lower.includes('connect wallet')
+          lower.includes("wallet client unavailable") ||
+          lower.includes("evm provider not detected") ||
+          lower.includes("connect wallet")
         ) {
-          console.debug?.('bankroll: delegation toolkit not ready yet', message || err);
+          console.debug?.("bankroll: delegation toolkit not ready yet", message || err);
         } else {
-          console.warn('bankroll: ensureDelegationToolkitReady failed', err);
+          console.warn("bankroll: ensureDelegationToolkitReady failed", err);
         }
       }
       const toolkitClient = await waitForToolkitClient(12, 150);
-      if (toolkitClient && typeof toolkitClient.sendTransaction === 'function') {
+      if (toolkitClient && typeof toolkitClient.sendTransaction === "function") {
         return toolkitClient;
       }
       return null;
@@ -1450,6 +1460,9 @@
 
   document.addEventListener('wallet:ethers-ready', handleReady);
 })();
+
+
+
 
 
 

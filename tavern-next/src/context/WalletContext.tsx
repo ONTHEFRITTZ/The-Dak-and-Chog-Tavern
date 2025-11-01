@@ -211,6 +211,19 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     prime();
   }, [checksumAddress, walletClient, provider]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      if (walletClient) {
+        (window as any).__wagmiWalletClient = walletClient;
+      } else if ((window as any).__wagmiWalletClient) {
+        delete (window as any).__wagmiWalletClient;
+      }
+    } catch {
+      (window as any).__wagmiWalletClient = walletClient ?? undefined;
+    }
+  }, [walletClient]);
+
   const isConnecting =
     manualConnecting || connectPending || status === "connecting" || disconnectPending;
   const rawProviderValue = providerSourceRef.current;
