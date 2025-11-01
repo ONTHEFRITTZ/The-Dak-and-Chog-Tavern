@@ -1,4 +1,4 @@
-﻿// js/bankroll.js
+// js/bankroll.js
 // Global DCMon/MON bankroll helper shared across Tavern experiences.
 (function () {
   if (window.Bankroll && window.Bankroll.__isGlobalBankroll) {
@@ -464,6 +464,13 @@
     }
 
     async function ensureAAClient() {
+      try {
+        if (typeof window.ensureDelegationToolkitReady === 'function') {
+          await window.ensureDelegationToolkitReady();
+        }
+      } catch (err) {
+        console.warn('bankroll: ensureDelegationToolkitReady failed', err);
+      }
       if (aaClientCache && typeof aaClientCache.sendTransaction === 'function') {
         return aaClientCache;
       }
@@ -1398,6 +1405,7 @@
 
   document.addEventListener('wallet:ethers-ready', handleReady);
 })();
+
 
 
 

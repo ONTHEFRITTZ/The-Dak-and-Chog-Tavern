@@ -442,15 +442,28 @@ export function useDelegationToolkitAA(): DelegationToolkitAA {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (!ready || !alchemyClientRef.current) {
+
+    const clearClient = () => {
       if (window.AAClient && window.AAClient.__tavernClient) {
         delete window.AAClient;
       }
+      try {
+        const anyWindow = window as any;
+        if (anyWindow.BankrollAA && anyWindow.BankrollAA.__tavernClient) {
+          delete anyWindow.BankrollAA;
+        }
+      } catch {
+        /* ignore */
+      }
+    };
+
+    if (!ready || !alchemyClientRef.current) {
+      clearClient();
       return;
     }
 
     const client = alchemyClientRef.current;
-    window.AAClient = {
+    const wrapper = {
       __tavernClient: true,
       smartAccountAddress: smartAccountAddress ?? null,
       sendTransaction: async (params: Record<string, unknown>) => {
@@ -493,6 +506,13 @@ export function useDelegationToolkitAA(): DelegationToolkitAA {
       },
     };
 
+    window.AAClient = wrapper;
+    try {
+      (window as any).BankrollAA = wrapper;
+    } catch {
+      /* ignore */
+    }
+
     try {
       window.dispatchEvent(
         new CustomEvent("aa:client-ready", {
@@ -506,11 +526,20 @@ export function useDelegationToolkitAA(): DelegationToolkitAA {
     }
 
     return () => {
-      if (window.AAClient && window.AAClient.__tavernClient) {
-        delete window.AAClient;
-      }
+      clearClient();
     };
   }, [ready, smartAccountAddress, sendTransaction]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const anyWindow = window as any;
+    anyWindow.ensureDelegationToolkitReady = ensureReady;
+    return () => {
+      if (anyWindow.ensureDelegationToolkitReady === ensureReady) {
+        delete anyWindow.ensureDelegationToolkitReady;
+      }
+    };
+  }, [ensureReady]);
 
   return useMemo(
     () => ({

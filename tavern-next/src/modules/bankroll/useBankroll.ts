@@ -143,6 +143,14 @@ export function useBankroll() {
                 console.warn("[useBankroll] previewRedeem failed for", addr, previewErr);
               }
             }
+            if (process.env.NODE_ENV !== "production") {
+              console.debug("[useBankroll] balance candidate", {
+                addr,
+                shares: shareBalance.toString(),
+                spendable: spendable.toString(),
+                required: required.toString(),
+              });
+            }
             if (spendable >= required) {
               return true;
             }
@@ -154,6 +162,15 @@ export function useBankroll() {
       } catch (err) {
         console.warn("[useBankroll] balance check failed", err);
         return false;
+      } finally {
+        if (process.env.NODE_ENV !== "production") {
+          console.debug("[useBankroll] balance check candidates exhausted", {
+            required: required.toString(),
+            activeAddress,
+            ownerAddress,
+            smartAccountAddress,
+          });
+        }
       }
     },
     [provider, activeAddress, ownerAddress, smartAccountAddress, ensureReady]
