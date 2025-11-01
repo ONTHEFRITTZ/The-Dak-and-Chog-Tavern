@@ -178,6 +178,19 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    try {
+      if (checksumAddress) {
+        (window as any).__walletOwnerAddress = checksumAddress;
+      } else if ((window as any).__walletOwnerAddress) {
+        delete (window as any).__walletOwnerAddress;
+      }
+    } catch {
+      (window as any).__walletOwnerAddress = checksumAddress ?? undefined;
+    }
+  }, [checksumAddress]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
     if (!checksumAddress || !walletClient) return;
     const rawProvider =
       providerSourceRef.current ??

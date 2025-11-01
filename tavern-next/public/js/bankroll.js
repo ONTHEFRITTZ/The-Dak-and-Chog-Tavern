@@ -486,12 +486,13 @@
           (typeof window.__getSelectedProvider === "function"
             ? window.__getSelectedProvider("metamask")
             : window.__walletProvider) || null;
-        const wagmiClient = window.__wagmiWalletClient || null;
-        await window.ensureDelegationToolkitReady({
-          ownerAddress,
-          provider: selectedProvider,
-          walletClient: wagmiClient,
-        });
+        const wagmiClient = window.__wagmiWalletClient ?? null;
+        const options = {};
+        if (ownerAddress) options.ownerAddress = ownerAddress;
+        if (selectedProvider) options.provider = selectedProvider;
+        if (wagmiClient) options.walletClient = wagmiClient;
+        const args = Object.keys(options).length ? options : undefined;
+        await window.ensureDelegationToolkitReady(args);
       } catch (err) {
         const message = err && err.message ? String(err.message) : "";
         const lower = message.toLowerCase();
