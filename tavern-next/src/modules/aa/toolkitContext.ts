@@ -232,8 +232,15 @@ export async function ensureDelegationToolkitContext(overrides?: {
     const ownerAddress = ownerAccount as Address;
     const baseProvider = providerOverride as PickedProvider;
     const hydratedWalletClient = await ensureWalletClientAccount(walletClient, ownerAddress, baseProvider);
-    const usedWagmiClient = walletClient === hydratedWalletClient && !!(walletClient as any)?.account?.address;
-    const finalWalletClient = hydratedWalletClient;
+    const hydratedAccountAddress = (hydratedWalletClient as any)?.account?.address as Address | undefined;
+    const finalWalletClient =
+      hydratedAccountAddress && typeof hydratedAccountAddress === "string"
+        ? hydratedWalletClient
+        : createWalletClientWithAccount(baseProvider, ownerAddress);
+    const usedWagmiClient =
+      walletClient === hydratedWalletClient &&
+      walletClient === finalWalletClient &&
+      !!(walletClient as any)?.account?.address;
     if (!(finalWalletClient as any)?.account?.address) {
       console.error("[aa:toolkitContext] wallet client missing account", finalWalletClient);
       throw new Error("Delegation Toolkit wallet client lacks an account address");
