@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useEffect, useCallback } from "react";
+import { useMemo, useState, useEffect, useCallback, useRef } from "react";
 import { useWallet } from "@/context/WalletContext";
 import { useBlackjack } from "@/modules/blackjack/useBlackjack";
 import type { Card } from "@/modules/blackjack/engine";
@@ -77,6 +77,10 @@ export default function BlackjackPage() {
   const [isSeated, setIsSeated] = useState(false);
   const [playerName, setPlayerName] = useState("");
   const [tableModal, setTableModal] = useState<"history" | null>(null);
+  const [isNameModalOpen, setNameModalOpen] = useState(false);
+  const [nameModalMode, setNameModalMode] = useState<"sit" | "rename">("sit");
+  const [nameDraft, setNameDraft] = useState("");
+  const nameInputRef = useRef<HTMLInputElement | null>(null);
 
   const activeHand = blackjack.playerHands[blackjack.activeHandIndex] ?? null;
   const canAct =
@@ -156,31 +160,35 @@ export default function BlackjackPage() {
     }
   }, []);
 
-  const promptForTableName = useCallback(
-    (initial?: string) => {
-      if (typeof window === "undefined") return initial ?? displayName;
-      const baseline = initial ?? displayName;
-      const response = window.prompt("Choose your table name", baseline);
-      if (response === null) {
-        return baseline;
-      }
-      const trimmed = response.trim().slice(0, 24);
-      storePlayerName(trimmed);
-      return trimmed || shortAddress;
+  const openNameModal = useCallback(
+    (mode: "sit" | "rename") => {
+      const baseline = (playerName.trim() || shortAddress).slice(0, 24);
+      setNameDraft(baseline);
+      setNameModalMode(mode);
+      setNameModalOpen(true);
     },
-    [displayName, shortAddress, storePlayerName]
+    [playerName, shortAddress]
   );
 
   const handleRename = useCallback(() => {
-    promptForTableName(displayName);
-  }, [displayName, promptForTableName]);
+    openNameModal("rename");
+  }, [openNameModal]);
 
   const handleSit = useCallback(() => {
-    if (!playerName.trim()) {
-      promptForTableName(shortAddress);
-    }
+    openNameModal("sit");
+  }, [openNameModal]);
+
+  const handleNameModalConfirm = useCallback(() => {
+    const trimmed = nameDraft.trim().slice(0, 24);
+    const finalName = trimmed || shortAddress;
+    storePlayerName(finalName);
+    setNameModalOpen(false);
     setIsSeated(true);
-  }, [playerName, promptForTableName, shortAddress]);
+  }, [nameDraft, shortAddress, storePlayerName]);
+
+  const handleNameModalCancel = useCallback(() => {
+    setNameModalOpen(false);
+  }, []);
 
   const handleWagerChange = useCallback((value: string) => {
     setWagerInput(value);
@@ -261,6 +269,15 @@ export default function BlackjackPage() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [tableModal]);
+
+  useEffect(() => {
+    if (!isNameModalOpen) return;
+    const id = window.requestAnimationFrame(() => {
+      nameInputRef.current?.focus();
+      nameInputRef.current?.select();
+    });
+    return () => window.cancelAnimationFrame(id);
+  }, [isNameModalOpen]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -408,7 +425,12 @@ export default function BlackjackPage() {
 
       return (
         <div key="player-seat" className={`bj-seat me ${seatState}`} style={style}>
-          <div className="seat-name">{displayName}</div>
+          <div className="seat-name">
+            {displayName}
+            <button type="button" className="bj-rename-btn" onClick={handleRename}>
+              Edit name
+            </button>
+          </div>
           <div
             className="card-group"
             style={{ flexDirection: "column", alignItems: "center", gap: "12px" }}
@@ -558,6 +580,7 @@ export default function BlackjackPage() {
     handlePlayAgain,
     handleReady,
     handleSit,
+    handleRename,
     handleSplit,
     handleStand,
     handleSurrender,
@@ -624,6 +647,30 @@ export default function BlackjackPage() {
                   })}
                 </ul>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+      {isNameModalOpen && (
+        <div className="poker-modal-backdrop">
+          <div className="poker-modal">
+            <h3>{nameModalMode === "rename" ? "Update Your Name" : "Choose Your Name"}</h3>
+            <p className="muted">Pick the display name shown to other players at this table.</p>
+            <input
+              ref={nameInputRef}
+              type="text"
+              maxLength={24}
+              value={nameDraft}
+              onChange={(event) => setNameDraft(event.target.value)}
+              placeholder="Dak & Chog Regular"
+            />
+            <div className="modal-actions">
+              <button type="button" onClick={handleNameModalCancel}>
+                Cancel
+              </button>
+              <button type="button" onClick={handleNameModalConfirm}>
+                Save
+              </button>
             </div>
           </div>
         </div>

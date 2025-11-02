@@ -2321,6 +2321,27 @@ html[data-table-mode="onchain"] #wallet-inline,:root[data-table-mode="onchain"] 
   text-transform: uppercase;
   font-size: 13px;
 }
+.bj-seat .bj-rename-btn {
+  margin-left: 8px;
+  padding: 2px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: #ffd278;
+  background: transparent;
+  border: 1px solid rgba(255, 210, 120, 0.6);
+  border-radius: 999px;
+  transition: background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+}
+.bj-seat .bj-rename-btn:hover:not(:disabled) {
+  background: rgba(255, 210, 120, 0.2);
+  border-color: rgba(255, 210, 120, 0.85);
+}
+.bj-seat .bj-rename-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
 
 .bj-seat .seat-info {
   display: flex;

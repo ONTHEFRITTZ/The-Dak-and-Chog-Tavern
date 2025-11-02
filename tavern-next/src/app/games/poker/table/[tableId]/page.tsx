@@ -215,6 +215,7 @@ export default function PokerTablePage({ params }: TablePageProps) {
   const [playerName, setPlayerName] = useState("");
   const [nameInput, setNameInput] = useState("");
   const [isSitModalOpen, setSitModalOpen] = useState(false);
+  const [sitModalMode, setSitModalMode] = useState<"join" | "rename">("join");
   const [tableModal, setTableModal] = useState<"history" | null>(null);
   const [pendingSeatId, setPendingSeatId] = useState<number | null>(null);
   const nameInputRef = useRef<HTMLInputElement | null>(null);
@@ -289,14 +290,6 @@ export default function PokerTablePage({ params }: TablePageProps) {
       updatePlayerName(stored);
     }
   }, [updatePlayerName]);
-
-  const promptForPlayerName = useCallback(() => {
-    const fallback = playerName || (address ? short(address) : "Player");
-    if (typeof window === "undefined") return fallback;
-    const response = window.prompt("Choose your table name", fallback);
-    if (response === null) return fallback;
-    return updatePlayerName(response);
-  }, [address, playerName, updatePlayerName]);
 
   useEffect(() => {
     if (!isSitModalOpen) return;
@@ -633,12 +626,13 @@ export default function PokerTablePage({ params }: TablePageProps) {
   const isSeated = isActuallySeated || hasPendingSeat;
   const handleRenamePlayer = useCallback(() => {
     if (!isSeated) {
-      setNameInput(playerName);
-      setSitModalOpen(true);
+      handleOpenSitModal();
       return;
     }
-    promptForPlayerName();
-  }, [isSeated, promptForPlayerName, playerName]);
+    setNameInput(playerName || "");
+    setSitModalMode("rename");
+    setSitModalOpen(true);
+  }, [isSeated, handleOpenSitModal, playerName]);
   const tableCanvasClassName = useMemo(
     () =>
       cx(
@@ -760,17 +754,27 @@ export default function PokerTablePage({ params }: TablePageProps) {
       setActionStatus("No open seats available right now.");
       return;
     }
+    setSitModalMode("join");
     setNameInput(playerName || "");
     setSitModalOpen(true);
   }, [preferredSeatId, playerName]);
 
   const handleConfirmSit = useCallback(() => {
+    const trimmed = nameInput.trim().slice(0, 16);
+    const finalName = trimmed || "Player";
+
+    if (sitModalMode === "rename") {
+      updatePlayerName(finalName);
+      setSitModalOpen(false);
+      setSitModalMode("join");
+      return;
+    }
+
     if (preferredSeatId < 0) {
       setActionStatus("No open seats available right now.");
       return;
     }
-    const trimmed = nameInput.trim().slice(0, 16);
-    const finalName = trimmed || "Player";
+
     runAction(null, async () => {
       const targetSeat = preferredSeatId;
       setPendingSeatId(targetSeat);
@@ -790,21 +794,24 @@ export default function PokerTablePage({ params }: TablePageProps) {
       }
       updatePlayerName(finalName);
       setSitModalOpen(false);
+      setSitModalMode("join");
       setTableModal(null);
     });
   }, [
-    preferredSeatId,
     nameInput,
+    sitModalMode,
+    preferredSeatId,
     runAction,
+    isSimulatedTable,
     holdem,
     realtime,
-    isSimulatedTable,
     updatePlayerName,
   ]);
 
   const handleCancelSit = useCallback(() => {
     setSitModalOpen(false);
     setNameInput(playerName);
+    setSitModalMode("join");
   }, [playerName]);
 
   const handleLeaveSeat = useCallback(() => {
@@ -1248,9 +1255,11 @@ export default function PokerTablePage({ params }: TablePageProps) {
       {isSitModalOpen && (
         <div className="poker-modal-backdrop">
           <div className="poker-modal">
-            <h3>Take Your Seat</h3>
+            <h3>{sitModalMode === "rename" ? "Update Your Name" : "Take Your Seat"}</h3>
             <p className="muted">
-              Enter the name you want other players to see when you act at the table.
+              {sitModalMode === "rename"
+                ? "Choose how other players will see you at the table."
+                : "Enter the name you want other players to see when you act at the table."}
             </p>
             <input
               ref={nameInputRef}
@@ -1268,9 +1277,9 @@ export default function PokerTablePage({ params }: TablePageProps) {
               <button
                 type="button"
                 onClick={handleConfirmSit}
-                disabled={actionBusy || preferredSeatId < 0}
+                disabled={actionBusy || (sitModalMode === "join" && preferredSeatId < 0)}
               >
-                Take Seat
+                {sitModalMode === "rename" ? "Save" : "Take Seat"}
               </button>
             </div>
           </div>
