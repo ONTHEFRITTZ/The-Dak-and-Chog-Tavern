@@ -56,10 +56,10 @@ declare global {
 function pickImplementation(module: DelegationModule) {
   const { Implementation } = module;
   if (!Implementation) return null;
-  // Prefer Hybrid when available, then fallback to Stateless7702, then MultiSig.
+  // Prefer Stateless7702 (lightweight), then fallback to Hybrid, then MultiSig.
   return (
-    Implementation.Hybrid ??
     Implementation.Stateless7702 ??
+    Implementation.Hybrid ??
     Implementation.MultiSig ??
     null
   );
