@@ -624,15 +624,6 @@ export default function PokerTablePage({ params }: TablePageProps) {
   const hasPendingSeat = pendingSeatId != null;
   const isActuallySeated = mySeatId >= 0;
   const isSeated = isActuallySeated || hasPendingSeat;
-  const handleRenamePlayer = useCallback(() => {
-    if (!isSeated) {
-      handleOpenSitModal();
-      return;
-    }
-    setNameInput(playerName || "");
-    setSitModalMode("rename");
-    setSitModalOpen(true);
-  }, [isSeated, handleOpenSitModal, playerName]);
   const tableCanvasClassName = useMemo(
     () =>
       cx(
@@ -758,6 +749,16 @@ export default function PokerTablePage({ params }: TablePageProps) {
     setNameInput(playerName || "");
     setSitModalOpen(true);
   }, [preferredSeatId, playerName]);
+
+  const handleRenamePlayer = useCallback(() => {
+    if (!isSeated) {
+      handleOpenSitModal();
+      return;
+    }
+    setNameInput(playerName || "");
+    setSitModalMode("rename");
+    setSitModalOpen(true);
+  }, [handleOpenSitModal, isSeated, playerName]);
 
   const handleConfirmSit = useCallback(() => {
     const trimmed = nameInput.trim().slice(0, 16);
