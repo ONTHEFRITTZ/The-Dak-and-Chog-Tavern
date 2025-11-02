@@ -184,10 +184,15 @@ export function useDelegationToolkitAA(): DelegationToolkitAA {
         throw new Error("MetaMask Delegation Toolkit implementation unavailable");
       }
 
+      const signerAccount = (walletClient as any)?.account;
+      if (!signerAccount?.address) {
+        throw new Error("Delegation Toolkit wallet client missing account address");
+      }
+
       const signerConfig =
         implementation === module.Implementation.MultiSig
-          ? [{ walletClient }]
-          : { walletClient };
+          ? [{ walletClient, account: signerAccount }]
+          : { walletClient, account: signerAccount };
       if (process.env.NODE_ENV !== "production") {
         console.debug("[useDelegationToolkitAA] signerConfig", {
           implementation,

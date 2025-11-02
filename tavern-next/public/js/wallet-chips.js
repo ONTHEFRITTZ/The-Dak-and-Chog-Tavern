@@ -405,7 +405,7 @@
       } catch {}
     });
 
-    ensureButton('wi-change-name', 'Change Table Name', () => {
+    ensureButton('wi-change-name', 'Edit Name', () => {
       closeModal();
       try {
         window.dispatchEvent(new CustomEvent(CHANGE_NAME_EVENT));

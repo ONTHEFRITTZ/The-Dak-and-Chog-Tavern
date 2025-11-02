@@ -425,12 +425,7 @@ export default function BlackjackPage() {
 
       return (
         <div key="player-seat" className={`bj-seat me ${seatState}`} style={style}>
-          <div className="seat-name">
-            {displayName}
-            <button type="button" className="bj-rename-btn" onClick={handleRename}>
-              Edit name
-            </button>
-          </div>
+          <div className="seat-name">{displayName}</div>
           <div
             className="card-group"
             style={{ flexDirection: "column", alignItems: "center", gap: "12px" }}
@@ -580,7 +575,6 @@ export default function BlackjackPage() {
     handlePlayAgain,
     handleReady,
     handleSit,
-    handleRename,
     handleSplit,
     handleStand,
     handleSurrender,
