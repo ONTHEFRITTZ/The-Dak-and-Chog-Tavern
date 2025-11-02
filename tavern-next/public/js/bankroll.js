@@ -488,11 +488,18 @@
             : window.__walletProvider) || null;
         const wagmiClient = window.__wagmiWalletClient ?? null;
         const options = {};
+        const providerSupportsRequest = !!selectedProvider && typeof selectedProvider.request === "function";
+        const wagmiAccountAddress =
+          wagmiClient && typeof wagmiClient === "object" && wagmiClient.account && typeof wagmiClient.account.address === "string"
+            ? wagmiClient.account.address
+            : null;
         if (ownerAddress) options.ownerAddress = ownerAddress;
-        if (selectedProvider) options.provider = selectedProvider;
-        if (wagmiClient) options.walletClient = wagmiClient;
-        const args = Object.keys(options).length ? options : undefined;
-        await window.ensureDelegationToolkitReady(args);
+        if (providerSupportsRequest) options.provider = selectedProvider;
+        if (wagmiAccountAddress) options.walletClient = wagmiClient;
+        if (!options.ownerAddress || (!providerSupportsRequest && !wagmiAccountAddress)) {
+          return null;
+        }
+        await window.ensureDelegationToolkitReady(options);
       } catch (err) {
         const message = err && err.message ? String(err.message) : "";
         const lower = message.toLowerCase();
