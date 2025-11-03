@@ -17,6 +17,9 @@ import { ensureDelegationToolkitContext, resetDelegationToolkitContext } from ".
 import type { DelegationToolkitContext, PickedProvider } from "./toolkitContext";
 import { loadSmartAccountAddress, storeSmartAccountAddress } from "./storage";
 
+const yieldToMainThread = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+let delegationModulePromise: Promise<DelegationModule> | null = null;
+
 type SendTransactionParams = {
   to: string;
   data?: Hex | string;
@@ -158,6 +161,7 @@ export function useDelegationToolkitAA(): DelegationToolkitAA {
           throw new Error("Wallet client unavailable");
         }
         setInitializing(true);
+        await yieldToMainThread();
 
         const rawProvider =
           options?.provider ??
@@ -172,27 +176,30 @@ export function useDelegationToolkitAA(): DelegationToolkitAA {
         });
         contextRef.current = ctx;
 
-      const { publicClient, walletClient, environment, ownerAccount } = ctx;
-      setOwnerAddress(ownerAccount as Address);
-      if (!walletClient || !publicClient) {
-        throw new Error("Delegation Toolkit context incomplete");
-      }
+        const { publicClient, walletClient, environment, ownerAccount } = ctx;
+        setOwnerAddress(ownerAccount as Address);
+        if (!walletClient || !publicClient) {
+          throw new Error("Delegation Toolkit context incomplete");
+        }
 
-      const module: DelegationModule = await import("@metamask/delegation-toolkit");
-      const implementation = pickImplementation(module);
-      if (!implementation) {
-        throw new Error("MetaMask Delegation Toolkit implementation unavailable");
-      }
+        if (!delegationModulePromise) {
+          delegationModulePromise = import("@metamask/delegation-toolkit") as Promise<DelegationModule>;
+        }
+        const module: DelegationModule = await delegationModulePromise;
+        const implementation = pickImplementation(module);
+        if (!implementation) {
+          throw new Error("MetaMask Delegation Toolkit implementation unavailable");
+        }
 
-      const signerAccount = (walletClient as any)?.account;
-      if (!signerAccount?.address) {
-        throw new Error("Delegation Toolkit wallet client missing account address");
-      }
+        const signerAccount = (walletClient as any)?.account;
+        if (!signerAccount?.address) {
+          throw new Error("Delegation Toolkit wallet client missing account address");
+        }
 
-      const signerConfig =
-        implementation === module.Implementation.MultiSig
-          ? [{ walletClient, account: signerAccount }]
-          : { walletClient, account: signerAccount };
+        const signerConfig =
+          implementation === module.Implementation.MultiSig
+            ? [{ walletClient, account: signerAccount }]
+            : { walletClient, account: signerAccount };
       if (process.env.NODE_ENV !== "production") {
         console.debug("[useDelegationToolkitAA] signerConfig", {
           implementation,
