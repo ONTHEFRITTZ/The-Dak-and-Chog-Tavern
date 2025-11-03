@@ -4,7 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AlchemySmartAccountClient } from "@account-kit/infra";
 import { createAlchemySmartAccountClient, alchemy } from "@account-kit/infra";
 import { getEntryPoint, type SmartContractAccount } from "@aa-sdk/core";
-import { type Chain, type Hex, type Address, type WalletClient } from "viem";
+import { createWalletClient, custom, type Chain, type Hex, type Address, type WalletClient } from "viem";
+import { toAccount } from "viem/accounts";
 import { useWalletClient } from "wagmi";
 import { useWallet } from "@/context/WalletContext";
 import {
@@ -174,13 +175,17 @@ export function useDelegationToolkitAA(): DelegationToolkitAA {
           walletClient: walletOverride,
           provider: rawProvider ?? null,
         });
-        contextRef.current = ctx;
-
-        const { publicClient, walletClient, environment, ownerAccount } = ctx;
+        const { publicClient, provider: contextProvider, environment, ownerAccount } = ctx;
         setOwnerAddress(ownerAccount as Address);
-        if (!walletClient || !publicClient) {
+        if (!contextProvider || !publicClient) {
           throw new Error("Delegation Toolkit context incomplete");
         }
+        const walletClient = createWalletClient({
+          chain: MONAD_CHAIN,
+          transport: custom(contextProvider as any),
+          account: toAccount(ownerAccount as Address),
+        }) as WalletClient;
+        contextRef.current = { ...ctx, walletClient };
 
         if (!delegationModulePromise) {
           delegationModulePromise = import("@metamask/delegation-toolkit") as Promise<DelegationModule>;
