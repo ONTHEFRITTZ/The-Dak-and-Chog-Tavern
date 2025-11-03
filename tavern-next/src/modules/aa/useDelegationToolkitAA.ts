@@ -186,6 +186,18 @@ export function useDelegationToolkitAA(): DelegationToolkitAA {
           account: toAccount(ownerAccount as Address),
         }) as WalletClient;
         contextRef.current = { ...ctx, walletClient };
+        if (process.env.NODE_ENV !== "production") {
+          let hydratedAddresses: Address[] | undefined;
+          try {
+            hydratedAddresses = await walletClient.getAddresses?.();
+          } catch {
+            // ignore address probe failures
+          }
+          console.debug("[useDelegationToolkitAA] hydrated wallet client", {
+            account: (walletClient as any)?.account,
+            addresses: hydratedAddresses,
+          });
+        }
 
         if (!delegationModulePromise) {
           delegationModulePromise = import("@metamask/delegation-toolkit") as Promise<DelegationModule>;
