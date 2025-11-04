@@ -22,7 +22,7 @@ const games = [
   },
   {
     title: "Blackjack",
-    href: "/games/blackjack",
+    href: "/games/blackjack/lobby",
     asset: "/assets/images/blackjack-logo.png",
     width: 320,
     height: 150,

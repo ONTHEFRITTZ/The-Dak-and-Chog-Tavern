@@ -1,8 +1,14 @@
 'use client';
 
 import { useMemo, useState, useEffect, useCallback, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import { useWallet } from "@/context/WalletContext";
-import { useBlackjack } from "@/modules/blackjack/useBlackjack";
+import {
+  useBlackjackOnchain,
+  useBlackjackSimulated,
+  type BlackjackHook,
+  type BlackjackMode,
+} from "@/modules/blackjack";
 import type { Card } from "@/modules/blackjack/engine";
 import { usePageBackdrop } from "@/hooks/usePageBackdrop";
 
@@ -67,13 +73,19 @@ const renderCard = (card: Card, hidden = false, key?: string | number) => {
 const OPEN_HISTORY_EVENT = "tavern:poker:openHistory";
 const CHANGE_NAME_EVENT = "tavern:poker:changeName";
 const LEAVE_SEAT_EVENT = "tavern:poker:leaveSeat";
+const formatWagerForMode = (value: number, mode: BlackjackMode) =>
+  mode === "simulated" ? Math.round(value).toString() : value.toFixed(2);
 
-export default function BlackjackPage() {
-  usePageBackdrop("blackjack");
+type BlackjackViewProps = {
+  blackjack: BlackjackHook;
+  address: string | null;
+  mode: BlackjackMode;
+};
 
-  const { address } = useWallet();
-  const blackjack = useBlackjack();
-  const [wagerInput, setWagerInput] = useState(() => blackjack.baseWager.toFixed(2));
+function BlackjackTableView({ blackjack, address, mode }: BlackjackViewProps) {
+  const [wagerInput, setWagerInput] = useState(() =>
+    formatWagerForMode(blackjack.baseWager, mode)
+  );
   const [isSeated, setIsSeated] = useState(false);
   const [playerName, setPlayerName] = useState("");
   const [tableModal, setTableModal] = useState<"history" | null>(null);
@@ -126,6 +138,10 @@ export default function BlackjackPage() {
       setIsSeated(true);
     }
   }, [blackjack.playerHands.length, isSeated]);
+
+  useEffect(() => {
+    setWagerInput(formatWagerForMode(blackjack.baseWager, mode));
+  }, [blackjack.baseWager, mode]);
 
   useEffect(() => {
     if (!address && blackjack.playerHands.length === 0 && blackjack.phase === "betting") {
@@ -202,9 +218,9 @@ export default function BlackjackPage() {
     blackjack.nextHand();
     blackjack.resetError();
     setIsSeated(false);
-    setWagerInput(blackjack.baseWager.toFixed(2));
+    setWagerInput(formatWagerForMode(blackjack.baseWager, mode));
     setTableModal(null);
-  }, [blackjack, setWagerInput]);
+  }, [blackjack, mode, setWagerInput]);
 
   const handleReady = useCallback(() => {
     blackjack.startHand().catch(() => void 0);
@@ -361,11 +377,28 @@ export default function BlackjackPage() {
   const insuranceAmount = insurancePending && Number.isFinite(rawInsurance) ? Math.max(0, rawInsurance) : 0;
   const totalHands = blackjack.playerHands.length;
   const wagerNumeric = Number.parseFloat(wagerInput);
-  const wagerDisplay = Number.isFinite(wagerNumeric) ? wagerNumeric.toFixed(2) : wagerInput;
-  const activeWagerDisplay = activeHand ? activeHand.wager.toFixed(2) : wagerDisplay;
+  const wagerDisplay = Number.isFinite(wagerNumeric)
+    ? formatWagerForMode(wagerNumeric, mode)
+    : wagerInput;
+  const activeWagerDisplay = activeHand
+    ? formatWagerForMode(activeHand.wager, mode)
+    : wagerDisplay;
   const activeHandLabel = activeHand
     ? `Hand ${blackjack.activeHandIndex + 1} of ${Math.max(totalHands, 1)}`
     : "Hand";
+  const amountUnit = mode === "simulated" ? "chips" : "DCMon";
+  const formatAmount = useCallback(
+    (value: number) => (mode === "simulated" ? value.toFixed(0) : value.toFixed(2)),
+    [mode]
+  );
+  const formatNet = useCallback(
+    (value: number) => (mode === "simulated" ? value.toFixed(0) : value.toFixed(3)),
+    [mode]
+  );
+  const formatPayoutDisplay = useCallback(
+    (value: number) => (mode === "simulated" ? value.toFixed(0) : value.toFixed(3)),
+    [mode]
+  );
   const dockMessage = useMemo(() => {
     if (blackjack.error) return blackjack.error;
     if (blackjack.message) return blackjack.message;
@@ -462,17 +495,27 @@ export default function BlackjackPage() {
             <span>
               {activeHandLabel}: {activeHand ? activeHand.score.bestTotal : playerTotalLabel}
             </span>
+            {mode === "simulated" && (
+              <span>
+                Chips:{" "}
+                <span className="highlight">
+                  {Math.max(0, Math.round(blackjack.f2pChips ?? 0))}
+                </span>
+              </span>
+            )}
             {payout != null && (
               <span className={payout >= 0 ? "bj-win" : "bj-loss"}>
                 {payout >= 0 ? "+" : ""}
-                {payout.toFixed(3)} DCMon
+                {formatPayoutDisplay(payout)} {amountUnit}
               </span>
             )}
           </div>
             <div className="seat-console">
               <div className="seat-console-top">
                 <div className="seat-hud">
-                  <span>Wager {activeWagerDisplay} DCMon</span>
+                  <span>
+                    Wager {activeWagerDisplay} {amountUnit}
+                  </span>
                   {totalHands > 1 && (
                     <span>
                       {blackjack.activeHandIndex + 1}/{totalHands}
@@ -488,8 +531,8 @@ export default function BlackjackPage() {
                       disabled={blackjack.isBusy || blackjack.insuranceTaken}
                     >
                       {blackjack.insuranceTaken
-                        ? `Insurance ${insuranceAmount.toFixed(2)} DCMon placed`
-                        : `Take Insurance (${insuranceAmount.toFixed(2)} DCMon)`}
+                        ? `Insurance ${formatAmount(insuranceAmount)} ${amountUnit} placed`
+                        : `Take Insurance (${formatAmount(insuranceAmount)} ${amountUnit})`}
                     </button>
                   </div>
                 )}
@@ -525,13 +568,13 @@ export default function BlackjackPage() {
                   <div className="bet-input-inline">
                     <input
                       type="number"
-                      step="0.1"
+                      step={mode === "simulated" ? 1 : 0.1}
                       min={blackjack.minBet}
                       max={blackjack.maxBet}
                       value={wagerInput}
                       onChange={(event) => handleWagerChange(event.target.value)}
                       disabled={!canReady}
-                      aria-label="Wager amount in DCMon"
+                      aria-label={`Wager amount in ${amountUnit}`}
                       className="bet-input"
                     />
                     <button type="button" onClick={handleReady} disabled={!canReady}>
@@ -586,6 +629,11 @@ export default function BlackjackPage() {
     handleWagerChange,
     totalHands,
     wagerInput,
+    amountUnit,
+    formatPayoutDisplay,
+    formatAmount,
+    blackjack.f2pChips,
+    mode,
   ]);
 
   return (
@@ -633,8 +681,8 @@ export default function BlackjackPage() {
                       <li key={entry.id}>
                         <strong>{entry.result.toUpperCase()}</strong>
                         <span>
-                          Wager {entry.wager.toFixed(2)} - {net >= 0 ? "+" : ""}
-                          {net.toFixed(3)} DCMon
+                          Wager {formatAmount(entry.wager)} - {net >= 0 ? "+" : ""}
+                          {formatNet(net)} {amountUnit}
                         </span>
                       </li>
                     );
@@ -671,6 +719,29 @@ export default function BlackjackPage() {
       )}
     </main>
   );
+}
+
+function BlackjackOnchainView() {
+  usePageBackdrop("blackjack");
+  const { address } = useWallet();
+  const blackjack = useBlackjackOnchain();
+  return <BlackjackTableView blackjack={blackjack} address={address} mode="onchain" />;
+}
+
+function BlackjackSimulatedView() {
+  usePageBackdrop("blackjack");
+  const { address } = useWallet();
+  const blackjack = useBlackjackSimulated();
+  return <BlackjackTableView blackjack={blackjack} address={address} mode="simulated" />;
+}
+
+export default function BlackjackPage() {
+  const searchParams = useSearchParams();
+  const modeParam = (searchParams?.get("mode") ?? "").toLowerCase();
+  if (modeParam === "f2p" || modeParam === "simulated") {
+    return <BlackjackSimulatedView />;
+  }
+  return <BlackjackOnchainView />;
 }
 
 

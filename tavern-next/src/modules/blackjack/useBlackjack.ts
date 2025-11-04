@@ -7,7 +7,17 @@ import { CONTRACTS } from "@/lib/config";
 import { useWallet } from "@/context/WalletContext";
 import { useDelegationToolkitAA } from "@/modules/aa/useDelegationToolkitAA";
 import { useBankroll, formatDcmon } from "@/modules/bankroll";
-import { scoreHand, type Card, type HandOutcome } from "./engine";
+import {
+  createDeck,
+  shuffleDeck,
+  dealInitialHands,
+  drawCard,
+  scoreHand,
+  shouldDealerHit,
+  getOutcome,
+  type Card,
+  type HandOutcome,
+} from "./engine";
 import type {
   BlackjackHand,
   BlackjackHistoryEntry,
@@ -46,6 +56,10 @@ const OUTCOME_MAP: Record<number, HandOutcome | undefined> = {
 
 const TABLE_LIMITS = { min: 0.1, max: 10 };
 const MAX_ACTIVE_HANDS = 4;
+const F2P_INITIAL_STACK = 100;
+const F2P_MIN_BET = 1;
+const F2P_MAX_BET = 100;
+const SIMULATED_SHOE_DECKS = 6;
 
 const initialState: BlackjackState = {
   phase: "betting",
@@ -68,6 +82,7 @@ const initialState: BlackjackState = {
   history: [],
   error: null,
   gameId: null,
+  f2pChips: null,
 };
 
 
@@ -80,12 +95,22 @@ const decodeCard = (value: bigint | number): Card => {
   return `${RANKS[rankIndex]}${SUITS[suitIndex]}` as Card;
 };
 
-const outcomeMessage = (outcome: HandOutcome | undefined, net: number) => {
+const outcomeMessage = (
+  outcome: HandOutcome | undefined,
+  net: number,
+  unit: "DCMon" | "chips" = "DCMon"
+) => {
+  const formatNet = (value: number) => {
+    if (unit === "chips") {
+      return Math.round(value).toString();
+    }
+    return value.toFixed(3);
+  };
   switch (outcome) {
     case "blackjack":
       return "Blackjack! You win 3:2.";
     case "win":
-      return net > 0 ? `You win ${net.toFixed(3)} DCMon.` : "You win!";
+      return net > 0 ? `You win ${formatNet(net)} ${unit}.` : "You win!";
     case "push":
       return "Push. Stake returned.";
     case "lose":
@@ -212,7 +237,7 @@ const toUserMessage = (reason: unknown, fallback: string): string => {
   return base.length > 96 ? `${base.slice(0, 93)}...` : base;
 };
 
-export function useBlackjack(): BlackjackHook {
+export function useBlackjackOnchain(): BlackjackHook {
   const [state, setState] = useState<BlackjackState>(() => {
     let storedWager = TABLE_LIMITS.min;
     try {
@@ -299,7 +324,7 @@ export function useBlackjack(): BlackjackHook {
       const totalNet = totalPayoutNumber - totalStakeNumber;
 
       const message = normalized.finished
-        ? outcomeMessage(normalized.finalOutcome, totalNet)
+        ? outcomeMessage(normalized.finalOutcome, totalNet, "DCMon")
         : insurancePending
         ? normalized.insuranceBet > 0n
           ? "Insurance placed. Resolve by revealing the dealer's hand."
@@ -665,3 +690,343 @@ export function useBlackjack(): BlackjackHook {
   };
 }
 
+function createSimulatedShoe(): Card[] {
+  const seed = Math.floor(Math.random() * 1_000_000_000);
+  return shuffleDeck(createDeck({ decks: SIMULATED_SHOE_DECKS, seed }));
+}
+
+function payoutForOutcome(outcome: HandOutcome, wager: number): number {
+  switch (outcome) {
+    case "blackjack":
+      return wager * 2.5;
+    case "win":
+      return wager * 2;
+    case "push":
+      return wager;
+    case "surrender":
+      return wager / 2;
+    default:
+      return 0;
+  }
+}
+
+function refillIfNeeded(chips: number): { chips: number; message: string | null } {
+  if (chips <= 0) {
+    return {
+      chips: F2P_INITIAL_STACK,
+      message: `Out of chips! Bankroll refilled to ${F2P_INITIAL_STACK} chips.`,
+    };
+  }
+  return { chips, message: null };
+}
+
+function createHistoryEntry(
+  hand: BlackjackHand,
+  dealerCards: Card[],
+  outcome: HandOutcome,
+  wager: number,
+  payout: number
+): BlackjackHistoryEntry {
+  return {
+    id: `f2p-${Date.now()}-${Math.floor(Math.random() * 1_000_000)}`,
+    timestamp: Date.now(),
+    cards: [...hand.cards],
+    dealer: [...dealerCards],
+    result: outcome,
+    wager,
+    payout,
+  };
+}
+
+export function useBlackjackSimulated(): BlackjackHook {
+  const [state, setState] = useState<BlackjackState>(() => ({
+    ...initialState,
+    mode: "simulated",
+    minBet: F2P_MIN_BET,
+    maxBet: F2P_MAX_BET,
+    baseWager: F2P_MIN_BET,
+    shoe: createSimulatedShoe(),
+    f2pChips: F2P_INITIAL_STACK,
+    message: `You have ${F2P_INITIAL_STACK} chips. Place your wager to begin.`,
+  }));
+
+  const setWager = useCallback((value: number) => {
+    setState((prev) => {
+      const chips = prev.f2pChips ?? F2P_INITIAL_STACK;
+      const normalized = Number.isFinite(value) ? Math.floor(value) : prev.baseWager;
+      const maxAllowed = Math.max(F2P_MIN_BET, Math.min(prev.maxBet, chips));
+      const nextWager = clamp(normalized, F2P_MIN_BET, maxAllowed);
+      return { ...prev, baseWager: nextWager, error: null };
+    });
+  }, []);
+
+  const startHand = useCallback(async () => {
+    setState((prev) => {
+      if (prev.phase !== "betting") return prev;
+      const chips = prev.f2pChips ?? F2P_INITIAL_STACK;
+      const wager = clamp(Math.floor(prev.baseWager), prev.minBet, Math.min(prev.maxBet, chips));
+      if (wager > chips) {
+        return { ...prev, error: "Not enough chips for that wager." };
+      }
+      let shoe = prev.shoe.length < 20 ? createSimulatedShoe() : [...prev.shoe];
+      const initialDeal = dealInitialHands(shoe);
+      shoe = initialDeal.deck;
+      const playerCards = initialDeal.player;
+      const dealerCards = initialDeal.dealer;
+      const playerScore = scoreHand(playerCards);
+      const dealerScore = scoreHand(dealerCards);
+
+      const hand: BlackjackHand = {
+        id: `hand-${Date.now()}`,
+        cards: playerCards,
+        wager,
+        originalWager: wager,
+        canSplit: false,
+        canDouble: false,
+        canSurrender: false,
+        isStanding: false,
+        isFinished: false,
+        isDouble: false,
+        isSplitAces: false,
+        isSurrendered: false,
+        score: playerScore,
+      };
+
+      let chipsAfterBet = chips - wager;
+
+      const newState: BlackjackState = {
+        ...prev,
+        shoe,
+        dealerCards,
+        dealerScore: null,
+        playerHands: [hand],
+        activeHandIndex: 0,
+        insuranceOffered: false,
+        insuranceTaken: false,
+        insuranceResolved: true,
+        insuranceBet: 0,
+        phase: "player",
+        revealDealer: false,
+        isBusy: false,
+        error: null,
+        message: "Choose your action.",
+        f2pChips: chipsAfterBet,
+      };
+
+      if (playerScore.isBlackjack || dealerScore.isBlackjack) {
+        const outcome = getOutcome(playerCards, dealerCards);
+        const payout = payoutForOutcome(outcome, wager);
+        const net = payout - wager;
+        chipsAfterBet += payout;
+        const refill = refillIfNeeded(chipsAfterBet);
+        const historyEntry = createHistoryEntry(hand, dealerCards, outcome, wager, payout);
+        const updatedHand: BlackjackHand = {
+          ...hand,
+          isFinished: true,
+          isStanding: true,
+          result: outcome,
+          payout,
+        };
+        return {
+          ...newState,
+          phase: "payout",
+          dealerScore,
+          revealDealer: true,
+          playerHands: [updatedHand],
+          history: [historyEntry, ...newState.history].slice(0, 12),
+          f2pChips: refill.chips,
+          message: refill.message ?? outcomeMessage(outcome, net, "chips"),
+          baseWager: Math.min(newState.baseWager, Math.max(F2P_MIN_BET, Math.min(refill.chips, newState.maxBet))),
+        };
+      }
+
+      return newState;
+    });
+  }, []);
+
+  const finalizeHand = useCallback(
+    (
+      prev: BlackjackState,
+      params: {
+        updatedHand: BlackjackHand;
+        dealerCards: Card[];
+        shoe: Card[];
+        outcome: HandOutcome;
+      }
+    ): BlackjackState => {
+      const { updatedHand, dealerCards, shoe, outcome } = params;
+      const wager = updatedHand.wager;
+      const payout = payoutForOutcome(outcome, wager);
+      const net = payout - wager;
+      const chipsBefore = prev.f2pChips ?? 0;
+      const chipsAfter = chipsBefore + payout;
+      const refill = refillIfNeeded(chipsAfter);
+      const historyEntry = createHistoryEntry(updatedHand, dealerCards, outcome, wager, payout);
+      const dealerScore = scoreHand(dealerCards);
+      const newBaseWager = Math.min(
+        prev.baseWager,
+        Math.max(F2P_MIN_BET, Math.min(refill.chips, prev.maxBet))
+      );
+
+      return {
+        ...prev,
+        shoe,
+        dealerCards,
+        dealerScore,
+        playerHands: [
+          {
+            ...updatedHand,
+            isFinished: true,
+            isStanding: outcome !== "bust",
+            result: outcome,
+            payout,
+            canDouble: false,
+            canSplit: false,
+            canSurrender: false,
+          },
+        ],
+        phase: "payout",
+        revealDealer: true,
+        isBusy: false,
+        history: [historyEntry, ...prev.history].slice(0, 12),
+        f2pChips: refill.chips,
+        message: refill.message ?? outcomeMessage(outcome, net, "chips"),
+        baseWager: newBaseWager,
+        error: null,
+      };
+    },
+    []
+  );
+
+  const hit = useCallback(async () => {
+    setState((prev) => {
+      if (prev.phase !== "player") return prev;
+      const hand = prev.playerHands[prev.activeHandIndex];
+      if (!hand || hand.isFinished) {
+        return { ...prev, error: "No active hand available." };
+      }
+      const draw = drawCard(prev.shoe);
+      const cards = [...hand.cards, draw.card];
+      const score = scoreHand(cards);
+      const updatedHand: BlackjackHand = {
+        ...hand,
+        cards,
+        score,
+        canDouble: false,
+        canSplit: false,
+      };
+      if (score.isBust) {
+        return finalizeHand(prev, {
+          updatedHand,
+          dealerCards: prev.dealerCards,
+          shoe: draw.deck,
+          outcome: "bust",
+        });
+      }
+      const hands = [...prev.playerHands];
+      hands[prev.activeHandIndex] = updatedHand;
+      return {
+        ...prev,
+        shoe: draw.deck,
+        playerHands: hands,
+        message: "Choose your action.",
+        error: null,
+      };
+    });
+  }, [finalizeHand]);
+
+  const stand = useCallback(async () => {
+    setState((prev) => {
+      if (prev.phase !== "player") return prev;
+      const hand = prev.playerHands[prev.activeHandIndex];
+      if (!hand || hand.isFinished) {
+        return { ...prev, error: "No active hand available." };
+      }
+      let dealerCards = [...prev.dealerCards];
+      let deck = [...prev.shoe];
+      while (shouldDealerHit(dealerCards)) {
+        const drawn = drawCard(deck);
+        dealerCards = [...dealerCards, drawn.card];
+        deck = drawn.deck;
+      }
+      const outcome = getOutcome(hand.cards, dealerCards);
+      return finalizeHand(prev, {
+        updatedHand: hand,
+        dealerCards,
+        shoe: deck,
+        outcome,
+      });
+    });
+  }, [finalizeHand]);
+
+  const unavailable = useCallback((action: string) => {
+    setState((prev) => ({
+      ...prev,
+      error: `${action} is not available in free play mode.`,
+    }));
+  }, []);
+
+  const doubleDown = useCallback(async () => unavailable("Double down"), [unavailable]);
+  const split = useCallback(async () => unavailable("Split"), [unavailable]);
+  const takeInsurance = useCallback(async () => unavailable("Insurance"), [unavailable]);
+  const surrender = useCallback(async () => unavailable("Surrender"), [unavailable]);
+
+  const nextHand = useCallback(() => {
+    setState((prev) => {
+      const chips = prev.f2pChips ?? F2P_INITIAL_STACK;
+      const refill = refillIfNeeded(chips);
+      const nextChips = refill.message ? refill.chips : chips;
+      const nextBaseWager = Math.min(
+        prev.baseWager,
+        Math.max(F2P_MIN_BET, Math.min(nextChips, prev.maxBet))
+      );
+      return {
+        ...prev,
+        phase: "betting",
+        dealerCards: [],
+        dealerScore: null,
+        playerHands: [],
+        activeHandIndex: 0,
+        insuranceOffered: false,
+        insuranceTaken: false,
+        insuranceResolved: true,
+        insuranceBet: 0,
+        message: refill.message ?? "Place your wager to begin.",
+        revealDealer: false,
+        isBusy: false,
+        error: null,
+        f2pChips: nextChips,
+        baseWager: nextBaseWager,
+      };
+    });
+  }, []);
+
+  const resetError = useCallback(() => {
+    setState((prev) => ({ ...prev, error: null }));
+  }, []);
+
+  const setMode = useCallback(() => {
+    // noop for simulated mode
+  }, []);
+
+  return {
+    ...state,
+    formattedBalance: `${state.f2pChips ?? 0} chips`,
+    dcmonBalance: 0n,
+    setWager,
+    startHand,
+    hit,
+    stand,
+    doubleDown,
+    split,
+    takeInsurance,
+    surrender,
+    nextHand,
+    setMode,
+    resetError,
+  };
+}
+
+export function useBlackjack(): BlackjackHook {
+  return useBlackjackOnchain();
+}

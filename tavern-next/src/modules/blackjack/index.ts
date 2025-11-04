@@ -1,3 +1,3 @@
 export * from "./types";
 export * from "./engine";
-export { useBlackjack } from "./useBlackjack";
+export { useBlackjack, useBlackjackOnchain, useBlackjackSimulated } from "./useBlackjack";

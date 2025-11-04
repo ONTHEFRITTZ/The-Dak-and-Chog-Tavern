@@ -79,7 +79,7 @@ export const AppNav = () => {
   const navItems = useMemo<NavItem[]>(() => {
     const base: NavItem[] = [
       { label: "Home", href: "/" },
-      { label: "Blackjack", href: "/games/blackjack" },
+      { label: "Blackjack", href: "/games/blackjack/lobby" },
       { label: "Poker", href: "/games/poker" },
       { label: "Hazard", href: "/games/hazard" },
       { label: "Shell Game", href: "/games/shell" },

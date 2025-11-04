@@ -54,6 +54,7 @@ export interface BlackjackState {
   history: BlackjackHistoryEntry[];
   error: string | null;
   gameId: bigint | null;
+  f2pChips: number | null;
 }
 
 export interface BlackjackControls {
