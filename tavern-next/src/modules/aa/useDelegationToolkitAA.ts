@@ -81,26 +81,6 @@ function deriveAlchemyRpcBase(url?: string | null) {
   }
 }
 
-function serializeBigNumberish(value: unknown): string {
-  if (typeof value === "bigint") return value.toString();
-  if (typeof value === "number") return Math.trunc(value).toString();
-  if (typeof value === "string") return value;
-  if (value == null) return "0";
-  try {
-    return BigInt(value as any).toString();
-  } catch {
-    return String(value);
-  }
-}
-
-function bypassesPaymaster(overrides: Record<string, unknown> | undefined | null) {
-  if (!overrides) return false;
-  if (typeof overrides !== "object") return false;
-  if ("paymasterAndData" in overrides) return true;
-  if ("paymaster" in overrides || "paymasterData" in overrides) return true;
-  return false;
-}
-
 export function useDelegationToolkitAA(): DelegationToolkitAA {
   const { provider, address } = useWallet();
   const [initializing, setInitializing] = useState(false);
@@ -291,69 +271,6 @@ export function useDelegationToolkitAA(): DelegationToolkitAA {
 
       const transport = alchemy(transportConfig);
 
-      const attachPaymaster = async (uo: any) => {
-        try {
-          const payload: Record<string, unknown> = {
-            sender: uo.sender,
-            nonce: serializeBigNumberish(uo.nonce),
-            initCode: uo.initCode ?? "0x",
-            callData: uo.callData ?? "0x",
-            callGasLimit: serializeBigNumberish(uo.callGasLimit),
-            verificationGasLimit: serializeBigNumberish(
-              uo.verificationGasLimit ?? uo.paymasterVerificationGasLimit
-            ),
-            preVerificationGas: serializeBigNumberish(uo.preVerificationGas),
-            maxFeePerGas: serializeBigNumberish(uo.maxFeePerGas),
-            maxPriorityFeePerGas: serializeBigNumberish(uo.maxPriorityFeePerGas),
-            signature: "0x",
-            paymasterAndData: "0x",
-          };
-          if ("paymasterVerificationGasLimit" in uo) {
-            payload.paymasterVerificationGasLimit = serializeBigNumberish(
-              uo.paymasterVerificationGasLimit
-            );
-          }
-          if ("paymasterPostOpGasLimit" in uo) {
-            payload.paymasterPostOpGasLimit = serializeBigNumberish(
-              uo.paymasterPostOpGasLimit
-            );
-          }
-
-          const nowSeconds = Math.floor(Date.now() / 1000);
-          const response = await fetch("/api/paymaster/sign", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              userOperation: payload,
-              validUntil: nowSeconds + 3600,
-              validAfter: 0,
-            }),
-          });
-
-          if (!response.ok) {
-            throw new Error(`paymaster/sign ${response.status}`);
-          }
-
-          const result = await response.json();
-          if (result?.paymasterAndData) {
-            return {
-              ...uo,
-              paymasterAndData: result.paymasterAndData as Hex,
-            };
-          }
-          if (result?.paymaster && result?.paymasterData) {
-            return {
-              ...uo,
-              paymaster: result.paymaster as Hex,
-              paymasterData: result.paymasterData as Hex,
-            };
-          }
-        } catch (err) {
-          console.warn("[useDelegationToolkitAA] paymaster signing failed", err);
-        }
-        return uo;
-      };
-
       const metamaskAccount = smartAccount as SmartContractAccount & {
         entryPoint?: { address: string; version?: string };
         getEntryPoint?: () => ReturnType<typeof getEntryPoint>;
@@ -371,34 +288,8 @@ export function useDelegationToolkitAA(): DelegationToolkitAA {
         chain,
         transport,
         account: metamaskAccount as SmartContractAccount,
-        customMiddleware: async (struct, context) => {
-          if (context?.overrides && bypassesPaymaster(context.overrides)) {
-            return struct;
-          }
-          return attachPaymaster(struct);
-        },
+        paymaster: true,
       });
-
-      const identityMiddleware = async (uo: any) => uo;
-      const zeroPaymasterMiddleware = async (uo: any) => {
-        if (uo && typeof uo === "object") {
-          if ("paymasterAndData" in uo) {
-            return { ...uo, paymasterAndData: "0x" };
-          }
-          if ("paymaster" in uo || "paymasterData" in uo) {
-            return {
-              ...uo,
-              paymaster: "0x",
-              paymasterData: "0x",
-            };
-          }
-        }
-        return uo;
-      };
-      if (alchemyClient?.middleware) {
-        (alchemyClient.middleware as any).paymasterAndData = identityMiddleware;
-        (alchemyClient.middleware as any).dummyPaymasterAndData = zeroPaymasterMiddleware;
-      }
 
       smartAccountRef.current = smartAccount;
       alchemyClientRef.current = alchemyClient;
